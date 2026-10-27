@@ -35,7 +35,7 @@ type MoveTarget struct {
 	// Kind is here (the database on the computer that moved it), atlas
 	// (MongoDB Atlas) or server (another MongoDB server).
 	Kind string `bson:"kind" json:"kind" jsonschema:"enum=here,enum=atlas,enum=server"`
-	// Words say it for people: "MongoDB Atlas (cluster0.example.mongodb.net)".
+	// Words say it for people: "MongoDB Atlas", "a MongoDB server on your network".
 	Words string `bson:"words" json:"words"`
 	// Host is where it is (hosts and ports only); Name the database's name.
 	Host string `bson:"host,omitempty" json:"host,omitempty"`
@@ -174,7 +174,7 @@ type ErrDatabaseMoving struct{ Marker MoveMarker }
 
 func (e *ErrDatabaseMoving) Error() string {
 	if e.Marker.State == MoveMoved {
-		return fmt.Sprintf("the workspace moved to another database (%s), so MetaRush doesn't change this one: switch this computer too", e.Marker.To.Words)
+		return fmt.Sprintf("the workspace moved to another database, %s, so MetaRush doesn't change this one: switch this computer too", e.Marker.To.Words)
 	}
 	return "the workspace is being moved to another database, so MetaRush doesn't change this one until that is done"
 }

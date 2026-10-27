@@ -96,7 +96,7 @@ type DatabaseMoveIn struct {
 // DatabasePlace is a database in words, never with a sign-in.
 type DatabasePlace struct {
 	Kind  string `json:"kind" jsonschema:"enum=here,enum=atlas,enum=server"`
-	Words string `json:"words" jsonschema:"description=The database in words: the database on this computer\\, MongoDB Atlas (cluster0.example.mongodb.net)\\, a MongoDB server on your network."`
+	Words string `json:"words" jsonschema:"description=The database in words: the database on this computer\\, MongoDB Atlas\\, a MongoDB server on your network."`
 	// Host is where it is (hosts and ports only); Name the database's name.
 	Host string `json:"host,omitempty"`
 	Name string `json:"name"`
@@ -222,11 +222,11 @@ func databasePlaceOf(d config.Database) DatabasePlace {
 	p.Cloud = !nearbyHost(first) || u.Scheme == "mongodb+srv"
 	switch {
 	case strings.HasSuffix(first, ".mongodb.net"):
-		p.Kind, p.Words = "atlas", "MongoDB Atlas ("+first+")"
+		p.Kind, p.Words = "atlas", "MongoDB Atlas"
 	case first == "127.0.0.1" || first == "localhost" || first == "::1":
-		p.Kind, p.Words = "server", "a MongoDB server at an address on this computer ("+u.Host+")"
+		p.Kind, p.Words = "server", "a MongoDB server on this computer"
 	case nearbyHost(first):
-		p.Kind, p.Words = "server", "a MongoDB server on your network ("+u.Host+")"
+		p.Kind, p.Words = "server", "a MongoDB server on your network"
 	default:
 		p.Kind, p.Words = "server", "a MongoDB server at "+first
 	}
@@ -567,7 +567,7 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 		}
 		out.Problems = append(out.Problems, fmt.Sprintf("Your other computers (%s) couldn't reach the database on this computer, so they couldn't use the workspace any more. Move it here only if this computer will be the only one: say so, and check again.", joinAnd(names)))
 	}
-	if t.place.Kind == "server" && strings.Contains(t.place.Words, "on this computer") && others > 0 {
+	if t.place.Kind == "server" && t.place.Words == "a MongoDB server on this computer" && others > 0 {
 		out.Notes = append(out.Notes, "The new database's address is on this computer: your other computers reach it only if the same address works on theirs (a tunnel, say).")
 	}
 	// How long it takes, and what waits meanwhile.
@@ -654,7 +654,7 @@ func headlineCounts(cs []dbmove.MoveCollection) []DatabaseCount {
 // reading both sides again to check it.
 func estimateSeconds(bytes int64, collections int, t *dbTarget) int {
 	copyRate, readRate := 4.0*(1<<20), 10.0*(1<<20) // another computer, over the network
-	if t.local != nil || t.place.Kind == "server" && strings.Contains(t.place.Words, "on this computer") {
+	if t.local != nil || t.place.Kind == "server" && t.place.Words == "a MongoDB server on this computer" {
 		copyRate, readRate = 25.0*(1<<20), 60.0*(1<<20)
 	}
 	s := 20.0 + float64(bytes)/copyRate + 2*float64(bytes)/readRate + 0.3*float64(collections)

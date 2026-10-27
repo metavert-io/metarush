@@ -59,12 +59,22 @@ func readAddress(c *cobra.Command, what string) (string, error) {
 	return uri, nil
 }
 
+// refuseAddress refuses a database address typed as --to before anything
+// opens (nothing is recorded with it), without repeating it.
+func refuseAddress(to string) error {
+	low := strings.ToLower(strings.TrimSpace(to))
+	if strings.HasPrefix(low, "mongodb://") || strings.HasPrefix(low, "mongodb+srv://") || strings.Contains(to, "@") {
+		return apperr.New(apperr.InvalidInput, "A database address isn't taken on the command line, where it would stay in the shell's history.").
+			WithHint("Send it on standard input instead (--to address), or name an environment variable that holds it (--to env:NAME).")
+	}
+	return nil
+}
+
 // target reads --to: the address, when one is given, is kept on this computer
 // for the move (ops.SaveMoveAddress) and the operation names only "saved".
 func (m *moveTo) target(c *cobra.Command, a *app.App, switching bool) (ops.DatabaseTargetIn, error) {
 	in := ops.DatabaseTargetIn{Name: m.name, OnlyThisComputer: m.only}
 	to := strings.TrimSpace(m.to)
-	low := strings.ToLower(to)
 	keep := func(uri string) error {
 		if err := ops.SaveMoveAddress(a.Cfg, uri); err != nil {
 			return err
@@ -72,10 +82,10 @@ func (m *moveTo) target(c *cobra.Command, a *app.App, switching bool) (ops.Datab
 		in.To = ops.MoveToSaved
 		return nil
 	}
+	if err := refuseAddress(to); err != nil {
+		return in, err
+	}
 	switch {
-	case strings.HasPrefix(low, "mongodb://") || strings.HasPrefix(low, "mongodb+srv://") || strings.Contains(to, "@"):
-		return in, apperr.New(apperr.InvalidInput, "A database address isn't taken on the command line, where it would stay in the shell's history.").
-			WithHint("Send it on standard input instead (--to address), or name an environment variable that holds it (--to env:NAME).")
 	case to == "here" && !switching:
 		in.To = ops.MoveToHere
 	case to == "address":
@@ -122,6 +132,9 @@ whether the new database answers, holds nothing and takes writes. It changes not
   metarush database plan --to address --name studio < atlas-address.txt`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
+			if err := refuseAddress(m.to); err != nil {
+				return failErr(c, err)
+			}
 			a, err := openApp(c, "cli")
 			if err != nil {
 				return err
@@ -160,6 +173,9 @@ on in the old database. Only a person at this computer moves it (or in Settings 
 		RunE: func(c *cobra.Command, _ []string) error {
 			if dashboardMove != "" {
 				return runDashboardDatabaseMove(c, dashboardMove)
+			}
+			if err := refuseAddress(m.to); err != nil {
+				return failErr(c, err)
 			}
 			if err := personAtTerminal(c, "moves"); err != nil {
 				return err
@@ -260,6 +276,9 @@ never copied between computers), read from standard input (--to address) or an e
 switches; MetaRush running in the background starts again with it. Settings → Storage does the same.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
+			if err := refuseAddress(to); err != nil {
+				return failErr(c, err)
+			}
 			if err := personAtTerminal(c, "switches"); err != nil {
 				return err
 			}

@@ -379,9 +379,9 @@ func TestRestoreHoldsWorkThatCouldRunTwice(t *testing.T) {
 // in before it stopped must still be exactly the archive's — none added, none
 // changed (once migrations ran, which change records and may add the
 // workspace's own: none gone, none of another workspace) — or it stops,
-// saying so, and the database stays held. A copy
-// nobody touched continues and finishes. Exporting a database a restore still
-// holds is refused too: there is no whole workspace in it.
+// saying so, and the database stays held. A copy nobody touched continues and
+// finishes. Exporting a database a restore still holds is refused too: there
+// is no whole workspace in it.
 func TestRestoreContinuesOnlyOverAnUntouchedCopy(t *testing.T) {
 	ctx := context.Background()
 	src := testutil.DB(t)

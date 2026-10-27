@@ -726,8 +726,13 @@ Read `docs/architecture.md` before structural changes.
   `KillMode=process` + `ExecStopPost` `metarush service reap` (never mongod);
   `app.OpenWith` starts it, the daemon `Watch`es it, `metarush stop` stops it, `metarush database
   status|start|stop|upgrade` (upgrades only by a person at a terminal, `--dry-run` for agents, one series at a time,
-  never back, an unfinished one offered again); downloads refused under
-  `go test` (stand-ins: `METARUSH_MONGODB_PIN`, loopback only; `METARUSH_MONGODB_ARCHIVE`); tests use a real mongod
+  never back, an unfinished one offered again). Linux kernels 6.19–7.0.13 (D339, `localdb/kernel.go`): MongoDB 8
+  refuses them, so `KernelRefuses` reads the kernel as the installed MongoDB does (uname's release; Ubuntu's
+  `/proc/version_signature` from 8.0.35) and a new home there gets `localdb.Older` (7.0.45; `KernelNote` said before
+  the download); an 8.0 home there never goes back: `Start` returns `ErrKernel` with plain words and what to do
+  (`Error.Next`), `Status.CantStart|UpgradeWaits`, doctor, `app.OpenWith`; upgrades wait for the kernel. Downloads refused under
+  `go test` (stand-ins: `METARUSH_MONGODB_PIN` with an optional `older`, loopback only; `METARUSH_MONGODB_ARCHIVE`;
+  `localdb.ReadKernel` replaced for a kernel); tests use a real mongod
   when one is installed (`METARUSH_TEST_MONGOD`, else skipped). `firstrun` says what works with no keys / with a key
   and checks Claude Code by asking it (`--version`, `auth status --json`; never a sign-in, never its credentials;
   refused under `go test` unless `tools.claude` is a fake); op `setup.status` feeds Home's Getting started. Release

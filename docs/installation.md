@@ -146,6 +146,19 @@ With the suggested answer, setup sets up a database just for this MetaRush:
   `<home>/database/mongodb/<version>/`. It comes under MongoDB's own licence (the Server Side Public License; the
   licence file is next to the server). MongoDB makes it for Macs (Apple silicon and Intel) and for Ubuntu 20.04–24.04,
   Debian 12, RHEL/Rocky/Alma 8–10, Amazon Linux 2023 and SUSE 15; elsewhere setup offers a database elsewhere instead.
+- **Linux kernels 6.19 through 7.0.13:** MongoDB 8 doesn't run on them (a change in those kernels breaks the memory
+  allocator MongoDB 8 is built with; MongoDB's SERVER-121912 and SERVER-125742): MongoDB 8.0 stops at once there,
+  and no 8.0 release fixes that; kernel 7.0.14 and later fix it. Ubuntu's kernels keep calling themselves 7.0.0
+  however many fixes they carry, so MongoDB 8.0.34 refuses them even once they are fixed (MongoDB's next 8.0,
+  8.0.35, reads the version they are built from). Setup reads the kernel the way MongoDB does and, before downloading
+  anything, says when it is one of those; the database on this computer is then **MongoDB 7.0** (7.0.45, about 85
+  MB), which runs on every kernel and works the same for MetaRush. When the kernel lets MongoDB 8 run (a kernel
+  update, or a MetaRush with a newer MongoDB), `metarush database status` and doctor offer the upgrade to 8.0, one
+  step as usual; until then an upgrade is refused and says why. MongoDB makes no 7.0 for Ubuntu 24.04 or RHEL 9.3:
+  those computers get its Ubuntu 22.04 and RHEL 9.0 builds. A database already on MongoDB 8 on a computer whose kernel
+  changed to one of those is never moved back to 7.0: it doesn't start, and the dashboard, `metarush database status`,
+  every command that needs it and doctor say why and what to do (update the kernel, or start the computer with an
+  older one); your projects stay in it. MongoDB Atlas or your own server on another computer is the other way.
 - **Where:** your projects in `<home>/database/data` — never in a folder that syncs to the cloud or a git
   repository (setup refuses: a copy of that folder would open every project; choose another home with `--home`).
   The one exception is a git repository of your whole home folder (a dotfiles repository): it is allowed, and setup

@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- **The database on this computer sets itself up on Linux kernels MongoDB 8 refuses**. MongoDB 8 doesn't start on
+  Linux kernels 6.19 through 7.0.13 (Ubuntu 24.04's newer kernels and Ubuntu 26.04's among them), and no MongoDB 8.0
+  release changes that. Setup now says so before downloading anything and sets up MongoDB 7.0 there instead, which
+  works the same for MetaRush; the database moves on to 8.0 with an upgrade once the kernel lets it. A database
+  already on MongoDB 8 on such a kernel is never moved back: setup, `metarush database status`, doctor and every
+  command that needs it say why it can't start and what to do, instead of "its log says why".
 - **Waiting in a terminal never hangs on a missing component**. `metarush ingest --wait` (and every other command that
   waits for work) used to wait forever, saying nothing, when the work needed a component no computer had — a
   transcript on a computer without transcription, say. Now it finishes the rest (preview copies and the like), then

@@ -77,6 +77,14 @@ func serveCmd() *cobra.Command {
 					WithCommand("metarush stop (or metarush service uninstall for the background service)"))
 			}
 			defer unlock()
+			// A move of the workspace's database keeps changes out of it
+			// (D335): MetaRush here holds — the dashboard reads, no
+			// background work — until the move is abandoned or this computer
+			// switched to the new database.
+			if m, err := a.DB.ReadMoveMarker(ctx); err == nil && m.Frozen() {
+				a.SetMoveMarker(m)
+				return serveHeld(c, a, ctx, cancel, workerOnly)
+			}
 			if applied, err := a.DB.Migrate(ctx); err != nil {
 				return failErr(c, unfinishedRestore(err))
 			} else if len(applied) > 0 {
@@ -164,6 +172,13 @@ func serveCmd() *cobra.Command {
 			ingest.Live, srv.Watch = wm, wm
 			wm.Apply(a.Cfg.Worker.Watch)
 			var moved atomic.Bool // the media storage changed (`metarush storage migrate`): start again with it
+			// A move of the database started (D335): start again holding.
+			go watchForMove(ctx, a, func(m *store.MoveMarker) {
+				if !moved.Swap(true) {
+					srv.Log("%s: pausing (MetaRush starts again, reading only)", ops.MovedWords(m))
+					cancel()
+				}
+			})
 			// Linked folders (resources) stay in step the same way; their
 			// paths are per machine (config.yaml resources.folders).
 			fm := intake.NewFolderManager(ctx, a, srv.Log)
@@ -266,6 +281,103 @@ func serveCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&noWatch, "no-watch", false, "do not watch the inbox folder")
 	cmd.Flags().BoolVar(&workerOnly, "worker-only", false, "run the worker and background jobs without the dashboard (unattended machines; see `metarush service install --worker-only`)")
 	return cmd
+}
+
+// MoveCheckEvery is how often MetaRush running in the background looks at
+// the database's move marker.
+var MoveCheckEvery = 2 * time.Second
+
+// watchForMove calls frozen once the workspace's database is held by a move.
+func watchForMove(ctx context.Context, a *app.App, frozen func(*store.MoveMarker)) {
+	t := time.NewTicker(MoveCheckEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		c, cancel := context.WithTimeout(ctx, 5*time.Second)
+		m, err := a.DB.ReadMoveMarker(c)
+		cancel()
+		if err == nil && m.Frozen() {
+			a.SetMoveMarker(m)
+			frozen(m)
+			return
+		}
+	}
+}
+
+// serveHeld is MetaRush in the background while a move keeps changes out of
+// the workspace's database (D335): the dashboard reads (api.NewHeld refuses
+// changes), no work runs, nothing is brought up to date; the marker hears that
+// this computer paused. It starts again (exec, like a storage move) once the
+// move is abandoned, or config.yaml changed (this computer switched to the
+// new database).
+func serveHeld(c *cobra.Command, a *app.App, ctx context.Context, cancel context.CancelFunc, workerOnly bool) error {
+	logf := func(f string, x ...any) { fmt.Fprintf(os.Stderr, f+"\n", x...) }
+	m, _ := ops.HoldForMove(ctx, a)
+	logf("MetaRush %s is holding (reading only): %s", versionString(), ops.MovedWords(m))
+	if l := a.Cfg.Database.Local; l != nil {
+		go localdb.New(a.Cfg.Home(), l.Port, a.Tools).Watch(ctx, logf)
+	}
+	srv := api.NewHeld(a)
+	srv.Log = logf
+	var restart atomic.Bool
+	go func() {
+		p := config.Path(a.Cfg.Home())
+		last := time.Time{}
+		if st, err := os.Stat(p); err == nil {
+			last = st.ModTime()
+		}
+		said := time.Now()
+		t := time.NewTicker(MoveCheckEvery)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			}
+			if st, err := os.Stat(p); err == nil && !st.ModTime().Equal(last) {
+				logf("config.yaml changed: starting again with it")
+				restart.Store(true)
+				cancel()
+				return
+			}
+			cctx, ccancel := context.WithTimeout(ctx, 5*time.Second)
+			m, err := a.DB.ReadMoveMarker(cctx)
+			ccancel()
+			if err != nil {
+				continue
+			}
+			a.SetMoveMarker(m)
+			if !m.Frozen() {
+				logf("the move of the database was abandoned: starting again")
+				restart.Store(true)
+				cancel()
+				return
+			}
+			if m.State == store.MoveMoving && time.Since(said) > 10*time.Second {
+				_, _ = ops.HoldForMove(ctx, a)
+				said = time.Now()
+			}
+		}
+	}()
+	st := daemonState{PID: os.Getpid(), Port: a.Cfg.Dashboard.Port, StartedAt: time.Now().UTC(), Version: versionString(), Mode: "held", Service: os.Getenv("METARUSH_SERVICE")}
+	if workerOnly {
+		st.Port = 0
+	}
+	b, _ := json.Marshal(st)
+	_ = os.WriteFile(filepath.Join(a.Cfg.StateDir(), "daemon.json"), b, 0o600)
+	defer os.Remove(filepath.Join(a.Cfg.StateDir(), "daemon.json"))
+	var err error
+	if workerOnly {
+		<-ctx.Done()
+	} else {
+		err = srv.Listen(ctx)
+	}
+	return restartIfMoved(restart.Load(), a, srv, err)
 }
 
 // storageKeyChanged reports whether config.yaml now gives this machine another
@@ -590,6 +702,21 @@ func workerCmd() *cobra.Command {
 			defer a.Close()
 			ctx, cancel := signalCtx(c.Context())
 			defer cancel()
+			// A move of the workspace's database keeps changes out of it
+			// (D335): no work runs meanwhile.
+			if m, err := a.MoveMarker(ctx); err == nil && m.Frozen() {
+				return failErr(c, ops.FrozenError(m))
+			}
+			var held atomic.Pointer[store.MoveMarker]
+			go watchForMove(ctx, a, func(m *store.MoveMarker) {
+				held.Store(m)
+				cancel() // a stopping worker hands its jobs back (they run again later)
+			})
+			defer func() {
+				if m := held.Load(); m != nil {
+					fmt.Fprintln(os.Stderr, upperFirst(ops.MovedWords(m))+". Start the work again once it's done.")
+				}
+			}()
 			// This version's renderer is set up the first time a worker starts.
 			go renderer.New(a.Cfg, a.Tools).FirstUse(ctx, func(f string, x ...any) { fmt.Fprintf(os.Stderr, f+"\n", x...) })
 			w := worker.New(a)

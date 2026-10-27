@@ -113,6 +113,23 @@ type Server struct {
 	mediaDown atomic.Bool
 	// signInLimit caps sign-in and link tries per address (D183).
 	signInLimit *rateLimit
+	// held: a move keeps changes out of the workspace's database (D335);
+	// this server reads only and starts no background work (NewHeld).
+	held bool
+}
+
+// NewHeld builds the server MetaRush runs while a move of the database keeps
+// changes out of it (D335): the dashboard reads, nothing changes — no
+// background work of its own (recovered uploads and recordings, the
+// assistant's notes), and changes outside the operations are refused.
+func NewHeld(a *app.App) *Server {
+	s := &Server{App: a, startedAt: time.Now().UTC(), Log: func(string, ...any) {}, signInLimit: newRateLimit(20), held: true}
+	s.broker = NewBroker(a)
+	s.uploads = newUploads(s)
+	exe, _ := os.Executable()
+	s.Assistant = assistant.NewTerminal(a, exe)
+	s.Assistant.OnChange = func(id string) { s.broker.Local(Event{Type: "assistant", ID: id}) }
+	return s
 }
 
 // New builds a server.
@@ -166,13 +183,15 @@ func (s *Server) Listen(ctx context.Context) error {
 	}
 	srv := &http.Server{Handler: s.Handler(), ReadHeaderTimeout: 15 * time.Second, IdleTimeout: 120 * time.Second}
 	go s.broker.Run(ctx)
-	s.uploads.recover()
-	go s.uploads.sweep(ctx)
-	asPerson := func(userID, userName string) *app.App {
-		return s.appAs(person{UserID: userID, UserName: userName}, "dashboard")
+	if !s.held {
+		s.uploads.recover()
+		go s.uploads.sweep(ctx)
+		asPerson := func(userID, userName string) *app.App {
+			return s.appAs(person{UserID: userID, UserName: userName}, "dashboard")
+		}
+		go recorder.Recover(ctx, s.App, asPerson)
+		go recorder.Sweep(ctx, s.App, asPerson) // pieces of recordings nobody finished don't stay forever
 	}
-	go recorder.Recover(ctx, s.App, asPerson)
-	go recorder.Sweep(ctx, s.App, asPerson) // pieces of recordings nobody finished don't stay forever
 	defer s.uploads.st.Flush()
 	go func() {
 		<-ctx.Done()
@@ -222,6 +241,9 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("/storage/choose", s.storageChoose).Methods("POST")
 	api.HandleFunc("/storage/plan", s.storagePlan).Methods("POST")
 	api.HandleFunc("/storage/move", s.storageMove).Methods("POST")
+	api.HandleFunc("/database/plan", s.databasePlan).Methods("POST") // D338: moving the database
+	api.HandleFunc("/database/move", s.databaseMove).Methods("POST")
+	api.HandleFunc("/database/switch", s.databaseSwitch).Methods("POST")
 	api.HandleFunc("/providers/{name}/voices/{voice}/preview", s.voicePreview).Methods("GET")
 	s.assistantRoutes(api)
 	s.recordingRoutes(api) // screen recordings made in the dashboard (D258)
@@ -240,7 +262,7 @@ func (s *Server) Handler() http.Handler {
 	med.HandleFunc("/resources/file/{sha}", s.resourceFileByHash).Methods("GET", "HEAD") // before {id}/{kind}
 	med.HandleFunc("/resources/{id}/{kind}", s.resourceMedia).Methods("GET", "HEAD")
 	r.PathPrefix("/").HandlerFunc(s.static)
-	return s.hostGuard(securityHeaders(r))
+	return s.hostGuard(securityHeaders(s.heldGuard(r)))
 }
 
 func securityHeaders(next http.Handler) http.Handler {

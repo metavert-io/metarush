@@ -10,7 +10,9 @@
 //   3. The three tracks are footage of the same length with the pause left out of each;
 //      the voice's place on the clock agrees with lining the files up by their sound;
 //      a cut starts with the camera in a corner.
-//   4. A tab closed mid-recording: the next page offers to send the rest and keep it.
+//   4. A tab closed mid-recording, once pieces of the screen, the camera and the voice reached MetaRush while it
+//      recorded (a piece of picture at least every 3.5 s): the next page offers to send the rest and keep it, and
+//      what's kept plays to its end, all but about the last piece.
 //   5. Screen sharing ending stops the recording by itself and keeps it.
 //   6. A refused microphone and one that never answers are said plainly.
 // Screenshots (desktop and phone, dark and light) go to RECORDER_SHOTS.
@@ -174,13 +176,13 @@ async function openRecorder(page) {
   await recorder(page).getByRole('meter', { name: 'Microphone level' }).waitFor({ timeout: 25_000 });
 }
 
-async function waitFor(fn, ms, what) {
+async function waitFor(fn, ms, what, every = 500) {
   const until = Date.now() + ms;
   for (;;) {
     const v = await fn();
     if (v) return v;
     if (Date.now() > until) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, every));
   }
 }
 
@@ -271,11 +273,16 @@ try {
   check('a cut starts with the screen and the camera in a corner', sh?.layout === 'pip' && sh.members?.join(',') === 'screen,camera' && !!spec.conversations?.call, JSON.stringify(sh));
   await shot(page, 'cut-desktop-dark');
 
-  // 4. A tab closed mid-recording: the next page sends the rest and keeps it.
+  // 4. A tab closed mid-recording. While it records, pieces of every track reach MetaRush (the screen's and the
+  //    camera's about two seconds of picture each, a keyframe first); then the tab closes, the next page sends the
+  //    rest and keeps it, and what's kept plays, missing only about the last piece.
   const p2 = watch(await ctx.newPage());
   await openRecorder(p2);
   await recorder(p2).locator('[data-choose-screen]').click();
   await recorder(p2).locator('[data-surface="window"]').waitFor({ timeout: 10_000 });
+  const cams2 = await recorder(p2).locator('[data-camera-picker] option').evaluateAll((os) => os.map((o) => o.value));
+  await recorder(p2).locator('[data-camera-picker]').selectOption(cams2.find((v) => v));
+  await recorder(p2).locator('[data-source="camera"] video').waitFor({ timeout: 15_000 });
   await recorder(p2).locator('[data-recording-name]').fill('Closed tab');
   await recorder(p2).getByRole('radio', { name: 'Paste a script' }).click();
   await recorder(p2).locator('[data-script]').fill('One line to read.\n\nAnd another.');
@@ -283,8 +290,55 @@ try {
   await recorder(p2).locator('[data-record]').click();
   await waitFor(async () => (await phase(p2)) === 'recording', 15_000, 'recording');
   if (floats) check('the teleprompter floats in its own window when asked', await p2.getByText('The teleprompter floats in its own window.').isVisible());
-  await p2.waitForTimeout(4500);
   const open = (await api(page, 'recording.list', { projectId: P })).recordings.find((x) => x.recording.name === 'Closed tab');
+  // What MetaRush has of each track (its HEAD's offset), asked from the first tab four times a second while this one
+  // records; each time it has more, when (seconds recorded) and how much.
+  const tracks = ['screen', 'camera', 'voice'];
+  const arrived = Object.fromEntries(tracks.map((t) => [t, []]));
+  const HEADER = 8 * 1024; // an MP4's header is about 1 KB: past this, pictures arrived
+  const pictures = (t) => arrived[t].filter(([, b]) => b > HEADER);
+  const hostHas = () =>
+    page.evaluate(
+      async ([id, tracks]) => {
+        const out = {};
+        for (const t of tracks) {
+          const r = await fetch(`/api/recordings/${id}/tracks/${t}`, { method: 'HEAD', credentials: 'same-origin' });
+          out[t] = r.ok ? Number(r.headers.get('Upload-Offset') ?? 0) : -1;
+        }
+        return out;
+      },
+      [open.recording.id, tracks],
+    );
+  const timeline = () =>
+    tracks
+      .map((t) => {
+        const a = arrived[t];
+        if (!a.length) return `${t}: nothing`;
+        if (t === 'voice') return `voice: ${a.length} times, ${Math.round(a.at(-1)[1] / 1024)} KB by ${a.at(-1)[0].toFixed(1)} s`;
+        return `${t}: ${a.map(([s, b]) => `${s.toFixed(1)} s ${Math.round(b / 1024)} KB`).join(', ')}`;
+      })
+      .join('; ');
+  let streamed = true;
+  try {
+    await waitFor(
+      async () => {
+        const [has, at] = await Promise.all([hostHas(), elapsed(p2)]);
+        for (const t of tracks) if (has[t] > (arrived[t].at(-1)?.[1] ?? 0)) arrived[t].push([at, has[t]]);
+        return pictures('screen').length >= 4 && pictures('camera').length >= 4 && arrived.voice.length >= 4;
+      },
+      40_000,
+      'pieces of every track while recording',
+      250,
+    );
+  } catch {
+    streamed = false;
+  }
+  check('while it records, pieces of the screen, the camera and the voice reach MetaRush', streamed && (await phase(p2)) === 'recording', timeline());
+  // A piece of picture every two seconds (a keyframe each), each handed over within half a second of its end: never
+  // more than 3.5 s without one, from the start on (asked four times a second, the page's clock in tenths).
+  const longest = (t) => Math.max(...pictures(t).map(([s], i, all) => s - (i ? all[i - 1][0] : 0)));
+  check('…a piece of picture about every two seconds from each (never 3.5 s without one)', streamed && longest('screen') <= 3.5 && longest('camera') <= 3.5, `longest wait: screen ${longest('screen').toFixed(1)} s, camera ${longest('camera').toFixed(1)} s`);
+  const closedAt = await elapsed(p2);
   await p2.close();
   const p3 = watch(await ctx.newPage());
   // Someone else who used this browser left a recording here: it is theirs, never offered to this person.
@@ -322,8 +376,22 @@ try {
     90_000,
     'the kept recording',
   );
-  const keptDur = (await api(p3, 'asset.show', { id: kept.tracks.find((t) => t.id === 'voice').assetId })).asset.media.duration;
-  check('what the closed tab recorded is kept as footage', kept.ended === 'kept' && keptDur > 3 && kept.tracks.every((t) => t.assetId), `voice ${keptDur.toFixed(2)} s, ended ${kept.ended}`);
+  check('what the closed tab recorded is kept as footage', kept.ended === 'kept' && tracks.every((t) => kept.tracks.find((x) => x.id === t)?.assetId), `ended ${kept.ended}`);
+  // Only what the browser hadn't handed over yet is lost: the piece being recorded (a keyframe every two seconds) and
+  // a moment to hand it over. Each picture plays to its end.
+  const LOST_AT_MOST = 3.5;
+  for (const t of tracks) {
+    const id = kept.tracks.find((x) => x.id === t)?.assetId;
+    if (!id) continue;
+    const dur = (await api(p3, 'asset.show', { id })).asset.media.duration;
+    check(`…the ${t}: all but the last piece or so (${LOST_AT_MOST} s at most)`, dur >= closedAt - LOST_AT_MOST && dur <= closedAt + 0.5, `${dur.toFixed(2)} s kept of ${closedAt.toFixed(1)} s recorded`);
+    if (t === 'voice') continue;
+    const end = await p3.evaluate(async (u) => {
+      const r = await fetch(u, { credentials: 'same-origin' });
+      return { status: r.status, type: r.headers.get('Content-Type'), size: (await r.arrayBuffer()).byteLength };
+    }, `/media/assets/${id}/frame?t=${Math.max(0, dur - 0.3).toFixed(1)}`);
+    check(`…the ${t} plays to its end`, end.status === 200 && /^image\//.test(end.type ?? '') && end.size > 1000, JSON.stringify(end));
+  }
 
   // 5. Screen sharing ends: the recording stops by itself and is kept.
   await openRecorder(p3);

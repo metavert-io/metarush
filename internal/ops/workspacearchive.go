@@ -12,10 +12,14 @@ import (
 	"sync"
 	"time"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/version"
 	"github.com/metavert-io/metarush/internal/wsarchive"
 )
@@ -106,8 +110,8 @@ type ExportRecord struct {
 	// or a password taken out, and of which kinds.
 	Scrubbed wsarchive.ScrubSummary `json:"scrubbed"`
 	Notes    []string               `json:"notes,omitempty"`
-	Error   string   `json:"error,omitempty"`
-	Says    string   `json:"says"`
+	Error    string                 `json:"error,omitempty"`
+	Says     string                 `json:"says"`
 	// PID is the process making it (a stopped one is said as stopped).
 	PID int `json:"-"`
 }
@@ -288,10 +292,12 @@ func workspaceExport(ctx context.Context, a *app.App, in *WorkspaceExportIn) (*W
 // exportOptions are the export's options for this App: its database (read
 // only), its workspace, its storage and this computer's copies.
 func exportOptions(ctx context.Context, a *app.App, to string, tar bool, media string) wsarchive.ExportOptions {
+	// Every key this computer holds stays out: the configured ones, the
+	// providers' and the abilities' (by the names the workspace's abilities
+	// read them under), and any this process has read; the CLI adds another
+	// database's address and its storage's key.
 	extra, _ := ctx.Value(exportSecretsKey{}).([]string)
-	if a.Cfg != nil {
-		extra = append(extra, a.Cfg.Media.S3.SecretAccessKey)
-	}
+	extra = append(extra, logbook.KnownSecrets(a.Cfg, abilityKeyNames(ctx, a)...)...)
 	b := version.Current()
 	machine := ""
 	if a.Cfg != nil {
@@ -315,6 +321,19 @@ func exportOptions(ctx context.Context, a *app.App, to string, tar bool, media s
 		o.ScratchDir = filepath.Join(a.Cfg.Scratch.Dir, "exports")
 	}
 	return o
+}
+
+// abilityKeyNames are the names of the keys the workspace's abilities read
+// (read only).
+func abilityKeyNames(ctx context.Context, a *app.App) []string {
+	if a.DB == nil {
+		return nil
+	}
+	var names []string
+	if err := a.DB.C(store.CAbilities).Distinct(ctx, "facts.keys.name", bson.M{"workspaceId": a.WorkspaceID()}).Decode(&names); err != nil {
+		return nil
+	}
+	return names
 }
 
 // freeName is a new archive's name in the exports folder: the workspace's

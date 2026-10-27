@@ -23,6 +23,11 @@ func init() {
 		}
 		return out
 	})
+	// A key by its name (an ability's): the keychain or the home's secrets file.
+	logbook.SetKeyLookup(func(cfg *config.Config, name string) string {
+		k, _, _ := Key(cfg, name)
+		return k
+	})
 }
 
 // seen tells the activity log about a key this process holds.

@@ -2,7 +2,11 @@ package logbook
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -61,6 +65,93 @@ func AddSecretSource(f func(cfg *config.Config) []string) {
 	procMu.Lock()
 	defer procMu.Unlock()
 	sources = append(sources, f)
+}
+
+var keyLookup func(cfg *config.Config, name string) string
+
+// SetKeyLookup tells the log how to read a key this computer keeps by its
+// name (the providers package: the keychain or the home's secrets file), for
+// KnownSecrets' named keys.
+func SetKeyLookup(f func(cfg *config.Config, name string) string) {
+	procMu.Lock()
+	defer procMu.Unlock()
+	keyLookup = f
+}
+
+// KnownSecrets lists the exact secrets this computer knows for an
+// installation, to take them out of what leaves it (an archive of the
+// workspace): its configured ones (the database's password, the storage's
+// secret key, the confirm-token key), what every secret source lists
+// (providers' keys), the keys named (an ability's), every secret-named value
+// in the home's secrets file and in this process's environment, and every key
+// this process has read. Values shorter than eight characters are left out:
+// as exact text they would match ordinary words.
+func KnownSecrets(cfg *config.Config, keyNames ...string) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(vs ...string) {
+		for _, v := range vs {
+			v = strings.TrimSpace(v)
+			if len(v) < minEnvSecretLen || seen[v] {
+				continue
+			}
+			seen[v] = true
+			out = append(out, v)
+		}
+	}
+	procMu.Lock()
+	for v := range procSecrets {
+		add(v)
+	}
+	srcs := append([]func(*config.Config) []string(nil), sources...)
+	lookup := keyLookup
+	procMu.Unlock()
+	for _, kv := range os.Environ() {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		if pw := urlPassword(v); pw != "" {
+			add(pw)
+		}
+		if SecretEnvName(k) {
+			add(v)
+		}
+	}
+	if cfg == nil {
+		return out
+	}
+	add(urlPassword(cfg.Database.URI), cfg.Media.S3.SecretAccessKey)
+	if b, err := os.ReadFile(filepath.Join(cfg.StateDir(), "confirm.key")); err == nil && len(b) > 0 {
+		add(hex.EncodeToString(b), base64.StdEncoding.EncodeToString(b), base64.RawStdEncoding.EncodeToString(b),
+			base64.URLEncoding.EncodeToString(b), base64.RawURLEncoding.EncodeToString(b))
+	}
+	if cfg.Home() != "" {
+		if b, err := os.ReadFile(config.DotEnvPath(cfg.Home())); err == nil {
+			for _, l := range strings.Split(string(b), "\n") {
+				k, v, ok := strings.Cut(strings.TrimPrefix(strings.TrimSpace(l), "export "), "=")
+				if !ok {
+					continue
+				}
+				v = strings.Trim(strings.TrimSpace(v), `"'`)
+				if pw := urlPassword(v); pw != "" {
+					add(pw)
+				}
+				if SecretEnvName(strings.TrimSpace(k)) {
+					add(v)
+				}
+			}
+		}
+	}
+	for _, f := range srcs {
+		add(f(cfg)...)
+	}
+	if lookup != nil {
+		for _, n := range keyNames {
+			add(lookup(cfg, n))
+		}
+	}
+	return out
 }
 
 // track makes l one of the loggers RememberSecret reaches and gives it the

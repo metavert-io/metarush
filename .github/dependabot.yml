@@ -1,7 +1,7 @@
 # Dependabot security updates for every dependency ecosystem are switched on
-# in the repository settings and need no entry here. This file adds monthly
-# version updates for the GitHub Actions the workflows pin by commit SHA,
-# grouped into a single pull request.
+# in the repository settings. This file adds monthly version updates for the
+# GitHub Actions the workflows pin by commit SHA, grouped into a single pull
+# request, and tells Dependabot where the npm project is.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -11,3 +11,13 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+  # One npm project at the root: web/, video/ and schema/ are its workspaces,
+  # with the one package-lock.json the renderer package carries. Updates made
+  # from here change the root lockfile with the workspace's package.json (an
+  # update made from video/ alone left the lockfile behind and `npm ci` failed).
+  # No version updates (0 open at a time); security updates use this entry.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0

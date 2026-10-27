@@ -199,7 +199,9 @@ func gone(pid int) bool {
 // written, stops when idle and starts again for the next clip.
 func TestWhisperServerKeepsTheModelLoaded(t *testing.T) {
 	old := ResidentIdle
-	ResidentIdle = 400 * time.Millisecond
+	// Long enough that a busy computer (CI runs four test binaries at once)
+	// never lets it stop between two clips, short enough to watch it stop.
+	ResidentIdle = 3 * time.Second
 	t.Cleanup(func() { ResidentIdle = old })
 	f := newFakeWhisper(t, "ok", "1.9.5")
 	if f.p.Mode() != ModeResident {
@@ -239,7 +241,7 @@ func TestWhisperServerKeepsTheModelLoaded(t *testing.T) {
 		t.Fatalf("args %v", args)
 	}
 	pid := f.pid(t)
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(ResidentIdle + 15*time.Second)
 	for running(s) && time.Now().Before(deadline) {
 		time.Sleep(50 * time.Millisecond)
 	}

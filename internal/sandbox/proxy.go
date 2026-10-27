@@ -264,7 +264,11 @@ func (p *Proxy) Close() error {
 func (p *Proxy) Requests() ([]ProxyRequest, int) {
 	p.logMu.Lock()
 	defer p.logMu.Unlock()
-	return append([]ProxyRequest(nil), p.requests...), p.dropped
+	out := append([]ProxyRequest(nil), p.requests...)
+	// In the order they were made: a request is recorded when it ends, which
+	// can be after the program already has its answer and sent the next.
+	sort.SliceStable(out, func(i, j int) bool { return out[i].At.Before(out[j].At) })
+	return out, p.dropped
 }
 
 // Received is how many bytes came back in all.

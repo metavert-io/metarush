@@ -20,8 +20,11 @@ case "${1:-}" in
       if [ "$n" -gt 0 ]; then sudo cp "$KEEP"/*.deb "$ARCHIVES"/; fi
     fi
     echo "$n package file(s) from GitHub's cache"
-    sudo apt-get update
-    sudo apt-get install -y -o APT::Keep-Downloaded-Packages=true "$@"
+    # A connection to the mirror that stalls is given up on after 30 s and tried again (it once sat for
+    # 40 minutes over a 50 kB package).
+    net=(-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=5)
+    sudo apt-get "${net[@]}" update
+    sudo apt-get "${net[@]}" install -y -o APT::Keep-Downloaded-Packages=true "$@"
     ;;
   keep)
     rm -rf "$KEEP"

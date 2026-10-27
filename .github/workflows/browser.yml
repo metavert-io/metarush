@@ -69,7 +69,9 @@ jobs:
           echo "COVERAGE=1" >> "$GITHUB_ENV"
       - name: MongoDB as a one-member replica set (the dashboard's live updates need one)
         if: steps.chosen.outputs.run
-        run: scripts/ci-mongo.sh start
+        run: |
+          scripts/ci-mongo.sh start
+          scripts/ci-mongo.sh watch
       - name: packages and Chromium
         if: steps.chosen.outputs.run
         run: |
@@ -118,6 +120,7 @@ jobs:
           path: |
             /tmp/e2e
             ${{ runner.temp }}/e2e-runs
+            ${{ runner.temp }}/mongo
             .agent-home
             tests/out
             !**/renderer/**

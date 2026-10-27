@@ -8,9 +8,12 @@ concurrency:
   # A newer push to the same pull request replaces the run in progress; pushes to main all run.
   group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+# Every job has a time limit: a step that stalls (Ubuntu's mirror once sat for 40 minutes) fails the
+# job instead of holding the branch's next runs for GitHub's six hours.
 jobs:
   secret-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: no likely secrets in tracked files
@@ -18,6 +21,7 @@ jobs:
 
   go-static:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
@@ -41,6 +45,7 @@ jobs:
   go:
     name: go (${{ matrix.group }})
     runs-on: ubuntu-latest
+    timeout-minutes: 75 # the tests' own limit is 45 minutes
     permissions:
       id-token: write # Codecov through GitHub's OIDC: no token secret
       contents: read
@@ -70,7 +75,9 @@ jobs:
       # Like the dev database (scripts/dev-mongo.sh): a replica set, as the dashboard's live updates
       # are change streams, with the dev one's settings for many test databases at once.
       - name: MongoDB as a one-member replica set
-        run: scripts/ci-mongo.sh start
+        run: |
+          scripts/ci-mongo.sh start
+          scripts/ci-mongo.sh watch
       - name: test (with coverage)
         env:
           METARUSH_TEST_MONGODB_URI: mongodb://127.0.0.1:27018/?directConnection=true
@@ -81,6 +88,14 @@ jobs:
       - name: what became of MongoDB (after a failure)
         if: failure()
         run: scripts/ci-mongo.sh report
+      - name: MongoDB's whole log and the watch's samples (after a failure)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mongo-${{ matrix.group }}
+          path: ${{ runner.temp }}/mongo
+          if-no-files-found: ignore
+          retention-days: 14
       - name: coverage profile (each block once)
         if: always()
         run: |
@@ -103,11 +118,15 @@ jobs:
     # (what MetaRush says where it can't run), then MetaRush's AppArmor profile (does it suffice?),
     # then with the limit lifted, where every sandbox test must run (METARUSH_TEST_SANDBOX=require).
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with: { go-version: "1.27" }
-      - run: sudo apt-get update && sudo apt-get install -y bubblewrap
+      - id: apt-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with: { path: ~/apt-debs, key: apt-debs-, restore-keys: apt-debs- }
+      - run: scripts/ci-apt.sh install bubblewrap
       - name: as the runner is
         run: |
           uname -a; cat /etc/os-release | head -2; bwrap --version
@@ -132,6 +151,7 @@ jobs:
   go-live:
     # Real buckets: only when the secrets are there (never on forks or their pull requests).
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       HAS_LIVE_BUCKET: ${{ secrets.METARUSH_TEST_S3_BUCKET != '' && secrets.METARUSH_TEST_S3_SECRET_ACCESS_KEY != '' }}
       HAS_LIVE_GCS: ${{ secrets.METARUSH_TEST_GCS_BUCKET != '' && secrets.METARUSH_TEST_GCS_CREDENTIALS_JSON != '' }}
@@ -165,6 +185,7 @@ jobs:
 
   js:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: read

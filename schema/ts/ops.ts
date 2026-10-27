@@ -1392,6 +1392,41 @@ input: CutWhereIn
 output: CutWhereOut
 }
 /**
+ * Abandon a move of the database that stopped: changes go on in the old database, and the copy keeps its lock so nothing uses it (owners, people only)
+ */
+"database.abandon": {
+input: DatabaseAbandonIn
+output: DatabaseAbandonOut
+}
+/**
+ * Move the workspace's database to another one: changes pause on every computer, everything is copied and checked, this computer switches, and the old database is kept, marked as moved, never deleted (owners, people only; plan first)
+ */
+"database.move": {
+input: DatabaseMoveIn
+output: DatabaseMoveOut
+}
+/**
+ * Say which database this computer uses and whether the workspace is being moved to another one or moved (then switch this computer too), and how the last move started on this computer is going
+ */
+"database.move.status": {
+input: DatabaseMoveStatusIn
+output: DatabaseMoveStatusOut
+}
+/**
+ * Check what moving the workspace's database would do — to the database on this computer, or to another MongoDB (Atlas or your own server) whose address this computer keeps for the move: what moves, how long it takes, what each computer needs, what waits meanwhile, and whether the new database is empty, reachable and writable; nothing is changed (owners)
+ */
+"database.plan": {
+input: DatabasePlanIn
+output: DatabasePlanOut
+}
+/**
+ * Switch this computer to the database the workspace moved to, with this computer's own sign-in for it (owners, people only, at this computer)
+ */
+"database.switch": {
+input: DatabaseSwitchIn
+output: DatabaseSwitchOut
+}
+/**
  * Update the captions files of delivered videos with the text fixes made since (no new render; captions drawn into the video need a new version)
  */
 "deliver.captions": {
@@ -17276,6 +17311,282 @@ projectId: string
  */
 export interface CutWhereOut {
 uses: UseRow[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseAbandonIn".
+ */
+export interface DatabaseAbandonIn {
+
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseAbandonOut".
+ */
+export interface DatabaseAbandonOut {
+abandoned: boolean
+to?: string
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseMoveIn".
+ */
+export interface DatabaseMoveIn {
+/**
+ * here: the database on this computer (set up the way setup does it); saved: another MongoDB (Atlas or your own server) whose address this computer keeps for the move (given once to the plan in a terminal or in Settings → Storage; never on a command line)
+ */
+to: ("here" | "saved")
+/**
+ * The new database's name (default metarush).
+ */
+name?: string
+/**
+ * The database on this computer is reached by this computer only: say this computer will be the only one using the workspace.
+ */
+onlyThisComputer?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseMoveOut".
+ */
+export interface DatabaseMoveOut {
+from: DatabasePlace
+to: DatabasePlace
+collections: MoveCollection[]
+documents: number
+resumed: boolean
+verified: boolean
+switched: boolean
+marked: boolean
+restarted: boolean
+notes: string[]
+others: string[]
+seconds: number
+kept: string
+next: string[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabasePlace".
+ */
+export interface DatabasePlace {
+kind: ("here" | "atlas" | "server")
+/**
+ * The database in words: the database on this computer, MongoDB Atlas, a MongoDB server on your network.
+ */
+words: string
+host?: string
+name: string
+reach: ("this-computer" | "every-computer")
+cloud: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "MoveCollection".
+ */
+export interface MoveCollection {
+name: string
+count: number
+bytes: number
+carried: boolean
+why?: string
+copied?: number
+verified?: boolean
+sha256?: string
+timeLimited?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseMoveStatusIn".
+ */
+export interface DatabaseMoveStatusIn {
+
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseMoveStatusOut".
+ */
+export interface DatabaseMoveStatusOut {
+this: DatabasePlace1
+state: ("" | "moving" | "moved" | "abandoned")
+frozen: boolean
+to?: string
+toName?: string
+by?: string
+from?: string
+startedAt?: string
+movedAt?: string
+paused?: string[]
+running: boolean
+switchMeToo: boolean
+canSwitch: boolean
+switchHere: boolean
+steps: string[]
+command?: string
+moving: boolean
+run?: DatabaseMoveRunView
+summary: string
+}
+/**
+ * The database this computer uses.
+ */
+export interface DatabasePlace1 {
+kind: ("here" | "atlas" | "server")
+/**
+ * The database in words: the database on this computer, MongoDB Atlas, a MongoDB server on your network.
+ */
+words: string
+host?: string
+name: string
+reach: ("this-computer" | "every-computer")
+cloud: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseMoveRunView".
+ */
+export interface DatabaseMoveRunView {
+state: ("starting" | "running" | "done" | "failed" | "stopped")
+phase?: string
+/**
+ * The new database, in words.
+ */
+to: string
+target: DatabaseTargetIn
+says?: string
+progress: CopyProgress
+waiting?: string[]
+started?: string
+finished?: string
+summary: string
+next?: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseTargetIn".
+ */
+export interface DatabaseTargetIn {
+/**
+ * here: the database on this computer (set up the way setup does it); saved: another MongoDB (Atlas or your own server) whose address this computer keeps for the move (given once to the plan in a terminal or in Settings → Storage; never on a command line)
+ */
+to: ("here" | "saved")
+/**
+ * The new database's name (default metarush).
+ */
+name?: string
+/**
+ * The database on this computer is reached by this computer only: say this computer will be the only one using the workspace.
+ */
+onlyThisComputer?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CopyProgress".
+ */
+export interface CopyProgress {
+phase: ("copying" | "checking")
+collection?: string
+collections: number
+collectionsDone: number
+documents: number
+documentsDone: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabasePlanIn".
+ */
+export interface DatabasePlanIn {
+/**
+ * here: the database on this computer (set up the way setup does it); saved: another MongoDB (Atlas or your own server) whose address this computer keeps for the move (given once to the plan in a terminal or in Settings → Storage; never on a command line)
+ */
+to: ("here" | "saved")
+/**
+ * The new database's name (default metarush).
+ */
+name?: string
+/**
+ * The database on this computer is reached by this computer only: say this computer will be the only one using the workspace.
+ */
+onlyThisComputer?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabasePlanOut".
+ */
+export interface DatabasePlanOut {
+from: DatabasePlace
+to: DatabasePlace
+nothing: boolean
+resume: boolean
+collections: MoveCollection[]
+documents: number
+bytes: number
+counts: DatabaseCount[]
+seconds: number
+takes: string
+computers: DatabaseComputer[]
+frozen: string[]
+target: TargetCheck
+keptHere: string[]
+problems: string[]
+ready: boolean
+notes: string[]
+kept: string
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseCount".
+ */
+export interface DatabaseCount {
+what: string
+count: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseComputer".
+ */
+export interface DatabaseComputer {
+name: string
+this: boolean
+running: boolean
+version?: string
+older: boolean
+needs: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "TargetCheck".
+ */
+export interface TargetCheck {
+reached: boolean
+empty: boolean
+holds?: string[]
+resume: boolean
+copied: boolean
+writable: boolean
+version?: string
+problem?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseSwitchIn".
+ */
+export interface DatabaseSwitchIn {
+name?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseSwitchOut".
+ */
+export interface DatabaseSwitchOut {
+from: DatabasePlace
+to: DatabasePlace
+switched: boolean
+next: string[]
 summary: string
 }
 /**
@@ -36173,6 +36484,7 @@ createdAt: string
 lastSeenAt: string
 commit?: string
 built?: string
+knowsMoves?: string
 state?: ("invited" | "active" | "revoked")
 storageKeyId?: string
 storageKey?: StorageKeyRef

@@ -14,6 +14,7 @@ import { DragLabel } from './DragLabel';
 import { UploadTray } from './UploadTray';
 import { AskClaude } from './AskClaude';
 import { ActivityButton, ActivityDrawer, ActivityStrip } from './ActivityBar';
+import { DatabaseMoveStrip } from './DatabaseMoveStrip';
 import { NotificationBell } from './NotificationBell';
 import { AccountMenu } from './AccountMenu';
 import { DuplicateResolver } from './DuplicateDialog';
@@ -145,6 +146,7 @@ function TopBar({ onSearch }: { onSearch: () => void }) {
         <NotificationBell />
         <AccountMenu />
       </div>
+      <DatabaseMoveStrip />
       <ActivityStrip />
       <ActivityDrawer />
     </header>

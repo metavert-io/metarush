@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"os"
 	"os/user"
 	"strings"
@@ -51,9 +52,37 @@ type App struct {
 	ReadOnly bool
 }
 
+// MoveMarker is the database's move marker (nil: no move holds it), from a
+// look at most store.MoveLookTrusted old (D335).
+func (a *App) MoveMarker(ctx context.Context) (*store.MoveMarker, error) {
+	if a.DB == nil {
+		return nil, nil
+	}
+	return a.DB.MoveMarkerNow(ctx)
+}
+
+// SetMoveMarker records a marker this process just read or wrote.
+func (a *App) SetMoveMarker(m *store.MoveMarker) {
+	if a.DB != nil {
+		a.DB.SetMoveMarkerCache(m)
+	}
+}
+
+// Held reports whether a move keeps changes out of this database now: this
+// process writes no audit, doesn't touch its installation and keeps its
+// activity log in the spool.
+func (a *App) Held() bool {
+	if a.DB == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return a.DB.FrozenNow(ctx)
+}
+
 // openLog starts the activity log and connects the queue and the tools to it.
 func (a *App) openLog() {
-	a.Log = logbook.Open(logbook.Options{Cfg: a.Cfg, DB: a.DB, Media: a.Media, Tools: a.Tools, Actor: a.Actor})
+	a.Log = logbook.Open(logbook.Options{Cfg: a.Cfg, DB: a.DB, Media: a.Media, Tools: a.Tools, Actor: a.Actor, Hold: a.Held})
 	a.Tools.OnRun = a.Log.ToolRun
 	if a.Queue != nil {
 		a.Queue.OnEvent = a.Log.JobEvent
@@ -125,6 +154,14 @@ func OpenWith(ctx context.Context, cfg *config.Config, via string) (*App, error)
 		Queue: &jobs.Queue{DB: db, WorkspaceID: cfg.Workspace.ID},
 		Actor: models.Actor{UserID: cfg.User.ID, UserName: cfg.User.Name, InstallationID: cfg.Installation.ID, Via: via},
 	}
+	// A database a move keeps changes out of (D335) refuses this process's
+	// writes from the start and while it runs: the DB looks at the marker
+	// about every second. Before its first change, this process records the
+	// MetaRush it runs on its computer's record, whichever process it is (a
+	// command, an AI app's connection, the daemon): a move asks every
+	// computer's record whether it knows about moves.
+	db.WatchMoves(cfg.Installation.ID)
+	db.OnFirstWrite(a.sayBuild)
 	a.openLog()
 	return a, nil
 }
@@ -177,7 +214,9 @@ func NewMediaStoreFor(m config.Media) (media.Store, error) {
 
 // Audit appends an audit event. Failures are logged, never fatal.
 func (a *App) Audit(ctx context.Context, action, targetType, targetID, projectID string, details map[string]any) {
-	if a.ReadOnly {
+	// A change let through a move's freeze (it began before) keeps its
+	// history with it; anything else waits while the database is held.
+	if a.ReadOnly || (a.Held() && !store.WritesThrough(ctx)) {
 		return
 	}
 	ev := models.AuditEvent{ID: ids.New(ids.Audit), WorkspaceID: a.WorkspaceID(), At: time.Now().UTC(), Actor: a.Actor,
@@ -192,13 +231,33 @@ func (a *App) Audit(ctx context.Context, action, targetType, targetID, projectID
 // it runs (D130: Settings → General compares every computer's with its own). The
 // daemon calls it when it starts and every minute.
 func (a *App) TouchInstallation(ctx context.Context) {
+	if a.ReadOnly || a.Held() {
+		return
+	}
+	b := version.Current()
+	// lastSeenAt is the database server's time: other computers compare it
+	// with theirs (a move waits for every computer running now, D335).
+	_ = a.DB.Update(ctx, store.CInstallations, a.WorkspaceID(), a.Cfg.Installation.ID, map[string]any{"$set": map[string]any{
+		"version": b.Version, "commit": b.Commit, "built": b.Date, "knowsMoves": MovesMark(b.Version, b.Commit)},
+		"$currentDate": map[string]any{"lastSeenAt": true}})
+}
+
+// sayBuild records this build on the installation's record, once per
+// connection (OnFirstWrite; a record made later is setup's to fill).
+func (a *App) sayBuild(ctx context.Context) {
 	if a.ReadOnly {
 		return
 	}
 	b := version.Current()
-	_ = a.DB.Update(ctx, store.CInstallations, a.WorkspaceID(), a.Cfg.Installation.ID, map[string]any{"$set": map[string]any{
-		"lastSeenAt": time.Now().UTC(), "version": b.Version, "commit": b.Commit, "built": b.Date}})
+	_, _ = a.DB.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": a.Cfg.Installation.ID, "workspaceId": a.WorkspaceID()},
+		bson.M{"$set": bson.M{"version": b.Version, "commit": b.Commit, "built": b.Date, "knowsMoves": MovesMark(b.Version, b.Commit)}})
 }
+
+// MovesMark is what a MetaRush that knows about moving the database records
+// as its installation's knowsMoves: its build. An older build started there
+// later rewrites the version and commit but not this, so it no longer
+// matches (D334).
+func MovesMark(v, commit string) string { return v + " " + commit }
 
 // Hostname returns a friendly machine name.
 func Hostname() string {

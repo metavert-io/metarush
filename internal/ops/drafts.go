@@ -107,6 +107,11 @@ var notDrafted = map[string]string{
 	"workspace.export": "An export holds everything about the work, people and their consent included, so only an owner makes one, in person: tell them why you'd suggest one.",
 	// A restored copy's pause on deleting by itself is lifted by an owner who knows the original is retired.
 	"workspace.adopt": "Only an owner says a restored copy is now the workspace, once they know the original is retired or the copy has storage of its own.",
+	// Moving the database (D338): every computer pauses meanwhile, and each
+	// switches with its own sign-in.
+	"database.move":    "Moving the workspace's database pauses every computer and switches where everything is kept, so only an owner does it, in person: tell them why you'd suggest it.",
+	"database.switch":  "Switching this computer to the workspace's new database takes its own sign-in, so only an owner does it, at this computer.",
+	"database.abandon": "Abandoning a move of the database is an owner's decision, in person.",
 }
 
 // MaxWaitingDrafts is how many drafts one app may have waiting at once.

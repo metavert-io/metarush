@@ -548,6 +548,11 @@ func (d *DB) Migrate(ctx context.Context) (applied []string, err error) {
 	if err := d.CheckNoUnfinishedRestore(ctx); err != nil {
 		return nil, err
 	}
+	// Nor a database a move keeps changes out of: being copied, or moved
+	// (D335).
+	if err := d.CheckNotMoving(ctx); err != nil {
+		return nil, err
+	}
 	return d.migrate(ctx)
 }
 

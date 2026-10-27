@@ -422,7 +422,7 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 		say("\nRestoring the workspace from %s…", filepath.Base(o.restore))
 		rep, err := wsarchive.Restore(c.Context(), wsarchive.RestoreOptions{Archive: o.restore, DB: db, Store: ms, StoreWords: ops.StorageWords(cfg.Media),
 			StateDir: filepath.Join(h, "state", "restore"), ScratchDir: filepath.Join(cfg.Scratch.Dir, "restore"),
-			MayStore: restoreMayStore(cfg.Media, models.Actor{UserName: o.userName, Via: "cli"})})
+			MayStore: restoreMayStore(cfg.Media, models.Actor{UserName: o.userName, Via: "cli"}), MayHold: restoreMayHold(restoreDatabase(o.dbURI, o.dbName, o.localPort))})
 		if err != nil {
 			return nil, failErr(c, err)
 		}
@@ -542,7 +542,8 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 	inst := models.Installation{ID: instID, WorkspaceID: ws.ID, Name: o.installName, Hostname: app.Hostname(), OS: runtime.GOOS, Arch: runtime.GOARCH,
 		Version: version.Version, Commit: version.Commit, Built: version.Date, UserID: user.ID, CreatedAt: now, LastSeenAt: now}
 	set := bson.M{"workspaceId": inst.WorkspaceID, "name": inst.Name, "hostname": inst.Hostname, "os": inst.OS, "arch": inst.Arch,
-		"version": inst.Version, "commit": inst.Commit, "built": inst.Built, "userId": inst.UserID, "lastSeenAt": now, "state": models.InstallationActive}
+		"version": inst.Version, "commit": inst.Commit, "built": inst.Built, "knowsMoves": app.MovesMark(inst.Version, inst.Commit),
+		"userId": inst.UserID, "lastSeenAt": now, "state": models.InstallationActive}
 	if cfg.Media.Provider == "s3" && !config.IsSecretRef(cfg.Media.S3.AccessKeyID) {
 		set["storageKeyId"] = cfg.Media.S3.AccessKeyID // an identifier, not the secret
 	}

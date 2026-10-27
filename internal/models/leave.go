@@ -15,10 +15,13 @@ const (
 	// LeaveFootage: video and sound files (clips, renders, recordings).
 	LeaveFootage = "footage"
 	// LeaveVoices: people's voices — speech cut from footage, voice samples,
-	// recordings for a voice change, a dub or a transcript made elsewhere.
+	// recordings for a voice change, a dub or a transcript made elsewhere —
+	// and the voice prints MetaRush knows them by (in the workspace's
+	// database, D337).
 	LeaveVoices = "voices"
 	// LeaveFaces: pictures that can show people — frames of footage, looks,
-	// contact sheets.
+	// contact sheets — and the face prints MetaRush knows them by (in the
+	// workspace's database, D337).
 	LeaveFaces = "faces"
 	// LeaveWords: transcripts, scripts, captions, notes and other words.
 	LeaveWords = "words"
@@ -39,7 +42,8 @@ const (
 	// that answers in the panel (by its terms: consumer, commercial, cloud).
 	PlaceClaude = "claude"
 	// PlaceStorage: a cloud bucket holding the workspace's media, or a
-	// database on a server elsewhere holding its words.
+	// database on a server elsewhere holding its words and its voice and
+	// face prints.
 	PlaceStorage = "storage"
 	// PlaceDelivery: files MetaRush writes for people elsewhere — delivered
 	// videos and their folders, timeline exports, Recipes' files.

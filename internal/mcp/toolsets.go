@@ -188,10 +188,11 @@ var toolsets = map[string][]toolDef{
 	),
 
 	ToolsetAdmin: append(slices.Clone(reach), one("activity.summary"),
-		group("workspace", "The setup: the workspace, versions, what is on this computer, remote access, sign-in, people, the audit trail, machines, workers, storage", "",
+		group("workspace", "The setup: the workspace, versions, what is on this computer, remote access, sign-in, people, the audit trail, machines, workers, storage, the database", "",
 			"show=workspace.show", "version=version.show", "sync=sync.status", "remote=remote.status", "auth=auth.status",
 			"users=users.list", "audit=audit.list", "machines=machine.list", "rekeyPlan=machine.rekeyPlan",
-			"workers=worker.list", "battery=worker.settings", "storage=storage.status", "storagePlan=storage.plan"),
+			"workers=worker.list", "battery=worker.settings", "storage=storage.status", "storagePlan=storage.plan",
+			"database=database.move.status", "databasePlan=database.plan"),
 		group("job", "Jobs: list them, one job and why it waits", "Cancel or retry a job, or run queued jobs now",
 			"job.list", "job.show", "job.cancel", "job.retry", "job.expedite"),
 		group("cache", "This computer's copies of footage: how much room they take, download for offline work, clear the least used, repair", "",

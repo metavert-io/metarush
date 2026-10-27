@@ -36,6 +36,7 @@ var ownerOnlyOps = []string{
 	"delivery.gate.set", "content.gate.set",
 	"share.settings.set",
 	"workspace.export", "workspace.exports", "workspace.adopt",
+	"database.plan", "database.move", "database.switch", "database.abandon",
 }
 
 // Every op of the list is owner-only, and every owner-only op is on the list

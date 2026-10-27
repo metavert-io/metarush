@@ -59,6 +59,7 @@ func init() {
 	}
 	ops.LeaveQuiet = Quiet // a post's plan says a refusal; the post records it
 	ops.LeaveStorage = storageCheck
+	ops.LeaveDatabase = databaseCheck
 	ops.LeaveSwitch = switchCheck
 	ops.LeaveCarry = carryCheck
 	ops.RevisionTouches = RevisionTouches
@@ -534,6 +535,36 @@ func storageCheck(ctx context.Context, a *app.App, to config.Media) error {
 			Record(ctx, a, r, s)
 			e := r.Err()
 			e.Hint = "Keep the media in a folder on this computer, or keep that client in a workspace of its own. " + e.Hint
+			return e
+		}
+	}
+	return nil
+}
+
+// databaseCheck refuses moving the workspace's database to a database that
+// is cloud storage (DatabaseKept: elsewhere on the internet) while any
+// client's rules keep their words, voices or faces from cloud storage (the
+// database holds their words and their voice and face prints, D337). Every
+// project counts — archived ones too — and footage in no project (the
+// default's rules). quiet (a plan) only says it.
+func databaseCheck(ctx context.Context, a *app.App, to config.Database, quiet bool) error {
+	k := DatabaseKept(to)
+	if !k.Cloud || !anyRules(ctx, a) {
+		return nil
+	}
+	c, err := newChecker(ctx, a)
+	if err != nil {
+		return err
+	}
+	for _, pid := range append(c.g.Projects(), "") {
+		s := Send{Place: models.PlaceStorage, To: "cloud", ToWords: k.Words, Kinds: k.Kinds, Projects: []string{pid}, What: "the workspace's database"}
+		if r := c.problem(s); r != nil {
+			heldWords(r)
+			if !quiet {
+				Record(ctx, a, r, s)
+			}
+			e := r.Err()
+			e.Hint = "Keep the workspace's database on this computer or your network, or keep that client in a workspace of its own. " + e.Hint
 			return e
 		}
 	}

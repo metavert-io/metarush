@@ -22,12 +22,16 @@ import (
 // not on shared state, so they are not ops, and they need no database
 // connection (they work while it is stopped).
 func databaseCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "database", Short: "The database on this computer: whether it runs; start, stop or upgrade it",
+	cmd := &cobra.Command{Use: "database", Short: "The workspace's database: whether the one on this computer runs (start, stop, upgrade it), and moving the workspace to another database",
 		Long: "When MetaRush keeps your projects in a database on this computer (`metarush setup` sets one up), these\n" +
 			"commands check it, start and stop it, and move it to the version this MetaRush comes with. MetaRush starts it\n" +
 			"by itself whenever it needs it, and keeps it running while MetaRush runs. A database elsewhere (MongoDB\n" +
-			"Atlas, your own server) is looked after where it runs: `status` says which one MetaRush uses."}
+			"Atlas, your own server) is looked after where it runs: `status` says which one MetaRush uses.\n\n" +
+			"`plan` and `move` move the whole workspace to another database (this computer's, Atlas or your own server),\n" +
+			"checked before anything switches and never deleting the old one; `switch` moves another computer over after\n" +
+			"that, with its own sign-in; `abandon` lets changes go on in the old database after a move stopped."}
 	cmd.AddCommand(databaseStatusCmd(), databaseStartCmd(), databaseStopCmd(), databaseUpgradeCmd())
+	cmd.AddCommand(databaseMoveCmds()...)
 	return cmd
 }
 

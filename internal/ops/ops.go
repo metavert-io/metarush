@@ -173,6 +173,18 @@ func dispatch(ctx context.Context, a *app.App, name string, op *Op, ok bool, raw
 				WithDetails(map[string]any{"op": name, "problem": err.Error()})
 		}
 	}
+	// A move of the database keeps changes out of it (D335): while it is
+	// being copied, and for good once it moved.
+	if err := refuseWhileMoving(ctx, a, op); err != nil {
+		return nil, err
+	}
+	// A change that passed may write through a freeze that begins while it
+	// runs: the move waits for it (it is listed in the marker meanwhile).
+	if op.Mutating && !frozenExempt[op.Name] && a.DB != nil {
+		var done func()
+		ctx, done = a.DB.Admit(ctx, op.Name)
+		defer done()
+	}
 	if AIReads != nil && !op.Mutating { // What may leave: what an AI reads (D290)
 		if err := AIReads(ctx, a, name, in); err != nil {
 			return nil, err
@@ -191,6 +203,11 @@ func Run(ctx context.Context, a *app.App, op *Op, in any) (any, error) {
 	defer release()
 	out, err := op.run(ctx, a, in)
 	if err != nil {
+		// A write a frozen database refused, wherever it was wrapped.
+		var moving *store.ErrDatabaseMoving
+		if errors.As(err, &moving) {
+			return nil, moving.AppError()
+		}
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, apperr.Wrap(apperr.NotFound, err, "That was not found. It may have been deleted.")
 		}

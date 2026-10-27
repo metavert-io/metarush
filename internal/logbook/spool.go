@@ -97,7 +97,7 @@ func (l *Logger) Spooled() SpoolStatus {
 // write the same file twice; a claim left by a process that died is released
 // after ten minutes.
 func (l *Logger) FlushSpool(ctx context.Context, maxFiles int) (written int, err error) {
-	if l == nil || (l.db == nil && l.insertF == nil) {
+	if l == nil || (l.db == nil && l.insertF == nil) || l.held() {
 		return 0, nil
 	}
 	dir := l.spoolDir()

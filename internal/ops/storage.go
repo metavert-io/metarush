@@ -804,7 +804,7 @@ func startMoveJob(ctx context.Context, a *app.App, from, to StorageSide, readBac
 // (normally the worker does; this covers a machine without a running one).
 func closeInterruptedMoves(ctx context.Context, a *app.App) {
 	stale, err := a.Queue.List(ctx, bson.M{"type": jobs.TypeStorageMove, "state": models.JobRunning, "installation": a.Cfg.Installation.ID,
-		"lease.expiresAt": bson.M{"$lt": time.Now().UTC()}}, 20)
+		"$expr": bson.M{"$lt": bson.A{"$lease.expiresAt", "$$NOW"}}}, 20) // the server's time, as leases are written
 	if err != nil {
 		return
 	}

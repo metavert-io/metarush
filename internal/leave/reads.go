@@ -69,6 +69,7 @@ var readsShow = map[string]string{
 	"search": "W", "setup.status": "-", "components.list": "-", "sound.compare": "-", "sound.preview": "-", "sound.show": "-",
 	"share.list": "W", "share.plan": "-", "share.settings": "-",
 	"storage.plan": "-", "storage.status": "-", "sync.status": "-",
+	"database.plan": "-", "database.move.status": "-", // where the database is, counts, computers' names (D338)
 	"todos.counts": "-", "todos.groups": "WPA", "todos.list": "W", "todos.show": "VWA",
 	"transcript.find": "W", "transcript.history": "W", "transcript.pending": "W", "transcript.spelling.list": "-", "transcript.spelling.suggestions": "W",
 	"trash.list": "-", "trash.settings": "-", "users.list": "-", "version.show": "-",

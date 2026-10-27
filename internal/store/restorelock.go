@@ -28,11 +28,16 @@ const (
 
 const restoreLockID = "restore"
 
-// RestoreLock is a restore's marker.
+// RestoreLock is a restore's marker, or a move's: a move of the database
+// (D334) locks the database it copies into the same way, from before its
+// first write until the copy is whole and checked.
 type RestoreLock struct {
 	ID string `bson:"_id"`
+	// Kind is "" for a restore, LockMove for a move of the database.
+	Kind string `bson:"kind,omitempty"`
 	// Archive is the archive's identity (the SHA-256 of its manifest), so the
-	// same restore started again continues; Workspace and Name what it holds.
+	// same restore started again continues; for a move, the move's identity
+	// (the old database's marker names it). Workspace and Name what it holds.
 	Archive   string    `bson:"archive"`
 	Workspace string    `bson:"workspace"`
 	Name      string    `bson:"name"`
@@ -61,10 +66,26 @@ func (d *DB) ReadRestoreLock(ctx context.Context) (*RestoreLock, error) {
 
 // SetRestoreLock writes the restore marker's state.
 func (d *DB) SetRestoreLock(ctx context.Context, archive, workspace, name, state string) error {
+	return d.setLock(ctx, "", archive, workspace, name, state)
+}
+
+// LockMove is the kind of lock a move of the database keeps.
+const LockMove = "move"
+
+// SetMoveLock writes the lock a move of the database keeps in the database it
+// copies into (D334): the same states as a restore's.
+func (d *DB) SetMoveLock(ctx context.Context, move, workspace, name, state string) error {
+	return d.setLock(ctx, LockMove, move, workspace, name, state)
+}
+
+func (d *DB) setLock(ctx context.Context, kind, archive, workspace, name, state string) error {
 	now := time.Now().UTC()
+	set := bson.M{"archive": archive, "workspace": workspace, "name": name, "state": state, "updatedAt": now}
+	if kind != "" {
+		set["kind"] = kind
+	}
 	_, err := d.C(CRestoreLock).UpdateOne(ctx, bson.M{"_id": restoreLockID},
-		bson.M{"$set": bson.M{"archive": archive, "workspace": workspace, "name": name, "state": state, "updatedAt": now},
-			"$setOnInsert": bson.M{"startedAt": now}}, options.UpdateOne().SetUpsert(true))
+		bson.M{"$set": set, "$setOnInsert": bson.M{"startedAt": now}}, options.UpdateOne().SetUpsert(true))
 	return err
 }
 
@@ -72,6 +93,9 @@ func (d *DB) SetRestoreLock(ctx context.Context, archive, workspace, name, state
 type ErrRestoreUnfinished struct{ Lock RestoreLock }
 
 func (e *ErrRestoreUnfinished) Error() string {
+	if e.Lock.Kind == LockMove {
+		return fmt.Sprintf("this database holds part of a move of the workspace “%s” that didn't finish, so MetaRush doesn't work in it: run the move again on the computer that started it to continue it, or abandon it there and move into a new, empty database (MetaRush never deletes anything)", e.Lock.Name)
+	}
 	if e.Lock.State == RestoreFootage {
 		return fmt.Sprintf("this database holds a restore of the workspace “%s” that stopped while its footage was copied: run the same restore again to continue it", e.Lock.Name)
 	}

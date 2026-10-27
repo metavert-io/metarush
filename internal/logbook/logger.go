@@ -46,6 +46,10 @@ type Options struct {
 	// Actor is the process's own identity (its channel is used for events that
 	// happen outside an operation).
 	Actor models.Actor
+	// Hold, when it says so, keeps entries out of the database: they wait in
+	// the spool (a move of the database keeps changes out of it, D335) and a
+	// later process writes them where the workspace is then.
+	Hold func() bool
 }
 
 // Logger buffers entries and writes them in the background. A nil *Logger is
@@ -80,6 +84,8 @@ type Logger struct {
 	closing bool // Close has started (it still writes what is queued)
 	closed  bool // Close has finished: later entries are dropped
 
+	hold func() bool
+
 	// Test hooks.
 	now     func() time.Time
 	insertF func(ctx context.Context, docs []any) error
@@ -110,7 +116,7 @@ type spoolRecord struct {
 
 // Open builds a logger and starts its background writer.
 func Open(o Options) *Logger {
-	l := &Logger{cfg: o.Cfg, db: o.DB, ms: o.Media, tools: o.Tools, actor: o.Actor, red: NewRedactor(),
+	l := &Logger{cfg: o.Cfg, db: o.DB, ms: o.Media, tools: o.Tools, actor: o.Actor, red: NewRedactor(), hold: o.Hold,
 		agg: map[aggKey]*CountInfo{}, jobPct: map[string]int{}, wake: make(chan struct{}, 1), stop: make(chan struct{}), done: make(chan struct{}),
 		now: func() time.Time { return time.Now().UTC() }}
 	if o.Cfg != nil {
@@ -510,7 +516,7 @@ func redactAction(r *Redactor, a *ActionInfo) {
 // write stores bodies and inserts entries. It returns the records that could
 // not be written (the caller spools them).
 func (l *Logger) write(ctx context.Context, recs []*spoolRecord) []*spoolRecord {
-	if l.db == nil && l.insertF == nil {
+	if l.db == nil && l.insertF == nil || l.held() {
 		return recs
 	}
 	var failed, ready []*spoolRecord
@@ -549,6 +555,9 @@ func (l *Logger) write(ctx context.Context, recs []*spoolRecord) []*spoolRecord 
 	}
 	return append(failed, ready...)
 }
+
+// held reports whether entries wait in the spool for now.
+func (l *Logger) held() bool { return l.hold != nil && l.hold() }
 
 func (l *Logger) insert(ctx context.Context, docs []any) error {
 	if l.insertF != nil {

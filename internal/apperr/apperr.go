@@ -49,6 +49,10 @@ const (
 	// Settings keep them from (What may leave, D288); details say the place,
 	// the kind, whose settings and who set the rule.
 	KeptHere = "E_KEPT_HERE"
+	// Moving refuses a change while the workspace's database is being moved
+	// to another one, or after it moved (D335): details say which (reason
+	// database_moving or database_moved) and the command that shows it.
+	Moving = "E_MOVING"
 )
 
 var statusByCode = map[string]int{
@@ -59,7 +63,7 @@ var statusByCode = map[string]int{
 	Storage: http.StatusBadGateway, Database: http.StatusServiceUnavailable, ToolMissing: http.StatusFailedDependency,
 	ToolFailed: http.StatusInternalServerError, NoWorker: http.StatusServiceUnavailable, Canceled: 499, Internal: http.StatusInternalServerError,
 	UnsafeSecretPath: http.StatusForbidden, Provider: http.StatusBadGateway, Budget: http.StatusPaymentRequired, ConsentRequired: http.StatusForbidden,
-	SafetyBlocked: http.StatusUnprocessableEntity, Held: http.StatusConflict, KeptHere: http.StatusForbidden,
+	SafetyBlocked: http.StatusUnprocessableEntity, Held: http.StatusConflict, KeptHere: http.StatusForbidden, Moving: http.StatusConflict,
 }
 
 // Error is the single error shape returned everywhere.

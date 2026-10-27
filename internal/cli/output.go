@@ -138,7 +138,7 @@ func exitCodeFor(code string) int {
 		return 2
 	case apperr.NotFound:
 		return 3
-	case apperr.Conflict, apperr.RevisionConflict, apperr.Locked, apperr.Held:
+	case apperr.Conflict, apperr.RevisionConflict, apperr.Locked, apperr.Held, apperr.Moving:
 		return 4
 	case apperr.ConfirmRequired, apperr.HumanOnly, apperr.Unauthorized, apperr.ConsentRequired, apperr.Budget:
 		return 5

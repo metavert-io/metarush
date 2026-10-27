@@ -1206,6 +1206,24 @@ storage.
   or deleted.
 - **Your other computers** are told they still use the old storage and switch with one form and their own keys.
 
+### Move the database
+Your projects, versions, transcripts and notes move to another database the same careful way the media does
+([moving the database](docs/database-move.md)): to the database on this computer, or to MongoDB Atlas or your own
+server.
+- **Plan first** in Settings → Storage → *Move the database*, or with `metarush database plan --to here|address`: what
+  moves and how long it takes, what each of your computers needs (its own sign-in for the new database), what waits
+  meanwhile, and whether the new database answers, is empty and takes writes. The new database's address is typed once
+  or read from standard input, kept in this computer's keychain, and never on a command line or in the log.
+- **Changes pause on every computer while it moves**; reading and playing keep working, and every page says so. Every
+  record is copied and checked against the old database before anything switches; a move that stops can continue or be
+  abandoned.
+- **The old database is kept**, marked as moved, so a computer still using it refuses changes until it switches with
+  its own sign-in (`metarush database switch`, or one form in the dashboard). MetaRush never deletes it.
+- Owners, and people only; clients' What may leave rules keep their words, voices and faces (the database holds the
+  voice and face prints MetaRush knows people by) off a database on the internet when they say so.
+- The plan names any computer whose MetaRush doesn't know about moves yet, even one that's off: update it or remove it
+  first, so it can't go on changing the old database later.
+
 ### Plays through a database hiccup
 The dashboard remembers where each clip's and render's files are, so when the database briefly stops answering (an
 Atlas election, a dropped connection) the preview, the clip viewer and renders keep playing: a cut you opened plays
@@ -1546,6 +1564,9 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush sync status [--project <id>]` | local vs canonical-only, pending ingests, jobs, reachability |
 | `metarush storage migrate --to <store-config> [--dry-run] [--read-back]` | move the media to another storage (S3-compatible, Google Cloud Storage or a folder): checked, resumable, switches when complete, deletes nothing (people only; `--dry-run` for anyone; the dashboard's Settings → Storage does the same) |
 | `metarush storage status` | which storage this computer uses, and whether the workspace moved on (then: switch this computer too) |
+| `metarush database plan --to here\|address\|env:NAME\|saved [--name <db>] [--only-this-computer]` | what moving the workspace's database would do — to the database on this computer, or another MongoDB whose address comes on standard input — and whether the new one is empty, reachable and writable; changes nothing (owners) |
+| `metarush database move --to … [--name <db>]` | move the database: changes pause on every computer, every record copied and checked, this computer switches, the old database is kept, never deleted (owners, a person at a terminal; Settings → Storage does the same) |
+| `metarush database switch --to address\|env:NAME [--name <db>]` / `database abandon` / `database move-status` | switch this computer after another one moved the workspace, with its own sign-in / let changes go on after a move stopped / what this computer uses and what to do |
 | `metarush workspace export --to <folder> [--media referenced\|included] [--tar] [--plan]` / `workspace exports` | one archive of the whole workspace, footage listed or copied in; `--plan` says what it would hold and writes nothing; it only reads the database (owners, in your own terminal; another database with `--db-uri-stdin`/`--db-uri-env`) / the exports made on this computer |
 | `metarush workspace restore <archive> [--plan]` / `metarush setup --restore <archive>` | restore an export into an empty database (every file checked first; the copy checked and brought up to date; nothing deleted) / set a new computer up from one |
 | `metarush workspace adopt` | say a restored copy is now the workspace, so it deletes by itself again as set (owners, in your own terminal) |
@@ -1644,7 +1665,7 @@ support `${VAR}` / `${VAR:default}`.
 [installation](docs/installation.md) · [deployment, service and releases](docs/deployment.md) ·
 [collaboration](docs/collaboration.md) · [add a machine](docs/runbook-add-machine.md) · [edit schema](docs/edit-schema.md) ·
 [cut sheets](docs/cut-sheet.md) · [security](docs/security.md) ·
-[render QA](docs/qa.md) · [outside reviewers](docs/outside-reviewers.md) · [exporting and restoring a workspace](docs/workspace-export.md) ·
+[render QA](docs/qa.md) · [outside reviewers](docs/outside-reviewers.md) · [exporting and restoring a workspace](docs/workspace-export.md) · [moving the database](docs/database-move.md) ·
 [speakers, people and to-dos](docs/speakers.md) · [motion graphics as code](docs/motion-graphics-as-code.md) ·
 [browser extension](docs/browser-extension.md) · [what MetaRush sees](docs/visual-index.md) · [resources, project links and nested cuts](docs/resources.md) · [timeline export](docs/timeline-export.md) · [timelines from other editors](docs/timeline-import.md) · [posting to video platforms](docs/publishing.md) · [Google Drive and Dropbox folders](docs/cloud-folders.md) · [the plugin](docs/plugin.md) · [MCP](docs/mcp.md) · [the catalogue](docs/catalogue.md) · [Remotion sources](docs/remotion-sources.md) · [recipes](docs/recipes.md) · [abilities](docs/abilities.md) · [testing](docs/testing.md) · [the review desk](docs/review-desk.md)
 
@@ -1753,6 +1774,11 @@ checks below in order, log each step and end with a table; [testing](docs/testin
   exported from Settings → Storage (the plan, the styled confirm, the archive ready), a member refused, then restored
   with the command line into a fresh home and an empty database, and the dashboard opened on the restored copy
   (desktop and phone, both themes).
+- `scripts/database-move-e2e.sh` runs `web/scripts/database-move-e2e.mjs` (ports 5690–5699): two computers of one
+  workspace; the first plans and moves the database from Settings → Storage (the check, the styled confirm, changes
+  refused and every page saying so while it moves, the dashboard starting again on the new database), the second is
+  told the workspace moved, refuses changes and switches with its own address; an address on the command line and
+  Claude Code are refused (desktop and phone, both themes).
 
 ### Releases
 `scripts/release.sh --snapshot` builds and verifies every release archive without publishing anything

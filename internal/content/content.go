@@ -87,19 +87,34 @@ type goneRef struct {
 	target   string
 }
 
+// ProjectChoice is a project's record as Content Settings read it.
+type ProjectChoice struct {
+	ID        string             `bson:"_id"`
+	Name      string             `bson:"name"`
+	Archived  bool               `bson:"archived"`
+	Content   *models.ContentUse `bson:"content"`
+	CreatedBy models.Actor       `bson:"createdBy"`
+}
+
+// FromRecords is the graph of projects' records and the default project
+// that no database holds yet (an archive's, before a restore writes it).
+// Nothing is repaired: a followed project that is gone reads as nothing.
+func FromRecords(def string, ps []ProjectChoice) *Graph {
+	g, _ := build(def, ps)
+	return g
+}
+
 func load(ctx context.Context, a *app.App) (*Graph, []goneRef, error) {
-	g := &Graph{nodes: map[string]*node{}}
-	g.Default = store.ContentDefault(ctx, a.DB, a.WorkspaceID())
-	var ps []struct {
-		ID        string             `bson:"_id"`
-		Name      string             `bson:"name"`
-		Archived  bool               `bson:"archived"`
-		Content   *models.ContentUse `bson:"content"`
-		CreatedBy models.Actor       `bson:"createdBy"`
-	}
+	var ps []ProjectChoice
 	if err := a.DB.Find(ctx, store.CProjects, a.WorkspaceID(), bson.M{}, &ps, options.Find().SetProjection(bson.M{"name": 1, "archived": 1, "content": 1, "createdBy": 1})); err != nil {
 		return nil, nil, err
 	}
+	g, gone := build(store.ContentDefault(ctx, a.DB, a.WorkspaceID()), ps)
+	return g, gone, nil
+}
+
+func build(def string, ps []ProjectChoice) (*Graph, []goneRef) {
+	g := &Graph{nodes: map[string]*node{}, Default: def}
 	for _, p := range ps {
 		n := &node{ID: p.ID, Name: p.Name, Archived: p.Archived, Uses: models.ContentDefault, CreatedBy: p.CreatedBy}
 		if p.Content != nil {
@@ -124,7 +139,7 @@ func load(ctx context.Context, a *app.App) (*Graph, []goneRef, error) {
 			gone = append(gone, goneRef{follower: id, target: n.Follows})
 		}
 	}
-	return g, gone, nil
+	return g, gone
 }
 
 // Name is a project's name ("" unknown).

@@ -1994,6 +1994,297 @@
         "next"
       ]
     },
+    "DatabaseComputer": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "this": {
+          "type": "boolean"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string"
+        },
+        "older": {
+          "type": "boolean"
+        },
+        "needs": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "this",
+        "running",
+        "older",
+        "needs"
+      ]
+    },
+    "DatabaseCount": {
+      "properties": {
+        "what": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "what",
+        "count"
+      ]
+    },
+    "DatabaseMoveForm": {
+      "properties": {
+        "to": {
+          "type": "string",
+          "enum": [
+            "here",
+            "elsewhere"
+          ]
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 2048,
+          "description": "Sent once, never returned: kept in this computer's keychain."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 63
+        },
+        "onlyThisComputer": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "to"
+      ]
+    },
+    "DatabaseMovePlanIn": {
+      "properties": {
+        "form": {
+          "$ref": "#/$defs/DatabaseMoveForm"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "form"
+      ]
+    },
+    "DatabaseMovePlanOut": {
+      "properties": {
+        "moveId": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/DatabasePlanOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "moveId",
+        "plan"
+      ]
+    },
+    "DatabaseMoveStartIn": {
+      "properties": {
+        "moveId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "moveId"
+      ]
+    },
+    "DatabaseMoveStartOut": {
+      "properties": {
+        "started": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "started",
+        "summary"
+      ]
+    },
+    "DatabasePlace": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "here",
+            "atlas",
+            "server"
+          ]
+        },
+        "words": {
+          "type": "string",
+          "description": "The database in words: the database on this computer, MongoDB Atlas, a MongoDB server on your network."
+        },
+        "host": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "reach": {
+          "type": "string",
+          "enum": [
+            "this-computer",
+            "every-computer"
+          ]
+        },
+        "cloud": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind",
+        "words",
+        "name",
+        "reach",
+        "cloud"
+      ]
+    },
+    "DatabasePlanOut": {
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/DatabasePlace"
+        },
+        "to": {
+          "$ref": "#/$defs/DatabasePlace"
+        },
+        "nothing": {
+          "type": "boolean"
+        },
+        "resume": {
+          "type": "boolean"
+        },
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/MoveCollection"
+          },
+          "type": "array"
+        },
+        "documents": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "counts": {
+          "items": {
+            "$ref": "#/$defs/DatabaseCount"
+          },
+          "type": "array"
+        },
+        "seconds": {
+          "type": "integer"
+        },
+        "takes": {
+          "type": "string"
+        },
+        "computers": {
+          "items": {
+            "$ref": "#/$defs/DatabaseComputer"
+          },
+          "type": "array"
+        },
+        "frozen": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "target": {
+          "$ref": "#/$defs/TargetCheck"
+        },
+        "keptHere": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kept": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "nothing",
+        "resume",
+        "collections",
+        "documents",
+        "bytes",
+        "counts",
+        "seconds",
+        "takes",
+        "computers",
+        "frozen",
+        "target",
+        "keptHere",
+        "problems",
+        "ready",
+        "notes",
+        "kept",
+        "summary"
+      ]
+    },
+    "DatabaseSwitchFormIn": {
+      "properties": {
+        "address": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 63
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Diff": {
       "properties": {
         "durationBefore": {
@@ -3794,6 +4085,45 @@
       "required": [
         "name",
         "hash"
+      ]
+    },
+    "MoveCollection": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "carried": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        },
+        "copied": {
+          "type": "integer"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "timeLimited": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "count",
+        "bytes",
+        "carried"
       ]
     },
     "Op": {
@@ -6525,6 +6855,46 @@
         "out"
       ]
     },
+    "TargetCheck": {
+      "properties": {
+        "reached": {
+          "type": "boolean"
+        },
+        "empty": {
+          "type": "boolean"
+        },
+        "holds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "resume": {
+          "type": "boolean"
+        },
+        "copied": {
+          "type": "boolean"
+        },
+        "writable": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string"
+        },
+        "problem": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "reached",
+        "empty",
+        "resume",
+        "copied",
+        "writable"
+      ]
+    },
     "TechnicalEvidence": {
       "properties": {
         "version": {
@@ -7633,6 +8003,21 @@
     "storageChooseOut": {
       "$ref": "#/$defs/StorageChooseOut"
     },
+    "databaseMovePlanIn": {
+      "$ref": "#/$defs/DatabaseMovePlanIn"
+    },
+    "databaseMovePlanOut": {
+      "$ref": "#/$defs/DatabaseMovePlanOut"
+    },
+    "databaseMoveStartIn": {
+      "$ref": "#/$defs/DatabaseMoveStartIn"
+    },
+    "databaseMoveStartOut": {
+      "$ref": "#/$defs/DatabaseMoveStartOut"
+    },
+    "databaseSwitchFormIn": {
+      "$ref": "#/$defs/DatabaseSwitchFormIn"
+    },
     "recordingCreateIn": {
       "$ref": "#/$defs/RecordingCreateIn"
     },
@@ -7689,6 +8074,11 @@
     "storageMoveStartIn",
     "storageMoveStartOut",
     "storageChooseOut",
+    "databaseMovePlanIn",
+    "databaseMovePlanOut",
+    "databaseMoveStartIn",
+    "databaseMoveStartOut",
+    "databaseSwitchFormIn",
     "recordingCreateIn",
     "recordingClockIn",
     "recordingPieceOut",

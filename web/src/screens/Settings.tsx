@@ -29,6 +29,7 @@ import { LookingSettings } from './settings/LookingSettings';
 import { StorageMove } from './settings/StorageMove';
 import { TrashSettings } from './settings/TrashSettings';
 import { WorkspaceExport } from './settings/WorkspaceExport';
+import { DatabaseMove } from './settings/DatabaseMove';
 import { ShipGateSettings } from './settings/ShipGateSettings';
 import { ReviewLinkSettings } from './settings/ReviewLinkSettings';
 import { LogPage, LogSettingsCard } from './Log';
@@ -461,6 +462,7 @@ function StorageSection() {
         <MachineCard />
       </div>
       <StorageMove />
+      <DatabaseMove />
       <WorkspaceExport />
       <ReviewLinkSettings />
       <TrashSettings />

@@ -168,7 +168,7 @@ func receiptLeft(ctx context.Context, a *app.App, p *models.Project, out *Projec
 		}
 	}
 	if k := leave.DatabaseKept(a.Cfg.Database); k.Cloud {
-		l.Stored = append(l.Stored, "Its transcripts, names and notes are kept in "+k.Words+".")
+		l.Stored = append(l.Stored, "Its transcripts, names and notes, and the voice and face prints MetaRush knows its people by, are kept in "+k.Words+".")
 	}
 	l.Refused = refusals(ctx, a, p.ID)
 	rules, _, _ := leave.For(ctx, a, p.ID)

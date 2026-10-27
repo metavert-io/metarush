@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -164,6 +166,26 @@ type DB struct {
 	Client *mongo.Client
 	DB     *mongo.Database
 	Name   string
+	// freeze is the last look at the move marker and the work let through
+	// it (guard.go).
+	freeze *freeze
+	fzOnce sync.Once
+	// firstWrite runs once, before this connection's first write
+	// (OnFirstWrite); said is whether it ran.
+	firstWrite func(context.Context)
+	said       atomic.Bool
+}
+
+// OnFirstWrite runs fn once, before this connection's first write that goes
+// in (MetaRush records the build each process runs, D335).
+func (d *DB) OnFirstWrite(fn func(context.Context)) { d.firstWrite = fn }
+
+// sayFirst runs the first-write hook once (a write it makes doesn't run it
+// again).
+func (d *DB) sayFirst(ctx context.Context) {
+	if d.firstWrite != nil && d.said.CompareAndSwap(false, true) {
+		d.firstWrite(context.WithoutCancel(ctx))
+	}
 }
 
 // Connect opens a MongoDB connection and pings it.
@@ -188,11 +210,14 @@ func Connect(ctx context.Context, uri, name string) (*DB, error) {
 	return &DB{Client: client, DB: client.Database(name), Name: name}, nil
 }
 
-// Close disconnects.
-func (d *DB) Close(ctx context.Context) error { return d.Client.Disconnect(ctx) }
+// Close disconnects (and stops looking at the move marker).
+func (d *DB) Close(ctx context.Context) error {
+	d.stopWatching()
+	return d.Client.Disconnect(ctx)
+}
 
-// C returns a collection.
-func (d *DB) C(name string) *mongo.Collection { return d.DB.Collection(name) }
+// C returns a collection: its writes go through the freeze of a move (guard.go).
+func (d *DB) C(name string) *Coll { return &Coll{Collection: d.DB.Collection(name), db: d} }
 
 // ServerInfo reports server version and topology for doctor.
 func (d *DB) ServerInfo(ctx context.Context) (version string, replicaSet bool, err error) {

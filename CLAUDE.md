@@ -35,7 +35,8 @@ Read `docs/architecture.md` before structural changes.
 - **Cut sheets (`.cut.md`, narration and mix included) are a lossless projection of the edit spec; JSON stays canonical** (`internal/cutsheet`,
   D46, docs/cut-sheet.md): print→parse keeps the spec hash; saving = minimal ops plan (`editspec.DiffOps`, merge-patch
   updates) through the same check/confirm/rebase/locks; quoted words resolve to exact times when checked.
-- **Durable jobs on MongoDB leases** (heartbeats, retries, recovery, idempotency); workers coordinate only via the DB;
+- **Durable jobs on MongoDB leases** (heartbeats, retries, recovery, idempotency; a lease ends by the database server's
+  time, `$$NOW` + `LeaseDuration`, and is compared with `$$NOW`); workers coordinate only via the DB;
   heavy jobs defer on low battery (threshold, override) — never silently. A stopping worker releases its job (attempt
   not counted, never failed); a terminal's `--wait` runs only the jobs it waits for (`LeaseAmong`) and keeps them
   to the end: retries are taken in the terminal, and `waitJobsOpt` restarts a stopped terminal worker or fails
@@ -508,7 +509,8 @@ Read `docs/architecture.md` before structural changes.
   than its release, unlike semver). A release is cut with `scripts/bump-version.sh 0.2.0|patch|minor|major` (VERSION,
   CHANGELOG's Unreleased moved under `## X.Y.Z — 20 Oct 2026`, a commit and an annotated tag; never pushes;
   `release.sh vX.Y.Z` publishes that tag). CHANGELOG.md is embedded (`version_files.go`) and read by
-  `version.ParseChangelog`. The daemon records each computer's build on its installation (`TouchInstallation`); the
+  `version.ParseChangelog`. Every process records its computer's build on its installation before its first write (`OnFirstWrite` →
+  `app.sayBuild`), the daemon also every minute (`TouchInstallation`); the
   renderer folder is named by the release, not the exact build.
 - **Remotion sources** (D131–D138, `internal/remotion`, `video/render/source`, docs/remotion-sources.md): a whole
   Remotion project in a project (`remotion_sources`); versions are canonical manifests of content-addressed files
@@ -1036,6 +1038,41 @@ Read `docs/architecture.md` before structural changes.
   migrations, IDs after) and continues; keeps the workspace ID; never deletes. `workspace.export|exports|adopt`
   are OwnerOnly + HumanOnly + `archivePeopleOnly`; the CLI needs a person's terminal (`personAtTerminal`); dashboard
   archives go to `<home>/archives`. Browser run `scripts/workspace-export-e2e.sh` (ports 5670–5679).
+- **Moving the database** (D334–D338, `internal/dbmove`, `internal/ops/databasemove.go`, `databasemove_state.go`,
+  `internal/store/movemarker.go`, `internal/store/guard.go`, `internal/cli/database_move.go`, `internal/api/database.go`,
+  `web/src/screens/settings/DatabaseMove.tsx`, docs/database-move.md): `database.plan|move|switch|abandon|move.status`
+  (`metarush database plan|move|switch|abandon|move-status`; move/switch/abandon OwnerOnly + HumanOnly +
+  `databasePeopleOnly`, the CLI a person's terminal; plan owners, any surface). Targets `here` (item 8's server via
+  `localdb.Prepare`, `localdb.Secrets*`; refused while other computers use the workspace unless `onlyThisComputer`) or
+  `saved`: another MongoDB whose address is **never** an op input, argv or log — the CLI's `--to address|env:NAME`
+  and the dashboard's form keep it via `SaveMoveAddress` (keychain `database-move`, or `<home>/database/move.secret`),
+  `rememberAddress` redacts it; `forgetUnneededAddress` drops it after a plan that isn't ready, a refused move or an
+  abandon (kept while a stopped move or a switch needs it, and for our own local sign-in). The plan checks What may
+  leave first (`ops.LeaveDatabase`: storage, words + voices + faces — the database holds the voice/face prints —
+  cloud per `leave.DatabaseKept`; a restore asks `leave.ArchiveDatabaseCheck` via `RestoreOptions.MayHold` before any
+  record), names every non-revoked computer whose record doesn't show a build that knows moves (`knowsMoves` ==
+  `app.MovesMark(version, commit)`, written by every process before its first write via `OnFirstWrite`, or version ≥
+  `ops.FirstMoveVersion`; invited/unknown count; an older build in the activity log after the record's, `olderBuildLogged`), then the target (`dbmove.CheckTarget`: reads only, `connectionStatus` privileges). The move:
+  `StartMoveMarker` (`database_move` in the old database: moving → moved | abandoned, `Holding`, `Switched`) freezes
+  it — `store.DB.C` returns a `Coll` whose every write refuses while frozen (`guard.go`: every connection looks at the
+  marker, trusted `MoveLookTrusted`, fail closed when unreadable during a move; a running change's pass — `Admit`,
+  `WriteThroughFreeze` — writes only after `listPassage` lists it in `busy`, never once `copying` (`MoveCopying`, set
+  only while nothing is listed) or moved, never after the change ended), `dispatch` refuses mutating ops up front
+  (`refuseWhileMoving`, `E_MOVING` reason database_moving|database_moved; the move's own ops exempt) and `Admit`s the
+  rest (counted, published in the marker's `busy`; the move waits for them), job leases end by `$$NOW` + `LeaseDuration`, every
+  time compared across computers is the server's (`$currentDate`, `$$NOW`: `MoveAlive`, `SeenWithin`,
+  `LiveLease`), `app.Held` keeps audit/TouchInstallation out and the log in the spool
+  (`logbook.Options.Hold`), `Migrate` refuses, daemons `watchForMove` and restart into `serveHeld` (`api.NewHeld`,
+  `heldGuard`: reads only, no background work, `HoldForMove` acks), the terminal worker stops; `waitQuiet` waits for
+  every computer seen within `RunningWithin` to ack and no live leases. `dbmove.Copy` (the restore lock, kind `move`;
+  `MakeForRestore` before the first record — never the source's index list, `IndexesNotMade` says it; `wsarchive`
+  `EachDocWhere`/`Inserter`/`HashWhere`, never the archive scrub; resumes after the copied prefix; TTL collections
+  upserted by `_id` without records ending within 15 min, no `collMod`; `LeftOut`; level last; `ErrChanged`) →
+  `dbmove.Recheck` under the freeze (late collections, source hashes again) → marker `moved` **before** `switchDatabase` (keychain/.env, previous kept aside, config.yaml's
+  `database` section, checked as loaded) → `recordMove` into the new database. No job (the old database is frozen):
+  progress is `<state>/database-move/<id>.json`; the dashboard starts `database move --dashboard-move <id>` with
+  `tools.Start` and a one-time grant like the media's move. Never deletes either database. Browser run
+  `scripts/database-move-e2e.sh` (ports 5690–5699).
 - **Testing and coverage** (D194, D195, docs/testing.md): five layers (static → Go tests on a real MongoDB → several
   machines in one process (`tests/e2e`) → browser runs with fakes → Mac-only and live services); `scripts/check.sh
   --quick|--full|--release` runs them; test databases are copies of a per-process template and stale ones are swept
@@ -1089,6 +1126,7 @@ scripts/ship-gate-e2e.sh                                  # the ship gate and pr
 scripts/windows-e2e.sh                                    # the dashboard as Windows 11 uses it: Windows file names, folders, downloads, line endings, Ctrl (D247; ports 5440–5449; Edge when installed)
 scripts/presenters-e2e.sh                                 # presenters with the fake D-ID and HeyGen: a test clip, approve, a clip, a stock clip, consent words, No presenters, retire (D273–D277; ports 5510–5519)
 scripts/workspace-export-e2e.sh                           # Settings → Storage → Export the workspace, then a CLI restore into a fresh home and the dashboard on the copy (D329–D333; ports 5670–5679)
+scripts/database-move-e2e.sh                              # Settings → Storage → Move the database with a second computer: the plan, changes refused while it moves, the switch on both (D334–D338; ports 5690–5699)
 scripts/components-e2e.sh                                 # only the required components, then Settings → Components and Getting started's Add it with a stand-in Homebrew (D324–D327; ports 5650–5659)
 scripts/resources-e2e.sh                                  # the Add box, Inbox clips dragged onto project cards, the Sources "…" menu, Delete…, a nested cut (D79–D84; ports 5660–5669)
 ```

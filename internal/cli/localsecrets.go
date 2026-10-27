@@ -2,14 +2,10 @@ package cli
 
 import (
 	"errors"
-	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/localdb"
-	"github.com/metavert-io/metarush/internal/secretpath"
 )
 
 // The addresses of the database on this computer (D254) are kept where
@@ -19,7 +15,7 @@ import (
 // only for upgrades, in the keychain (`mongodb-admin-uri`) or a file of its
 // own (<home>/database/admin.secret, 0600, checked like every secret file),
 // never in an environment variable, so no program MetaRush starts sees it.
-const localAdminSecret = "mongodb-admin-uri"
+const localAdminSecret = localdb.AdminSecret
 
 // localSecrets reads and keeps one home's database addresses.
 type localSecrets struct {
@@ -28,7 +24,7 @@ type localSecrets struct {
 	allowUnsafe bool
 }
 
-func adminSecretFile(home string) string { return filepath.Join(home, "database", "admin.secret") }
+func adminSecretFile(home string) string { return localdb.AdminSecretFile(home) }
 
 // saved is what an earlier setup kept for this home.
 func (l localSecrets) saved() localdb.Saved {
@@ -59,54 +55,17 @@ func (l localSecrets) keep(user, uri string) error {
 }
 
 func writeAdminFile(home, uri string, allowUnsafe bool) error {
-	return writeSecretFile(adminSecretFile(home), "the database's administrator address", uri, allowUnsafe)
+	return localdb.WriteSecretFile(adminSecretFile(home), "the database's administrator address", uri, allowUnsafe)
 }
 
 // writeSecretFile writes one secret into a private file (0600), where
 // secretpath allows a secret file.
 func writeSecretFile(p, what, uri string, allowUnsafe bool) error {
-	if err := secretpath.Check(p, what, allowUnsafe); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(p), ".secret-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		return err
-	}
-	if _, err := tmp.WriteString(uri + "\n"); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), p)
+	return localdb.WriteSecretFile(p, what, uri, allowUnsafe)
 }
 
 func readAdminFile(home string) (string, error) {
-	p := adminSecretFile(home)
-	if err := secretpath.CheckUse(p, "the database's administrator address"); err != nil {
-		return "", err
-	}
-	// Readable by others (copied, restored from a backup): made private
-	// again, or refused.
-	if _, loose := secretpath.LooseMode(p); loose {
-		if err := os.Chmod(p, 0o600); err != nil {
-			return "", fmt.Errorf("the database's administrator address can be read by others on this computer, and MetaRush couldn't make it private: %w", err)
-		}
-	}
-	b, err := os.ReadFile(p)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(b)), nil
+	return localdb.ReadSecretFile(adminSecretFile(home), "the database's administrator address")
 }
 
 // localAdminURI reads the administrator's address from where setup kept it.

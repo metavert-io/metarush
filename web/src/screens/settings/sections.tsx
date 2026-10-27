@@ -73,8 +73,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: 'storage',
     label: 'Storage',
-    line: 'Where footage is kept, exports, review links, Trash',
-    intro: 'Where your footage and renders are kept, moving them, exporting the whole workspace, this computer and its battery, review links for people outside the workspace, and the Trash.',
+    line: 'Where footage and the database are kept, exports, review links, Trash',
+    intro: 'Where your footage and renders are kept and moving them, moving the database, exporting the whole workspace, this computer and its battery, review links for people outside the workspace, and the Trash.',
     icon: (s) => <HardDrives size={s} />,
   },
   {
@@ -162,7 +162,9 @@ export function movedPart(section: string, hash: string): string | undefined {
 /** Another computer moved the workspace's media: this one still uses the old storage (D112). */
 export function useStorageBadge(): boolean {
   const st = useOp('storage.status', {}, { staleTime: 60_000, refetchInterval: 300_000 });
-  return !!st.data?.switchMeToo;
+  // The database moved too (D338): this computer still uses the old one.
+  const db = useOp('database.move.status', {}, { staleTime: 30_000, refetchInterval: 60_000 });
+  return !!st.data?.switchMeToo || !!db.data?.switchMeToo;
 }
 
 export function StorageDot({ className }: { className?: string }) {

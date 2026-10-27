@@ -17441,6 +17441,9 @@
           "type": "string",
           "description": "The new database, in words."
         },
+        "target": {
+          "$ref": "#/$defs/DatabaseTargetIn"
+        },
         "says": {
           "type": "string"
         },
@@ -17476,6 +17479,7 @@
       "required": [
         "state",
         "to",
+        "target",
         "progress",
         "summary"
       ]
@@ -17778,6 +17782,32 @@
         "switched",
         "next",
         "summary"
+      ]
+    },
+    "DatabaseTargetIn": {
+      "properties": {
+        "to": {
+          "type": "string",
+          "enum": [
+            "here",
+            "saved"
+          ],
+          "description": "here: the database on this computer (set up the way setup does it); saved: another MongoDB (Atlas or your own server) whose address this computer keeps for the move (given once to the plan in a terminal or in Settings → Storage; never on a command line)"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 63,
+          "description": "The new database's name (default metarush)."
+        },
+        "onlyThisComputer": {
+          "type": "boolean",
+          "description": "The database on this computer is reached by this computer only: say this computer will be the only one using the workspace."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "to"
       ]
     },
     "DeliverCaptionsFile": {

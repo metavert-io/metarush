@@ -259,8 +259,8 @@ type DatabaseMoveRun struct {
 	// State: planned → starting → running → done | failed.
 	State string `json:"state"`
 	// Phase: setting-up, pausing, copying, switching; Says what it does now.
-	Phase    string          `json:"phase,omitempty"`
-	Says     string          `json:"says,omitempty"`
+	Phase    string              `json:"phase,omitempty"`
+	Says     string              `json:"says,omitempty"`
 	Progress dbmove.CopyProgress `json:"progress"`
 	// Waiting names the computers it waits for to pause.
 	Waiting []string `json:"waiting,omitempty"`
@@ -387,6 +387,13 @@ func (m *dbMoveRun) started(a *app.App, move string, to DatabasePlace) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.r.Move, m.r.To = move, to
+	m.save(a, true)
+}
+
+func (m *dbMoveRun) place(a *app.App, to DatabasePlace) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.r.To = to
 	m.save(a, true)
 }
 
@@ -595,16 +602,19 @@ type DatabaseMoveStatusIn struct{}
 
 // DatabaseMoveRunView is the last move started on this computer.
 type DatabaseMoveRunView struct {
-	State    string          `json:"state" jsonschema:"enum=starting,enum=running,enum=done,enum=failed,enum=stopped"`
-	Phase    string          `json:"phase,omitempty"`
-	To       string          `json:"to" jsonschema:"description=The new database\\, in words."`
-	Says     string          `json:"says,omitempty"`
+	State string `json:"state" jsonschema:"enum=starting,enum=running,enum=done,enum=failed,enum=stopped"`
+	Phase string `json:"phase,omitempty"`
+	To    string `json:"to" jsonschema:"description=The new database\\, in words."`
+	// Target is where it goes, as the plan took it (never an address): to
+	// continue it.
+	Target   DatabaseTargetIn    `json:"target"`
+	Says     string              `json:"says,omitempty"`
 	Progress dbmove.CopyProgress `json:"progress"`
-	Waiting  []string        `json:"waiting,omitempty"`
-	Started  *time.Time      `json:"started,omitempty"`
-	Finished *time.Time      `json:"finished,omitempty"`
-	Summary  string          `json:"summary"`
-	Next     []string        `json:"next,omitempty"`
+	Waiting  []string            `json:"waiting,omitempty"`
+	Started  *time.Time          `json:"started,omitempty"`
+	Finished *time.Time          `json:"finished,omitempty"`
+	Summary  string              `json:"summary"`
+	Next     []string            `json:"next,omitempty"`
 }
 
 // DatabaseMoveStatusOut is this computer's database and the workspace's move.
@@ -657,7 +667,7 @@ func DatabaseMoveStatus(ctx context.Context, a *app.App, _ *DatabaseMoveStatusIn
 		if r.State == DBMovePlanned {
 			continue
 		}
-		v := &DatabaseMoveRunView{State: r.State, Phase: r.Phase, To: r.To.Words, Says: r.Says, Progress: r.Progress, Waiting: r.Waiting,
+		v := &DatabaseMoveRunView{State: r.State, Phase: r.Phase, To: r.To.Words, Target: r.Target, Says: r.Says, Progress: r.Progress, Waiting: r.Waiting,
 			Started: r.Started, Finished: r.Finished, Summary: r.Summary, Next: r.Next}
 		switch r.State {
 		case DBMoveStarting:

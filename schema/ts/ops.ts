@@ -17443,6 +17443,7 @@ phase?: string
  * The new database, in words.
  */
 to: string
+target: DatabaseTargetIn
 says?: string
 progress: CopyProgress
 waiting?: string[]
@@ -17450,6 +17451,24 @@ started?: string
 finished?: string
 summary: string
 next?: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseTargetIn".
+ */
+export interface DatabaseTargetIn {
+/**
+ * here: the database on this computer (set up the way setup does it); saved: another MongoDB (Atlas or your own server) whose address this computer keeps for the move (given once to the plan in a terminal or in Settings → Storage; never on a command line)
+ */
+to: ("here" | "saved")
+/**
+ * The new database's name (default metarush).
+ */
+name?: string
+/**
+ * The database on this computer is reached by this computer only: say this computer will be the only one using the workspace.
+ */
+onlyThisComputer?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

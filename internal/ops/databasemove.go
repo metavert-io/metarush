@@ -757,6 +757,7 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 	if err != nil {
 		return nil, err
 	}
+	rec.place(a, pre.place)
 	if resume && !markerMatches(marker, pre, a) {
 		pre.close()
 		return nil, apperr.New(apperr.Conflict, "A move to %s started on %s and waits to be continued or abandoned.", marker.To.Words, firstNonEmpty(marker.FromName, "another computer")).

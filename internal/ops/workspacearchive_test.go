@@ -196,3 +196,35 @@ func TestWorkspaceExportKeepsThisComputersKeysOut(t *testing.T) {
 		t.Errorf("the export should say what it took out: %q", out.Export.Says)
 	}
 }
+
+// YouTube's client secret and each person's sign-in to it (kept as JSON in
+// the home's secrets file) stay out of an archive too.
+func TestWorkspaceExportKeepsPublishingSignInsOut(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	ws := a.WorkspaceID()
+	clientSecret := "client" + strings.Repeat("Sx9", 8)
+	refresh := "refresh" + strings.Repeat("Rt4", 8)
+	env := `METARUSH_PUBLISH_YOUTUBE_CLIENT={"id":"cid.apps.example","secret":"` + clientSecret + `"}` + "\n" +
+		`METARUSH_PUBLISH_YOUTUBE_PERSON_` + strings.ToUpper(a.Cfg.User.ID) + `={"refresh":"` + refresh + `","account":{"name":"Maya"}}` + "\n"
+	if err := os.WriteFile(filepath.Join(a.Cfg.Home(), ".env"), []byte(env), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.Cfg.Secrets = "env"
+	for coll, doc := range map[string]bson.M{
+		store.CWorkspaces: {"_id": ws, "workspaceId": ws, "name": "FernBrook Studio", "mediaStore": bson.M{"provider": a.Media.Name(), "locator": a.Media.Locator()}},
+		store.CComments:   {"_id": "cmt_yt", "workspaceId": ws, "text": "secret " + clientSecret + " and " + refresh},
+	} {
+		if _, err := a.DB.C(coll).InsertOne(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	to := filepath.Join(t.TempDir(), "archive")
+	if _, err := ops.CallTyped[ops.WorkspaceExportOut](ctx, a, "workspace.export", ops.WorkspaceExportIn{To: to}, ops.Caller{Human: true}); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(to, "collections", store.CComments+".jsonl"))
+	if strings.Contains(string(b), clientSecret) || strings.Contains(string(b), refresh) {
+		t.Fatalf("a publishing secret is in the archive: %s", b)
+	}
+}

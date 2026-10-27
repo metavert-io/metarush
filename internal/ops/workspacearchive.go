@@ -19,6 +19,7 @@ import (
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/publish"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/version"
 	"github.com/metavert-io/metarush/internal/wsarchive"
@@ -294,10 +295,12 @@ func workspaceExport(ctx context.Context, a *app.App, in *WorkspaceExportIn) (*W
 func exportOptions(ctx context.Context, a *app.App, to string, tar bool, media string) wsarchive.ExportOptions {
 	// Every key this computer holds stays out: the configured ones, the
 	// providers' and the abilities' (by the names the workspace's abilities
-	// read them under), and any this process has read; the CLI adds another
+	// read them under), the publishing client's and people's sign-ins, and any
+	// this process has read; the CLI adds another
 	// database's address and its storage's key.
 	extra, _ := ctx.Value(exportSecretsKey{}).([]string)
 	extra = append(extra, logbook.KnownSecrets(a.Cfg, abilityKeyNames(ctx, a)...)...)
+	extra = append(extra, publish.Secrets(a.Cfg, workspacePeople(ctx, a)...)...)
 	b := version.Current()
 	machine := ""
 	if a.Cfg != nil {
@@ -334,6 +337,19 @@ func abilityKeyNames(ctx context.Context, a *app.App) []string {
 		return nil
 	}
 	return names
+}
+
+// workspacePeople are the IDs of the workspace's people (whose publishing
+// sign-ins this computer may keep).
+func workspacePeople(ctx context.Context, a *app.App) []string {
+	if a.DB == nil {
+		return nil
+	}
+	var ids []string
+	if err := a.DB.C(store.CUsers).Distinct(ctx, "_id", bson.M{"workspaceId": a.WorkspaceID()}).Decode(&ids); err != nil {
+		return nil
+	}
+	return ids
 }
 
 // freeName is a new archive's name in the exports folder: the workspace's

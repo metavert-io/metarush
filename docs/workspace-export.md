@@ -85,11 +85,29 @@ Documents that belong to no workspace, or to another workspace in the same datab
 manifest's notes.
 
 Always left out: passwords, sign-in links and any other credential; each computer's own state (its live record, what
-it set up for abilities, its caches and scratch files, which live in its own folder anyway); test markers. Every text
-in every record is also checked for anything that looks like a key, a password or a token (an address with a password,
-a private key, a cloud or API key, a bearer token, a signed address) and for this computer's own secrets; what is
-found is replaced with `[redacted]`, and the manifest counts the records and names the places. Where a file came from
-on someone's computer (a clip's original path, shortened to `~`) is history, and stays.
+it set up for abilities, its caches and scratch files, which live in its own folder anyway); test markers.
+
+Every text in every record is also checked, and what is found is replaced with `[redacted]` (the manifest counts the
+records and names the places). Exactly these are looked for:
+
+- a private key, the whole block;
+- keys in the shapes MetaRush knows: AWS access keys, storage keys (`tid_…`, `tsec_…`), `sk_…` and `sk-…` API keys,
+  GitHub and Slack tokens, Google API keys (`AIza…`), ElevenLabs keys written as `xi-api-key: …`;
+- a password in any address (`scheme://name:password@host`, whatever the scheme);
+- a signature, key or token in an address's query: `X-Goog-Signature`, `X-Goog-Credential`, `X-Amz-Signature`,
+  `X-Amz-Credential`, `X-Amz-Security-Token`, `api_key`, `apikey`, `api-key`, `key`, `token`, `access_token`, `sig`,
+  `signature`;
+- signed sign-in tokens (JWTs), Google client secrets (`GOCSPX-…`) and Google refresh tokens (`1//0…`);
+- every secret this computer keeps for the installation: the database's password, the storage's secret key, providers'
+  keys, the keys the workspace's abilities read, the publishing client's secret and the workspace's people's publishing
+  sign-ins, the key that signs its confirm links, any key MetaRush read while running, and secret-named values and
+  addresses' passwords in its secrets file and its environment. A value of 16 characters or more is taken
+  out wherever it appears; a shorter one only where it stands as a word of its own (a short password that is also part
+  of a file name or a command stays in those); one shorter than 8 characters is not looked for.
+
+People's own words around them stay, and so do identifiers (a record's ID, any field named `…Id`, and any field a
+unique index covers). Where a file came from on someone's computer (a clip's original path, shortened to `~`) is
+history, and stays.
 
 | Collection | Goes in | Why |
 |---|---|---|

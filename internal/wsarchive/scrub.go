@@ -23,40 +23,61 @@ const MinExact = 8
 const kindKnown = "a key this computer keeps"
 
 // Scrubber takes credentials out of the text of every document before it goes
-// into an archive (D330), and nothing else: only the narrow credential shapes
-// MetaRush refuses in imported files (secretpath: private keys, cloud and API
-// keys, a database address's password), signed sign-in tokens, and the exact keys this computer knows
-// (KnownSecrets: eight characters or more). People's own words ("the basic
-// questions", "token: 3 per person") are never touched, and neither are
-// identifiers: a document's _id, any field named …Id or …ID (a storage key's ID
-// is how the copy removes that key later) and any field a unique index of the
-// collection covers (two names made equal would stop the restore).
+// into an archive (D330), and nothing else:
+//   - the credential shapes MetaRush refuses in imported files (secretpath: a
+//     private key's whole block, cloud and API keys, a database address's
+//     password);
+//   - a password in any address (scheme://user:password@host), and a
+//     signature, key or token in an address's query (X-Goog-Signature,
+//     X-Amz-Signature and the other signing parts, api_key, key, token,
+//     access_token, sig, signature);
+//   - signed sign-in tokens (JWTs), Google's OAuth client secrets (GOCSPX-…)
+//     and refresh tokens (1//0…);
+//   - the exact keys this computer knows (KnownSecrets), eight characters or
+//     more: from sixteen characters wherever they appear, shorter ones only
+//     where they stand as a word of their own ("metarush.yaml" and
+//     "~/metarush/" stay when a password is "metarush").
+//
+// People's own words ("the basic questions", "token: 3 per person") are never
+// touched, and neither are identifiers: a document's _id, any field named …Id
+// or …ID (a storage key's ID is how the copy removes that key later) and any
+// field a unique index of the collection covers (two names made equal would
+// stop the restore).
 type Scrubber struct {
-	exact []string
-	rep   *strings.Replacer
+	long  *strings.Replacer // exact values of WholeWordBelow characters or more
+	short []string          // shorter ones, replaced as words of their own
 }
+
+// WholeWordBelow is the length under which an exact value is taken out only
+// where it stands as a word of its own.
+const WholeWordBelow = 16
 
 // NewScrubber looks for the given exact values too (shorter than MinExact: ignored).
 func NewScrubber(exact ...string) *Scrubber {
 	seen := map[string]bool{}
-	var vals []string
+	var long []string
+	s := &Scrubber{}
 	for _, v := range exact {
 		v = strings.TrimSpace(v)
 		if len(v) < MinExact || seen[v] {
 			continue
 		}
 		seen[v] = true
-		vals = append(vals, v)
+		if len(v) >= WholeWordBelow {
+			long = append(long, v)
+		} else {
+			s.short = append(s.short, v)
+		}
 	}
 	// Longest first, so a value inside a longer one cannot leave a tail.
-	sort.Slice(vals, func(i, j int) bool { return len(vals[i]) > len(vals[j]) })
-	s := &Scrubber{exact: vals}
-	if len(vals) > 0 {
-		pairs := make([]string, 0, 2*len(vals))
-		for _, v := range vals {
+	sort.Slice(long, func(i, j int) bool { return len(long[i]) > len(long[j]) })
+	sort.Slice(s.short, func(i, j int) bool { return len(s.short[i]) > len(s.short[j]) })
+	if len(long) > 0 {
+		pairs := make([]string, 0, 2*len(long))
+		for _, v := range long {
 			pairs = append(pairs, v, Redacted)
 		}
-		s.rep = strings.NewReplacer(pairs...)
+		s.long = strings.NewReplacer(pairs...)
 	}
 	return s
 }
@@ -82,12 +103,33 @@ type Change struct {
 	Kind  string
 }
 
+// shapes are the archive's own credential shapes beyond secretpath's.
+var shapes = []struct {
+	re   *regexp.Regexp
+	repl string
+	what string
+}{
+	{regexp.MustCompile(`(?i)\b([a-z][a-z0-9+.-]{1,20}://[^\s:/@'"<>]+:)[^\s@'"<>/]+@`), "${1}" + Redacted + "@", "a password in an address"},
+	{regexp.MustCompile(`(?i)([?&](?:x-goog-signature|x-goog-credential|x-amz-signature|x-amz-credential|x-amz-security-token|api_key|apikey|api-key|access_token|key|token|sig|signature)=)[^&\s"'<>#]+`), "${1}" + Redacted, "a key in an address"},
+	{regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}`), Redacted, "a sign-in token"},
+	{regexp.MustCompile(`\bGOCSPX-[A-Za-z0-9_-]{20,}`), Redacted, "a Google client secret"},
+	{regexp.MustCompile(`\b1//0[A-Za-z0-9_-]{20,}`), Redacted, "a Google sign-in token"},
+}
+
 // text scrubs one string.
 func (s *Scrubber) text(str string) (string, string) {
 	kind := ""
-	if s.rep != nil {
-		if clean := s.rep.Replace(str); clean != str {
+	if s.long != nil {
+		if clean := s.long.Replace(str); clean != str {
 			str, kind = clean, kindKnown
+		}
+	}
+	for _, v := range s.short {
+		if clean, did := replaceWord(str, v); did {
+			str = clean
+			if kind == "" {
+				kind = kindKnown
+			}
 		}
 	}
 	if clean, kinds := secretpath.HideShapes(str, Redacted); len(kinds) > 0 {
@@ -96,18 +138,58 @@ func (s *Scrubber) text(str string) (string, string) {
 			kind = kinds[0]
 		}
 	}
-	if jwt.MatchString(str) {
-		str = jwt.ReplaceAllLiteralString(str, Redacted)
-		if kind == "" {
-			kind = "a sign-in token"
+	for _, sh := range shapes {
+		if sh.re.MatchString(str) {
+			str = sh.re.ReplaceAllString(str, sh.repl)
+			if kind == "" {
+				kind = sh.what
+			}
 		}
 	}
 	return str, kind
 }
 
-// jwt is a signed sign-in token (three parts, header and claims both JSON):
-// a bearer credential that ordinary words never look like.
-var jwt = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}`)
+// wordish are the characters a short value's neighbours may not be for it
+// to stand as a word of its own: letters, digits and the joins of names and
+// paths. A join after it counts only when more of a name follows ("metarush.yaml"
+// is a file name; "… is metarush." ends a sentence).
+func wordish(r byte) bool {
+	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.IndexByte("_-./~\\", r) >= 0
+}
+
+func joinedAfter(str string, end int) bool {
+	if end >= len(str) || !wordish(str[end]) {
+		return false
+	}
+	if strings.IndexByte("-./~\\", str[end]) < 0 {
+		return true
+	}
+	return end+1 < len(str) && wordish(str[end+1])
+}
+
+// replaceWord replaces v where it stands as a word of its own.
+func replaceWord(str, v string) (string, bool) {
+	var b strings.Builder
+	did := false
+	for {
+		i := strings.Index(str, v)
+		if i < 0 {
+			b.WriteString(str)
+			break
+		}
+		end := i + len(v)
+		alone := (i == 0 || !wordish(str[i-1])) && !joinedAfter(str, end)
+		b.WriteString(str[:i])
+		if alone {
+			b.WriteString(Redacted)
+			did = true
+		} else {
+			b.WriteString(v)
+		}
+		str = str[end:]
+	}
+	return b.String(), did
+}
 
 // Doc returns the document with credentials taken out of its text and the
 // fields it changed (nil when nothing was). protect names fields (dotted,

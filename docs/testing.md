@@ -53,7 +53,7 @@ once (default 2: three other builds may share the machine and the test mongod).
 | Run | Linux (CI `browser`) | Why not on Linux |
 |---|---|---|
 | about, accounts, content, keep, playback, recipes, recorder, remotion, windows | yes | — (their footage is made with ffmpeg in the run; recipes talks only to the fake ElevenLabs and Gemini; recorder uses Chromium's fake camera and microphone and a canvas for the screen; windows plays a Windows browser in Chromium, and in Edge where it is installed) |
-| cards, delivery, generate, library, people, sources, storage, transcript, voiceover, voiceover-live, acceptance | Mac only | they need `tests/fixtures/gen`, which `scripts/make-fixtures.sh` makes with macOS `say` (speech with known words) |
+| cards, delivery, generate, library, people, resources, sources, storage, transcript, voiceover, voiceover-live, acceptance | Mac only | they need `tests/fixtures/gen`, which `scripts/make-fixtures.sh` makes with macOS `say` (speech with known words) |
 | sound | Mac only | its fixtures are made with `say` too (`scripts/make-sound-fixtures.sh`) |
 | remote | Mac only | its check of spoofed Tailscale headers sends from `fe80::1%lo0` (`lo0` is macOS's name for loopback) |
 | abilities, catalogue | Mac only (for now) | they check an ability in the sandbox; on Linux that needs bubblewrap allowed to make its own sandbox (docs/abilities.md), which the CI runner gets only in the `sandbox-linux` job |

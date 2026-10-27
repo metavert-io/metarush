@@ -1717,6 +1717,10 @@ checks below in order, log each step and end with a table; [testing](docs/testin
 - `node web/scripts/linkimport-e2e.mjs` pastes links into the Inbox against a daemon whose downloader is the fake
   (`go build -o <dir>/yt-dlp ./internal/testutil/fakeytdlp/cmd/fake-yt-dlp`, then `METARUSH_YTDLP=<dir>/yt-dlp`) and
   loads the browser extension in Chromium to pair it.
+- `scripts/resources-e2e.sh` runs `web/scripts/resources-e2e.mjs` (ports 5660–5669; the fake downloader): the Add
+  box and a drop and a pasted link into a project, Inbox clips dragged onto project cards (Undo, Move…, two at once),
+  the Sources "…" menu (Where it's used, Move to another project…, Remove from this project, Delete…), another
+  project's cut nested from the dashboard, desktop and 390 px phone in both themes.
 - `node web/scripts/resources2-e2e.mjs` pastes a GitHub repository and a web page into a project's Add box (a fixture
   repository through `METARUSH_GIT_BASE`, `scripts/make-fixture-repo.sh`; a local site with
   `METARUSH_PAGES_ALLOW_LOCAL=1`), previews a cut of slides in the studio, and sends a stub page from the extension

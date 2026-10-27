@@ -264,8 +264,12 @@ try {
     check('F the pause is lifted and the card no longer says it', !!gone);
     const after = await api(page, 'workspace.exports', {});
     check('F the copy is the workspace now', after.ok && !after.data.paused, JSON.stringify(after).slice(0, 200));
-    const adopted = await api(page, 'log.list', {});
-    check('F the Log has it', adopted.ok && adopted.data.entries.some((e) => e.op?.name === 'workspace.adopt'), JSON.stringify(adopted.data?.entries?.slice(0, 3) ?? adopted).slice(0, 300));
+    // The dashboard's entries reach the Log within a few seconds.
+    const adopted = await waitFor(async () => {
+      const l = await api(page, 'log.list', {});
+      return l.ok && l.data.entries.some((e) => e.op?.name === 'workspace.adopt') ? l : null;
+    }, 30_000);
+    check('F the Log has it', !!adopted);
   }
 } finally {
   await browser.close();

@@ -122,8 +122,13 @@ type ComputerWork struct {
 }
 
 // PausedWords say that a restored copy deletes nothing by itself, and how a
-// person lifts that.
-const PausedWords = "The copy's background deletions are paused: emptying the Trash on its schedule, ending review links and deleting their pages, and clearing out old activity wait, since the original may still use the same footage and pages. Once the original is retired, or this copy has storage of its own, say the copy is now the workspace: metarush workspace adopt (or Settings → Storage)."
+// person lifts that (a terminal's words); PausedHere says it in the dashboard,
+// whose button lifts it.
+const (
+	pausedWhat  = "background deletions are paused: emptying the Trash on its schedule, ending review links and deleting their pages, and clearing out old activity wait, since the original may still use the same footage and pages."
+	PausedWords = "The copy's " + pausedWhat + " Once the original is retired, or this copy has storage of its own, say the copy is now the workspace: metarush workspace adopt (or Settings → Storage)."
+	PausedHere  = "This copy's " + pausedWhat + " Once the original is retired, or this copy has storage of its own, say this copy is now the workspace."
+)
 
 // ErrNotEmpty refuses a database that already holds something.
 func ErrNotEmpty(db *store.DB, colls []string) error {

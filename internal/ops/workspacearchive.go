@@ -157,7 +157,7 @@ func init() {
 			}
 			out := &WorkspaceExportsOut{Exports: listExports(a), Folder: ArchivesFolder(a), Holds: ArchiveHolds, Restore: RestoreWords}
 			if ws, err := wsarchive.FindWorkspace(ctx, a.DB, a.WorkspaceID()); err == nil && ws != nil && ws.DeletionsPaused != nil {
-				out.Paused, out.PausedSays = ws.DeletionsPaused, wsarchive.PausedWords
+				out.Paused, out.PausedSays = ws.DeletionsPaused, wsarchive.PausedHere
 			}
 			return out, nil
 		})

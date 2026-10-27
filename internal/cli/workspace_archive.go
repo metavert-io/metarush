@@ -286,7 +286,7 @@ func workspaceExportsCmd() *cobra.Command {
 			return runOpWith(c, a, "workspace.exports", ops.WorkspaceExportsIn{}, ops.Caller{Human: true}, func(o any) {
 				out := o.(*ops.WorkspaceExportsOut)
 				if out.Paused != nil {
-					fmt.Println("! " + out.PausedSays)
+					fmt.Println("! " + wsarchive.PausedWords)
 				}
 				if len(out.Exports) == 0 {
 					fmt.Println("No exports were made on this computer yet.")

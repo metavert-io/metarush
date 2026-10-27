@@ -120,7 +120,7 @@ func TestOlderLevelExportsRestoresAndMigratesForward(t *testing.T) {
 // documents than memory may hold at once keep the live heap small.
 func TestBigCollectionsStream(t *testing.T) {
 	if testing.Short() {
-		t.Skip("writes about 100 MB of documents")
+		t.Skip("writes about 70 MB of documents")
 	}
 	ctx := context.Background()
 	src := testutil.DB(t)
@@ -129,7 +129,7 @@ func TestBigCollectionsStream(t *testing.T) {
 	if _, err := src.C(store.CWorkspaces).InsertOne(ctx, bson.M{"_id": ws, "workspaceId": ws, "name": "Big"}); err != nil {
 		t.Fatal(err)
 	}
-	const n, perBatch = 80000, 2000
+	const n, perBatch = 50000, 2000
 	text := strings.Repeat("words spoken in a long interview, ", 40) // ~1.4 KB
 	for i := 0; i < n; i += perBatch {
 		batch := make([]any, 0, perBatch)
@@ -175,10 +175,10 @@ func TestBigCollectionsStream(t *testing.T) {
 	var res *wsarchive.Result
 	grew := measure(func() { res = exportTo(t, src, st, ws, wsarchive.MediaReferenced, false) })
 	c := collection(res.Manifest, store.CSegments)
-	if c == nil || c.Count != n || c.Bytes < 100<<20 {
+	if c == nil || c.Count != n || c.Bytes < 64<<20 {
 		t.Fatalf("segments: %+v", c)
 	}
-	const limit = 48 << 20
+	const limit = 24 << 20 // a third of what goes through
 	if grew > limit {
 		t.Fatalf("exporting %s grew the heap by %s: it doesn't stream", wsarchive.HumanBytes(c.Bytes), wsarchive.HumanBytes(int64(grew)))
 	}

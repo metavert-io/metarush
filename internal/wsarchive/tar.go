@@ -56,6 +56,7 @@ func packTar(dir, dest string, progress func(done, all int64)) (int64, error) {
 		return files[i] < files[j]
 	})
 	tmp := dest + ".writing"
+	_ = os.Remove(tmp) // what a stopped export of this archive left
 	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return 0, err

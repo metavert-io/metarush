@@ -1,6 +1,19 @@
 # Changelog
 
 ## Unreleased
+- **Export a whole workspace, and restore it on another computer**. Settings → Storage → **Export the workspace**
+  (owners) or `metarush workspace export --to <folder>` writes one archive of everything about the work — projects,
+  versions, transcripts, comments, people and their consent records, Claude Code conversations and the activity log —
+  with the footage listed by where it is kept, or copied in and checked (`--media included`); `--tar` makes it one
+  file and `--plan` says what it would hold first. Passwords, keys and each computer's own settings are never in it,
+  and anything in a record that looks like a key is taken out; every kind of record says whether it goes in and why,
+  and a manifest checks every file. The archive is readable only by your account. An export only reads: it never
+  updates the database, so it also works on a workspace an older MetaRush left, with a database user that may only
+  read, and another database's address comes on standard input or from an environment variable, never the command
+  line. On the new computer, `metarush setup --restore <archive>` (or `metarush workspace restore <archive>` into an
+  empty database) checks every file first, puts the footage in place, writes everything, checks the copy against the
+  archive, brings it up to date for this MetaRush and joins it — nothing is ever deleted, and the workspace keeps its
+  identity. Exporting and restoring are a person's, never Claude's, Auto's or another AI app's.
 - **Change a spoken word, in the speaker's own voice**. Right-click words in a clip's transcript and
   choose **Say it differently…** (or `metarush cut say make <project> --clip <c> --from <s> --to <s> --as "fifteen"`):
   the cut says the new words in that person's own voice copy — only with their recorded consent for new words with

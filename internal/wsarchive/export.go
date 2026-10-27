@@ -235,12 +235,15 @@ func Export(ctx context.Context, o ExportOptions) (*Result, error) {
 	m.Media = ArchiveMedia{Mode: o.Media, Store: o.Store.Locator(), StoreWords: o.StoreWords, Index: MediaIndexName}
 	var entries []MediaEntry
 	if o.Media == MediaIncluded {
-		state, scratch := o.StateDir, o.ScratchDir
-		if state == "" {
-			state = filepath.Join(work, ".copy")
+		// The copy's journal and partial downloads belong to this archive:
+		// an export of the same archive started again continues them.
+		id := storagemove.ID(ws.ID, o.Store.Locator(), dest)
+		state, scratch := filepath.Join(work, ".copy"), filepath.Join(work, ".download")
+		if o.StateDir != "" {
+			state = filepath.Join(o.StateDir, id)
 		}
-		if scratch == "" {
-			scratch = filepath.Join(work, ".download")
+		if o.ScratchDir != "" {
+			scratch = filepath.Join(o.ScratchDir, id)
 		}
 		entries, _, err = includeMedia(ctx, includeOptions{Workspace: ws.ID, From: o.Store, Dir: filepath.Join(work, MediaDir), Cache: o.Cache,
 			StateDir: state, ScratchDir: scratch, Progress: func(p storagemove.Progress) {
@@ -249,8 +252,9 @@ func Export(ctx context.Context, o ExportOptions) (*Result, error) {
 		if err != nil {
 			return nil, apperr.Wrap(apperr.Storage, err, "The footage couldn't all be copied into the archive. Start the export again: it continues where it stopped.")
 		}
-		_ = os.RemoveAll(filepath.Join(work, ".copy"))
-		_ = os.RemoveAll(filepath.Join(work, ".download"))
+		// This copy's own notes, done with: the archive holds what they tracked.
+		_ = os.RemoveAll(state)
+		_ = os.RemoveAll(scratch)
 	} else {
 		entries, err = ListMedia(ctx, o.Store, ws.ID)
 		if err != nil {

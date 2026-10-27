@@ -491,23 +491,16 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 	// User.
 	var user models.User
 	if o.restored != nil {
-		// In a restored workspace this computer acts as the person whose email
-		// was given, else as its only owner.
-		if err := db.C(store.CUsers).FindOne(ctx, bson.M{"workspaceId": ws.ID, "email": o.userEmail}).Decode(&user); err != nil || o.userEmail == "" {
-			var owners []models.User
-			if cur, err := db.C(store.CUsers).Find(ctx, bson.M{"workspaceId": ws.ID, "role": "owner"}); err == nil {
-				_ = cur.All(ctx, &owners)
-			}
-			if len(owners) == 1 {
-				user = owners[0]
-				o.userEmail, o.userName = user.Email, user.Name
-				say("  This computer works as “%s”, the workspace's owner (another person: --user-email).", user.Name)
-			}
+		user = restoredPerson(ctx, db, ws, o.userEmail)
+		if user.ID != "" && !strings.EqualFold(user.Email, o.userEmail) {
+			o.userEmail, o.userName = user.Email, user.Name
+			say("  This computer works as “%s”, the restored workspace's owner (another person: --user-email).", user.Name)
 		}
 	}
-	if user.ID != "" {
-		// found above
-	} else if err := db.C(store.CUsers).FindOne(ctx, bson.M{"workspaceId": ws.ID, "email": o.userEmail}).Decode(&user); err != nil || o.userEmail == "" {
+	if user.ID == "" {
+		_ = db.C(store.CUsers).FindOne(ctx, bson.M{"workspaceId": ws.ID, "email": o.userEmail}).Decode(&user)
+	}
+	if user.ID == "" || o.userEmail == "" && o.restored == nil {
 		user = models.User{ID: ids.New(ids.User), WorkspaceID: ws.ID, Name: o.userName, Email: o.userEmail, CreatedAt: now}
 		if err := db.Insert(ctx, store.CUsers, user); err != nil {
 			return nil, err
@@ -652,6 +645,27 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 		result["warnings"] = homeWarnings
 	}
 	return result, nil
+}
+
+// restoredPerson is who this computer works as in a restored workspace: the
+// person with the email given, else its only owner, else (before anyone had
+// the owner role) the person who set the workspace up.
+func restoredPerson(ctx context.Context, db *store.DB, ws models.Workspace, email string) models.User {
+	var u models.User
+	if email != "" && db.C(store.CUsers).FindOne(ctx, bson.M{"workspaceId": ws.ID, "email": email}).Decode(&u) == nil {
+		return u
+	}
+	var owners []models.User
+	if cur, err := db.C(store.CUsers).Find(ctx, bson.M{"workspaceId": ws.ID, "role": models.RoleOwner}); err == nil {
+		_ = cur.All(ctx, &owners)
+	}
+	switch {
+	case len(owners) == 1:
+		return owners[0]
+	case len(owners) == 0 && ws.CreatedBy.UserID != "":
+		_ = db.C(store.CUsers).FindOne(ctx, bson.M{"_id": ws.CreatedBy.UserID, "workspaceId": ws.ID}).Decode(&u)
+	}
+	return u
 }
 
 func storeRoundTrip(ctx context.Context, ms media.Store) error {

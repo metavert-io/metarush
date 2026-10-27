@@ -441,6 +441,10 @@ func (s *setupRun) chooseRestore() error {
 	if o.init.restore == "" {
 		return nil
 	}
+	// Restoring a workspace is a person's, at their own terminal (D332).
+	if err := personAtTerminal(s.c, "restores"); err != nil {
+		return err
+	}
 	for _, f := range []string{"join", "new-workspace", "workspace-name"} {
 		if s.changed(f) {
 			return fail(s.c, apperr.InvalidInput, "A restored workspace keeps its own name and ID, so --"+f+" can't go with --restore.", "")

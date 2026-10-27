@@ -1,0 +1,501 @@
+// Package dbmove copies a workspace's whole database into another, empty one
+// and checks the copy (`metarush database move`, D334–D338): built on the
+// workspace export's engine (internal/wsarchive) — the source is only ever
+// read; every collection is made as the source made it (its options and
+// indexes first) and streamed in _id order; the copy is locked from before
+// its first write until it is whole and checked (the restore's lock, kind
+// move); every collection's documents are hashed on both sides and must
+// match; the migration level goes in last. Nothing is ever deleted, in either
+// database.
+//
+// What switches, what is frozen meanwhile and who may do it is
+// internal/ops's (databasemove.go): this package only plans, copies and
+// checks.
+package dbmove
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+
+	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/wsarchive"
+)
+
+// LeftOut are the collections a move doesn't carry, each with why: the old
+// database's own state, and what MetaRush writes again by itself. Everything
+// else — every collection MetaRush keeps, and any other one the database
+// holds — moves as it is, credentials included (it is the same workspace in
+// another place, not an archive that leaves).
+var LeftOut = map[string]string{
+	store.CDatabaseMove: "the move's own marker: it stays in the old database",
+	store.CRestoreLock:  "a restore's or a move's lock: the new database gets its own",
+	store.CTestRun:      "a test database's marker",
+	store.CWorkers:      "each computer's live record of what it can do now: written again when MetaRush starts",
+	store.CAuthFailures: "counts of wrong passwords, kept a short while to slow guessing: about sign-ins to the old database only",
+}
+
+// Carried reports whether a move copies a collection.
+func Carried(name string) bool {
+	_, out := LeftOut[name]
+	return !out && !strings.HasPrefix(name, "system.")
+}
+
+// Collection is one collection of a move: what the old database holds of it
+// and, once moved, what the copy holds.
+type Collection struct {
+	Name  string `json:"name"`
+	Count int64  `json:"count"`
+	// Bytes is about how much it holds (as stored, before compression).
+	Bytes   int64 `json:"bytes"`
+	Carried bool  `json:"carried"`
+	// Why it stays behind (Carried false).
+	Why string `json:"why,omitempty"`
+	// Copied and Verified once moved.
+	Copied   int64 `json:"copied,omitempty"`
+	Verified bool  `json:"verified,omitempty"`
+}
+
+// Survey is what a database holds, for a move's plan.
+type Survey struct {
+	Collections []Collection `json:"collections"`
+	// Documents and Bytes are what moves.
+	Documents int64 `json:"documents"`
+	Bytes     int64 `json:"bytes"`
+	// Level is the database's migration level (it moves with it, last).
+	Level wsarchive.MigrationLevel `json:"level"`
+	// Others are workspaces the database holds beside the one moving.
+	Others []string `json:"others,omitempty"`
+	// Problems stop a move: things a copy can't carry.
+	Problems []string `json:"problems,omitempty"`
+}
+
+// SurveySource reads what a database holds (read only: listCollections,
+// $collStats, count, find on the workspaces).
+func SurveySource(ctx context.Context, db *store.DB, workspace string) (*Survey, error) {
+	infos, err := wsarchive.ListCollections(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	s := &Survey{Collections: []Collection{}}
+	for _, info := range infos {
+		c := Collection{Name: info.Name, Carried: Carried(info.Name)}
+		if !c.Carried {
+			c.Why = LeftOut[info.Name]
+		}
+		if info.Type != "" && info.Type != "collection" {
+			c.Carried, c.Why = false, "a "+info.Type+", which a move can't copy"
+			s.Problems = append(s.Problems, fmt.Sprintf("The database holds “%s”, a %s rather than ordinary records, which a move can't copy.", info.Name, info.Type))
+		}
+		c.Count, c.Bytes = Size(ctx, db, info.Name)
+		if c.Carried {
+			s.Documents += c.Count
+			s.Bytes += c.Bytes
+		}
+		s.Collections = append(s.Collections, c)
+	}
+	if s.Level, err = wsarchive.ReadLevel(ctx, db); err != nil {
+		return nil, err
+	}
+	all, err := wsarchive.Workspaces(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range all {
+		if w.ID != workspace {
+			s.Others = append(s.Others, firstOf(w.Name, w.ID))
+		}
+	}
+	if len(s.Others) > 0 {
+		s.Problems = append(s.Problems, fmt.Sprintf("The database holds other workspaces too (%s). Moving the database moves them all, so it is done only for a database of one workspace: export this one instead (Settings → Storage → Export the workspace).", strings.Join(quoted(s.Others), ", ")))
+	}
+	return s, nil
+}
+
+// Size counts a collection's documents and about how much they hold, from the
+// server's own figures (no document is read); a count alone when it can't
+// say more.
+func Size(ctx context.Context, db *store.DB, coll string) (count, bytes int64) {
+	cur, err := db.C(coll).Aggregate(ctx, mongo.Pipeline{{{Key: "$collStats", Value: bson.D{{Key: "storageStats", Value: bson.D{}}}}}})
+	if err == nil {
+		var rows []struct {
+			Storage struct {
+				Count any `bson:"count"`
+				Size  any `bson:"size"`
+			} `bson:"storageStats"`
+		}
+		if cur.All(ctx, &rows) == nil && len(rows) > 0 {
+			return toInt(rows[0].Storage.Count), toInt(rows[0].Storage.Size)
+		}
+	}
+	n, _ := db.C(coll).CountDocuments(ctx, bson.M{})
+	return n, 0
+}
+
+func toInt(v any) int64 {
+	switch x := v.(type) {
+	case int32:
+		return int64(x)
+	case int64:
+		return x
+	case float64:
+		return int64(x)
+	case int:
+		return int64(x)
+	}
+	return 0
+}
+
+// Target is what the new database is like, checked without writing to it.
+type Target struct {
+	// Reached: MetaRush signed in and the database answered.
+	Reached bool `json:"reached"`
+	// Empty: it holds nothing (a copy may go in); Holds lists what it holds.
+	Empty bool     `json:"empty"`
+	Holds []string `json:"holds,omitempty"`
+	// Resume: it holds this very move's copy, stopped part-way (the move
+	// continues it); Copied: this move's copy, whole and checked.
+	Resume bool `json:"resume"`
+	Copied bool `json:"copied"`
+	// Writable: the sign-in may make collections and indexes and write
+	// documents there.
+	Writable bool `json:"writable"`
+	// Version is the MongoDB server's version.
+	Version string `json:"version,omitempty"`
+	// Problem says, plainly, what stops a move there ("" none).
+	Problem string `json:"problem,omitempty"`
+}
+
+// CheckTarget looks at the new database without writing anything: whether
+// it answers, holds nothing (or this move's own unfinished copy) and lets
+// this sign-in write.
+func CheckTarget(ctx context.Context, db *store.DB, move string) Target {
+	t := Target{}
+	ver, _, err := db.ServerInfo(ctx)
+	if err != nil {
+		t.Problem = "MetaRush couldn't reach the new database, or it didn't take the sign-in."
+		return t
+	}
+	t.Reached, t.Version = true, ver
+	lock, err := db.ReadRestoreLock(ctx)
+	if err != nil {
+		t.Problem = "MetaRush couldn't look into the new database: the sign-in may not be allowed to read it."
+		return t
+	}
+	holds, err := wsarchive.Holds(ctx, db)
+	if err != nil {
+		t.Problem = "MetaRush couldn't look into the new database: the sign-in may not be allowed to read it."
+		return t
+	}
+	t.Holds = holds
+	switch {
+	case lock != nil && lock.Kind == store.LockMove && lock.Archive == move && lock.State == store.RestoreDone:
+		t.Copied = true
+	case lock != nil && lock.Kind == store.LockMove && lock.Archive == move && lock.Unfinished():
+		t.Resume = true
+	case lock != nil && lock.Unfinished():
+		t.Problem = "The new database holds part of another copy that didn't finish, and a move goes only into an empty database."
+	case len(holds) > 0:
+		t.Problem = "The new database already holds things, and a move goes only into an empty one. MetaRush never deletes anything: choose a new database (another name), or empty this one yourself first."
+	default:
+		t.Empty = true
+	}
+	t.Writable = CanWrite(ctx, db)
+	if !t.Writable && t.Problem == "" {
+		t.Problem = "The sign-in for the new database may read it but not write into it. Give it the right to read and write that database (readWrite), then check again."
+	}
+	return t
+}
+
+// writeActions are what a copy does in the new database.
+var writeActions = []string{"insert", "createCollection", "createIndex", "update", "find"}
+
+// CanWrite asks the server what the sign-in may do in the database
+// (connectionStatus with its privileges): nothing is written to find out. A
+// server that signs nobody in (a test server) lets anyone write.
+func CanWrite(ctx context.Context, db *store.DB) bool {
+	var st struct {
+		AuthInfo struct {
+			Users      []bson.M `bson:"authenticatedUsers"`
+			Privileges []struct {
+				Resource struct {
+					DB         *string `bson:"db"`
+					Collection *string `bson:"collection"`
+					Cluster    bool    `bson:"cluster"`
+					AnyRes     bool    `bson:"anyResource"`
+				} `bson:"resource"`
+				Actions []string `bson:"actions"`
+			} `bson:"authenticatedUserPrivileges"`
+		} `bson:"authInfo"`
+	}
+	if err := db.DB.RunCommand(ctx, bson.D{{Key: "connectionStatus", Value: 1}, {Key: "showPrivileges", Value: true}}).Decode(&st); err != nil {
+		return false
+	}
+	if len(st.AuthInfo.Users) == 0 {
+		return true // no sign-in: a server without access control
+	}
+	have := map[string]bool{}
+	for _, p := range st.AuthInfo.Privileges {
+		r := p.Resource
+		applies := r.AnyRes
+		if r.DB != nil && r.Collection != nil && (*r.DB == db.Name || *r.DB == "") && *r.Collection == "" {
+			applies = true
+		}
+		if !applies {
+			continue
+		}
+		for _, a := range p.Actions {
+			have[a] = true
+		}
+	}
+	for _, a := range writeActions {
+		if !have[a] {
+			return false
+		}
+	}
+	return true
+}
+
+// Progress is how far a copy is.
+type Progress struct {
+	Phase string `json:"phase" jsonschema:"enum=copying,enum=checking"`
+	// Collection is the one being copied or checked.
+	Collection      string `json:"collection,omitempty"`
+	Collections     int    `json:"collections"`
+	CollectionsDone int    `json:"collectionsDone"`
+	Documents       int64  `json:"documents"`
+	DocumentsDone   int64  `json:"documentsDone"`
+}
+
+// Options say what to copy where.
+type Options struct {
+	From, To *store.DB
+	// Workspace and WorkspaceName are what the copy holds (the lock names them).
+	Workspace, WorkspaceName string
+	// Move is the move's identity (the lock names it, so the same move run
+	// again continues its own copy and nobody else's).
+	Move string
+	// Stop is asked between collections and batches: an error stops the copy
+	// (a person abandoned the move). The copy keeps its lock.
+	Stop     func(ctx context.Context) error
+	Progress func(Progress)
+}
+
+// Result is what a copy did.
+type Result struct {
+	Collections []Collection `json:"collections"`
+	Documents   int64        `json:"documents"`
+	// Resumed: the copy continued one that had stopped.
+	Resumed bool `json:"resumed"`
+	// Verified: every collection's documents are the same on both sides.
+	Verified bool `json:"verified"`
+	Seconds  float64
+}
+
+// ErrChanged is a copy whose old database changed meanwhile: something wrote
+// into it during the move (a computer that didn't pause).
+var ErrChanged = errors.New("the old database changed during the move")
+
+// Partial is a copy that stopped once something was in the new database:
+// its lock stays, so nothing uses a half copy.
+type Partial struct {
+	Collection string
+	Err        error
+}
+
+func (p *Partial) Error() string {
+	if p.Collection == "" {
+		return p.Err.Error()
+	}
+	return fmt.Sprintf("%s: %v", p.Collection, p.Err)
+}
+
+func (p *Partial) Unwrap() error { return p.Err }
+
+// Copy copies every carried collection of the old database into the new,
+// empty one (or continues this move's own copy there), the migration level
+// last, then checks every collection's documents on both sides by hash and
+// marks the copy whole. It only reads the old database.
+func Copy(ctx context.Context, o Options) (*Result, error) {
+	started := time.Now()
+	res := &Result{Collections: []Collection{}}
+	lock, err := o.To.ReadRestoreLock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	holds, err := wsarchive.Holds(ctx, o.To)
+	if err != nil {
+		return nil, err
+	}
+	mine := lock != nil && lock.Kind == store.LockMove && lock.Archive == o.Move
+	switch {
+	case mine && lock.State == store.RestoreDone:
+		res.Resumed = true // copied and checked before: checked again below
+	case mine && lock.Unfinished():
+		res.Resumed = true
+	case lock != nil && lock.Unfinished():
+		return nil, errors.New("the new database holds part of another copy")
+	case len(holds) > 0:
+		return nil, fmt.Errorf("the new database already holds %s", strings.Join(holds, ", "))
+	}
+	// The lock first: from now on nothing else works in the new database
+	// until the copy is whole and checked.
+	if !mine || lock.State != store.RestoreDone {
+		if err := o.To.SetMoveLock(ctx, o.Move, o.Workspace, o.WorkspaceName, store.RestoreCopying); err != nil {
+			return nil, err
+		}
+	}
+	infos, err := wsarchive.ListCollections(ctx, o.From)
+	if err != nil {
+		return nil, err
+	}
+	var order []wsarchive.CollectionInfo
+	var level *wsarchive.CollectionInfo
+	for i := range infos {
+		switch {
+		case !Carried(infos[i].Name):
+		case infos[i].Name == store.CMigrations:
+			level = &infos[i]
+		default:
+			order = append(order, infos[i])
+		}
+	}
+	// The migration level last: a copy that stopped part-way never says it
+	// is up to date.
+	if level != nil {
+		order = append(order, *level)
+	}
+	total := int64(0)
+	for _, info := range order {
+		n, _ := Size(ctx, o.From, info.Name)
+		total += n
+	}
+	p := Progress{Phase: "copying", Collections: len(order), Documents: total}
+	progress := func() {
+		if o.Progress != nil {
+			o.Progress(p)
+		}
+	}
+	stop := func() error {
+		if o.Stop != nil {
+			return o.Stop(ctx)
+		}
+		return ctx.Err()
+	}
+	if !mine || lock.State != store.RestoreDone {
+		for i, info := range order {
+			if err := stop(); err != nil {
+				return nil, &Partial{Err: err}
+			}
+			p.Collection, p.CollectionsDone = info.Name, i
+			progress()
+			if err := copyCollection(ctx, o, info, &p, progress, stop); err != nil {
+				return nil, &Partial{Collection: info.Name, Err: err}
+			}
+		}
+	}
+	// The check: every collection's documents, read again on both sides.
+	p.Phase, p.DocumentsDone = "checking", 0
+	for i, info := range order {
+		p.Collection, p.CollectionsDone = info.Name, i
+		progress()
+		src, err := wsarchive.HashWhere(ctx, o.From, info.Name, nil)
+		if err != nil {
+			return nil, &Partial{Collection: info.Name, Err: err}
+		}
+		dst, err := wsarchive.HashWhere(ctx, o.To, info.Name, nil)
+		if err != nil {
+			return nil, &Partial{Collection: info.Name, Err: err}
+		}
+		p.DocumentsDone += src.Count
+		c := Collection{Name: info.Name, Carried: true, Count: src.Count, Bytes: src.Bytes, Copied: dst.Count, Verified: src == dst}
+		res.Collections = append(res.Collections, c)
+		res.Documents += dst.Count
+		if src != dst {
+			return res, &Partial{Collection: info.Name, Err: ErrChanged}
+		}
+	}
+	p.CollectionsDone, p.Collection = len(order), ""
+	progress()
+	if err := o.To.SetMoveLock(ctx, o.Move, o.Workspace, o.WorkspaceName, store.RestoreDone); err != nil {
+		return res, err
+	}
+	res.Verified = true
+	res.Seconds = time.Since(started).Seconds()
+	sort.Slice(res.Collections, func(i, j int) bool { return res.Collections[i].Name < res.Collections[j].Name })
+	return res, nil
+}
+
+// copyCollection makes one collection in the new database the way the old
+// one made it and streams its documents in, in _id order — or, when this
+// move already made it, continues after the documents that are there (an
+// ordered copy leaves a prefix of the stream; the check afterwards proves it).
+func copyCollection(ctx context.Context, o Options, info wsarchive.CollectionInfo, p *Progress, progress func(), stop func() error) error {
+	spec, err := wsarchive.ReadSpec(ctx, o.From, info)
+	if err != nil {
+		return err
+	}
+	names, err := o.To.DB.ListCollectionNames(ctx, bson.D{{Key: "name", Value: info.Name}})
+	if err != nil {
+		return err
+	}
+	var have int64
+	if len(names) == 0 {
+		if err := spec.Make(ctx, o.To); err != nil {
+			return err
+		}
+	} else {
+		if err := spec.EnsureIndexes(ctx, o.To); err != nil {
+			return err
+		}
+		if have, err = o.To.C(info.Name).CountDocuments(ctx, bson.M{}); err != nil {
+			return err
+		}
+	}
+	in := wsarchive.NewInserter(ctx, o.To, info.Name)
+	var seen int64
+	err = wsarchive.EachDocWhere(ctx, o.From, info.Name, nil, func(doc bson.Raw) error {
+		seen++
+		p.DocumentsDone++
+		if seen <= have {
+			return nil
+		}
+		if err := in.Add(doc); err != nil {
+			return err
+		}
+		if seen%wsarchive.InsertBatch == 0 {
+			progress()
+			if err := stop(); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return in.Flush()
+}
+
+func firstOf(vs ...string) string {
+	for _, v := range vs {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func quoted(xs []string) []string {
+	out := make([]string, len(xs))
+	for i, x := range xs {
+		out[i] = "“" + x + "”"
+	}
+	return out
+}

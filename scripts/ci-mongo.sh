@@ -74,8 +74,13 @@ watch() {
   local pid
   pid="$(docker inspect -f '{{.State.Pid}}' "$NAME")"
   nohup bash -c '
-    pid="$1"; prev=""; prevt=""
+    pid="$1"; prev=""; prevt=""; psteal=""; ptotal=""
     while sleep 2; do
+      # The whole computer: time the hypervisor took the CPUs away (steal), as a share of all of it.
+      read -r _ u n s i w q sq st _ </proc/stat
+      total=$((u + n + s + i + w + q + sq + st)); steal="-"
+      [ -n "$psteal" ] && [ "$total" -gt "$ptotal" ] && steal=$(( (st - psteal) * 100 / (total - ptotal) ))
+      psteal=$st; ptotal=$total
       read -r -a st <"/proc/$pid/stat" 2>/dev/null || break
       cpu=$((st[13] + st[14])); now=$(date +%s%N)
       pct="-"; [ -n "$prev" ] && pct=$(( (cpu - prev) * 1000000000 / (now - prevt) ))
@@ -85,7 +90,7 @@ watch() {
       est=$(ss -tan state established "( sport = :$2 )" 2>/dev/null | wc -l)
       # Connection requests the kernel dropped because a listening socket was full (since boot).
       drops=$(awk "/^TcpExt:/ { if (!h) { for (i = 2; i <= NF; i++) n[\$i] = i; h = 1 } else print \$n[\"ListenOverflows\"] \"/\" \$n[\"ListenDrops\"] }" /proc/net/netstat)
-      echo "$(date -u +%FT%TZ) load $(cut -d" " -f1-3 /proc/loadavg), mongod cpu ${pct}% rss ${rss} MB, connections to it $est, time-wait $tcp, listen overflows/drops $drops"
+      echo "$(date -u +%FT%TZ) load $(cut -d" " -f1-3 /proc/loadavg), mongod cpu ${pct}% rss ${rss} MB, connections to it $est, time-wait $tcp, listen overflows/drops $drops, steal ${steal}%"
     done' _ "$pid" "$PORT" >"$DIAG/host.log" 2>&1 &
   echo "watching MongoDB: $DIAG/watch.log, $DIAG/host.log"
 }

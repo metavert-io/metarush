@@ -422,7 +422,7 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 		say("\nRestoring the workspace from %s…", filepath.Base(o.restore))
 		rep, err := wsarchive.Restore(c.Context(), wsarchive.RestoreOptions{Archive: o.restore, DB: db, Store: ms, StoreWords: ops.StorageWords(cfg.Media),
 			StateDir: filepath.Join(h, "state", "restore"), ScratchDir: filepath.Join(cfg.Scratch.Dir, "restore"),
-			MayStore: restoreMayStore(cfg.Media, models.Actor{UserName: o.userName, Via: "cli"})})
+			MayStore: restoreMayStore(cfg.Media, models.Actor{UserName: o.userName, Via: "cli"}), MayHold: restoreMayHold(restoreDatabase(o.dbURI, o.dbName, o.localPort))})
 		if err != nil {
 			return nil, failErr(c, err)
 		}

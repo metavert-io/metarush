@@ -18,6 +18,7 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/cache"
 	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/leave"
 	"github.com/metavert-io/metarush/internal/localdb"
 	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/media"
@@ -522,7 +523,7 @@ computer's own. On a new computer, metarush setup --restore <archive> does it as
 			defer t.close()
 			archive, _ := filepath.Abs(expandHome(args[0]))
 			rep, err := wsarchive.Restore(ctx, wsarchive.RestoreOptions{Archive: archive, DB: t.db, Store: t.store, StoreWords: t.storeWords,
-				StateDir: t.stateDir, ScratchDir: t.scratchDir, Plan: plan, Progress: restoreProgress(c), MayStore: restoreMayStore(t.media, t.actor)})
+				StateDir: t.stateDir, ScratchDir: t.scratchDir, Plan: plan, Progress: restoreProgress(c), MayStore: restoreMayStore(t.media, t.actor), MayHold: restoreMayHold(t.database)})
 			if err != nil {
 				return failErr(c, err)
 			}
@@ -553,6 +554,7 @@ type restoreOut struct {
 type restoreTarget struct {
 	db                   *store.DB
 	dbName               string
+	database             config.Database // where it is (What may leave: a database elsewhere is cloud storage)
 	store                media.Store
 	storeWords           string
 	stateDir, scratchDir string
@@ -604,6 +606,7 @@ func openRestoreTarget(ctx context.Context, c *cobra.Command, src *dbSource, st 
 			return nil, failErr(c, err)
 		}
 		t.dbName = src.dbName()
+		t.database = config.Database{URI: uri, Name: t.dbName}
 		if strings.HasPrefix(t.dbName, store.TestDBPrefix) && !store.IsLocalURI(uri) {
 			return nil, fail(c, apperr.InvalidInput, "Database names starting with "+store.TestDBPrefix+" are the test suite's.", "")
 		}
@@ -617,7 +620,7 @@ func openRestoreTarget(ctx context.Context, c *cobra.Command, src *dbSource, st 
 				return nil, failErr(c, databaseErr(err, "The database on this computer couldn't start"))
 			}
 		}
-		t.dbName, t.home = homeCfg.Database.Name, true
+		t.dbName, t.home, t.database = homeCfg.Database.Name, true, homeCfg.Database
 		if t.db, err = store.Connect(cctx, homeCfg.Database.URI, homeCfg.Database.Name); err != nil {
 			return nil, failErr(c, apperr.Wrap(apperr.Database, err, "MetaRush can't reach its database.").WithHint(checkupHint).WithCommand("metarush doctor"))
 		}
@@ -658,6 +661,25 @@ func restoreMayStore(m config.Media, actor models.Actor) func(ctx context.Contex
 		a := &app.App{Cfg: &config.Config{Workspace: config.Ref{ID: ws}}, DB: db, Actor: actor}
 		return ops.LeaveStorage(ctx, a, m)
 	}
+}
+
+// restoreMayHold is What may leave for a restore's records (D337): the
+// archive's own clients' rules, against the database the copy goes into,
+// before any record does (nothing is recorded: the database holds nothing).
+func restoreMayHold(d config.Database) func(ctx context.Context, a *wsarchive.Opened) error {
+	return func(_ context.Context, a *wsarchive.Opened) error {
+		return leave.ArchiveDatabaseCheck(d, a.EachDoc)
+	}
+}
+
+// restoreDatabase is the database setup restores into, as What may leave
+// sees it (the one on this computer, or another at an address).
+func restoreDatabase(uri, name string, localPort int) config.Database {
+	d := config.Database{URI: uri, Name: name}
+	if localPort > 0 {
+		d.Local = &config.LocalDatabase{Port: localPort}
+	}
+	return d
 }
 
 // restoreProgress prints how far a restore is (on standard error, at a terminal).

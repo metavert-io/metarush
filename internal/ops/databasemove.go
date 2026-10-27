@@ -543,7 +543,7 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 	// The new database.
 	switch {
 	case kept:
-		out.Target = dbmove.TargetCheck{Problem: "Not looked at: a client's rules keep their words from it."}
+		out.Target = dbmove.TargetCheck{Problem: "Not looked at: a client's rules keep their words, voices or faces from it."}
 	case t.local != nil && !t.ready:
 		out.Target = dbmove.TargetCheck{Empty: true, Writable: true}
 		if !t.local.Available() {
@@ -608,6 +608,9 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 	}
 	if ov := databaseOverrides(a.Cfg, t.uri, t.name); len(ov) > 0 {
 		out.Problems = append(out.Problems, fmt.Sprintf("Settings in this computer's environment (%s) override MetaRush's own, so this computer couldn't switch to the new database. Remove them from your shell or from the .env file in MetaRush's folder first.", strings.Join(ov, ", ")))
+	}
+	if t.place.Cloud && !kept {
+		out.Notes = append(out.Notes, "The new database is elsewhere on the internet, which clients' What may leave rules count as cloud storage: it holds the workspace's transcripts, names and notes, and the voice and face prints MetaRush knows people by.")
 	}
 	if t.place.Kind == "server" && t.place.Words == "a MongoDB server on this computer" && others > 0 {
 		out.Notes = append(out.Notes, "The new database's address is on this computer: your other computers reach it only if the same address works on theirs (a tunnel, say).")

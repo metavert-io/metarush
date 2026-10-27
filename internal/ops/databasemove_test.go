@@ -528,6 +528,9 @@ func TestDatabaseMoveKeepsClientsRules(t *testing.T) {
 	if plan.Ready || len(plan.KeptHere) != 1 || !plan.To.Cloud || plan.To.Kind != "atlas" || refusals() != 0 {
 		t.Fatalf("plan: %+v", plan)
 	}
+	if !strings.Contains(plan.KeptHere[0], "The workspace's database holds the transcripts") {
+		t.Fatalf("the plan doesn't say what the database holds: %q", plan.KeptHere[0])
+	}
 	_, err = ops.CallTyped[ops.DatabaseMoveOut](ctx, a, "database.move", ops.DatabaseMoveIn{DatabaseTargetIn: target}, ops.Caller{Human: true})
 	if apperr.From(err).Code != apperr.KeptHere || refusals() != 1 {
 		t.Fatalf("move: %v (refusals %d)", err, refusals())

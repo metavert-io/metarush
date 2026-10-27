@@ -543,8 +543,9 @@ func storageCheck(ctx context.Context, a *app.App, to config.Media) error {
 
 // databaseCheck refuses moving the workspace's database to a database that
 // is cloud storage (DatabaseKept: elsewhere on the internet) while any
-// client's rules keep their words from cloud storage (D337). Every project
-// counts — archived ones too — and the words of footage in no project (the
+// client's rules keep their words, voices or faces from cloud storage (the
+// database holds their words and their voice and face prints, D337). Every
+// project counts — archived ones too — and footage in no project (the
 // default's rules). quiet (a plan) only says it.
 func databaseCheck(ctx context.Context, a *app.App, to config.Database, quiet bool) error {
 	k := DatabaseKept(to)
@@ -558,6 +559,7 @@ func databaseCheck(ctx context.Context, a *app.App, to config.Database, quiet bo
 	for _, pid := range append(c.g.Projects(), "") {
 		s := Send{Place: models.PlaceStorage, To: "cloud", ToWords: k.Words, Kinds: k.Kinds, Projects: []string{pid}, What: "the workspace's database"}
 		if r := c.problem(s); r != nil {
+			heldWords(r)
 			if !quiet {
 				Record(ctx, a, r, s)
 			}

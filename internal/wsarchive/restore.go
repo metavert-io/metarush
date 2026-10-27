@@ -47,6 +47,13 @@ type RestoreOptions struct {
 	// client's rules keeping footage off cloud storage), which records a
 	// refusal in the copy (D333).
 	MayStore func(ctx context.Context, db *store.DB, workspace string) error
+	// MayHold is asked once the archive checks out, before anything is
+	// written into the database (and by a plan): What may leave for the
+	// records themselves — a client's rules keeping their words, voices or
+	// faces off a database elsewhere on the internet (D337). It reads the
+	// archive's own records (Opened.EachDoc); nothing is written when it
+	// refuses.
+	MayHold  func(ctx context.Context, a *Opened) error
 	Progress func(ArchiveProgress)
 }
 
@@ -187,6 +194,42 @@ type Opened struct {
 	ID string
 	// unpacked: a single-file archive unpacked into Dir (removed by Close).
 	unpacked bool
+}
+
+// EachDoc reads an archived collection's records in the archive's order
+// (none when the archive has no such collection); fn's error stops it.
+func (a *Opened) EachDoc(coll string, fn func(bson.Raw) error) error {
+	for _, c := range a.Manifest.Collections {
+		if c.Name != coll {
+			continue
+		}
+		f, err := os.Open(filepath.Join(a.Dir, filepath.FromSlash(c.File)))
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		br := bufio.NewReaderSize(f, 1<<20)
+		for lineNo := 1; ; lineNo++ {
+			line, err := readLine(br)
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			if err != nil {
+				return fmt.Errorf("%s line %d: %w", coll, lineNo, err)
+			}
+			if len(bytes.TrimSpace(line)) == 0 {
+				continue
+			}
+			doc, err := FromLine(line)
+			if err != nil {
+				return fmt.Errorf("%s line %d: %w", coll, lineNo, err)
+			}
+			if err := fn(doc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // Close removes what opening unpacked (never the archive itself).
@@ -481,6 +524,13 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 		}
 		rep.Notes = append(rep.Notes, "This restore had stopped while its footage was copied; it went on from where it stopped.")
 		return footageThenFinish(ctx, o, a, rep, mo)
+	}
+	// What may leave, before anything is written: clients' rules can keep
+	// their records off this database.
+	if o.MayHold != nil {
+		if err := o.MayHold(ctx, a); err != nil {
+			return nil, err
+		}
 	}
 	// The marker first: from now on nothing else works in this database until
 	// the copy is whole and checked.

@@ -25,8 +25,9 @@ var LeaveCheck func(ctx context.Context, a *app.App, place, to, toWords string, 
 var LeaveStorage func(ctx context.Context, a *app.App, to config.Media) error
 
 // LeaveDatabase refuses moving the workspace's database to one that is
-// cloud storage while a client's rules keep their words from it (D337): a
-// database elsewhere on the internet keeps transcripts, names and notes.
+// cloud storage while a client's rules keep their words, voices or faces
+// from it (D337): a database elsewhere on the internet keeps transcripts,
+// names and notes, and the voice and face prints MetaRush knows people by.
 // quiet: a plan, which lists the refusal without recording it.
 var LeaveDatabase func(ctx context.Context, a *app.App, to config.Database, quiet bool) error
 

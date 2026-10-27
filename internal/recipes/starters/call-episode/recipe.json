@@ -1,0 +1,175 @@
+{
+  "format": "metarush.recipe-file/1",
+  "made": "2026-10-26T00:00:00Z",
+  "metarush": "starter",
+  "workspace": "MetaRush's starter recipes",
+  "recipe": {
+    "name": "call-episode",
+    "title": "A call becomes an episode with shorts",
+    "makes": "one widescreen episode as long as the call needs"
+  },
+  "version": {
+    "number": 1,
+    "hash": "6d8d4dd0aacf5b42d7ea481a407c8ba40e70c600b17821d345ad17ef4e7bb317",
+    "note": "MetaRush's starter recipe",
+    "state": "current"
+  },
+  "lineage": [
+    "6d8d4dd0aacf5b42d7ea481a407c8ba40e70c600b17821d345ad17ef4e7bb317"
+  ],
+  "doc": {
+    "format": "metarush.recipe/1",
+    "title": "A call becomes an episode with shorts",
+    "makes": "one widescreen episode as long as the call needs",
+    "lands": {
+      "kind": "new-project",
+      "name": "{episode}"
+    },
+    "length": {
+      "min": 60,
+      "max": 10800
+    },
+    "inputs": [
+      {
+        "name": "call",
+        "kind": "footage",
+        "label": "The call recording",
+        "required": true,
+        "default": {
+          "items": [
+            "ast_320fe6bb1e9b0d9f0839105bc4"
+          ]
+        },
+        "count": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      {
+        "name": "episode",
+        "kind": "words",
+        "label": "The episode's title",
+        "required": true,
+        "default": {
+          "text": "Episode 1: an example call"
+        },
+        "maxLength": 80
+      }
+    ],
+    "sections": [
+      {
+        "name": "episode",
+        "kind": "chosen",
+        "purpose": "the whole conversation in its order, cleaned up: false starts, crosstalk, long silences and stretches off the subject taken out",
+        "from": "call",
+        "count": {
+          "min": 1,
+          "max": 12
+        },
+        "length": {
+          "min": 60,
+          "max": 10800
+        }
+      }
+    ],
+    "cut": {
+      "title": "Episode 1: an example call",
+      "output": {
+        "preset": "landscape-1080p",
+        "width": 1920,
+        "height": 1080,
+        "fps": 30,
+        "background": "#000000",
+        "platform": "youtube"
+      },
+      "captions": {
+        "enabled": true,
+        "style": "clean",
+        "position": "lower",
+        "maxWordsPerLine": 6,
+        "source": "transcript"
+      },
+      "overlays": [
+        {
+          "id": "intro",
+          "template": "title.card",
+          "role": "title-card",
+          "at": 0,
+          "duration": 4,
+          "params": {
+            "title": "Episode 1: an example call"
+          }
+        }
+      ],
+      "mix": {
+        "voices": [
+          {
+            "assetId": "ast_320fe6bb1e9b0d9f0839105bc4",
+            "enhance": {
+              "mode": "cloud"
+            }
+          }
+        ]
+      }
+    },
+    "bindings": [
+      {
+        "input": "episode",
+        "to": "title"
+      },
+      {
+        "input": "episode",
+        "to": "param:intro.title"
+      }
+    ],
+    "signoffs": [
+      "The delivery notes are written: a title, a description, chapters from 0:00 and show notes",
+      "Names and spellings in the captions are checked"
+    ],
+    "hints": [
+      "Keep the whole conversation in its order. Take out false starts, crosstalk, long silences and stretches off the subject through the cut's sheet, then the ums and the long pauses.",
+      "Write the episode's delivery notes from its transcript: a title, a description, chapters starting at 0:00 and show notes.",
+      "Keep or change the shorts' first picks: each must stand on its own without the rest of the call.",
+      "Voices are made clearer in the cloud; a sample of one stretch comes first, and a person approves it before the rest."
+    ],
+    "pack": [
+      {
+        "name": "shorts",
+        "kind": "shorts",
+        "footage": "call",
+        "count": {
+          "min": 1,
+          "max": 3
+        },
+        "length": {
+          "min": 20,
+          "max": 60
+        },
+        "purpose": "a moment that stands on its own without the rest of the call: a clear claim, a question and its answer, a laugh",
+        "shape": "vertical",
+        "named": "{title}, short {k}"
+      }
+    ]
+  },
+  "pictures": [],
+  "footage": [
+    {
+      "id": "ast_320fe6bb1e9b0d9f0839105bc4",
+      "title": "An example call (a plain picture, no sound)",
+      "fileName": "example-call.mp4",
+      "kind": "video",
+      "sha256": "99de07eb0dfde4cdfe5234ec4f6ed46c0ae2bcd69cc4d22786d74793e86d8cf7",
+      "size": 14735,
+      "duration": 8,
+      "input": true
+    }
+  ],
+  "code": [],
+  "leftOut": [],
+  "files": [
+    {
+      "sha256": "99de07eb0dfde4cdfe5234ec4f6ed46c0ae2bcd69cc4d22786d74793e86d8cf7",
+      "size": 14735
+    }
+  ]
+}

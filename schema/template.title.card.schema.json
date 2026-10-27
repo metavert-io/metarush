@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:template:title.card:1",
+  "$ref": "#/$defs/TitleCardParams",
+  "$defs": {
+    "TitleCardParams": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "subtitle": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "logo": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}(#[1-9][0-9]{0,2})?$",
+          "format": "metarush-resource",
+          "description": "A logo from the cut's resources, above the title."
+        },
+        "image": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}(#[1-9][0-9]{0,2})?$",
+          "format": "metarush-resource",
+          "description": "A picture from the cut's resources behind the title (a PDF page: name#3)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "title"
+      ]
+    }
+  },
+  "title": "Params for title.card"
+}

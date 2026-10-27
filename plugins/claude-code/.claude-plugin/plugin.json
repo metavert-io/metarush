@@ -1,0 +1,19 @@
+{
+  "name": "metarush",
+  "displayName": "MetaRush",
+  "version": "0.14.0",
+  "description": "Edit video by talking to Claude Code, in your style and with your sign-off: import footage, find the best moments, cut, caption, fix the sound, add graphics, check the finished file and deliver it. Needs the metarush program installed (metarush setup).",
+  "author": {
+    "name": "Metavert LLC"
+  },
+  "homepage": "https://github.com/metavert-io/metarush",
+  "repository": "https://github.com/metavert-io/metarush",
+  "license": "MIT",
+  "keywords": [
+    "video",
+    "editing",
+    "captions",
+    "remotion",
+    "mcp"
+  ]
+}

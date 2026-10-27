@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:template:slide.bullets:1",
+  "$ref": "#/$defs/SlideBulletsParams",
+  "$defs": {
+    "SlideBulletsParams": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "bullets": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 6,
+          "minItems": 1,
+          "description": "Up to six short points (a line or two each)."
+        },
+        "image": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}(#[1-9][0-9]{0,2})?$",
+          "format": "metarush-resource",
+          "description": "A picture beside the points."
+        },
+        "reveal": {
+          "type": "string",
+          "enum": [
+            "one-by-one",
+            "all"
+          ],
+          "description": "one-by-one (default) or all at once."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "title",
+        "bullets"
+      ]
+    }
+  },
+  "title": "Params for slide.bullets"
+}

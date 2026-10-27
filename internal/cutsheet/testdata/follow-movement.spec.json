@@ -1,0 +1,4 @@
+{"schemaVersion":1,"title":"Walk and talk","output":{"preset":"vertical-1080p","fps":30,"framing":"follow"},
+ "clips":[{"id":"walk","assetId":"ast_01jabcdefghjkmnpqrstvwxyz0","in":2,"out":9.5,"rationale":"she walks across the garden while she talks"},
+          {"id":"desk","assetId":"ast_01jabcdefghjkmnpqrstvwxyz0","in":12,"out":16,"framing":{"auto":"faces"}},
+          {"id":"dog","assetId":"ast_01jabcdefghjkmnpqrstvwxyz1","in":0,"out":3,"muted":true,"framing":{"mode":"fill","auto":"follow","zoom":1.2},"transitionIn":{"type":"crossfade","duration":0.4}}]}

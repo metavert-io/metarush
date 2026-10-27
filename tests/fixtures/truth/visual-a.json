@@ -1,0 +1,17 @@
+{
+  "file": "visual-a.mp4",
+  "duration_s": 30,
+  "voice": "Samantha",
+  "speech_start_s": 0.50,
+  "speech_end_s": 3.784562,
+  "cuts_s": [6, 14, 21, 25],
+  "pan_s": [6, 14],
+  "enter_s": [16, 17.5],
+  "quiet_s": [[0.3, 5.7], [18.3, 20.7], [21.3, 24.7], [25.3, 29.7]],
+  "talking_head_s": [0, 6],
+  "faces_s": [[0, 6], [16, 21]],
+  "text": {"EXIT": [21, 25]},
+  "animals": {"dog": [25, 30]},
+  "images": "tests/fixtures/images (public domain / CC0, see SOURCES.md)",
+  "notes": "Hard cuts at cuts_s; pan_s is a 90 px/s pan (gradual change); enter_s is when a person slides in from the right and stays; quiet_s must have no visual events (the 0-6 s talking head sways 2 px with grain)."
+}

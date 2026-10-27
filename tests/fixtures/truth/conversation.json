@@ -1,0 +1,30 @@
+{
+  "made_by": "scripts/make-conversation-fixtures.sh",
+  "length_s": 51.200,
+  "delay_s": 0.18,
+  "bleed_gain": 0.08,
+  "members": [
+    {"file": "maya.mov", "name": "Maya", "start_s": 0, "drift_ppm": 0},
+    {"file": "sam.mov", "name": "Sam", "start_s": 1.234, "drift_ppm": 208.333},
+    {"file": "gallery.mp4", "name": "Gallery view", "start_s": 0.5, "drift_ppm": 0, "use": "picture"}
+  ],
+  "zoom": {"folder": "zoom/2026-10-19 10.00.00 Garden Show", "starts_together": true, "sam_delay_s": 0.18},
+  "long": {"files": ["long/maya.wav", "long/sam.wav"], "length_s": 318.677, "sam_start_s": 1.234, "sam_drift_ppm": 208.333},
+  "sam_dropout_s": [40.331, 40.681],
+  "sam_freeze_s": [30.0, 32.000],
+  "turns": [
+    {"speaker": "Maya", "kind": "say", "start_s": 0.600, "end_s": 2.756, "text": "Hi Sam, can you hear me okay?"},
+    {"speaker": "Sam", "kind": "say", "start_s": 3.256, "end_s": 7.048, "text": "Yes, I can hear you now. Sorry, I was on mute."},
+    {"speaker": "Maya", "kind": "say", "start_s": 7.748, "end_s": 12.783, "text": "Great. Welcome to the garden show. Today we are talking about tomatoes on a balcony."},
+    {"speaker": "Sam", "kind": "say", "start_s": 13.383, "end_s": 25.296, "text": "Thanks for having me. I have been growing them on my balcony for ten years. The trick is a deep pot, good soil, and a lot of sun. Most people water too much, and the roots never grow deep."},
+    {"speaker": "Maya", "kind": "over", "start_s": 19.383, "end_s": 19.856, "text": "Mm-hmm."},
+    {"speaker": "Maya", "kind": "say", "start_s": 25.896, "end_s": 27.304, "text": "What surprised you the most?"},
+    {"speaker": "Sam", "kind": "say", "start_s": 27.804, "end_s": 31.457, "text": "That cherry tomatoes grow almost anywhere, even in a bucket."},
+    {"speaker": "Maya", "kind": "say", "start_s": 31.757, "end_s": 32.550, "text": "Ha ha ha."},
+    {"speaker": "Sam", "kind": "with", "start_s": 31.757, "end_s": 32.661, "text": "Ha ha ha."},
+    {"speaker": "Maya", "kind": "say", "start_s": 36.461, "end_s": 37.731, "text": "Let us look at your setup."},
+    {"speaker": "Sam", "kind": "say", "start_s": 38.331, "end_s": 44.083, "text": "Sure. This is my small garden on the roof. I built the boxes myself from old pallets."},
+    {"speaker": "Maya", "kind": "say", "start_s": 44.683, "end_s": 47.376, "text": "That is wonderful. Thanks for joining us today."},
+    {"speaker": "Sam", "kind": "say", "start_s": 47.876, "end_s": 49.700, "text": "Thank you. It was a pleasure."}
+  ]
+}

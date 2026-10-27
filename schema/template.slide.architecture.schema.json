@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:template:slide.architecture:1",
+  "$ref": "#/$defs/SlideArchitectureParams",
+  "$defs": {
+    "SlideArchitectureParams": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "diagram": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]{0,47}(#[1-9][0-9]{0,2})?$",
+          "format": "metarush-resource",
+          "description": "The diagram (a resource made with metarush resources make diagram, or any picture)."
+        },
+        "caption": {
+          "type": "string",
+          "maxLength": 140
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "diagram"
+      ]
+    }
+  },
+  "title": "Params for slide.architecture"
+}

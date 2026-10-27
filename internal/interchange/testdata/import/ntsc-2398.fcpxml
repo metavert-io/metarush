@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.11">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p2398" frameDuration="1001/24000s" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)"/>
+    <asset id="r2" name="Interview A" start="3600s" duration="720720/24000s" hasVideo="1" format="r1" hasAudio="1" audioSources="1" audioChannels="2" audioRate="48000">
+      <media-rep kind="original-media" src="file:///Volumes/Shoot/Interview%20A.mov"/>
+    </asset>
+    <asset id="r3" name="Broll 1" start="0s" duration="240240/24000s" hasVideo="1" format="r1">
+      <media-rep kind="original-media" src="file:///Volumes/Shoot/Broll%201.mov"/>
+    </asset>
+    <asset id="r4" name="Theme" start="0s" duration="1440000/48000s" hasAudio="1" audioSources="1" audioChannels="2" audioRate="48000">
+      <media-rep kind="original-media" src="file:///Volumes/Shoot/Theme.wav"/>
+    </asset>
+    <effect id="r5" name="Cross Dissolve" uid="FxPlug:4731E73A-8DAC-4113-9A30-AE85B1761265"/>
+    <effect id="r6" name="Basic Title" uid="title-basic"/>
+  </resources>
+  <library>
+    <event name="Spike">
+      <project name="Spike 23.976">
+        <sequence format="r1" duration="480480/24000s" tcStart="3600s" tcFormat="NDF" audioLayout="stereo" audioRate="48k">
+          <spine>
+            <asset-clip ref="r2" offset="3600s" name="Interview A" start="3610s" duration="120120/24000s" format="r1" tcFormat="NDF" audioRole="dialogue">
+              <adjust-volume amount="-6dB"/>
+              <title ref="r6" lane="1" offset="3611s" name="Name" start="3600s" duration="72072/24000s">
+                <text><text-style ref="ts1">Ada Lovelace</text-style></text>
+                <text-style-def id="ts1"><text-style font="Helvetica" fontSize="63"/></text-style-def>
+              </title>
+              <asset-clip ref="r4" lane="-1" offset="3610s" name="Theme" duration="240240/24000s" audioRole="music">
+                <adjust-volume amount="-18dB"><param name="amount"><fadeIn type="easeIn" duration="24024/24000s"/></param></adjust-volume>
+              </asset-clip>
+              <chapter-marker start="3611s" duration="1001/24000s" value="Intro" posterOffset="11/24s"/>
+              <marker start="3612s" duration="1001/24000s" value="Fix the jump"/>
+            </asset-clip>
+            <transition name="Cross Dissolve" offset="86508108/24000s" duration="24024/24000s">
+              <filter-video ref="r5" name="Cross Dissolve"/>
+            </transition>
+            <asset-clip ref="r3" offset="86520120/24000s" name="Broll 1" start="24024/24000s" duration="120120/24000s" format="r1" tcFormat="NDF"/>
+            <gap name="Gap" offset="86640240/24000s" start="3600s" duration="48048/24000s"/>
+            <asset-clip ref="r2" offset="86688288/24000s" name="Interview A" start="3620s" duration="192192/24000s" format="r1" tcFormat="NDF" audioRole="dialogue">
+              <chapter-marker start="3621s" duration="1001/24000s" value="The answer" posterOffset="0s"/>
+            </asset-clip>
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>

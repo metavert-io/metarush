@@ -1,0 +1,231 @@
+{
+  "about": "Public-domain photos (U.S. government works: NASA) of twenty people, several each, from Wikimedia Commons, used to measure whether MetaRush tells faces apart (docs/visual-index.md, D73, D114). Twenty people of similar backgrounds make the test harder (astronauts of the same years, portraits under the same lights, work photos on the space station). Each photo shows one clear face (chosen by MetaRush's own face finder: no other face even a quarter of its size) and was checked by eye against its title. Files are downloaded at run time, never committed.",
+  "people": {
+    "koch": [
+      "File:Astronaut Christina M. Hammock Koch (cropped).jpg",
+      "File:NASA Candidate Christina M Hammock.jpg",
+      "File:Christina Koch in a NASA news conference at the Kennedy Space Center in Florida, U.S. on August 8, 2023.jpg",
+      "File:ISS-61 Christina Koch works in the Tranquility module.jpg",
+      "File:Christina M. Hammock portrait.jpg",
+      "File:ISS-59 Christina Koch works inside the Destiny lab (1).jpg"
+    ],
+    "meir": [
+      "File:Jessica Meir (portrait crop).jpg",
+      "File:NASA Candidate Jessica U Meir.jpg",
+      "File:Jessica Meir 2013.jpg",
+      "File:ISS-61 Jessica Meir inside the Kibo lab during interviews.jpg",
+      "File:Jessica U. Meir portrait.jpg",
+      "File:Jessica Meir astronaut candidate.jpg"
+    ],
+    "glover": [
+      "File:Victor J. Glover official portrait.jpg",
+      "File:Victor J. Glover in 2018.jpg",
+      "File:Victor Glover in a NASA news conference at the Kennedy Space Center in Florida, U.S. on August 8, 2023.jpg",
+      "File:Victor Glover poses in JEM.jpg",
+      "File:Victor Glover after Crew-1 splashdown.jpg",
+      "File:Victor Glover at desk in Node 2.jpg"
+    ],
+    "wiseman": [
+      "File:2023 Gregory Reid Wiseman (cropped).jpg",
+      "File:Reid Wiseman in a NASA news conference at the Kennedy Space Center in Florida, U.S. on August 8, 2023 (cropped).jpg",
+      "File:ISS-40 Reid Wiseman on the Multi-user Drop Combustion Apparatus in the Destiny lab.jpg",
+      "File:NEEMO 21 Reid Wiseman with an aquanaut outside.jpg",
+      "File:ISS-41 EVA-1 (c) Reid Wiseman.jpg",
+      "File:Reid-wiseman 51732552119 o.jpg"
+    ],
+    "barron": [
+      "File:Portrait - Astronaut Candidate Kayla Barron (NHQ201907120010).jpg",
+      "File:Kayla Barron, NASA portrait (2020) b.jpg",
+      "File:Kayla Barron portrait.jpg",
+      "File:Kayla Barron 2025 (cropped).jpg",
+      "File:Kayla Barron Thumbnail (751919483435).jpg",
+      "File:Kayla Barron (2025) (cropped).jpg",
+      "File:Kayla Barron, Johnson Space Center portrait, 2020.jpg",
+      "File:Kayla Barron, Johnson Space Center portrait, 2020 (cropped).jpg",
+      "File:Kayla Barron, NASA portrait (2020).jpg",
+      "File:Portrait of NASA astronaut Kayla Barron (jsc2021e044353 alt).jpg",
+      "File:Portrait of NASA astronaut Kayla Barron (jsc2021e044353 alt) (cropped).jpg",
+      "File:Kayla Barron, NASA portrait (2021) a.jpg",
+      "File:Kayla Barron official portrait.jpg",
+      "File:Kayla Barron, official portrait (2021).jpg"
+    ],
+    "behnken": [
+      "File:Robert Behnken.jpg",
+      "File:ISS-63 Behnken EVA space selfie.jpg",
+      "File:Behnken suiting up.jpg",
+      "File:S130E006283 - STS-130 - Behnken on MDDK - DPLA - f68207c0539e9f24e3953cbabd9217b6.jpg",
+      "File:NASA astronaut Bob Behnken.jpg",
+      "File:Robertbehnkenv2.jpg"
+    ],
+    "bowen": [
+      "File:Stephen Bowen.jpg",
+      "File:Astronaut Stephen Bowen installs student-made hardware 2023-05-09.jpg",
+      "File:Astronaut Stephen Bowen installs the H2 Sensor Demo (iss069e008416).jpg",
+      "File:NASA astronaut Stephen Bowen prepares a spacesuit for a spacewalk (iss069e003944).jpg",
+      "File:STS-132 Steve Bowen poses for a picture.jpg",
+      "File:Stephenbowenv2.jpg",
+      "File:Astronaut Stephen Bowen tries on his spacesuit ahead of a spacewalk (iss069e005093).jpg",
+      "File:STS-126 Stephen Bowen dons a training version of the EMU spacesuit.jpg"
+    ],
+    "chari": [
+      "File:Raja Chari official portrait.jpg",
+      "File:Brig Gen Raja J. Chari.jpg",
+      "File:ISS-66 Raja Chari wears virtual reality goggles.jpg",
+      "File:ISS-66 Raja Chari organizes storage space on the station.jpg",
+      "File:ISS-66 Raja Chari is pictured inside the Harmony module.jpg",
+      "File:Raja Chari, official portrait, 2017 (cropped).jpg",
+      "File:Raja Chari, official portrait (2021).jpg",
+      "File:Raja Chari, NASA portrait (2021) a.jpg",
+      "File:Raja Chari portrait.jpg",
+      "File:Raja Chari, NASA portrait (2021) b.jpg",
+      "File:Raja Chari, official portrait (2021) full length.jpg",
+      "File:Portrait of NASA astronaut Raja Chari in EMU.jpg",
+      "File:Raja Chari Thumbnail (751926150615).jpg"
+    ],
+    "hurley": [
+      "File:Douglas Hurley in 2018.jpg",
+      "File:Douglas Hurley in 2018 (cropped).jpg",
+      "File:Hurley Douglas.jpg",
+      "File:Douglas Hurley.jpg",
+      "File:STS-127 Hurley poses for portrait.jpg",
+      "File:NASA astronaut Doug Hurley.jpg",
+      "File:Douglas Hurley suiting up.jpg",
+      "File:NASA astronaut Douglas Hurley suits up for launch on May 30, 2020.jpg"
+    ],
+    "lindgren": [
+      "File:Kjell Lindgren Official NASA Portrait in 2021.jpg",
+      "File:ISS-67 Astronaut Kjell Lindgren works on spacesuit components.jpg",
+      "File:ISS-67 Astronaut Kjell Lindgren tests reactive membranes for water reclamation.jpg",
+      "File:Kjell Lindgren Official NASA Portrait in 2021 (cropped).jpg",
+      "File:Kjell Lindgren in EMU.jpg",
+      "File:ISS-67 NASA astronaut Kjell Lindgren poses for a portrait.jpg",
+      "File:Kjell Lindgren in EMU (cropped).jpg",
+      "File:Astronaut Kjell Lindgren Official Photo.jpg",
+      "File:ISS-44 Kjell Lindgren in the Quest airlock.jpg",
+      "File:ISS-67 Astronaut Kjell Lindgren looks out from a window on the cupola.jpg"
+    ],
+    "mann": [
+      "File:Nicole Mann Official Portrait (jsc2022e042623 alt).jpg",
+      "File:Nicole Mann inside a T-38 trainer jet.jpg",
+      "File:Nicole Mann.jpg",
+      "File:Nicole Mann Thumbnail (751933440681).jpg",
+      "File:ISS-68 Nicole Mann poses in front of BEAM.jpg",
+      "File:Nicole Mann in training.jpg",
+      "File:Nicole Mann gives a thumbs up from inside the Orion mockup.jpg",
+      "File:Nicole Mann Official Portrait (cropped).jpg",
+      "File:Nicole Aunapu Mann portrait.jpg",
+      "File:Nicole Mann Official Portrait.jpg",
+      "File:Nicole Mann inside the WB-57 aircraft.jpg",
+      "File:Nicole Mann at the CAPCOM console.jpg",
+      "File:ISS-68 Astronaut Nicole Mann poses for a festive portrait on Christmas Eve.jpg",
+      "File:Nicole Mann in 2018.jpg"
+    ],
+    "mcclain": [
+      "File:NASA astronaut Anne McClain poses for a portrait inside the cupola (iss073e0385999).jpg",
+      "File:ISS-57 Anne McClain exercises inside the Destiny lab.jpg",
+      "File:ISS-58 Anne McClain works inside the Kibo lab (2).jpg",
+      "File:NASA astronaut Anne McClain smiles for a portrait during scientific operations (iss073e0420808).jpg",
+      "File:Anne C. McClain portrait.jpg",
+      "File:ISS-59 Anne McClain takes a break inside the Cupola.jpg",
+      "File:NASA Candidate Anne C McClain.jpg",
+      "File:NASA astronaut Anne McClain at the Artemis Launch Pad.jpg",
+      "File:Anne McClain at a news conference in Star City.jpg",
+      "File:SpaceX DM1 – Anne McClain – Litte Earth.jpg"
+    ],
+    "moghbeli": [
+      "File:Jasmin Moghbeli official portrait.jpg",
+      "File:Portrait Astronaut Candidate Jasmin Moghbeli (857361092213).jpg",
+      "File:Portrait - Astronaut Jasmin Moghbeli (NHQ202009080004).jpg",
+      "File:Jasmin Moghbeli official portrait (cropped).jpg",
+      "File:Jasmin Moghbeli portrait.jpg",
+      "File:Jasmin Moghbeli Thumbnail (751900333356).jpg",
+      "File:NASA astronaut Jasmin Moghbeli fixes cables on ARED (53263490653).jpg",
+      "File:Astronaut Jasmin Moghbeli uses DNA analysis to identify bacteria (53270772903).jpg"
+    ],
+    "ohara": [
+      "File:Loral O'Hara portrait (cropped).jpg",
+      "File:Loral O'Hara during water survival training (1).jpg",
+      "File:NASA astronaut Loral O'Hara replaces hardware (53302786293).jpg",
+      "File:NASA Astronaut Loral O'Hara Holds Robotic Surgery Device (iss070e097708).jpg",
+      "File:ISS070E110532 - NASA astronaut Loral O'Hara poses in front of the Destiny laboratory’s Microgravity Science Glovebox (MSG) during Flawless Space Fibers operations (iss070e110532).jpg",
+      "File:Loral O'Hara official portrait.jpg",
+      "File:Loral O'Hara portrait.jpg",
+      "File:Loral O'Hara during NBL Training.jpg",
+      "File:Loral O'Hara on Console in Mission Control.jpg",
+      "File:Loral O'Hara during NBL Training (1).jpg",
+      "File:Loral O'Hara during water survival training (2).jpg"
+    ],
+    "rubins": [
+      "File:Kathleen Rubins portrait.jpg",
+      "File:Kate Rubins - JETT5 - jsc2024e035707.jpg",
+      "File:ISS-64 Kate Rubins in front of the 'voting booth'.jpg",
+      "File:Kathleen Rubins.jpg",
+      "File:Kate Rubins - JETT5 - jsc2024e035708.jpg",
+      "File:Kate Rubins - JETT 5 - jsc2024e035655.jpg"
+    ],
+    "vandehei": [
+      "File:Mark Vande Hei, official portrait (cropped).jpg",
+      "File:ISS-65 Mark Vande Hei replaces life support components.jpg",
+      "File:Halloween on iss exp 53 misurkin vande hei.jpg",
+      "File:ISS-66 Mark Vande Hei configures Combustion Integrated Rack.jpg",
+      "File:ISS-66 Astronaut Mark Vande Hei peers at the Earth below.jpg",
+      "File:Mark Vande Hei in 2017.jpg",
+      "File:Mark Vande Hei, official portrait.jpg",
+      "File:Mark Vande Hei.jpg",
+      "File:ISS-66 Astronaut Mark Vande Hei shows off a fresh chile pepper.jpg",
+      "File:Vande Hei Official Photo.jpg",
+      "File:View of Vande Hei through Hatch Window (iss066e093692).jpg",
+      "File:ISS-65 Mark Vande Hei gathers spacewalking tools.jpg"
+    ],
+    "walker": [
+      "File:Shannon Walker official portrait 2020 (cropped).jpg",
+      "File:ISS-24 Shannon Walker exercises using the aRED.jpg",
+      "File:ISS-24 Shannon Walker in front of the robotic workstation.jpg",
+      "File:ISS-64 Shannon Walker unpacks spacewalk hardware inside the Quest airlock.jpg",
+      "File:Shannon Walker official portrait 2020.jpg",
+      "File:Shannon Walker-cropped.jpg",
+      "File:ISS-64 Shannon Walker pauses inside the Unity module.jpg",
+      "File:ShannonWalker.jpg",
+      "File:ISS064E048595 - Shannon Walker installing Ethernet cables aboard the ISS.jpg"
+    ],
+    "watkins": [
+      "File:Jessica Watkins Astronaut portrait (cropped).jpg",
+      "File:ISS-67 Astronaut Jessica Watkins participates in the GRIP experiment.jpg",
+      "File:ISS-67 Jessica Watkins works on a U.S. spacesuit helmet.jpg",
+      "File:ISS-67 Astronaut Jessica Watkins services combustion experiment components.jpg",
+      "File:Jessica Watkins Astronaut portrait (cropped) 3.jpg",
+      "File:Jessica Watkins Astronaut portrait (cropped) 2.jpg",
+      "File:Jessica Watkins Astronaut portrait.jpg",
+      "File:Jessica Watkins Official NASA Portrait in 2021.jpg",
+      "File:Jessica Watkins Official NASA Portrait in 2021 (cropped).jpg",
+      "File:Jessica Watkins official portrait.jpg",
+      "File:Jessica Watkins portrait.jpg",
+      "File:Jessica Watkins Thumbnail (751908187741).jpg"
+    ],
+    "whitson": [
+      "File:Peggy Whitson.jpg",
+      "File:STS-113 Peggy Whitson looks at the International Space Station.jpg",
+      "File:ISS-52 Peggy Whitson works in the Destiny lab.jpg",
+      "File:ISS-05 Peggy Whitson in the Pirs docking compartment.jpg",
+      "File:Axiom Mission 4 Commander Peggy Whitson configures research hardware (iss073e0252488).jpg",
+      "File:ISS-05 Peggy Whitson works near the Microgravity Science Glovebox.jpg",
+      "File:PeggyWhitson-NASA.jpg",
+      "File:Peggy Whitson 2016.jpg",
+      "File:Astronaut Peggy Whitson at NASM (NHQ201803020004).jpg",
+      "File:Peggy Whitson during Depress Scene Generic training at JSC.jpg",
+      "File:ISS-05 Peggy Whitson in the Soyuz TM-34 spacecraft.jpg"
+    ],
+    "williams": [
+      "File:Sunita Williams.jpg",
+      "File:ISS-14 Williams Marathon.jpg",
+      "File:ISS-32 Sunita Williams prepares to eat a snack.jpg",
+      "File:ISS-14 Sunita Williams in the Soyuz TMA-9 spacecraft.jpg",
+      "File:Sunita Williams in 2018.jpg",
+      "File:Sunita Williams in 2018 (cropped).jpg",
+      "File:Sunita Williams in 2018 (cropped) 2.jpg",
+      "File:Astronaut Suni Williams takes a selfie portrait (iss072e423916).jpg",
+      "File:Sunita Williams (29412624360).jpg",
+      "File:ISS-32 Sunita Williams hugs Robonaut 2.jpg"
+    ]
+  }
+}

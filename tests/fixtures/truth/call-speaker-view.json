@@ -1,0 +1,11 @@
+{
+  "file": "call-speaker-view.mp4",
+  "duration_s": 24,
+  "fps": 30,
+  "voices": ["Samantha", "Daniel"],
+  "switches_s": [6, 12, 18],
+  "on_screen": [["LENA O", 0, 6], ["MAYA L", 6, 12], ["LENA O", 12, 18], ["MAYA L", 18, 24]],
+  "printed_names": {"corner": "bottom-left", "box": [0.014, 0.903, 0.199, 0.076]},
+  "images": "tests/fixtures/images (public domain, see SOURCES.md)",
+  "notes": "Speaker view: the picture switches at exactly 6, 12 and 18 s (frames 180, 360, 540); each shot shows the call app's name tile at the bottom left. A clip from 5.8 s opens with a split-second (6 frames) of Lena before Maya appears; a clip ending at 18.25 s ends with a split-second of Maya."
+}

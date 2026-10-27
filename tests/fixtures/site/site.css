@@ -1,0 +1,32 @@
+:root { --brand-primary: #e2552d; --brand-accent: #2d6ae2; --color-ink: #1b1b1f; --color-paper: #fffaf5; --radius-pill: 999px; --gap-color: 12px; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 18px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--color-ink); background: var(--color-paper); }
+h1, h2 { font-family: "Fraunces", Georgia, serif; }
+.top { display: flex; align-items: center; justify-content: space-between; padding: 20px 6vw; background: var(--color-ink); }
+.brand { display: inline-flex; align-items: center; gap: 12px; color: #fff4e8; font-weight: 700; font-size: 24px; text-decoration: none; }
+.brand .logo { display: block; width: 32px; height: 32px; }
+nav { display: flex; align-items: center; }
+nav a { color: #fff4e8; margin-left: 28px; text-decoration: none; }
+.menu { margin-left: 24px; padding: 4px; border: 0; background: transparent; color: #fff4e8; line-height: 0; }
+.hero { padding: 120px 6vw 140px; background: var(--brand-primary); color: #fff; }
+.hero h1 { font-size: 72px; margin: 0 0 16px; letter-spacing: -0.03em; }
+.hero p { font-size: 24px; max-width: 34em; margin: 0 0 32px; }
+.cta { display: inline-block; padding: 14px 28px; border-radius: var(--radius-pill); background: var(--color-ink); color: #fff; text-decoration: none; font-weight: 600; }
+.band { min-height: 700px; padding: 100px 6vw; }
+.band h2 { font-size: 48px; margin: 0 0 12px; }
+.band-1 { background: var(--brand-accent); color: #fff; }
+.band-2 { background: #2ec27e; color: #08210f; }
+.band-3 { background: #f5c211; color: #2a2100; }
+.band-4 { background: #8e2de2; color: #fff; }
+.page { padding: 100px 6vw; min-height: 900px; }
+.foot { display: flex; align-items: center; gap: 20px; padding: 48px 6vw; color: var(--brand-primary); }
+.foot a { color: inherit; line-height: 0; }
+.foot p { margin: 0; color: var(--color-ink); }
+.foot .bar { fill: var(--brand-accent); }
+@media (max-width: 600px) {
+  .hero { padding: 64px 24px 80px; }
+  .hero h1 { font-size: 44px; }
+  nav a { margin-left: 14px; font-size: 15px; }
+  .menu { margin-left: 10px; }
+  .band { min-height: 520px; padding: 64px 24px; }
+}

@@ -1,0 +1,7 @@
+{"schemaVersion":1,"title":"Acceptance cut","output":{"preset":"vertical-1080p","width":1080,"height":1920,"fps":30,"background":"#000000","platform":"shorts"},
+ "clips":[{"id":"hook","assetId":"ast_01jabcdefghjkmnpqrstvwxyz0","in":11.6,"out":18.4,"speed":1,"framing":{"mode":"fill","focusX":0.5},"rationale":"setup, pause, question",
+           "evidence":[{"kind":"transcript","assetId":"ast_01jabcdefghjkmnpqrstvwxyz0","from":16.1,"to":18.3,"quote":"What would you build if nobody was watching?"}]},
+          {"id":"broll","assetId":"ast_01jabcdefghjkmnpqrstvwxyz1","in":0,"out":1.8,"speed":1,"muted":true,"transitionIn":{"type":"crossfade","duration":0.4}},
+          {"id":"payoff","assetId":"ast_01jabcdefghjkmnpqrstvwxyz0","in":20.8,"out":26.2,"speed":1,"locked":true}],
+ "captions":{"enabled":true,"style":"emphasis","position":"bottom","maxWordsPerLine":4,"source":"transcript"},
+ "overlays":[{"id":"who","template":"lower-third.clean","at":0.5,"duration":3,"params":{"name":"A builder","title":"Teacher"}}]}

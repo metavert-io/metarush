@@ -1,0 +1,23 @@
+{
+  "name": "fixture-film",
+  "version": "1.0.0",
+  "description": "A tiny Remotion project MetaRush's tests bring in as a Remotion source: two compositions, a picture and a sound from public/, a Google Font.",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "remotion studio",
+    "postinstall": "node -e \"process.exit(42)\""
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.535",
+    "@remotion/google-fonts": "4.0.535",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.535",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.7",
+    "typescript": "5.9.3"
+  }
+}

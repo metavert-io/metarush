@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<title>{{TITLE}}</title>
+<style>{{CSS}}</style>
+</head>
+<body>
+<a class="skip" href="#comments">Skip to comments</a>
+<header class="top">
+  <p class="from" id="from"></p>
+  <h1 id="title">{{TITLE}}</h1>
+  <p class="banner draft" id="draft" hidden>This is a draft for review: it isn't approved yet.</p>
+  <div class="note" id="note" hidden><p class="note-from" id="note-from"></p><p class="note-text" id="note-text"></p></div>
+</header>
+<main class="grid">
+  <section class="watch" aria-label="The video">
+    <div class="frame">
+      <video id="video" controls playsinline preload="metadata"></video>
+    </div>
+    <div class="marks" id="marks" role="group" aria-label="Comments along the video"></div>
+    <div class="under">
+      <span class="clock"><span id="now">0:00</span> of <span id="length">0:00</span></span>
+      <a class="button quiet" id="download" hidden>Download the video</a>
+    </div>
+    <p class="problem" id="video-problem" role="alert" hidden></p>
+  </section>
+  <section class="talk" id="comments" aria-labelledby="comments-title">
+    <h2 id="comments-title">Comments <span class="count" id="count"></span></h2>
+    <form id="form" novalidate>
+      <label for="name">Your name</label>
+      <input id="name" name="name" autocomplete="name" required>
+      <label for="text">Your comment</label>
+      <textarea id="text" name="text" rows="3" placeholder="What should change here?"></textarea>
+      <div class="row">
+        <label class="pin"><input type="checkbox" id="pin" checked> Pin to <span id="pin-at">0:00</span></label>
+        <button type="submit" class="button" id="send">Send comment</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </form>
+    <div class="row list-head">
+      <span class="hint" id="list-hint">Comments pinned to a time jump the video there.</span>
+      <button type="button" class="button quiet small" id="refresh">Show new comments</button>
+    </div>
+    <ul class="list" id="list"></ul>
+  </section>
+  <section class="script" id="script-part" aria-labelledby="script-title" hidden>
+    <h2 id="script-title">What is said</h2>
+    <p class="hint">Press a line to play the video from there.</p>
+    <div id="script"></div>
+  </section>
+</main>
+<footer class="end">
+  <p id="ends"></p>
+  <p>Your comments and the name you give go to the person who sent this link, and others with the link see them too. This page shows only this video and its comments; anyone who can watch it can keep a copy.</p>
+</footer>
+<script type="application/json" id="data">{{DATA}}</script>
+<script>{{JS}}</script>
+</body>
+</html>

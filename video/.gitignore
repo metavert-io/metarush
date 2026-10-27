@@ -1,0 +1,6 @@
+# Self-test output (synthetic media, renders, extracted frames)
+.selftest/
+# Cached Remotion bundles (render/render.mjs --bundle-cache default)
+.bundle-cache/
+# Remotion-managed Chrome Headless Shell lives in node_modules/.remotion
+node_modules/

@@ -1,0 +1,22 @@
+# Email addresses that may appear in published files and history (scripts/check-public.sh): the public commit email.
+jon@metavert.io
+# Not people: GitHub's SSH user, and the user part of made-up addresses in tests (database and storage URIs with a
+# password, service accounts of made-up Google Cloud projects, a URL with a user, a systemd unit).
+git@github.com
+pw@cluster0.example.mongodb.net
+s3cret@cluster0.example.mongodb.net
+p@cluster0.example.mongodb.net
+pass@cluster0.example.mongodb.net
+pw@cluster0.abcde.mongodb.net
+p@c.mongodb.net
+hunter2@prod.cluster.net
+tok@github.com
+pw@github.com
+user@studio-mac.tail0000.ts.net
+pw@studio-mac.tail0000.ts.net
+metarush-test@test-project.iam.gserviceaccount.com
+metarush-veo@garden-films-01.iam.gserviceaccount.com
+team@fly.storage.tigris.dev
+media@abc.r2.cloudflarestorage.com
+metarush@storage.googleapis.com
+user@1000.service

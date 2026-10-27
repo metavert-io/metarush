@@ -1,0 +1,13 @@
+# The shape of local/publish-denylist.txt, this repository's own deny-list for scripts/check-public.sh (the
+# open-source-prep skill's check): terms that must never appear in anything published — the organisations and people
+# you work with, your machines, your tailnet. These entries are invented. Copy this file to local/publish-denylist.txt
+# (local/ is gitignored) and write your own; terms for every repository go in ~/.config/open-source-prep/denylist.txt.
+#
+# One term per line, matched anywhere in a line, ignoring case; `term | allow: glob,glob` exempts matching files.
+
+Zanzibar Widgets
+Quillfeather Studios
+Perpetua Quill
+Bartholomew Inkwell
+perpetuas-studio-mac
+tail5f3a9c

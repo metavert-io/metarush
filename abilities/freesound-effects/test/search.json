@@ -1,0 +1,16 @@
+{
+  "count": 3,
+  "next": null,
+  "previous": null,
+  "results": [
+    {"id": 70001, "name": "Old door creak.wav", "username": "example_foley", "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+     "url": "https://freesound.org/people/example_foley/sounds/70001/", "duration": 2.4,
+     "previews": {"preview-hq-mp3": "https://cdn.freesound.org/previews/70/70001_100-hq.mp3", "preview-lq-mp3": "https://cdn.freesound.org/previews/70/70001_100-lq.mp3"}},
+    {"id": 70002, "name": "creaky door slow", "username": "sample_maker", "license": "https://creativecommons.org/licenses/by/4.0/",
+     "url": "https://freesound.org/people/sample_maker/sounds/70002/", "duration": 5.1,
+     "previews": {"preview-hq-mp3": "https://cdn.freesound.org/previews/70/70002_200-hq.mp3"}},
+    {"id": 70003, "name": "door creak (non-commercial)", "username": "nc_user", "license": "https://creativecommons.org/licenses/by-nc/4.0/",
+     "url": "https://freesound.org/people/nc_user/sounds/70003/", "duration": 3.0,
+     "previews": {"preview-hq-mp3": "https://cdn.freesound.org/previews/70/70003_300-hq.mp3"}}
+  ]
+}

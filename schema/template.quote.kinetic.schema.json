@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:template:quote.kinetic:1",
+  "$ref": "#/$defs/QuoteParams",
+  "$defs": {
+    "QuoteParams": {
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 240,
+          "minLength": 1
+        },
+        "attribution": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "emphasis": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 8
+        },
+        "motion": {
+          "type": "string",
+          "enum": [
+            "restrained",
+            "none"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "text"
+      ]
+    }
+  },
+  "title": "Params for quote.kinetic"
+}

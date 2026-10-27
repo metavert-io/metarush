@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:template:name.bar:1",
+  "$ref": "#/$defs/NameBarParams",
+  "$defs": {
+    "CoverBox": {
+      "properties": {
+        "x": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "y": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "w": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "h": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ]
+    },
+    "NameBarParams": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "Who is on screen (empty: the bar shows no name)."
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "A short line under the name."
+        },
+        "cover": {
+          "$ref": "#/$defs/CoverBox",
+          "description": "The area to hide (the printed names), in fractions of the picture from its top-left. Default: the bottom-left corner where call apps print names."
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "band",
+            "tab"
+          ],
+          "description": "band (default): across the whole picture; tab: a box only as wide as the area and the name."
+        },
+        "hide": {
+          "type": "boolean",
+          "description": "Take the bar away (footage with nothing to cover); a later change brings it back."
+        },
+        "logo": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}(#[1-9][0-9]{0,2})?$",
+          "format": "metarush-resource",
+          "description": "A small logo at the start of the bar."
+        },
+        "firstNames": {
+          "type": "boolean",
+          "description": "The names are first names only (a conversation's tile tags follow it)."
+        },
+        "height": {
+          "type": "string",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "description": "full (default) or half: about half as tall, never too short to cover the printed names."
+        },
+        "animate": {
+          "type": "string",
+          "enum": [
+            "fade",
+            "slide",
+            "never"
+          ],
+          "description": "How a name comes in: fade (default), slide or never (nothing moves). The bar is always solid from its first frame."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  "title": "Params for name.bar"
+}

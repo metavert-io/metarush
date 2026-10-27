@@ -1,0 +1,43 @@
+{
+  "comment": "Shared by internal/names (Go) and web/src/lib/names.ts (the dashboard's person picker): both must rank and resolve these the same way.",
+  "people": ["Maya Lindqvist", "Theo Hartley", "Ada Lovelace", "Zoë Ibáñez", "Ben", "Benjamin Ashworth", "Jean-Luc Ferrand", "Dee"],
+  "rank": [
+    {"query": "ma", "names": ["Maya Lindqvist"], "kinds": ["prefix"]},
+    {"query": "MAYA lindqvist", "names": ["Maya Lindqvist"], "kinds": ["exact"]},
+    {"query": "hart", "names": ["Theo Hartley"], "kinds": ["word"]},
+    {"query": "zoe", "names": ["Zoë Ibáñez"], "kinds": ["prefix"]},
+    {"query": "ibanez", "names": ["Zoë Ibáñez"], "kinds": ["word"]},
+    {"query": "ben", "names": ["Ben", "Benjamin Ashworth"], "kinds": ["exact", "prefix"]},
+    {"query": "jean luc", "names": ["Jean-Luc Ferrand"], "kinds": ["prefix"]},
+    {"query": "luc", "names": ["Jean-Luc Ferrand"], "kinds": ["word"]},
+    {"query": "ovel", "names": ["Ada Lovelace"], "kinds": ["substring"]},
+    {"query": "Mya", "names": ["Maya Lindqvist"], "kinds": ["typo"]},
+    {"query": "theo hartle", "names": ["Theo Hartley"], "kinds": ["prefix"]},
+    {"query": "teho", "names": ["Theo Hartley"], "kinds": ["typo"]},
+    {"query": "benjmain", "names": ["Benjamin Ashworth"], "kinds": ["typo"]},
+    {"query": "ashwoth", "names": ["Benjamin Ashworth"], "kinds": ["typo"]},
+    {"query": "x", "names": [], "kinds": []},
+    {"query": "qq", "names": [], "kinds": []},
+    {"query": "dee", "names": ["Dee"], "kinds": ["exact"]},
+    {"query": "de", "names": ["Dee"], "kinds": ["prefix"]},
+    {"query": "ov", "names": ["Ada Lovelace"], "kinds": ["substring"]},
+    {"query": "  ada  ", "names": ["Ada Lovelace"], "kinds": ["prefix"]}
+  ],
+  "resolve": [
+    {"query": "theo", "found": "Theo Hartley"},
+    {"query": "maya lindqvist", "found": "Maya Lindqvist"},
+    {"query": "hartley", "found": "Theo Hartley"},
+    {"query": "ben", "found": "Ben"},
+    {"query": "benj", "found": "Benjamin Ashworth"},
+    {"query": "b", "ambiguous": ["Ben", "Benjamin Ashworth"]},
+    {"query": "Mya", "suggest": ["Maya Lindqvist"]},
+    {"query": "Nobody Here", "suggest": []}
+  ],
+  "close": [
+    {"query": "Mya", "names": ["Maya Lindqvist"]},
+    {"query": "May", "names": ["Maya Lindqvist"]},
+    {"query": "Maya Lindqvist", "names": []},
+    {"query": "Samantha", "names": []},
+    {"query": "Ada", "names": ["Ada Lovelace"]}
+  ]
+}

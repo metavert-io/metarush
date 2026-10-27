@@ -1,0 +1,16 @@
+{
+  "file": "two-speakers.wav",
+  "sample_rate": 16000,
+  "duration_s": 29.053250,
+  "gap_between_turns_s": 0.60,
+  "turns": [
+    {"speaker": "S1", "voice": "Samantha", "start_s": 0.50, "end_s": 3.045313, "text": "So tell me how the project actually started."},
+    {"speaker": "S2", "voice": "Daniel", "start_s": 3.645313, "end_s": 7.400438, "text": "It started in my garage with a broken drone and a lot of free time."},
+    {"speaker": "S1", "voice": "Samantha", "start_s": 8.000438, "end_s": 10.638501, "text": "And when did you realize it could become a real business?"},
+    {"speaker": "S2", "voice": "Daniel", "start_s": 11.238501, "end_s": 15.478063, "text": "Honestly, when strangers started emailing me to ask if they could buy one."},
+    {"speaker": "S1", "voice": "Samantha", "start_s": 16.078063, "end_s": 18.254750, "text": "What was the hardest part of that first year?"},
+    {"speaker": "S2", "voice": "Daniel", "start_s": 18.854750, "end_s": 22.468313, "text": "Learning to say no to good ideas so we could finish the great ones."},
+    {"speaker": "S1", "voice": "Samantha", "start_s": 23.068313, "end_s": 25.450375, "text": "That sounds like advice everyone needs to hear."},
+    {"speaker": "S2", "voice": "Daniel", "start_s": 26.050375, "end_s": 28.253250, "text": "It is the only advice I really trust."}
+  ]
+}

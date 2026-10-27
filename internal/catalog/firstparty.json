@@ -1,0 +1,1609 @@
+{
+  "_comment": "The first-party catalogue: what MetaRush already does, as abilities in the menu and in find. Generated from each operation's ops.Offer annotation by METARUSH_UPDATE_CATALOGUE=1 go test ./internal/catalog -run TestFirstPartyCatalogue; never edit by hand. IDs are stable: one taken away moves to retired and is never used again.",
+  "abilities": [
+    {
+      "id": "ai-cut-outs",
+      "name": "metarush/ai-cut-outs",
+      "group": "make",
+      "title": "AI cut-outs",
+      "does": "Takes a picture's background away with Apple Vision on this computer, as a new picture; nothing leaves it.",
+      "op": "ai.make",
+      "input": {
+        "kind": "background-removal",
+        "model": "local/apple-vision"
+      },
+      "words": [
+        "remove the background",
+        "subject lifting"
+      ],
+      "needs": {
+        "os": [
+          "mac"
+        ],
+        "setup": "local-apple-vision"
+      },
+      "cost": "free",
+      "madeWith": "metarush/ai-cut-outs"
+    },
+    {
+      "id": "ai-larger-pictures",
+      "name": "metarush/ai-larger-pictures",
+      "group": "make",
+      "title": "AI larger pictures",
+      "does": "Makes a picture 2 or 4 times larger with an AI model on this computer; nothing leaves it.",
+      "op": "ai.make",
+      "input": {
+        "kind": "upscale",
+        "model": "local/real-esrgan-x4v3"
+      },
+      "words": [
+        "super resolution",
+        "ai upscale"
+      ],
+      "needs": {
+        "setup": "local-real-esrgan-x4v3"
+      },
+      "cost": "free",
+      "madeWith": "metarush/ai-larger-pictures"
+    },
+    {
+      "id": "ai-music",
+      "name": "metarush/ai-music",
+      "group": "make",
+      "title": "AI music",
+      "does": "Makes music from a description; priced first.",
+      "op": "ai.make",
+      "input": {
+        "kind": "music"
+      },
+      "words": [
+        "compose a song",
+        "jingle"
+      ],
+      "needs": {
+        "leaves": "your words leave this computer",
+        "keys": [
+          "elevenlabs",
+          "gemini"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/ai-music"
+    },
+    {
+      "id": "ai-narration",
+      "name": "metarush/ai-narration",
+      "group": "make",
+      "title": "AI narration",
+      "does": "Reads your script in a natural AI voice with ElevenLabs; lines that didn't change are reused for free. Priced first.",
+      "op": "voiceover.tts",
+      "words": [
+        "text to speech",
+        "voiceover",
+        "narrator"
+      ],
+      "needs": {
+        "leaves": "the script's words leave this computer",
+        "keys": [
+          "elevenlabs"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/ai-narration"
+    },
+    {
+      "id": "ai-pictures",
+      "name": "metarush/ai-pictures",
+      "group": "make",
+      "title": "AI pictures",
+      "does": "Makes a picture from a description, or changes one of yours, with an AI service; priced first.",
+      "op": "ai.make",
+      "input": {
+        "kind": "picture"
+      },
+      "words": [
+        "image generation",
+        "illustration",
+        "thumbnail art"
+      ],
+      "needs": {
+        "leaves": "your words and any pictures you give it leave this computer",
+        "keys": [
+          "gemini"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/ai-pictures"
+    },
+    {
+      "id": "ai-sound-effects",
+      "name": "metarush/ai-sound-effects",
+      "group": "make",
+      "title": "AI sound effects",
+      "does": "Makes a sound effect from a description; priced first.",
+      "op": "ai.make",
+      "input": {
+        "kind": "sound-effect"
+      },
+      "words": [
+        "sfx",
+        "whoosh",
+        "foley"
+      ],
+      "needs": {
+        "leaves": "your words leave this computer",
+        "keys": [
+          "elevenlabs"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/ai-sound-effects"
+    },
+    {
+      "id": "ai-speech",
+      "name": "metarush/ai-speech",
+      "group": "make",
+      "title": "AI speech",
+      "does": "Says any words in an AI voice as a new sound clip; priced first.",
+      "op": "ai.make",
+      "input": {
+        "kind": "voice"
+      },
+      "words": [
+        "read this aloud",
+        "spoken line"
+      ],
+      "needs": {
+        "leaves": "the words leave this computer",
+        "keys": [
+          "gemini",
+          "elevenlabs"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/ai-speech"
+    },
+    {
+      "id": "art-in-git",
+      "name": "metarush/art-in-git",
+      "group": "bring",
+      "title": "Art kept in git",
+      "does": "Keeps the pictures in a repository's folders as pictures of their own, each pinned to the commit.",
+      "op": "resources.pictures.set",
+      "words": [
+        "pictures from a repository",
+        "design files in git"
+      ],
+      "needs": {
+        "programs": [
+          "git"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/art-in-git"
+    },
+    {
+      "id": "automatic-call-cut",
+      "name": "metarush/automatic-call-cut",
+      "group": "edit",
+      "title": "Automatic call cuts",
+      "does": "Cuts a call automatically — whoever is talking, reactions, split layouts — and explains each choice.",
+      "op": "conversation.cut",
+      "words": [
+        "edit the podcast",
+        "switch to the speaker"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/automatic-call-cut"
+    },
+    {
+      "id": "balance-colour",
+      "name": "metarush/balance-colour",
+      "group": "fix",
+      "title": "Balance colour",
+      "does": "Balances a clip's colour and brightness; the original is kept.",
+      "op": "asset.fixes.set",
+      "input": {
+        "tick": [
+          "colour"
+        ]
+      },
+      "words": [
+        "color correct",
+        "too dark",
+        "white balance"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/balance-colour"
+    },
+    {
+      "id": "best-moments",
+      "name": "metarush/best-moments",
+      "group": "understand",
+      "title": "Best moments",
+      "does": "Finds the moments worth a look across a project or one clip, from what was said, pauses and picture changes.",
+      "op": "footage.moments",
+      "words": [
+        "highlights",
+        "best takes",
+        "hooks"
+      ],
+      "needs": {
+        "works": [
+          "transcripts",
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/best-moments"
+    },
+    {
+      "id": "brand-from-a-site",
+      "name": "metarush/brand-from-a-site",
+      "group": "make",
+      "title": "A website's brand",
+      "does": "Suggests a brand kit from a web page you brought in: its logo, colours and font, each with why.",
+      "op": "brand.suggest",
+      "words": [
+        "brand colours",
+        "logo from a website",
+        "style from a site"
+      ],
+      "needs": {},
+      "cost": "free",
+      "madeWith": "metarush/brand-from-a-site"
+    },
+    {
+      "id": "call-clean-up",
+      "name": "metarush/call-clean-up",
+      "group": "edit",
+      "title": "Call clean-up",
+      "does": "Finds what calls leave behind — call talk, dead air, frozen webcams, sound dropouts — for you to accept or skip.",
+      "op": "conversation.cleanup",
+      "words": [
+        "can you hear me",
+        "frozen video"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/call-clean-up"
+    },
+    {
+      "id": "call-recordings",
+      "name": "metarush/call-recordings",
+      "group": "bring",
+      "title": "Call recordings",
+      "does": "Brings in a call app's recording folder, a recording per person, lined up by their sound.",
+      "op": "conversation.import",
+      "words": [
+        "zoom recording",
+        "podcast interview",
+        "remote interview"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/call-recordings"
+    },
+    {
+      "id": "call-switches",
+      "name": "metarush/call-switches",
+      "group": "understand",
+      "title": "Picture switches in calls",
+      "does": "Finds where a call recording's picture switches, to the frame, and who is on screen in each shot.",
+      "op": "footage.switches.find",
+      "words": [
+        "camera switch",
+        "speaker view changes"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/call-switches"
+    },
+    {
+      "id": "caption-check",
+      "name": "metarush/caption-check",
+      "group": "deliver",
+      "title": "Caption check",
+      "does": "Lists the words in a version's captions worth a look before it goes out.",
+      "op": "captions.check",
+      "words": [
+        "proofread captions",
+        "subtitle mistakes"
+      ],
+      "needs": {},
+      "cost": "free",
+      "madeWith": "metarush/caption-check"
+    },
+    {
+      "id": "caption-looks",
+      "name": "metarush/caption-looks",
+      "group": "edit",
+      "title": "Caption looks",
+      "does": "Gives the cut's captions one of six looks in your brand's colours and font.",
+      "op": "cut.captions",
+      "words": [
+        "subtitle style",
+        "karaoke captions",
+        "bold captions"
+      ],
+      "needs": {},
+      "cost": "free",
+      "madeWith": "metarush/caption-looks"
+    },
+    {
+      "id": "captions-files",
+      "name": "metarush/captions-files",
+      "group": "deliver",
+      "title": "Captions files",
+      "does": "A version's captions as a file for any player or platform, with every text fix made since.",
+      "op": "captions.file",
+      "words": [
+        "srt",
+        "vtt",
+        "subtitle file"
+      ],
+      "needs": {},
+      "cost": "free",
+      "madeWith": "metarush/captions-files"
+    },
+    {
+      "id": "change-a-spoken-word",
+      "name": "metarush/change-a-spoken-word",
+      "group": "fix",
+      "title": "Change a spoken word",
+      "does": "Says a word or short phrase differently in the speaker's own voice copy, with their consent, checked on this computer and marked as changed everywhere; priced first.",
+      "op": "cut.say.make",
+      "words": [
+        "say it differently",
+        "they said the wrong number",
+        "replace a word someone said"
+      ],
+      "needs": {
+        "works": [
+          "transcripts",
+          "editing"
+        ],
+        "leaves": "the new words, with the speaker's words around them, leave this computer for the service that holds the voice copy",
+        "keys": [
+          "elevenlabs",
+          "gemini"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/change-a-spoken-word"
+    },
+    {
+      "id": "changes-as-pull-request",
+      "name": "metarush/changes-as-pull-request",
+      "group": "deliver",
+      "title": "Changes back as a pull request",
+      "does": "Sends an approved Remotion version's changes back to its repository as a new branch and a pull request.",
+      "op": "remotion.push.start",
+      "words": [
+        "open a pr",
+        "send changes upstream"
+      ],
+      "needs": {
+        "leaves": "the version's changes leave this computer, for its repository",
+        "programs": [
+          "git",
+          "gh"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/changes-as-pull-request"
+    },
+    {
+      "id": "clearer-voices",
+      "name": "metarush/clearer-voices",
+      "group": "fix",
+      "title": "Clearer voices",
+      "does": "Makes voices clearer on this computer, with less room and background noise; free.",
+      "op": "sound.enhance",
+      "input": {
+        "mode": "clean"
+      },
+      "words": [
+        "background noise",
+        "echo",
+        "improve audio"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/clearer-voices"
+    },
+    {
+      "id": "cloud-folders",
+      "name": "metarush/cloud-folders",
+      "group": "bring",
+      "title": "Files from Google Drive or Dropbox",
+      "does": "Brings footage and pictures in from a Google Drive or Dropbox folder through your own rclone, without syncing the folder.",
+      "op": "add.cloud",
+      "words": [
+        "dropbox",
+        "google drive",
+        "cloud folder",
+        "rclone"
+      ],
+      "needs": {
+        "programs": [
+          "rclone"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/cloud-folders"
+    },
+    {
+      "id": "cloud-transcripts",
+      "name": "metarush/cloud-transcripts",
+      "group": "make",
+      "title": "Cloud transcripts",
+      "does": "Writes down a clip's words with an AI service instead of on this computer, only when you ask; priced first.",
+      "op": "ai.make",
+      "input": {
+        "kind": "transcription"
+      },
+      "words": [
+        "transcribe online"
+      ],
+      "needs": {
+        "leaves": "the clip's sound leaves this computer",
+        "keys": [
+          "elevenlabs",
+          "gemini"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/cloud-transcripts"
+    },
+    {
+      "id": "cloud-voices",
+      "name": "metarush/cloud-voices",
+      "group": "fix",
+      "title": "Voices cleaned in the cloud",
+      "does": "Separates voices from everything else with ElevenLabs; priced first.",
+      "op": "sound.enhance",
+      "input": {
+        "mode": "cloud"
+      },
+      "words": [
+        "voice isolation",
+        "isolate the voice"
+      ],
+      "needs": {
+        "leaves": "the voices' sound leaves this computer",
+        "keys": [
+          "elevenlabs"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/cloud-voices"
+    },
+    {
+      "id": "code-slides",
+      "name": "metarush/code-slides",
+      "group": "make",
+      "title": "Code slides",
+      "does": "A slide of a repository file's lines, highlighted, that says exactly where they came from.",
+      "op": "resources.make",
+      "input": {
+        "kind": "code"
+      },
+      "words": [
+        "show code",
+        "code snippet"
+      ],
+      "needs": {
+        "works": [
+          "renders"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/code-slides"
+    },
+    {
+      "id": "contact-sheets",
+      "name": "metarush/contact-sheets",
+      "group": "understand",
+      "title": "Contact sheets",
+      "does": "A labeled grid of frames from a clip: one per shot, then picture changes and new speakers.",
+      "op": "footage.sheet",
+      "words": [
+        "frame grid",
+        "thumbnails",
+        "every shot at a glance"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/contact-sheets"
+    },
+    {
+      "id": "cover-call-names",
+      "name": "metarush/cover-call-names",
+      "group": "edit",
+      "title": "Cover printed names",
+      "does": "Covers the names a call app printed in the picture with your own name bar for the whole video.",
+      "op": "cut.names",
+      "words": [
+        "name bar",
+        "lower third over call names"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/cover-call-names"
+    },
+    {
+      "id": "delivery",
+      "name": "metarush/delivery",
+      "group": "deliver",
+      "title": "Delivery",
+      "does": "Exports finished videos to a folder with a notes file each, checked, and never over an older file.",
+      "op": "deliver.export",
+      "words": [
+        "hand off",
+        "send the final video",
+        "export"
+      ],
+      "needs": {},
+      "cost": "free",
+      "madeWith": "metarush/delivery"
+    },
+    {
+      "id": "delivery-notes",
+      "name": "metarush/delivery-notes",
+      "group": "deliver",
+      "title": "Titles, chapters and show notes",
+      "does": "Keeps a version's title, description, chapters and show notes for delivery.",
+      "op": "delivery.notes.set",
+      "words": [
+        "youtube description",
+        "chapter markers",
+        "episode notes"
+      ],
+      "needs": {},
+      "cost": "free",
+      "madeWith": "metarush/delivery-notes"
+    },
+    {
+      "id": "diagrams",
+      "name": "metarush/diagrams",
+      "group": "make",
+      "title": "Diagrams",
+      "does": "Draws a diagram described in Mermaid or D2 as a picture for the cut.",
+      "op": "resources.make",
+      "input": {
+        "kind": "diagram"
+      },
+      "words": [
+        "flowchart",
+        "chart of boxes and arrows"
+      ],
+      "needs": {
+        "works": [
+          "renders"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/diagrams"
+    },
+    {
+      "id": "dubbing",
+      "name": "metarush/dubbing",
+      "group": "make",
+      "title": "Dubbing",
+      "does": "Dubs a clip into another language in its speakers' voices, with their consent; priced first.",
+      "op": "ai.make",
+      "input": {
+        "kind": "dubbing"
+      },
+      "words": [
+        "translate the audio",
+        "foreign language version"
+      ],
+      "needs": {
+        "leaves": "the clip's sound leaves this computer",
+        "keys": [
+          "elevenlabs"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/dubbing"
+    },
+    {
+      "id": "even-loudness",
+      "name": "metarush/even-loudness",
+      "group": "fix",
+      "title": "Even out loudness",
+      "does": "Makes a recording as loud as the rest, all the way through; the original is kept.",
+      "op": "asset.fixes.set",
+      "input": {
+        "tick": [
+          "loudness"
+        ]
+      },
+      "words": [
+        "too quiet",
+        "volume"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/even-loudness"
+    },
+    {
+      "id": "faces",
+      "name": "metarush/faces",
+      "group": "understand",
+      "title": "Faces across clips",
+      "does": "Finds the faces in your footage and recognizes the people you named, across every clip.",
+      "op": "footage.faces",
+      "words": [
+        "who appears",
+        "who is on screen",
+        "recognize people"
+      ],
+      "needs": {
+        "os": [
+          "mac"
+        ],
+        "setup": "on-screen-helper"
+      },
+      "cost": "free",
+      "madeWith": "metarush/faces"
+    },
+    {
+      "id": "find-and-replace",
+      "name": "metarush/find-and-replace",
+      "group": "edit",
+      "title": "Find and replace in transcripts",
+      "does": "Changes words wherever they are said; each keeps its timing, and it can be undone.",
+      "op": "transcript.replace",
+      "words": [
+        "fix a misspelled name",
+        "correct the transcript"
+      ],
+      "needs": {},
+      "cost": "free",
+      "madeWith": "metarush/find-and-replace"
+    },
+    {
+      "id": "fitted-music",
+      "name": "metarush/fitted-music",
+      "group": "make",
+      "title": "Music fitted to the cut",
+      "does": "Puts music under the cut that ends on a phrase or a beat and gets quieter when someone talks.",
+      "op": "sound.music.add",
+      "words": [
+        "background music",
+        "soundtrack"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/fitted-music"
+    },
+    {
+      "id": "footage-files",
+      "name": "metarush/footage-files",
+      "group": "bring",
+      "title": "Footage from files",
+      "does": "Adds video and sound files: each copied into MetaRush's storage once, then written down and looked at.",
+      "op": "ingest.files",
+      "words": [
+        "upload",
+        "import my recordings",
+        "add clips"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/footage-files"
+    },
+    {
+      "id": "generated-shots",
+      "name": "metarush/generated-shots",
+      "group": "make",
+      "title": "Generated shots",
+      "does": "Makes a new video shot from a description; priced first and paid to the service directly.",
+      "op": "generate.shot",
+      "words": [
+        "ai video",
+        "extra shots",
+        "make a clip from a prompt"
+      ],
+      "needs": {
+        "leaves": "your words and any pictures you give it leave this computer",
+        "keys": [
+          "gemini"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/generated-shots"
+    },
+    {
+      "id": "github-repositories",
+      "name": "metarush/github-repositories",
+      "group": "bring",
+      "title": "GitHub repositories",
+      "does": "Brings in a GitHub repository at a commit — its text files, README and history — with your own git sign-in.",
+      "op": "resources.fetch",
+      "input": {
+        "as": "repo"
+      },
+      "words": [
+        "git repo",
+        "source code",
+        "codebase"
+      ],
+      "needs": {
+        "programs": [
+          "git"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/github-repositories"
+    },
+    {
+      "id": "larger-pictures",
+      "name": "metarush/larger-pictures",
+      "group": "fix",
+      "title": "Larger, sharper pictures",
+      "does": "Makes a small picture larger and sharper for a full-screen shot.",
+      "op": "asset.fixes.set",
+      "input": {
+        "tick": [
+          "larger"
+        ]
+      },
+      "words": [
+        "upscale",
+        "low resolution"
+      ],
+      "needs": {},
+      "cost": "free",
+      "madeWith": "metarush/larger-pictures"
+    },
+    {
+      "id": "lip-sync",
+      "name": "metarush/lip-sync",
+      "group": "make",
+      "title": "Lip sync",
+      "does": "Matches the lips in part of a clip to new sound, with the consent of everyone in it; priced first.",
+      "op": "ai.make",
+      "input": {
+        "kind": "lip-sync"
+      },
+      "words": [
+        "change a spoken word",
+        "match the mouth"
+      ],
+      "needs": {
+        "leaves": "the part of the footage and the new sound leave this computer",
+        "keys": [
+          "sync"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/lip-sync"
+    },
+    {
+      "id": "matched-webcams",
+      "name": "metarush/matched-webcams",
+      "group": "edit",
+      "title": "Matched webcams",
+      "does": "Matches the webcams' brightness, contrast and colour to one person's picture, measured before and after.",
+      "op": "conversation.match",
+      "words": [
+        "webcam colours",
+        "make cameras match"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/matched-webcams"
+    },
+    {
+      "id": "offline-voices",
+      "name": "metarush/offline-voices",
+      "group": "make",
+      "title": "Offline voices",
+      "does": "Says any words in a free voice that runs on this computer; nothing leaves it.",
+      "op": "ai.make",
+      "input": {
+        "kind": "voice",
+        "model": "local/kokoro-v1"
+      },
+      "words": [
+        "local text to speech",
+        "free voice"
+      ],
+      "needs": {
+        "setup": "local-kokoro-v1"
+      },
+      "cost": "free",
+      "madeWith": "metarush/offline-voices"
+    },
+    {
+      "id": "other-voice",
+      "name": "metarush/other-voice",
+      "group": "make",
+      "title": "Another voice",
+      "does": "Changes the voice in a recording to another voice, keeping the words and their timing; priced first.",
+      "op": "ai.make",
+      "input": {
+        "kind": "voice-change"
+      },
+      "words": [
+        "voice changer",
+        "disguise a voice"
+      ],
+      "needs": {
+        "leaves": "the recording's sound leaves this computer",
+        "keys": [
+          "elevenlabs"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/other-voice"
+    },
+    {
+      "id": "own-presenters",
+      "name": "metarush/own-presenters",
+      "group": "make",
+      "title": "A person's own presenter",
+      "does": "Makes a presenter of a person at an AI service from their approved look, a training take and their consent filmed on camera, naming the service; people only, priced first.",
+      "op": "presenter.make",
+      "words": [
+        "digital twin",
+        "my own avatar"
+      ],
+      "needs": {
+        "leaves": "a video of the person and their filmed consent leave this computer, and the service keeps the presenter until it is retired",
+        "keys": [
+          "d-id"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/own-presenters"
+    },
+    {
+      "id": "pauses-and-cuts",
+      "name": "metarush/pauses-and-cuts",
+      "group": "understand",
+      "title": "Pauses, cuts and loud parts",
+      "does": "Measures a clip: its pauses, cuts and picture changes, black or frozen picture, and how loud it is.",
+      "op": "footage.evidence",
+      "words": [
+        "silences",
+        "dead air",
+        "scene changes"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/pauses-and-cuts"
+    },
+    {
+      "id": "pictures-and-pdfs",
+      "name": "metarush/pictures-and-pdfs",
+      "group": "bring",
+      "title": "Pictures, PDFs and fonts",
+      "does": "Adds pictures, logos, PDF pages and fonts for your cuts; iPhone photos are converted on the way in.",
+      "op": "resources.add",
+      "words": [
+        "logo",
+        "slides from a pdf",
+        "heic",
+        "font"
+      ],
+      "needs": {},
+      "cost": "free",
+      "madeWith": "metarush/pictures-and-pdfs"
+    },
+    {
+      "id": "post-to-youtube",
+      "name": "metarush/post-to-youtube",
+      "group": "deliver",
+      "title": "Post to YouTube",
+      "does": "Posts an approved version to your own channel as you, with its title, description, chapters and captions; a person does it every time.",
+      "op": "publish.send",
+      "words": [
+        "post my video online",
+        "upload to my channel",
+        "share it publicly"
+      ],
+      "needs": {
+        "leaves": "the version's video, title, description and captions leave this computer, for YouTube"
+      },
+      "cost": "free",
+      "madeWith": "metarush/post-to-youtube"
+    },
+    {
+      "id": "presenter-clips",
+      "name": "metarush/presenter-clips",
+      "group": "make",
+      "title": "Presenter clips",
+      "does": "A presenter reads a clip's sound or a narration line on camera: a person's own presenter, with their consent, or a stock presenter licensed for client work; priced first.",
+      "op": "ai.make",
+      "input": {
+        "kind": "presenter"
+      },
+      "words": [
+        "avatar",
+        "talking head",
+        "spokesperson video"
+      ],
+      "needs": {
+        "leaves": "the sound it reads leaves this computer",
+        "keys": [
+          "d-id",
+          "heygen"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/presenter-clips"
+    },
+    {
+      "id": "quality-check",
+      "name": "metarush/quality-check",
+      "group": "deliver",
+      "title": "Quality check",
+      "does": "Watches and listens to a finished video before it goes out: words cut off, captions over faces, sound too quiet.",
+      "op": "qa.run",
+      "words": [
+        "is the finished video ok",
+        "problems before it goes out"
+      ],
+      "needs": {
+        "works": [
+          "checks"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/quality-check"
+    },
+    {
+      "id": "ready-to-deliver",
+      "name": "metarush/ready-to-deliver",
+      "group": "deliver",
+      "title": "Ready to deliver?",
+      "does": "Says whether a version can go out to a client, or what holds it — the quality check, promises not kept, sign-offs still waiting — with a step to clear each.",
+      "op": "delivery.ready",
+      "words": [
+        "held",
+        "can it go out",
+        "promises",
+        "ship"
+      ],
+      "needs": {},
+      "cost": "free",
+      "madeWith": "metarush/ready-to-deliver"
+    },
+    {
+      "id": "reduce-grain",
+      "name": "metarush/reduce-grain",
+      "group": "fix",
+      "title": "Reduce grain",
+      "does": "Reduces the grain of a dark or noisy picture; the original is kept.",
+      "op": "asset.fixes.set",
+      "input": {
+        "tick": [
+          "grain"
+        ]
+      },
+      "words": [
+        "noisy picture",
+        "denoise video"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/reduce-grain"
+    },
+    {
+      "id": "remotion-clips",
+      "name": "metarush/remotion-clips",
+      "group": "make",
+      "title": "Remotion compositions as clips",
+      "does": "Makes a composition of an approved Remotion version into a clip, drawn with no network.",
+      "op": "remotion.render",
+      "words": [
+        "render a composition"
+      ],
+      "needs": {
+        "works": [
+          "renders"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/remotion-clips"
+    },
+    {
+      "id": "remotion-projects",
+      "name": "metarush/remotion-projects",
+      "group": "bring",
+      "title": "Remotion projects",
+      "does": "Brings in a Remotion project from a folder or a GitHub repository; a person approves each version.",
+      "op": "remotion.import",
+      "words": [
+        "react video",
+        "motion code"
+      ],
+      "needs": {
+        "works": [
+          "renders"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/remotion-projects"
+    },
+    {
+      "id": "remotion-refreshes",
+      "name": "metarush/remotion-refreshes",
+      "group": "make",
+      "title": "Remotion refreshes",
+      "does": "Runs a Remotion project's own steps to bring its data up to date, in a sandbox, started by a person.",
+      "op": "remotion.refresh.start",
+      "words": [
+        "update the data",
+        "refresh the numbers"
+      ],
+      "needs": {
+        "works": [
+          "renders"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/remotion-refreshes"
+    },
+    {
+      "id": "remove-background",
+      "name": "metarush/remove-background",
+      "group": "fix",
+      "title": "A photo's subject",
+      "does": "Takes the background out of a photo or a logo, leaving its subject; a background that isn't one plain colour needs a Mac.",
+      "op": "asset.fixes.set",
+      "input": {
+        "tick": [
+          "background"
+        ]
+      },
+      "words": [
+        "cut out",
+        "transparent background"
+      ],
+      "needs": {
+        "os": [
+          "mac"
+        ],
+        "partly": "only plain-colour backgrounds"
+      },
+      "cost": "free",
+      "madeWith": "metarush/remove-background"
+    },
+    {
+      "id": "remove-hum",
+      "name": "metarush/remove-hum",
+      "group": "fix",
+      "title": "Remove hum",
+      "does": "Takes the electrical hum out of a recording's sound; the original is kept.",
+      "op": "asset.fixes.set",
+      "input": {
+        "tick": [
+          "hum"
+        ]
+      },
+      "words": [
+        "buzz",
+        "mains hum"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/remove-hum"
+    },
+    {
+      "id": "remove-ums",
+      "name": "metarush/remove-ums",
+      "group": "edit",
+      "title": "Remove ums",
+      "does": "Suggests the ums, repeats and false starts to take out of the cut, each heard first.",
+      "op": "cut.removeWords",
+      "input": {
+        "cleanup": true
+      },
+      "words": [
+        "filler words",
+        "uh",
+        "stutters"
+      ],
+      "needs": {
+        "works": [
+          "transcripts",
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/remove-ums"
+    },
+    {
+      "id": "repository-cards",
+      "name": "metarush/repository-cards",
+      "group": "make",
+      "title": "Repository cards",
+      "does": "A card about a repository: its languages, how active it is and its history.",
+      "op": "resources.make",
+      "input": {
+        "kind": "stats"
+      },
+      "words": [
+        "project stats",
+        "repo card"
+      ],
+      "needs": {
+        "works": [
+          "renders"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/repository-cards"
+    },
+    {
+      "id": "scene-descriptions",
+      "name": "metarush/scene-descriptions",
+      "group": "understand",
+      "title": "Scene descriptions",
+      "does": "Claude Code writes a sentence or two about each scene, so you can search for what is seen.",
+      "op": "footage.describe",
+      "words": [
+        "describe the video",
+        "what happens in each scene"
+      ],
+      "needs": {
+        "leaves": "pictures of each scene leave this computer, for Claude",
+        "claude": true
+      },
+      "cost": "plan",
+      "madeWith": "metarush/scene-descriptions"
+    },
+    {
+      "id": "share-for-review",
+      "name": "metarush/share-for-review",
+      "group": "deliver",
+      "title": "Share a version for review",
+      "does": "Sends someone outside the workspace an expiring link to a version's review copy and its words, and brings their comments back.",
+      "op": "share.create",
+      "words": [
+        "client review link",
+        "send to the client",
+        "outside reviewer",
+        "review without an account",
+        "feedback link"
+      ],
+      "needs": {
+        "leaves": "the review copy, and its words if you include them, go to people outside the workspace through your cloud bucket",
+        "setup": "review-links"
+      },
+      "cost": "free",
+      "madeWith": "metarush/share-for-review"
+    },
+    {
+      "id": "shorts",
+      "name": "metarush/shorts",
+      "group": "edit",
+      "title": "Shorts",
+      "does": "Makes a short for phones from a stretch of any footage, framed and captioned in the house style.",
+      "op": "footage.short",
+      "words": [
+        "vertical video",
+        "reels",
+        "tiktok",
+        "clip for social"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/shorts"
+    },
+    {
+      "id": "spoken-language",
+      "name": "metarush/spoken-language",
+      "group": "understand",
+      "title": "Each clip's language",
+      "does": "Says which language each clip is spoken in, and writes its words down in that language.",
+      "op": "footage.language",
+      "words": [
+        "detect language",
+        "spanish",
+        "french",
+        "another language"
+      ],
+      "needs": {
+        "works": [
+          "transcripts",
+          "editing"
+        ],
+        "programs": [
+          "whisper-cli"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/spoken-language"
+    },
+    {
+      "id": "stand-in-narration",
+      "name": "metarush/stand-in-narration",
+      "group": "make",
+      "title": "Stand-in narration",
+      "does": "A free robotic voice to time narration before you record it or choose an AI voice.",
+      "op": "voiceover.scratch",
+      "words": [
+        "scratch voice",
+        "temp voiceover"
+      ],
+      "needs": {
+        "works": [
+          "scratch-voice"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/stand-in-narration"
+    },
+    {
+      "id": "steady-footage",
+      "name": "metarush/steady-footage",
+      "group": "fix",
+      "title": "Steady shaky footage",
+      "does": "Steadies a shaky camera; the original is kept.",
+      "op": "asset.fixes.set",
+      "input": {
+        "tick": [
+          "steady"
+        ]
+      },
+      "words": [
+        "stabilize",
+        "shaky",
+        "camera shake"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/steady-footage"
+    },
+    {
+      "id": "studio-voices",
+      "name": "metarush/studio-voices",
+      "group": "fix",
+      "title": "Studio voices",
+      "does": "Makes voices sound as if recorded in a studio, on this computer: slower, and stronger than clearer voices.",
+      "op": "sound.enhance",
+      "input": {
+        "mode": "studio"
+      },
+      "words": [
+        "podcast sound",
+        "studio quality"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ],
+        "setup": "studio-voices"
+      },
+      "cost": "free",
+      "madeWith": "metarush/studio-voices"
+    },
+    {
+      "id": "tighten-pauses",
+      "name": "metarush/tighten-pauses",
+      "group": "edit",
+      "title": "Tighten pauses",
+      "does": "Shortens long pauses between words anywhere in the cut, each one heard first.",
+      "op": "cut.pauses",
+      "words": [
+        "dead air",
+        "long silences",
+        "tighten the pacing"
+      ],
+      "needs": {
+        "works": [
+          "transcripts",
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/tighten-pauses"
+    },
+    {
+      "id": "timeline-import",
+      "name": "metarush/timeline-import",
+      "group": "bring",
+      "title": "Timelines from other editors",
+      "does": "Makes a cut from a timeline another editing app exported (OpenTimelineIO, FCPXML, Final Cut Pro 7 XML, EDL), matched to your footage.",
+      "op": "timeline.import",
+      "words": [
+        "import timeline",
+        "otio",
+        "fcpxml",
+        "edl",
+        "timeline from another editor",
+        "bring my edit in"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/timeline-import"
+    },
+    {
+      "id": "timelines",
+      "name": "metarush/timelines",
+      "group": "deliver",
+      "title": "Timelines for other editors",
+      "does": "Writes a version of a cut as a timeline another editing app opens, with its clips in place.",
+      "op": "export.timeline",
+      "words": [
+        "xml",
+        "edl",
+        "finish in another editor"
+      ],
+      "needs": {},
+      "cost": "free",
+      "madeWith": "metarush/timelines"
+    },
+    {
+      "id": "transcripts",
+      "name": "metarush/transcripts",
+      "group": "understand",
+      "title": "Transcripts and captions",
+      "does": "Writes down what is said in your footage on this computer, with its pauses and loud parts.",
+      "op": "footage.analyze",
+      "words": [
+        "transcribe",
+        "subtitles",
+        "speech to text",
+        "write down what is said"
+      ],
+      "needs": {
+        "works": [
+          "transcripts",
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/transcripts"
+    },
+    {
+      "id": "translated-captions",
+      "name": "metarush/translated-captions",
+      "group": "deliver",
+      "title": "Captions in other languages",
+      "does": "Keeps Claude Code's translation of a version's captions, line by line, marked as machine-translated.",
+      "op": "captions.translate",
+      "words": [
+        "translate subtitles",
+        "spanish captions"
+      ],
+      "needs": {
+        "leaves": "the captions' words leave this computer, for Claude",
+        "claude": true
+      },
+      "cost": "plan",
+      "madeWith": "metarush/translated-captions"
+    },
+    {
+      "id": "trim-flashes",
+      "name": "metarush/trim-flashes",
+      "group": "edit",
+      "title": "Trim flashes",
+      "does": "Trims split-second flashes of another picture at the edges of the cut's clips, at the exact switch.",
+      "op": "cut.flashes",
+      "words": [
+        "flash frames",
+        "glitch at the cut"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/trim-flashes"
+    },
+    {
+      "id": "trim-silent-ends",
+      "name": "metarush/trim-silent-ends",
+      "group": "fix",
+      "title": "Trim silent ends",
+      "does": "Trims the silence at the start and end of a recording; the original is kept.",
+      "op": "asset.fixes.set",
+      "input": {
+        "tick": [
+          "ends"
+        ]
+      },
+      "words": [
+        "cut the silence at the start"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/trim-silent-ends"
+    },
+    {
+      "id": "video-links",
+      "name": "metarush/video-links",
+      "group": "bring",
+      "title": "Videos from links",
+      "does": "Imports a video from a link, downloaded on this computer, with where it came from.",
+      "op": "ingest.url",
+      "words": [
+        "download a video",
+        "paste a link"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ],
+        "programs": [
+          "yt-dlp"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/video-links"
+    },
+    {
+      "id": "voice-copies",
+      "name": "metarush/voice-copies",
+      "group": "make",
+      "title": "Voice copies",
+      "does": "Copies a person's voice, with their recorded consent, so AI speech can be in their voice; priced first.",
+      "op": "ai.voices.copy",
+      "words": [
+        "clone a voice",
+        "my own voice"
+      ],
+      "needs": {
+        "leaves": "a recording of the person's voice leaves this computer",
+        "keys": [
+          "elevenlabs",
+          "gemini"
+        ]
+      },
+      "cost": "priced",
+      "madeWith": "metarush/voice-copies"
+    },
+    {
+      "id": "web-pages",
+      "name": "metarush/web-pages",
+      "group": "bring",
+      "title": "Web pages",
+      "does": "Takes a dated snapshot of a web page: pictures of it on a computer and a phone, its words, colours and logo.",
+      "op": "resources.fetch",
+      "input": {
+        "as": "page"
+      },
+      "words": [
+        "website",
+        "screenshot of a site",
+        "landing page"
+      ],
+      "needs": {
+        "works": [
+          "renders"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/web-pages"
+    },
+    {
+      "id": "whats-on-screen",
+      "name": "metarush/whats-on-screen",
+      "group": "understand",
+      "title": "What's on screen",
+      "does": "Says what's on screen in a clip, line by line: the kind of shot, faces, the setting, things and words shown.",
+      "op": "footage.visuals",
+      "words": [
+        "shot type",
+        "text on screen",
+        "what can be seen"
+      ],
+      "needs": {
+        "os": [
+          "mac"
+        ],
+        "setup": "on-screen-helper"
+      },
+      "cost": "free",
+      "madeWith": "metarush/whats-on-screen"
+    },
+    {
+      "id": "who-speaks",
+      "name": "metarush/who-speaks",
+      "group": "understand",
+      "title": "Who speaks",
+      "does": "Tells the voices in your footage apart and recognizes the people you named, on this computer.",
+      "op": "footage.speakers.detect",
+      "words": [
+        "voices",
+        "speakers",
+        "who is talking"
+      ],
+      "needs": {
+        "works": [
+          "transcripts",
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/who-speaks"
+    }
+  ]
+}

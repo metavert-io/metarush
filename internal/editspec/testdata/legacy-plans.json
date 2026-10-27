@@ -1,0 +1,2149 @@
+{
+  "captions-music-ducking": {
+    "hash": "f04a57fba0a087e14e2335b04f8522aab41dec6de540103f6a5cc50a59bf48aa",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "f04a57fba0a087e14e2335b04f8522aab41dec6de540103f6a5cc50a59bf48aa",
+      "media": "",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "durationInFrames": 285,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 115,
+        "bottom": 153,
+        "left": 64,
+        "right": 64
+      },
+      "clips": [
+        {
+          "id": "hook",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 0,
+          "durationInFrames": 90,
+          "trimBefore": 30,
+          "sourceIn": 1,
+          "sourceOut": 4,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1
+            },
+            {
+              "f": 75,
+              "g": 1
+            },
+            {
+              "f": 76,
+              "g": 0.99452
+            },
+            {
+              "f": 77,
+              "g": 0.97815
+            },
+            {
+              "f": 78,
+              "g": 0.95106
+            },
+            {
+              "f": 79,
+              "g": 0.91355
+            },
+            {
+              "f": 80,
+              "g": 0.86603
+            },
+            {
+              "f": 81,
+              "g": 0.80902
+            },
+            {
+              "f": 82,
+              "g": 0.74314
+            },
+            {
+              "f": 83,
+              "g": 0.66913
+            },
+            {
+              "f": 84,
+              "g": 0.58779
+            },
+            {
+              "f": 85,
+              "g": 0.5
+            },
+            {
+              "f": 86,
+              "g": 0.40674
+            },
+            {
+              "f": 87,
+              "g": 0.30902
+            },
+            {
+              "f": 89,
+              "g": 0.10453
+            }
+          ]
+        },
+        {
+          "id": "broll",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz1",
+          "from": 75,
+          "durationInFrames": 90,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 3,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": false,
+          "sourceWidth": 1080,
+          "sourceHeight": 1920,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "crossfade",
+            "durationInFrames": 15
+          },
+          "fadeOutFrames": 0
+        },
+        {
+          "id": "end",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 165,
+          "durationInFrames": 120,
+          "trimBefore": 300,
+          "sourceIn": 10,
+          "sourceOut": 14,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1
+            },
+            {
+              "f": 119,
+              "g": 1
+            }
+          ]
+        }
+      ],
+      "audio": [
+        {
+          "id": "bed",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz3",
+          "role": "music",
+          "from": 0,
+          "durationInFrames": 285,
+          "trimBefore": 0,
+          "gainDb": -8,
+          "fadeInFrames": 15,
+          "fadeOutFrames": 45,
+          "duckUnderDialogue": true,
+          "duckDb": -12,
+          "bus": "music",
+          "playbackRate": 1,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0
+            },
+            {
+              "f": 2,
+              "g": 0.00486
+            },
+            {
+              "f": 4,
+              "g": 0.01754
+            },
+            {
+              "f": 11,
+              "g": 0.08246
+            },
+            {
+              "f": 13,
+              "g": 0.09514
+            },
+            {
+              "f": 15,
+              "g": 0.1
+            },
+            {
+              "f": 90,
+              "g": 0.1
+            },
+            {
+              "f": 91,
+              "g": 0.11078
+            },
+            {
+              "f": 92,
+              "g": 0.14307
+            },
+            {
+              "f": 93,
+              "g": 0.19953
+            },
+            {
+              "f": 95,
+              "g": 0.35938
+            },
+            {
+              "f": 96,
+              "g": 0.39811
+            },
+            {
+              "f": 241,
+              "g": 0.39753
+            },
+            {
+              "f": 244,
+              "g": 0.38923
+            },
+            {
+              "f": 247,
+              "g": 0.3722
+            },
+            {
+              "f": 251,
+              "g": 0.33837
+            },
+            {
+              "f": 255,
+              "g": 0.29489
+            },
+            {
+              "f": 262,
+              "g": 0.20569
+            },
+            {
+              "f": 270,
+              "g": 0.10321
+            },
+            {
+              "f": 274,
+              "g": 0.05973
+            },
+            {
+              "f": 278,
+              "g": 0.0259
+            },
+            {
+              "f": 281,
+              "g": 0.00888
+            },
+            {
+              "f": 284,
+              "g": 0.00058
+            }
+          ]
+        }
+      ],
+      "dialogueRanges": [
+        {
+          "from": 0,
+          "to": 90
+        }
+      ],
+      "captions": {
+        "style": "emphasis",
+        "position": "lower",
+        "uppercase": false,
+        "precision": "word",
+        "showSpeakers": true,
+        "lines": [
+          {
+            "from": 0,
+            "to": 48,
+            "text": "We built it twice.",
+            "words": [
+              {
+                "text": "We",
+                "from": 0,
+                "to": 9,
+                "emphasis": false
+              },
+              {
+                "text": "built",
+                "from": 9,
+                "to": 24,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 24,
+                "to": 30,
+                "emphasis": false
+              },
+              {
+                "text": "twice.",
+                "from": 30,
+                "to": 48,
+                "emphasis": false
+              }
+            ]
+          }
+        ]
+      },
+      "overlays": [],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": false,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 6,
+          "releaseFrames": 6
+        },
+        "voiceRanges": [],
+        "targetLufs": -16,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "estimatedLufs": -20.234,
+        "masterGainDb": 0
+      }
+    }
+  },
+  "cuts-crossfade-dip": {
+    "hash": "d24f5db5231a8d735db4cd791fe963ae0de7106a00fb2094624757bfc62e5025",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "d24f5db5231a8d735db4cd791fe963ae0de7106a00fb2094624757bfc62e5025",
+      "media": "",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "durationInFrames": 285,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 115,
+        "bottom": 153,
+        "left": 64,
+        "right": 64
+      },
+      "clips": [
+        {
+          "id": "hook",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 0,
+          "durationInFrames": 90,
+          "trimBefore": 30,
+          "sourceIn": 1,
+          "sourceOut": 4,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1
+            },
+            {
+              "f": 75,
+              "g": 1
+            },
+            {
+              "f": 76,
+              "g": 0.99452
+            },
+            {
+              "f": 77,
+              "g": 0.97815
+            },
+            {
+              "f": 78,
+              "g": 0.95106
+            },
+            {
+              "f": 79,
+              "g": 0.91355
+            },
+            {
+              "f": 80,
+              "g": 0.86603
+            },
+            {
+              "f": 81,
+              "g": 0.80902
+            },
+            {
+              "f": 82,
+              "g": 0.74314
+            },
+            {
+              "f": 83,
+              "g": 0.66913
+            },
+            {
+              "f": 84,
+              "g": 0.58779
+            },
+            {
+              "f": 85,
+              "g": 0.5
+            },
+            {
+              "f": 86,
+              "g": 0.40674
+            },
+            {
+              "f": 87,
+              "g": 0.30902
+            },
+            {
+              "f": 89,
+              "g": 0.10453
+            }
+          ]
+        },
+        {
+          "id": "broll",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz1",
+          "from": 75,
+          "durationInFrames": 90,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 3,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": false,
+          "sourceWidth": 1080,
+          "sourceHeight": 1920,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "crossfade",
+            "durationInFrames": 15
+          },
+          "fadeOutFrames": 0
+        },
+        {
+          "id": "end",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 165,
+          "durationInFrames": 120,
+          "trimBefore": 300,
+          "sourceIn": 10,
+          "sourceOut": 14,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1
+            },
+            {
+              "f": 119,
+              "g": 1
+            }
+          ]
+        }
+      ],
+      "audio": [],
+      "dialogueRanges": [
+        {
+          "from": 0,
+          "to": 90
+        }
+      ],
+      "overlays": [],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": false,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 6,
+          "releaseFrames": 6
+        },
+        "voiceRanges": [],
+        "targetLufs": -16,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "estimatedLufs": -20.225,
+        "masterGainDb": 0
+      }
+    }
+  },
+  "fade-dip-fadeout-speed": {
+    "hash": "a03332ccd592edb36ebfa240c366d7a7dc74c814553a7f9964da513463fb6403",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "a03332ccd592edb36ebfa240c366d7a7dc74c814553a7f9964da513463fb6403",
+      "media": "",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "durationInFrames": 255,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 115,
+        "bottom": 153,
+        "left": 64,
+        "right": 64
+      },
+      "clips": [
+        {
+          "id": "hook",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 0,
+          "durationInFrames": 90,
+          "trimBefore": 30,
+          "sourceIn": 1,
+          "sourceOut": 4,
+          "playbackRate": 1,
+          "volume": 0.6,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "fade",
+            "durationInFrames": 18
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0
+            },
+            {
+              "f": 18,
+              "g": 0.6
+            },
+            {
+              "f": 75,
+              "g": 0.6
+            },
+            {
+              "f": 76,
+              "g": 0.59671
+            },
+            {
+              "f": 77,
+              "g": 0.58689
+            },
+            {
+              "f": 78,
+              "g": 0.57063
+            },
+            {
+              "f": 79,
+              "g": 0.54813
+            },
+            {
+              "f": 80,
+              "g": 0.51962
+            },
+            {
+              "f": 81,
+              "g": 0.48541
+            },
+            {
+              "f": 82,
+              "g": 0.44589
+            },
+            {
+              "f": 83,
+              "g": 0.40148
+            },
+            {
+              "f": 84,
+              "g": 0.35267
+            },
+            {
+              "f": 85,
+              "g": 0.3
+            },
+            {
+              "f": 87,
+              "g": 0.18541
+            },
+            {
+              "f": 89,
+              "g": 0.06272
+            }
+          ]
+        },
+        {
+          "id": "broll",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz1",
+          "from": 75,
+          "durationInFrames": 60,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 3,
+          "playbackRate": 1.5,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": false,
+          "sourceWidth": 1080,
+          "sourceHeight": 1920,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "crossfade",
+            "durationInFrames": 15
+          },
+          "fadeOutFrames": 12
+        },
+        {
+          "id": "end",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 135,
+          "durationInFrames": 120,
+          "trimBefore": 300,
+          "sourceIn": 10,
+          "sourceOut": 14,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "dip-to-black",
+            "durationInFrames": 24
+          },
+          "fadeOutFrames": 36,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0
+            },
+            {
+              "f": 12,
+              "g": 1
+            },
+            {
+              "f": 84,
+              "g": 1
+            },
+            {
+              "f": 119,
+              "g": 0.02778
+            }
+          ]
+        }
+      ],
+      "audio": [],
+      "dialogueRanges": [
+        {
+          "from": 0,
+          "to": 90
+        }
+      ],
+      "overlays": [],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": false,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 6,
+          "releaseFrames": 6
+        },
+        "voiceRanges": [],
+        "targetLufs": -16,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "estimatedLufs": -22.321,
+        "masterGainDb": 0
+      }
+    }
+  },
+  "mix-empty-section": {
+    "hash": "3ff01d87c8c28fcbd30566ed4ace311f0e6e77da4caaad16d8635a857e02adce",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "3ff01d87c8c28fcbd30566ed4ace311f0e6e77da4caaad16d8635a857e02adce",
+      "media": "",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "durationInFrames": 285,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 115,
+        "bottom": 153,
+        "left": 64,
+        "right": 64
+      },
+      "clips": [
+        {
+          "id": "hook",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 0,
+          "durationInFrames": 90,
+          "trimBefore": 30,
+          "sourceIn": 1,
+          "sourceOut": 4,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1
+            },
+            {
+              "f": 75,
+              "g": 1
+            },
+            {
+              "f": 76,
+              "g": 0.99452
+            },
+            {
+              "f": 77,
+              "g": 0.97815
+            },
+            {
+              "f": 78,
+              "g": 0.95106
+            },
+            {
+              "f": 79,
+              "g": 0.91355
+            },
+            {
+              "f": 80,
+              "g": 0.86603
+            },
+            {
+              "f": 81,
+              "g": 0.80902
+            },
+            {
+              "f": 82,
+              "g": 0.74314
+            },
+            {
+              "f": 83,
+              "g": 0.66913
+            },
+            {
+              "f": 84,
+              "g": 0.58779
+            },
+            {
+              "f": 85,
+              "g": 0.5
+            },
+            {
+              "f": 86,
+              "g": 0.40674
+            },
+            {
+              "f": 87,
+              "g": 0.30902
+            },
+            {
+              "f": 89,
+              "g": 0.10453
+            }
+          ]
+        },
+        {
+          "id": "broll",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz1",
+          "from": 75,
+          "durationInFrames": 90,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 3,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": false,
+          "sourceWidth": 1080,
+          "sourceHeight": 1920,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "crossfade",
+            "durationInFrames": 15
+          },
+          "fadeOutFrames": 0
+        },
+        {
+          "id": "end",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 165,
+          "durationInFrames": 120,
+          "trimBefore": 300,
+          "sourceIn": 10,
+          "sourceOut": 14,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1
+            },
+            {
+              "f": 119,
+              "g": 1
+            }
+          ]
+        }
+      ],
+      "audio": [],
+      "dialogueRanges": [
+        {
+          "from": 0,
+          "to": 90
+        }
+      ],
+      "overlays": [],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": true,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 8,
+          "releaseFrames": 15
+        },
+        "voiceRanges": [],
+        "targetLufs": -16,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "estimatedLufs": -20.225,
+        "masterGainDb": 0
+      }
+    }
+  },
+  "mix-loudness": {
+    "hash": "bb408d7c5ec36e29a3c449b10dade2f0fddcca7dcb88d6ff6003ed20fba0a4cd",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "bb408d7c5ec36e29a3c449b10dade2f0fddcca7dcb88d6ff6003ed20fba0a4cd",
+      "media": "",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "durationInFrames": 285,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 115,
+        "bottom": 153,
+        "left": 64,
+        "right": 64
+      },
+      "clips": [
+        {
+          "id": "hook",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 0,
+          "durationInFrames": 90,
+          "trimBefore": 30,
+          "sourceIn": 1,
+          "sourceOut": 4,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1.1885
+            },
+            {
+              "f": 75,
+              "g": 1.1885
+            },
+            {
+              "f": 76,
+              "g": 1.18199
+            },
+            {
+              "f": 77,
+              "g": 1.16253
+            },
+            {
+              "f": 78,
+              "g": 1.13033
+            },
+            {
+              "f": 79,
+              "g": 1.08575
+            },
+            {
+              "f": 80,
+              "g": 1.02927
+            },
+            {
+              "f": 81,
+              "g": 0.96152
+            },
+            {
+              "f": 82,
+              "g": 0.88323
+            },
+            {
+              "f": 83,
+              "g": 0.72751
+            },
+            {
+              "f": 84,
+              "g": 0.50535
+            },
+            {
+              "f": 85,
+              "g": 0.30846
+            },
+            {
+              "f": 86,
+              "g": 0.17152
+            },
+            {
+              "f": 87,
+              "g": 0.08907
+            },
+            {
+              "f": 88,
+              "g": 0.043
+            },
+            {
+              "f": 89,
+              "g": 0.0171
+            }
+          ]
+        },
+        {
+          "id": "broll",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz1",
+          "from": 75,
+          "durationInFrames": 90,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 3,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": false,
+          "sourceWidth": 1080,
+          "sourceHeight": 1920,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "crossfade",
+            "durationInFrames": 15
+          },
+          "fadeOutFrames": 0
+        },
+        {
+          "id": "end",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 165,
+          "durationInFrames": 120,
+          "trimBefore": 300,
+          "sourceIn": 10,
+          "sourceOut": 14,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1.1885
+            },
+            {
+              "f": 119,
+              "g": 1.1885
+            }
+          ]
+        }
+      ],
+      "audio": [
+        {
+          "id": "bed",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz3",
+          "role": "music",
+          "from": 0,
+          "durationInFrames": 285,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": -12,
+          "bus": "music",
+          "playbackRate": 1,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.21135
+            },
+            {
+              "f": 87,
+              "g": 0.21135
+            },
+            {
+              "f": 89,
+              "g": 0.14434
+            },
+            {
+              "f": 90,
+              "g": 0.13335
+            },
+            {
+              "f": 144,
+              "g": 0.13335
+            },
+            {
+              "f": 145,
+              "g": 0.13652
+            },
+            {
+              "f": 146,
+              "g": 0.14584
+            },
+            {
+              "f": 147,
+              "g": 0.16151
+            },
+            {
+              "f": 148,
+              "g": 0.18422
+            },
+            {
+              "f": 149,
+              "g": 0.21498
+            },
+            {
+              "f": 150,
+              "g": 0.25504
+            },
+            {
+              "f": 151,
+              "g": 0.30553
+            },
+            {
+              "f": 152,
+              "g": 0.36723
+            },
+            {
+              "f": 153,
+              "g": 0.43995
+            },
+            {
+              "f": 154,
+              "g": 0.52191
+            },
+            {
+              "f": 156,
+              "g": 0.6947
+            },
+            {
+              "f": 157,
+              "g": 0.76935
+            },
+            {
+              "f": 158,
+              "g": 0.82188
+            },
+            {
+              "f": 159,
+              "g": 0.8414
+            },
+            {
+              "f": 284,
+              "g": 0.8414
+            }
+          ]
+        },
+        {
+          "id": "vo-b1",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz2",
+          "role": "voiceover",
+          "from": 90,
+          "durationInFrames": 54,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "voiceover",
+          "beatId": "b1",
+          "playbackRate": 1,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.39617
+            },
+            {
+              "f": 2,
+              "g": 1.1885
+            },
+            {
+              "f": 51,
+              "g": 1.1885
+            },
+            {
+              "f": 53,
+              "g": 0.39617
+            }
+          ]
+        }
+      ],
+      "dialogueRanges": [
+        {
+          "from": 0,
+          "to": 90
+        }
+      ],
+      "overlays": [],
+      "sources": {},
+      "voiceover": {
+        "layout": "beats",
+        "speakingRateWpm": 155,
+        "beats": [
+          {
+            "id": "b1",
+            "index": 0,
+            "text": "Out here, the light arrives slowly.",
+            "anchorFrame": 90,
+            "from": 90,
+            "to": 144,
+            "windowEnd": 225,
+            "words": 6,
+            "estimated": false,
+            "hasAudio": true,
+            "fit": "ok"
+          },
+          {
+            "id": "b2",
+            "index": 1,
+            "text": "And then it is everywhere.",
+            "anchorFrame": 225,
+            "from": 225,
+            "to": 283,
+            "windowEnd": 285,
+            "words": 5,
+            "estimated": true,
+            "hasAudio": false,
+            "fit": "tight"
+          },
+          {
+            "id": "b3",
+            "index": 2,
+            "text": "Hello.",
+            "anchorFrame": 60,
+            "from": 60,
+            "to": 72,
+            "windowEnd": 90,
+            "words": 1,
+            "estimated": true,
+            "hasAudio": false,
+            "fit": "ok"
+          }
+        ]
+      },
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": -3,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": true,
+          "musicUnderVoiceoverDb": -16,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 8,
+          "releaseFrames": 15
+        },
+        "voiceRanges": [
+          {
+            "from": 90,
+            "to": 144
+          }
+        ],
+        "targetLufs": -14,
+        "truePeakDbtp": -1,
+        "normalize": true,
+        "estimatedLufs": -17.939,
+        "masterGainDb": 1.5,
+        "peakLimited": true
+      }
+    }
+  },
+  "mix-mute-source": {
+    "hash": "3bc393578d4e8a1ab75088d48e7c98a0d3b8d4b0664be7b2205bfbdf61980dd5",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "3bc393578d4e8a1ab75088d48e7c98a0d3b8d4b0664be7b2205bfbdf61980dd5",
+      "media": "",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "durationInFrames": 285,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 115,
+        "bottom": 153,
+        "left": 64,
+        "right": 64
+      },
+      "clips": [
+        {
+          "id": "hook",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 0,
+          "durationInFrames": 90,
+          "trimBefore": 30,
+          "sourceIn": 1,
+          "sourceOut": 4,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": true,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0
+        },
+        {
+          "id": "broll",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz1",
+          "from": 75,
+          "durationInFrames": 90,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 3,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": true,
+          "hasAudio": false,
+          "sourceWidth": 1080,
+          "sourceHeight": 1920,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "crossfade",
+            "durationInFrames": 15
+          },
+          "fadeOutFrames": 0
+        },
+        {
+          "id": "end",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 165,
+          "durationInFrames": 120,
+          "trimBefore": 300,
+          "sourceIn": 10,
+          "sourceOut": 14,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": true,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0
+        }
+      ],
+      "audio": [],
+      "dialogueRanges": [],
+      "overlays": [],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": true
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": true,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 8,
+          "releaseFrames": 15
+        },
+        "voiceRanges": [],
+        "targetLufs": -16,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "masterGainDb": 0
+      }
+    }
+  },
+  "voiceover-captions-music": {
+    "hash": "0c10d0e7b6365ffad5f683abb7d8b532eddbd7d6854356a4e6a0c30edd496cdd",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "0c10d0e7b6365ffad5f683abb7d8b532eddbd7d6854356a4e6a0c30edd496cdd",
+      "media": "",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "durationInFrames": 285,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 115,
+        "bottom": 153,
+        "left": 64,
+        "right": 64
+      },
+      "clips": [
+        {
+          "id": "hook",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 0,
+          "durationInFrames": 90,
+          "trimBefore": 30,
+          "sourceIn": 1,
+          "sourceOut": 4,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1.1885
+            },
+            {
+              "f": 75,
+              "g": 1.1885
+            },
+            {
+              "f": 76,
+              "g": 1.18199
+            },
+            {
+              "f": 77,
+              "g": 1.16253
+            },
+            {
+              "f": 78,
+              "g": 1.13033
+            },
+            {
+              "f": 79,
+              "g": 1.08575
+            },
+            {
+              "f": 80,
+              "g": 1.02927
+            },
+            {
+              "f": 81,
+              "g": 0.96152
+            },
+            {
+              "f": 82,
+              "g": 0.88323
+            },
+            {
+              "f": 83,
+              "g": 0.72751
+            },
+            {
+              "f": 84,
+              "g": 0.50535
+            },
+            {
+              "f": 85,
+              "g": 0.30846
+            },
+            {
+              "f": 86,
+              "g": 0.17152
+            },
+            {
+              "f": 87,
+              "g": 0.08907
+            },
+            {
+              "f": 88,
+              "g": 0.043
+            },
+            {
+              "f": 89,
+              "g": 0.0171
+            }
+          ]
+        },
+        {
+          "id": "broll",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz1",
+          "from": 75,
+          "durationInFrames": 90,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 3,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": false,
+          "sourceWidth": 1080,
+          "sourceHeight": 1920,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "crossfade",
+            "durationInFrames": 15
+          },
+          "fadeOutFrames": 0
+        },
+        {
+          "id": "end",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0",
+          "from": 165,
+          "durationInFrames": 120,
+          "trimBefore": 300,
+          "sourceIn": 10,
+          "sourceOut": 14,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1920,
+          "sourceHeight": 1080,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1.1885
+            },
+            {
+              "f": 119,
+              "g": 1.1885
+            }
+          ]
+        }
+      ],
+      "audio": [
+        {
+          "id": "bed",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz3",
+          "role": "music",
+          "from": 0,
+          "durationInFrames": 285,
+          "trimBefore": 0,
+          "gainDb": -6,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": -12,
+          "bus": "music",
+          "playbackRate": 1,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.14962
+            },
+            {
+              "f": 88,
+              "g": 0.14962
+            },
+            {
+              "f": 89,
+              "g": 0.12737
+            },
+            {
+              "f": 90,
+              "g": 0.11885
+            },
+            {
+              "f": 144,
+              "g": 0.11885
+            },
+            {
+              "f": 145,
+              "g": 0.12132
+            },
+            {
+              "f": 146,
+              "g": 0.12853
+            },
+            {
+              "f": 147,
+              "g": 0.14054
+            },
+            {
+              "f": 148,
+              "g": 0.15768
+            },
+            {
+              "f": 149,
+              "g": 0.1805
+            },
+            {
+              "f": 150,
+              "g": 0.2096
+            },
+            {
+              "f": 151,
+              "g": 0.2455
+            },
+            {
+              "f": 152,
+              "g": 0.28837
+            },
+            {
+              "f": 153,
+              "g": 0.33775
+            },
+            {
+              "f": 156,
+              "g": 0.50373
+            },
+            {
+              "f": 157,
+              "g": 0.55079
+            },
+            {
+              "f": 158,
+              "g": 0.58355
+            },
+            {
+              "f": 159,
+              "g": 0.59566
+            },
+            {
+              "f": 284,
+              "g": 0.59566
+            }
+          ]
+        },
+        {
+          "id": "vo-b1",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyz2",
+          "role": "voiceover",
+          "from": 90,
+          "durationInFrames": 54,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "voiceover",
+          "beatId": "b1",
+          "playbackRate": 1,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.39617
+            },
+            {
+              "f": 2,
+              "g": 1.1885
+            },
+            {
+              "f": 51,
+              "g": 1.1885
+            },
+            {
+              "f": 53,
+              "g": 0.39617
+            }
+          ]
+        }
+      ],
+      "dialogueRanges": [
+        {
+          "from": 0,
+          "to": 90
+        }
+      ],
+      "captions": {
+        "style": "clean",
+        "position": "lower",
+        "uppercase": false,
+        "precision": "segment",
+        "showSpeakers": true,
+        "lines": [
+          {
+            "from": 0,
+            "to": 60,
+            "text": "We built it twice.",
+            "words": [
+              {
+                "text": "We",
+                "from": 0,
+                "to": 9,
+                "emphasis": false
+              },
+              {
+                "text": "built",
+                "from": 9,
+                "to": 24,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 24,
+                "to": 30,
+                "emphasis": false
+              },
+              {
+                "text": "twice.",
+                "from": 30,
+                "to": 48,
+                "emphasis": false
+              }
+            ]
+          },
+          {
+            "from": 60,
+            "to": 71,
+            "text": "Hello.",
+            "speaker": "Narrator",
+            "words": [
+              {
+                "text": "Hello.",
+                "from": 60,
+                "to": 71,
+                "emphasis": false
+              }
+            ]
+          },
+          {
+            "from": 96,
+            "to": 138,
+            "text": "Out here, the light arrives slowly.",
+            "speaker": "Narrator",
+            "words": [
+              {
+                "text": "Out",
+                "from": 96,
+                "to": 102,
+                "emphasis": false
+              },
+              {
+                "text": "here,",
+                "from": 102,
+                "to": 108,
+                "emphasis": false
+              },
+              {
+                "text": "the",
+                "from": 108,
+                "to": 111,
+                "emphasis": false
+              },
+              {
+                "text": "light",
+                "from": 111,
+                "to": 119,
+                "emphasis": false
+              },
+              {
+                "text": "arrives",
+                "from": 119,
+                "to": 129,
+                "emphasis": false
+              },
+              {
+                "text": "slowly.",
+                "from": 129,
+                "to": 138,
+                "emphasis": false
+              }
+            ]
+          },
+          {
+            "from": 225,
+            "to": 282,
+            "text": "And then it is everywhere.",
+            "speaker": "Narrator",
+            "words": [
+              {
+                "text": "And",
+                "from": 225,
+                "to": 232,
+                "emphasis": false
+              },
+              {
+                "text": "then",
+                "from": 233,
+                "to": 243,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 244,
+                "to": 249,
+                "emphasis": false
+              },
+              {
+                "text": "is",
+                "from": 250,
+                "to": 256,
+                "emphasis": false
+              },
+              {
+                "text": "everywhere.",
+                "from": 257,
+                "to": 282,
+                "emphasis": false
+              }
+            ]
+          }
+        ]
+      },
+      "overlays": [],
+      "sources": {},
+      "voiceover": {
+        "layout": "beats",
+        "speakingRateWpm": 155,
+        "beats": [
+          {
+            "id": "b1",
+            "index": 0,
+            "text": "Out here, the light arrives slowly.",
+            "anchorFrame": 90,
+            "from": 90,
+            "to": 144,
+            "windowEnd": 225,
+            "words": 6,
+            "estimated": false,
+            "hasAudio": true,
+            "fit": "ok"
+          },
+          {
+            "id": "b2",
+            "index": 1,
+            "text": "And then it is everywhere.",
+            "anchorFrame": 225,
+            "from": 225,
+            "to": 283,
+            "windowEnd": 285,
+            "words": 5,
+            "estimated": true,
+            "hasAudio": false,
+            "fit": "tight"
+          },
+          {
+            "id": "b3",
+            "index": 2,
+            "text": "Hello.",
+            "anchorFrame": 60,
+            "from": 60,
+            "to": 72,
+            "windowEnd": 90,
+            "words": 1,
+            "estimated": true,
+            "hasAudio": false,
+            "fit": "ok"
+          }
+        ]
+      },
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": true,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 8,
+          "releaseFrames": 15
+        },
+        "voiceRanges": [
+          {
+            "from": 90,
+            "to": 144
+          }
+        ],
+        "targetLufs": -16,
+        "truePeakDbtp": -1,
+        "normalize": true,
+        "estimatedLufs": -18.678,
+        "masterGainDb": 1.5,
+        "peakLimited": true
+      }
+    }
+  }
+}

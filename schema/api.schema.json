@@ -1,0 +1,7699 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "AbilityMadeWith": {
+      "properties": {
+        "ability": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "hash": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "$ref": "#/$defs/AbilityRunInput"
+          },
+          "type": "array"
+        },
+        "costUsd": {
+          "type": "number"
+        },
+        "licence": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "credit": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ability",
+        "name",
+        "hash",
+        "runId"
+      ]
+    },
+    "AbilityRunInput": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "value": true,
+        "ref": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "kind"
+      ]
+    },
+    "Access": {
+      "properties": {
+        "remote": {
+          "type": "boolean"
+        },
+        "machine": {
+          "type": "string"
+        },
+        "signedInWith": {
+          "type": "string",
+          "enum": [
+            "link",
+            "password",
+            "tailscale"
+          ]
+        },
+        "login": {
+          "type": "string"
+        },
+        "secure": {
+          "type": "boolean"
+        },
+        "publicUrl": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "remote",
+        "machine",
+        "signedInWith",
+        "secure"
+      ]
+    },
+    "ActionWork": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "render",
+            "qa",
+            "jobs",
+            "run"
+          ]
+        },
+        "renderId": {
+          "type": "string"
+        },
+        "jobIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "running",
+            "finished",
+            "failed",
+            "gone"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "description": "How it ended, in plain words."
+        },
+        "link": {
+          "type": "string",
+          "description": "Dashboard route to what it made."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind",
+        "what",
+        "state",
+        "startedAt"
+      ]
+    },
+    "Activity": {
+      "properties": {
+        "step": {
+          "type": "number"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "step",
+        "values"
+      ]
+    },
+    "Actor": {
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        },
+        "installationId": {
+          "type": "string"
+        },
+        "via": {
+          "type": "string"
+        },
+        "agent": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "userId",
+        "installationId",
+        "via"
+      ]
+    },
+    "Anchor": {
+      "properties": {
+        "clipId": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "phrase": {
+          "type": "string"
+        },
+        "time": {
+          "type": "number"
+        },
+        "words": {
+          "type": "string"
+        },
+        "exact": {
+          "type": "boolean"
+        },
+        "line": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "clipId",
+        "field",
+        "phrase",
+        "time",
+        "words",
+        "exact",
+        "line"
+      ]
+    },
+    "ApiErrorBody": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "hint": {
+          "type": "string"
+        },
+        "details": true
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "Applied": {
+      "properties": {
+        "revisionId": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "problem": {
+          "type": "string",
+          "description": "Why it could not be put in the cut (the audio is kept)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "AssetSource": {
+      "properties": {
+        "platform": {
+          "type": "string",
+          "enum": [
+            "youtube",
+            "tiktok",
+            "x",
+            "web",
+            "generated",
+            "remotion",
+            "drive",
+            "dropbox",
+            "ability"
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "videoId": {
+          "type": "string",
+          "description": "The site's ID for the video (YouTube video ID, TikTok video ID, X post or media ID)."
+        },
+        "uploader": {
+          "type": "string"
+        },
+        "handle": {
+          "type": "string",
+          "description": "The account's handle with its @ (YouTube @handle, TikTok @name, X @name)."
+        },
+        "channelUrl": {
+          "type": "string"
+        },
+        "uploadDate": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "description": "The original title."
+        },
+        "description": {
+          "type": "string",
+          "description": "The original description, shortened."
+        },
+        "license": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "downloadedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "checksum": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "toolVersion": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "download",
+            "browser",
+            "recording",
+            "generated",
+            "render",
+            "existing",
+            "ability"
+          ]
+        },
+        "signedIn": {
+          "type": "boolean"
+        },
+        "generated": {
+          "$ref": "#/$defs/GeneratedSource"
+        },
+        "remotion": {
+          "$ref": "#/$defs/RemotionClipSource"
+        },
+        "madeWith": {
+          "$ref": "#/$defs/AbilityMadeWith"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "platform",
+        "url",
+        "downloadedAt",
+        "tool"
+      ]
+    },
+    "AssistantAction": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "turn": {
+          "type": "integer"
+        },
+        "toolUseId": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "description": "The metarush command (e.g. render submit)."
+        },
+        "title": {
+          "type": "string",
+          "description": "What will happen"
+        },
+        "details": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "command": {
+          "type": "string",
+          "description": "The exact command Claude asked to run (raw view only)."
+        },
+        "op": {
+          "type": "string",
+          "description": "The operation the dashboard runs when the person confirms."
+        },
+        "humanOnly": {
+          "type": "boolean",
+          "description": "A decision only people make (e.g. approving a cut)."
+        },
+        "check": {
+          "$ref": "#/$defs/EditCheckOut"
+        },
+        "sheetCheck": {
+          "$ref": "#/$defs/CutCheckOut"
+        },
+        "sheetLines": {
+          "items": {
+            "$ref": "#/$defs/DiffLine"
+          },
+          "type": "array"
+        },
+        "proposal": {
+          "type": "string",
+          "description": "The conversation's plan this card applies (t\u003cturn\u003e/\u003cfile\u003e); the dashboard shows this card instead of a second plan card."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why Claude proposes the change (from the plan)."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "running",
+            "done",
+            "dismissed",
+            "failed",
+            "unavailable",
+            "not_quite"
+          ]
+        },
+        "unavailable": {
+          "type": "string",
+          "description": "Why the dashboard cannot do this one."
+        },
+        "by": {
+          "type": "string",
+          "description": "Who decided it (their name)."
+        },
+        "byId": {
+          "type": "string",
+          "description": "Who decided it (absent on cards decided by older versions and on safe steps that started by themselves)."
+        },
+        "result": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string",
+          "description": "What the person said should change (Not quite)."
+        },
+        "error": {
+          "type": "string"
+        },
+        "link": {
+          "type": "string",
+          "description": "Dashboard route to what the action produced."
+        },
+        "forId": {
+          "type": "string",
+          "description": "Who it is for: the person whose message Claude was answering when it asked (anyone in the conversation may decide it)."
+        },
+        "forName": {
+          "type": "string"
+        },
+        "review": {
+          "type": "string",
+          "description": "Dashboard route to review what the card decides about (before deciding)."
+        },
+        "fit": {
+          "$ref": "#/$defs/FittedOut"
+        },
+        "setUp": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "What this computer sets up first when the card runs (studio: studio quality, a one-time download of about 1.8 GB)."
+        },
+        "image": {
+          "type": "string",
+          "description": "A picture of it (same-origin media URL)."
+        },
+        "frames": {
+          "items": {
+            "$ref": "#/$defs/CardPicture"
+          },
+          "type": "array",
+          "description": "Pictures to look at before deciding (a motion graphic's test frames)."
+        },
+        "preview": {
+          "type": "string",
+          "description": "A short preview video (same-origin media URL)."
+        },
+        "auto": {
+          "type": "boolean",
+          "description": "It started by itself (a safe step, under the person's setting)."
+        },
+        "autoMode": {
+          "type": "boolean",
+          "description": "It started by itself because Auto is on for the person it is for (a change that can be undone)."
+        },
+        "autoPriced": {
+          "type": "boolean",
+          "description": "It uses a paid outside service and started by itself: Auto is on and estimates are off for the person it is for (within budgets and limits)."
+        },
+        "spendsIn": {
+          "type": "string",
+          "description": "The project whose budget it spends from."
+        },
+        "autoWaits": {
+          "type": "string",
+          "description": "Why Auto didn't start this change that costs money by itself: a budget or daily limit nobody set."
+        },
+        "estimate": {
+          "$ref": "#/$defs/CostEstimate"
+        },
+        "savesVersion": {
+          "type": "boolean",
+          "description": "It saves a new version of the cut (the card offers Save and render a review copy)."
+        },
+        "work": {
+          "$ref": "#/$defs/ActionWork"
+        },
+        "keeping": {
+          "$ref": "#/$defs/KeepCard"
+        },
+        "question": {
+          "$ref": "#/$defs/QuestionCard"
+        },
+        "answer": {
+          "$ref": "#/$defs/QuestionAnswer"
+        },
+        "recipe": {
+          "$ref": "#/$defs/RecipeCardView",
+          "description": "Recipes: a run's plan with its steps, what saving a cut would vary and keep, or what a draft or a version made current changes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decidedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "turn",
+        "kind",
+        "title",
+        "state",
+        "createdAt"
+      ]
+    },
+    "AssistantEvent": {
+      "properties": {
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "turn": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "turn",
+            "text",
+            "tool",
+            "tool_result",
+            "proposals",
+            "action",
+            "notice",
+            "error",
+            "turn_end"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "description": "For kind=turn_end: the turn's final state; for kind=turn: note when it is a dashboard update."
+        },
+        "text": {
+          "type": "string",
+          "description": "The person's message (turn)"
+        },
+        "user": {
+          "type": "string",
+          "description": "For kind=turn: who sent it (their name)."
+        },
+        "userId": {
+          "type": "string",
+          "description": "For kind=turn: who sent it (absent on older messages: the person who started the conversation)."
+        },
+        "context": {
+          "$ref": "#/$defs/TurnContext"
+        },
+        "tool": {
+          "$ref": "#/$defs/ToolCall"
+        },
+        "result": {
+          "$ref": "#/$defs/TurnResult"
+        },
+        "attachments": {
+          "items": {
+            "$ref": "#/$defs/KeepFile"
+          },
+          "type": "array"
+        },
+        "count": {
+          "type": "integer",
+          "description": "For kind=proposals: how many proposal files this turn wrote."
+        },
+        "actionId": {
+          "type": "string",
+          "description": "For kind=action: the action card (see Conversation.actions)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "seq",
+        "at",
+        "turn",
+        "kind"
+      ]
+    },
+    "AssistantPartial": {
+      "properties": {
+        "turn": {
+          "type": "integer"
+        },
+        "block": {
+          "type": "integer"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "",
+            "text",
+            "thinking",
+            "tool"
+          ]
+        },
+        "from": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "turn",
+        "block",
+        "phase",
+        "from",
+        "text"
+      ]
+    },
+    "AssistantStatus": {
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the assistant is unavailable (shown to the person)."
+        },
+        "hint": {
+          "type": "string"
+        },
+        "claudeVersion": {
+          "type": "string"
+        },
+        "loggedIn": {
+          "type": "boolean",
+          "description": "Claude Code sign-in state; absent when Claude Code cannot report it."
+        },
+        "authMethod": {
+          "type": "string",
+          "description": "How Claude Code authenticates (e.g. claude.ai subscription or an API key)."
+        },
+        "account": {
+          "$ref": "#/$defs/ClaudeAccount"
+        },
+        "billing": {
+          "type": "string",
+          "enum": [
+            "plan",
+            "api",
+            "unknown"
+          ],
+          "description": "plan: a Claude subscription sign-in (usage counts toward the plan's limits; dollar figures are API-equivalent estimates); api: an API key or cloud provider (billed per token)."
+        },
+        "billingLabel": {
+          "type": "string",
+          "description": "One line describing the billing mode."
+        },
+        "budgetUsd": {
+          "type": "number",
+          "description": "Default dollar cap per conversation with an API key (assistant.maxBudgetUsd); 0 on a Claude plan."
+        },
+        "tokenLimitMillions": {
+          "type": "number",
+          "description": "Default limit per conversation in millions of tokens."
+        },
+        "planUsage": {
+          "$ref": "#/$defs/PlanUsage",
+          "description": "The Claude plan's own usage as Claude Code last reported it (plan sign-in only)."
+        },
+        "maxSteps": {
+          "type": "integer",
+          "description": "Step limit for one message (claude --max-turns)."
+        },
+        "timeoutMinutes": {
+          "type": "integer",
+          "description": "Time limit for one message."
+        },
+        "idleMinutes": {
+          "type": "integer",
+          "description": "An idle Claude Code process is ended after this long; the conversation resumes on the next message."
+        },
+        "model": {
+          "type": "string"
+        },
+        "machine": {
+          "type": "string",
+          "description": "This installation's name (conversations can be continued only on the machine that holds them)."
+        },
+        "installationId": {
+          "type": "string"
+        },
+        "live": {
+          "type": "integer",
+          "description": "Claude Code processes this daemon holds right now."
+        },
+        "waiting": {
+          "type": "integer",
+          "description": "Cards and questions waiting for the person asking, in their conversations on this machine."
+        },
+        "working": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Conversations with a turn running on this machine."
+        },
+        "activeRunId": {
+          "type": "string",
+          "description": "The first conversation in working (kept for older dashboards)."
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "available",
+        "billing",
+        "billingLabel",
+        "budgetUsd",
+        "tokenLimitMillions",
+        "maxSteps",
+        "timeoutMinutes",
+        "idleMinutes",
+        "machine",
+        "installationId",
+        "live",
+        "waiting",
+        "working",
+        "checkedAt"
+      ]
+    },
+    "AudioTrack": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "voiceover",
+            "music",
+            "sfx",
+            "dialogue"
+          ]
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0
+        },
+        "out": {
+          "type": "number",
+          "minimum": 0
+        },
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Timeline position in seconds."
+        },
+        "gainDb": {
+          "type": "number",
+          "maximum": 12,
+          "minimum": -60
+        },
+        "fadeIn": {
+          "type": "number",
+          "maximum": 10,
+          "minimum": 0
+        },
+        "fadeOut": {
+          "type": "number",
+          "maximum": 10,
+          "minimum": 0
+        },
+        "duckUnderDialogue": {
+          "type": "boolean"
+        },
+        "duckDb": {
+          "type": "number",
+          "maximum": 0,
+          "minimum": -30
+        },
+        "rights": {
+          "$ref": "#/$defs/Rights"
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "A person's notes about this sound (kept with the cut; not heard in the video)."
+        },
+        "fit": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "manual"
+          ],
+          "description": "auto: starts with the video and ends with it (smooth fade; a longer track ends on a beat near the end when it has one, a shorter one fades out early or loops); manual (default): exactly in → out from at."
+        },
+        "loop": {
+          "type": "boolean",
+          "description": "fit auto: repeat a shorter track until the video ends."
+        },
+        "ending": {
+          "type": "string",
+          "enum": [
+            "phrase",
+            "beat"
+          ],
+          "description": "fit auto: where it ends near the video's end. phrase: where the music starts its next phrase (else its next bar, else a beat); beat: on a beat. Absent: on a beat (music added before phrases were found)."
+        },
+        "duck": {
+          "type": "boolean",
+          "description": "true: gets quieter while someone talks (by duckDb or the mix's depths); false: never; absent: as the mix decides."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "assetId",
+        "role",
+        "in",
+        "out",
+        "at"
+      ]
+    },
+    "AuthState": {
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "single",
+            "password",
+            "tailscale"
+          ]
+        },
+        "signedIn": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "here": {
+          "type": "boolean",
+          "description": "This browser is on the computer MetaRush runs on."
+        },
+        "secure": {
+          "type": "boolean",
+          "description": "The connection is private enough to type a password (this computer"
+        },
+        "machine": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "method",
+        "signedIn",
+        "here",
+        "secure",
+        "machine"
+      ]
+    },
+    "Beat": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 2000,
+          "minLength": 1,
+          "description": "The words to speak."
+        },
+        "anchor": {
+          "$ref": "#/$defs/Anchor"
+        },
+        "delivery": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "How to say it (warm, slower, smiling): shown to whoever records and sent to TTS as context, never spoken."
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "type": "array",
+          "maxItems": 10
+        },
+        "voice": {
+          "$ref": "#/$defs/VoiceRef"
+        },
+        "take": {
+          "$ref": "#/$defs/TakeRef"
+        },
+        "gainDb": {
+          "type": "number",
+          "maximum": 12,
+          "minimum": -30
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "scratch",
+            "generated",
+            "recorded",
+            "imported",
+            "final"
+          ],
+          "description": "Where this beat's audio stands (informational)."
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "text",
+        "anchor"
+      ]
+    },
+    "Brand": {
+      "properties": {
+        "primary": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "accent": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "text": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "font": {
+          "type": "string",
+          "enum": [
+            "Inter",
+            "Fraunces",
+            "JetBrains Mono"
+          ]
+        },
+        "fontFile": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "A font from the cut's resources (its short name); used instead of font."
+        },
+        "logo": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "The brand's main logo (a resource name, usually logo): a graphic showing it shows the logo made for its background instead when the cut has one."
+        },
+        "logoDark": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "The logo for dark backgrounds (a resource name, usually logo-dark)."
+        },
+        "logoLight": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "The logo for light backgrounds (a resource name, usually logo-light)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Bus": {
+      "properties": {
+        "gainDb": {
+          "type": "number",
+          "maximum": 12,
+          "minimum": -60
+        },
+        "mute": {
+          "type": "boolean"
+        },
+        "solo": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "CaptionSegment": {
+      "properties": {
+        "from": {
+          "type": "number",
+          "minimum": 0
+        },
+        "to": {
+          "type": "number",
+          "minimum": 0
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "speaker": {
+          "type": "string",
+          "maxLength": 60
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "text"
+      ]
+    },
+    "Captions": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "clean",
+            "emphasis",
+            "boxed",
+            "bold",
+            "highlight",
+            "subtitle"
+          ],
+          "description": "The look: clean, emphasis (the spoken word lights up), boxed, bold (big capitals for phones), highlight (a box follows the spoken word) or subtitle (plain subtitles)."
+        },
+        "position": {
+          "type": "string",
+          "enum": [
+            "bottom",
+            "lower",
+            "middle",
+            "top"
+          ]
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "description": "How large the words are: small, medium (the default) or large."
+        },
+        "maxWordsPerLine": {
+          "type": "integer",
+          "maximum": 12,
+          "minimum": 1
+        },
+        "uppercase": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "transcript",
+            "dialogue",
+            "voiceover",
+            "both",
+            "manual"
+          ],
+          "description": "transcript or dialogue = the clips' transcripts (default); voiceover = the narration (take word timings or the script); both = dialogue and narration; manual = segments."
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/CaptionSegment"
+          },
+          "type": "array",
+          "maxItems": 2000
+        },
+        "emphasis": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 50,
+          "description": "Words to emphasize (emphasis style)."
+        },
+        "showSpeakers": {
+          "type": "boolean",
+          "description": "Show who is speaking above each caption line."
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "enabled"
+      ]
+    },
+    "CardPicture": {
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Same-origin media URL."
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url"
+      ]
+    },
+    "ClaudeAccount": {
+      "properties": {
+        "machine": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "description": "The account Claude Code is signed in to, when it says."
+        },
+        "organization": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "planName": {
+          "type": "string",
+          "description": "The plan in words: Claude Max, an Anthropic API key."
+        },
+        "terms": {
+          "type": "string",
+          "enum": [
+            "consumer",
+            "commercial",
+            "cloud",
+            "unknown"
+          ]
+        },
+        "termsName": {
+          "type": "string"
+        },
+        "dataUse": {
+          "type": "string"
+        },
+        "who": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When it was seen (a conversation: its latest message)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "machine",
+        "plan",
+        "planName",
+        "terms",
+        "termsName",
+        "dataUse",
+        "who"
+      ]
+    },
+    "Clip": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^(ast_[0-9a-z]{26}|cut:prj_[0-9a-z]{26}/rev_[0-9a-z]{26}|conv:[a-z][a-z0-9_-]{0,47})$",
+          "description": "An asset ID, cut:\u003cprojectId\u003e/\u003crevisionId\u003e for a cut from another project (nested, pinned to that version), or conv:\u003cname\u003e for a conversation the cut pins (its in and out are then seconds on the conversation's clock)."
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Source in-point in seconds."
+        },
+        "out": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Source out-point in seconds (exclusive)."
+        },
+        "speed": {
+          "type": "number",
+          "maximum": 4,
+          "minimum": 0.25
+        },
+        "volume": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0,
+          "description": "Linear gain for the clip's own audio (1 = unchanged)."
+        },
+        "muted": {
+          "type": "boolean"
+        },
+        "framing": {
+          "$ref": "#/$defs/Framing"
+        },
+        "transitionIn": {
+          "$ref": "#/$defs/Transition"
+        },
+        "fadeOut": {
+          "type": "number",
+          "maximum": 5,
+          "minimum": 0
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "type": "array",
+          "maxItems": 20
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "A person's notes about this clip (kept with the cut; not shown in the video)."
+        },
+        "shots": {
+          "items": {
+            "$ref": "#/$defs/Shot"
+          },
+          "type": "array",
+          "maxItems": 3000,
+          "description": "A conversation clip's picture over time: one person, a layout, a text card or other footage, each until the next."
+        },
+        "mutedMembers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 16,
+          "description": "A conversation clip: members whose sound is left out of this clip."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "assetId",
+        "in",
+        "out"
+      ]
+    },
+    "ContinuousVO": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0
+        },
+        "out": {
+          "type": "number",
+          "minimum": 0
+        },
+        "anchor": {
+          "$ref": "#/$defs/Anchor"
+        },
+        "gainDb": {
+          "type": "number",
+          "maximum": 12,
+          "minimum": -30
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "scratch",
+            "tts",
+            "recorded",
+            "imported"
+          ]
+        },
+        "aiVoice": {
+          "type": "boolean"
+        },
+        "processed": {
+          "$ref": "#/$defs/ProcessedRef"
+        },
+        "useProcessed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "in",
+        "out",
+        "anchor"
+      ]
+    },
+    "Conversation": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "titleSource": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "claude",
+            "user"
+          ]
+        },
+        "userId": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        },
+        "installationId": {
+          "type": "string"
+        },
+        "installationName": {
+          "type": "string",
+          "description": "The machine that holds the Claude Code session (the only one that can continue it)."
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "projectName": {
+          "type": "string"
+        },
+        "projectArchived": {
+          "type": "boolean"
+        },
+        "keptHere": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "idle",
+            "working"
+          ]
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "legacy": {
+          "type": "boolean",
+          "description": "A single request from before conversations (read-only)."
+        },
+        "sessionLost": {
+          "type": "boolean",
+          "description": "Claude Code no longer has this session on its machine (it cannot be resumed)."
+        },
+        "pendingActions": {
+          "type": "integer",
+          "description": "Cards and question cards waiting for a person."
+        },
+        "watching": {
+          "type": "integer",
+          "description": "Cards whose work (a render, a snapshot, an import, a check) is still running; Claude hears when each finishes."
+        },
+        "claudeSessionId": {
+          "type": "string"
+        },
+        "budgetUsd": {
+          "type": "number",
+          "description": "Dollar cap with an API-key sign-in (0: none, a Claude plan)."
+        },
+        "costUsd": {
+          "type": "number",
+          "description": "Claude Code's API-price estimate (real spend only with an API key)."
+        },
+        "tokenLimitMillions": {
+          "type": "number",
+          "description": "The conversation's own limit in millions of tokens (absent: the installation default)."
+        },
+        "limitTokens": {
+          "type": "integer",
+          "description": "The limit that applies, in tokens."
+        },
+        "tokens": {
+          "$ref": "#/$defs/TokenUsage"
+        },
+        "compactions": {
+          "type": "integer"
+        },
+        "compactedTo": {
+          "type": "integer"
+        },
+        "metarushVersion": {
+          "type": "string",
+          "description": "The MetaRush version its latest message ran on (Claude hears what's new after an update)."
+        },
+        "model": {
+          "type": "string",
+          "description": "Model override (claude --model); empty means the installation default."
+        },
+        "effort": {
+          "type": "string",
+          "description": "Effort override (claude --effort); empty means the installation default."
+        },
+        "modelUsed": {
+          "type": "string"
+        },
+        "claudeVersion": {
+          "type": "string"
+        },
+        "account": {
+          "$ref": "#/$defs/ClaudeAccount"
+        },
+        "contextTokens": {
+          "type": "integer",
+          "description": "Tokens in Claude's context after the latest reply."
+        },
+        "contextWindow": {
+          "type": "integer"
+        },
+        "turnCount": {
+          "type": "integer"
+        },
+        "firstPrompt": {
+          "type": "string"
+        },
+        "lastPrompt": {
+          "type": "string"
+        },
+        "proposalCount": {
+          "type": "integer"
+        },
+        "compacted": {
+          "type": "boolean",
+          "description": "Older tool rows were dropped to keep the stored transcript small (the full stream stays on the owning machine)."
+        },
+        "systemPrompt": {
+          "type": "string",
+          "description": "The rules appended to Claude Code's system prompt (raw view only)."
+        },
+        "waitingFor": {
+          "items": {
+            "$ref": "#/$defs/WaitingCount"
+          },
+          "type": "array",
+          "description": "Who the cards and questions waiting are for: each is for the person whose message Claude was answering."
+        },
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/Turn"
+          },
+          "type": "array"
+        },
+        "queue": {
+          "items": {
+            "$ref": "#/$defs/QueuedMessage"
+          },
+          "type": "array"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/AssistantAction"
+          },
+          "type": "array",
+          "description": "Changes Claude asked for that a person runs or dismisses."
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/AssistantEvent"
+          },
+          "type": "array",
+          "description": "Condensed transcript (omitted in lists)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "here": {
+          "type": "boolean",
+          "description": "This machine holds the session (it can be continued here)."
+        },
+        "live": {
+          "type": "boolean",
+          "description": "A Claude Code process is running for it on this machine."
+        },
+        "resumable": {
+          "type": "boolean",
+          "description": "It can take more messages (on the machine that holds it)."
+        },
+        "mine": {
+          "type": "boolean",
+          "description": "The person asking started it."
+        },
+        "waitingForYou": {
+          "type": "integer",
+          "description": "Cards and questions waiting for the person asking: the ones Claude raised answering their messages."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "titleSource",
+        "userId",
+        "userName",
+        "installationId",
+        "installationName",
+        "state",
+        "archived",
+        "pendingActions",
+        "budgetUsd",
+        "costUsd",
+        "tokens",
+        "turnCount",
+        "proposalCount",
+        "createdAt",
+        "updatedAt",
+        "here",
+        "live",
+        "resumable",
+        "mine",
+        "waitingForYou"
+      ]
+    },
+    "ConversationGate": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "speaking",
+            "off"
+          ],
+          "description": "speaking: each track gets quieter while its person isn't speaking (less echo and bleed when nobody wore headphones); off: every track plays at its level throughout."
+        },
+        "depthDb": {
+          "type": "number",
+          "maximum": 40,
+          "minimum": 6,
+          "description": "How much quieter (dB; default 18)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode"
+      ]
+    },
+    "ConversationMember": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "The short name shots use."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1,
+          "description": "The person's name (name tags, captions; per-person sound settings find them by it)."
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "use": {
+          "type": "string",
+          "enum": [
+            "both",
+            "sound",
+            "picture"
+          ],
+          "description": "both: picture and sound of one person (default); sound: one person's audio; picture: a shared picture such as a gallery view (its sound is not mixed)."
+        },
+        "start": {
+          "type": "number",
+          "maximum": 36000,
+          "minimum": -36000,
+          "description": "Where the recording starts on the conversation's clock (seconds; negative when it started earlier)."
+        },
+        "drift": {
+          "type": "number",
+          "maximum": 5000,
+          "minimum": -5000,
+          "description": "Clock drift in parts per million: recording time = (t − start) × (1 + drift/10⁶)."
+        },
+        "personId": {
+          "type": "string",
+          "pattern": "^per_[0-9a-z]{26}$"
+        },
+        "tag": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "The name tag's second line (a role, from People's notes)."
+        },
+        "crop": {
+          "$ref": "#/$defs/Crop"
+        },
+        "framing": {
+          "$ref": "#/$defs/Framing",
+          "description": "How this person's picture is framed (fill or fit, faces, focus, zoom)."
+        },
+        "look": {
+          "$ref": "#/$defs/Look"
+        },
+        "muted": {
+          "type": "boolean",
+          "description": "Leave this recording's sound out."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "assetId",
+        "start"
+      ]
+    },
+    "ConversationPin": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^cnv_[0-9a-z]{26}$",
+          "description": "The conversation in the library."
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/ConversationMember"
+          },
+          "type": "array",
+          "maxItems": 16,
+          "minItems": 1
+        },
+        "gate": {
+          "$ref": "#/$defs/ConversationGate"
+        },
+        "nameTags": {
+          "type": "string",
+          "enum": [
+            "on",
+            "off"
+          ],
+          "description": "Name tags in layouts: on (default) or off."
+        },
+        "sampleAligned": {
+          "type": "boolean",
+          "description": "Each recording plays exactly where its start says, to the sample (new cuts). Absent: from the cut's next frame, as cuts made before it rendered."
+        },
+        "layoutStyle": {
+          "$ref": "#/$defs/LayoutStyle",
+          "description": "How its picture-in-picture and side-by-side layouts look (from the layout pack). Absent: as they always looked."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "members"
+      ]
+    },
+    "CostEstimate": {
+      "properties": {
+        "usd": {
+          "type": "number",
+          "description": "The estimate in US dollars (to a tenth of a cent; About says a smaller one as less than a cent)."
+        },
+        "about": {
+          "type": "string",
+          "description": "The estimate in words: about $0.40, less than a cent, nothing (made before)."
+        },
+        "parts": {
+          "items": {
+            "$ref": "#/$defs/CostPart"
+          },
+          "type": "array",
+          "description": "What it draws on, part by part."
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "What to know about the estimate, in plain words."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "usd",
+        "about",
+        "parts"
+      ]
+    },
+    "CostPart": {
+      "properties": {
+        "step": {
+          "type": "string",
+          "description": "The step it belongs to, when the estimate covers several (a run of several steps)."
+        },
+        "service": {
+          "type": "string",
+          "description": "The outside service: ElevenLabs, Google Gemini."
+        },
+        "what": {
+          "type": "string",
+          "description": "What it makes: the AI voice, a generated shot, a clearer voice."
+        },
+        "model": {
+          "type": "string",
+          "description": "The service's model, by name."
+        },
+        "source": {
+          "type": "string",
+          "description": "What it draws on: the clip, the script line, the picture."
+        },
+        "amount": {
+          "type": "number",
+          "description": "How many units."
+        },
+        "unit": {
+          "type": "string",
+          "description": "What is counted: credits, seconds of video, tokens."
+        },
+        "units": {
+          "type": "string",
+          "description": "The units in words: 86 characters (as many credits)."
+        },
+        "rate": {
+          "type": "string",
+          "description": "The price it uses, with its date: $0.08 per 1,000 credits (ElevenLabs' prices of 23 Oct 2026)."
+        },
+        "usd": {
+          "type": "number",
+          "description": "This part's estimate in US dollars (to a millionth: a few tokens cost less than a cent, not nothing)."
+        },
+        "free": {
+          "type": "boolean",
+          "description": "Made before with the same settings: nothing is charged."
+        },
+        "limits": {
+          "type": "string",
+          "description": "Whose spending limits cover it, when not the service's own: AI services (generated video's budget and daily limit)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "service",
+        "what",
+        "amount",
+        "unit",
+        "units",
+        "usd"
+      ]
+    },
+    "Crop": {
+      "properties": {
+        "left": {
+          "type": "number",
+          "maximum": 0.45,
+          "minimum": 0
+        },
+        "top": {
+          "type": "number",
+          "maximum": 0.45,
+          "minimum": 0
+        },
+        "right": {
+          "type": "number",
+          "maximum": 0.45,
+          "minimum": 0
+        },
+        "bottom": {
+          "type": "number",
+          "maximum": 0.45,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "CutCheckOut": {
+      "properties": {
+        "valid": {
+          "type": "boolean"
+        },
+        "noChanges": {
+          "type": "boolean",
+          "description": "The sheet is the same cut as its base revision."
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "baseRevisionId": {
+          "type": "string"
+        },
+        "baseNumber": {
+          "type": "integer"
+        },
+        "headRevisionId": {
+          "type": "string"
+        },
+        "headNumber": {
+          "type": "integer"
+        },
+        "headMoved": {
+          "type": "boolean",
+          "description": "Someone saved a newer revision since this sheet's base."
+        },
+        "rebased": {
+          "type": "boolean",
+          "description": "Saving will combine these changes with the newer revision."
+        },
+        "problems": {
+          "items": {
+            "$ref": "#/$defs/Problem"
+          },
+          "type": "array"
+        },
+        "changes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "What changes compared with the base (in plain words)."
+        },
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/Anchor"
+          },
+          "type": "array"
+        },
+        "plan": {
+          "type": "object",
+          "description": "The edit plan this sheet becomes."
+        },
+        "diff": {
+          "$ref": "#/$defs/Diff"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "specHash": {
+          "type": "string"
+        },
+        "confirmToken": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "next": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "valid",
+        "noChanges",
+        "headMoved",
+        "rebased",
+        "problems",
+        "changes",
+        "anchors",
+        "duration",
+        "next"
+      ]
+    },
+    "Diff": {
+      "properties": {
+        "durationBefore": {
+          "type": "number"
+        },
+        "durationAfter": {
+          "type": "number"
+        },
+        "clipsAdded": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "clipsRemoved": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "clipsChanged": {
+          "items": {
+            "$ref": "#/$defs/FieldDiff"
+          },
+          "type": "array"
+        },
+        "reordered": {
+          "type": "boolean"
+        },
+        "overlaysAdded": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "overlaysRemoved": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "overlaysChanged": {
+          "items": {
+            "$ref": "#/$defs/FieldDiff"
+          },
+          "type": "array"
+        },
+        "audioAdded": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "audioRemoved": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "audioChanged": {
+          "items": {
+            "$ref": "#/$defs/FieldDiff"
+          },
+          "type": "array"
+        },
+        "captionsChanged": {
+          "type": "boolean"
+        },
+        "outputChanged": {
+          "type": "boolean"
+        },
+        "brandChanged": {
+          "type": "boolean"
+        },
+        "notesChanged": {
+          "type": "boolean"
+        },
+        "beatsAdded": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "beatsRemoved": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "beatsChanged": {
+          "items": {
+            "$ref": "#/$defs/FieldDiff"
+          },
+          "type": "array"
+        },
+        "beatsReordered": {
+          "type": "boolean"
+        },
+        "voiceoverChanged": {
+          "type": "boolean"
+        },
+        "mixChanged": {
+          "type": "boolean"
+        },
+        "summary": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "durationBefore",
+        "durationAfter",
+        "clipsAdded",
+        "clipsRemoved",
+        "clipsChanged",
+        "reordered",
+        "overlaysAdded",
+        "overlaysRemoved",
+        "overlaysChanged",
+        "audioAdded",
+        "audioRemoved",
+        "audioChanged",
+        "captionsChanged",
+        "outputChanged",
+        "brandChanged",
+        "notesChanged",
+        "beatsAdded",
+        "beatsRemoved",
+        "beatsChanged",
+        "beatsReordered",
+        "voiceoverChanged",
+        "mixChanged",
+        "summary"
+      ]
+    },
+    "DiffLine": {
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": [
+            "same",
+            "added",
+            "removed"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "left": {
+          "type": "integer"
+        },
+        "right": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "op",
+        "text"
+      ]
+    },
+    "Ducking": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Automatic ducking (default on whenever the cut has a voiceover or a mix section)."
+        },
+        "musicUnderVoiceoverDb": {
+          "type": "number",
+          "maximum": 0,
+          "minimum": -40,
+          "description": "Music while narration plays (default -14 dB)."
+        },
+        "sourceUnderVoiceoverDb": {
+          "type": "number",
+          "maximum": 0,
+          "minimum": -60,
+          "description": "Clip audio while narration plays (default -18 dB)."
+        },
+        "musicUnderDialogueDb": {
+          "type": "number",
+          "maximum": 0,
+          "minimum": -40,
+          "description": "Music under on-camera speech (default -12 dB; a track's own duckDb overrides it)."
+        },
+        "attack": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0.02,
+          "description": "Seconds the level ramps down before speech starts (default 0.25)."
+        },
+        "release": {
+          "type": "number",
+          "maximum": 3,
+          "minimum": 0.02,
+          "description": "Seconds the level ramps back up after speech (default 0.5)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DuplicateOf": {
+      "properties": {
+        "assetId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "description": "The existing asset's original filename."
+        },
+        "where": {
+          "type": "string",
+          "description": "Inbox or the project names it is in."
+        },
+        "projectIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "skipped",
+            "kept-both",
+            "same-file"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "title",
+        "name",
+        "where",
+        "projectIds"
+      ]
+    },
+    "EditCheckOut": {
+      "properties": {
+        "valid": {
+          "type": "boolean"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "baseRevisionId": {
+          "type": "string"
+        },
+        "headRevisionId": {
+          "type": "string"
+        },
+        "rebased": {
+          "type": "boolean"
+        },
+        "conflicts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/Issue"
+          },
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/Issue"
+          },
+          "type": "array"
+        },
+        "diff": {
+          "$ref": "#/$defs/Diff"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "specHash": {
+          "type": "string"
+        },
+        "confirmToken": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "next": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "valid",
+        "projectId",
+        "branch",
+        "rebased",
+        "errors",
+        "warnings",
+        "duration",
+        "next"
+      ]
+    },
+    "Enhance": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "clean",
+            "studio",
+            "cloud"
+          ],
+          "description": "clean: on this machine, fast (less hiss and echo, softer harsh s sounds, clearer tone); studio: on this machine, slower and stronger (optional component); cloud: ElevenLabs voice isolation (paid)."
+        },
+        "strength": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0,
+          "description": "How much of the processed voice is heard (0–1; default 1: all of it)."
+        },
+        "off": {
+          "type": "boolean",
+          "description": "Play the original voice (the settings and the processed copy are kept)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode"
+      ]
+    },
+    "EnhancedSound": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "The recording."
+        },
+        "start": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where in the recording the copy starts (whole seconds)."
+        },
+        "variant": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "The processed copy (an audio asset with the recording's timing from start)."
+        },
+        "settings": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "The voice settings it was made with (who, how, how strongly)"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "start",
+        "variant",
+        "settings"
+      ]
+    },
+    "EventsHello": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "description": "changestream or polling (empty while connecting)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode"
+      ]
+    },
+    "Evidence": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "transcript",
+            "insight",
+            "frame",
+            "scene",
+            "user",
+            "analysis"
+          ]
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "from": {
+          "type": "number",
+          "minimum": 0
+        },
+        "to": {
+          "type": "number",
+          "minimum": 0
+        },
+        "ref": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "ID of a transcript segment or insight."
+        },
+        "quote": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind"
+      ]
+    },
+    "EvidenceScene": {
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "score": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at",
+        "score"
+      ]
+    },
+    "EvidenceSpan": {
+      "properties": {
+        "from": {
+          "type": "number"
+        },
+        "to": {
+          "type": "number"
+        },
+        "duration": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "duration"
+      ]
+    },
+    "ExportMediaFile": {
+      "properties": {
+        "assetId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "how": {
+          "type": "string",
+          "enum": [
+            "copied",
+            "cloned",
+            "linked",
+            "kept",
+            "cache"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "name",
+        "path",
+        "sha256",
+        "size",
+        "how"
+      ]
+    },
+    "ExportRevealIn": {
+      "properties": {
+        "folder": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "folder"
+      ]
+    },
+    "ExportTimelineOut": {
+      "properties": {
+        "format": {
+          "type": "string"
+        },
+        "formatName": {
+          "type": "string",
+          "description": "The format in words (OpenTimelineIO, FCPXML 1.8, Final Cut Pro 7 XML)."
+        },
+        "app": {
+          "type": "string",
+          "description": "The editing app this format is for."
+        },
+        "alsoOpens": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Other editing apps that open it."
+        },
+        "file": {
+          "type": "string"
+        },
+        "captions": {
+          "type": "string",
+          "description": "The .srt file with the captions, when the cut has captions."
+        },
+        "mediaDir": {
+          "type": "string"
+        },
+        "media": {
+          "items": {
+            "$ref": "#/$defs/ExportMediaFile"
+          },
+          "type": "array"
+        },
+        "clips": {
+          "type": "integer"
+        },
+        "soundTracks": {
+          "type": "integer"
+        },
+        "markers": {
+          "type": "integer"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "open": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "format",
+        "formatName",
+        "app",
+        "alsoOpens",
+        "file",
+        "media",
+        "clips",
+        "soundTracks",
+        "markers",
+        "duration",
+        "notes",
+        "summary",
+        "open"
+      ]
+    },
+    "ExtHelloOut": {
+      "properties": {
+        "machine": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "for": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "machine",
+        "version"
+      ]
+    },
+    "ExtImportIn": {
+      "properties": {
+        "url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url"
+      ]
+    },
+    "ExtImportOut": {
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "status",
+        "message"
+      ]
+    },
+    "ExtPageIn": {
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "siteName": {
+          "type": "string"
+        },
+        "themeColor": {
+          "type": "string"
+        },
+        "lang": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "screenshot": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url",
+        "screenshot"
+      ]
+    },
+    "ExtPageOut": {
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "added",
+            "version",
+            "same"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "status",
+        "message"
+      ]
+    },
+    "ExtPairIn": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "description": "The browser the extension runs in (Chrome, Brave, Edge…)."
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "code"
+      ]
+    },
+    "ExtPairOut": {
+      "properties": {
+        "token": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "machine": {
+          "type": "string"
+        },
+        "for": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "token",
+        "id",
+        "machine"
+      ]
+    },
+    "ExtSource": {
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "uploader": {
+          "type": "string"
+        },
+        "handle": {
+          "type": "string"
+        },
+        "channelUrl": {
+          "type": "string"
+        },
+        "uploadDate": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url"
+      ]
+    },
+    "ExtUploadIn": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "browser",
+            "recording"
+          ],
+          "description": "browser = the file the page plays, fetched with the person's sign-in; recording = recorded while it played."
+        },
+        "source": {
+          "$ref": "#/$defs/ExtSource"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "size",
+        "method",
+        "source"
+      ]
+    },
+    "ExtUploadOut": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "offset"
+      ]
+    },
+    "FieldDiff": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "fields"
+      ]
+    },
+    "FitLineView": {
+      "properties": {
+        "beatId": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "original": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "words": {
+          "items": {
+            "$ref": "#/$defs/WordOp"
+          },
+          "type": "array"
+        },
+        "change": {
+          "type": "string",
+          "enum": [
+            "none",
+            "words",
+            "timing",
+            "both"
+          ]
+        },
+        "originalPlacement": {
+          "type": "string"
+        },
+        "placement": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "kept": {
+          "type": "boolean"
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "beatId",
+        "line",
+        "original",
+        "text",
+        "words",
+        "change",
+        "originalPlacement",
+        "placement"
+      ]
+    },
+    "FittedLine": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "The person's line this fits (its ID)."
+        },
+        "original": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "The person's words for the line"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 2000,
+          "minLength": 1,
+          "description": "Claude's words for the line (the same words when only the timing changes)."
+        },
+        "anchor": {
+          "$ref": "#/$defs/Anchor",
+          "description": "Where Claude starts the line (none: it follows the previous line)."
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 600,
+          "description": "Why Claude changed it"
+        },
+        "kept": {
+          "type": "boolean",
+          "description": "The person kept their own line here (Claude's change turned down)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "original",
+        "text"
+      ]
+    },
+    "FittedOut": {
+      "properties": {
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/FitLineView"
+          },
+          "type": "array"
+        },
+        "changed": {
+          "type": "integer"
+        },
+        "kept": {
+          "type": "integer"
+        },
+        "note": {
+          "type": "string"
+        },
+        "active": {
+          "type": "string",
+          "enum": [
+            "original",
+            "fitted"
+          ]
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "result": {
+          "$ref": "#/$defs/PlanResult"
+        },
+        "applied": {
+          "$ref": "#/$defs/Applied"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "lines",
+        "changed",
+        "kept",
+        "active",
+        "summary"
+      ]
+    },
+    "FittedScript": {
+      "properties": {
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/FittedLine"
+          },
+          "type": "array",
+          "maxItems": 300
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "lines"
+      ]
+    },
+    "FixedPin": {
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The fixed copy: the SHA-256 of its file."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "sha256"
+      ]
+    },
+    "FolderChooseIn": {
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "The project the folder belongs to (empty: the workspace library)."
+        },
+        "upload": {
+          "type": "string",
+          "enum": [
+            "small",
+            "all",
+            "on-use"
+          ]
+        },
+        "existing": {
+          "type": "string",
+          "enum": [
+            "import",
+            "skip"
+          ]
+        },
+        "folderId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "FolderChooseOut": {
+      "properties": {
+        "canceled": {
+          "type": "boolean"
+        },
+        "linked": {
+          "$ref": "#/$defs/LinkedFolderOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "canceled"
+      ]
+    },
+    "Framing": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "fill",
+            "fit"
+          ]
+        },
+        "auto": {
+          "type": "string",
+          "enum": [
+            "faces",
+            "follow"
+          ],
+          "description": "faces: keep the main face in frame (from the clip's on-screen index); follow: move the crop with the subject as it moves."
+        },
+        "focusX": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0,
+          "description": "Horizontal focal point kept in frame when cropping (0 left … 1 right)."
+        },
+        "focusY": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "zoom": {
+          "type": "number",
+          "maximum": 3,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GeneratedSaid": {
+      "properties": {
+        "changeId": {
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "from": {
+          "type": "number"
+        },
+        "to": {
+          "type": "number"
+        },
+        "before": {
+          "type": "string"
+        },
+        "words": {
+          "type": "string"
+        },
+        "who": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "changeId",
+        "assetId",
+        "from",
+        "to",
+        "before",
+        "words"
+      ]
+    },
+    "GeneratedSource": {
+      "properties": {
+        "generationId": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "providerTitle": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "modelTitle": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "shot",
+            "again",
+            "variation",
+            "extend",
+            "edit",
+            "look-test",
+            "make"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "take": {
+          "type": "integer"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "look": {
+          "type": "string"
+        },
+        "likeness": {
+          "type": "boolean"
+        },
+        "presenter": {
+          "type": "string"
+        },
+        "presenterTitle": {
+          "type": "string"
+        },
+        "consent": {
+          "type": "string"
+        },
+        "watermark": {
+          "type": "string"
+        },
+        "said": {
+          "$ref": "#/$defs/GeneratedSaid"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "generationId",
+        "provider",
+        "providerTitle",
+        "model",
+        "operation"
+      ]
+    },
+    "ImageRef": {
+      "properties": {
+        "root": {
+          "type": "string",
+          "enum": [
+            "scratch",
+            "cache",
+            "assistant"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "description": "Slash-separated path relative to the root."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "root",
+        "path"
+      ]
+    },
+    "IngestResult": {
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ingested",
+            "deduped",
+            "duplicate",
+            "resumed",
+            "skipped",
+            "failed",
+            "would-ingest"
+          ],
+          "description": "deduped = the same bytes were already stored (same file again or kept as an alias); duplicate = identical to an existing asset under another name and skipped."
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "description": "The asset's display title."
+        },
+        "duplicate": {
+          "$ref": "#/$defs/DuplicateOf"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/ResourceResult"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "error": {
+          "type": "string"
+        },
+        "jobIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "name",
+        "status",
+        "size"
+      ]
+    },
+    "Issue": {
+      "properties": {
+        "severity": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ]
+    },
+    "KeepCard": {
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "source",
+            "picture",
+            "brief",
+            "rule",
+            "promise",
+            "person",
+            "signoff",
+            "check",
+            "improve",
+            "spelling"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "does": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string",
+          "enum": [
+            "metarush",
+            "claude"
+          ]
+        },
+        "colors": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mime": {
+          "type": "string",
+          "description": "An attached file's type (image/png, application/pdf…)."
+        },
+        "where": {
+          "items": {
+            "$ref": "#/$defs/KeepWhere"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "itemId",
+        "kind",
+        "does",
+        "from"
+      ]
+    },
+    "KeepFile": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "sha256",
+        "size",
+        "mime"
+      ]
+    },
+    "KeepWhere": {
+      "properties": {
+        "value": {
+          "type": "string",
+          "enum": [
+            "project",
+            "settings"
+          ]
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "value",
+        "label"
+      ]
+    },
+    "LayoutStyle": {
+      "properties": {
+        "pip": {
+          "$ref": "#/$defs/PiPStyle",
+          "description": "Picture in picture: where the inset sits, its size, shape and frame."
+        },
+        "sideBySide": {
+          "$ref": "#/$defs/SideBySideStyle",
+          "description": "Side by side (and stacked): the gap, frame and what shows between the pictures."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "LinkAccept": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "password"
+      ]
+    },
+    "LinkInfo": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "invite",
+            "reset"
+          ]
+        },
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "machine": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind",
+        "email",
+        "expiresAt",
+        "machine"
+      ]
+    },
+    "LinkedFolderMachine": {
+      "properties": {
+        "machine": {
+          "type": "string"
+        },
+        "display": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "watching",
+            "missing",
+            "off"
+          ]
+        },
+        "lastScan": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "files": {
+          "type": "integer"
+        },
+        "resources": {
+          "type": "integer"
+        },
+        "footage": {
+          "type": "integer"
+        },
+        "waiting": {
+          "type": "integer",
+          "description": "Large files that upload when a cut first uses them."
+        },
+        "pending": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Files still being copied in (they are added once they stop changing)."
+        },
+        "errors": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Files that couldn't be added, each with its latest problem (the first 10 by name); one stays until the file is added or goes away."
+        },
+        "failed": {
+          "type": "integer",
+          "description": "How many files couldn't be added (they are tried again)."
+        },
+        "retryAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the next file that couldn't be added is tried again by itself."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "machine",
+        "display",
+        "state",
+        "lastScan",
+        "files",
+        "resources",
+        "footage",
+        "waiting",
+        "updatedAt"
+      ]
+    },
+    "LinkedFolderOut": {
+      "properties": {
+        "folder": {
+          "$ref": "#/$defs/LinkedFolderRow"
+        },
+        "scan": {
+          "$ref": "#/$defs/ScanResult"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "folder",
+        "message"
+      ]
+    },
+    "LinkedFolderRow": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "project",
+            "workspace"
+          ]
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "projectName": {
+          "type": "string"
+        },
+        "upload": {
+          "type": "string",
+          "enum": [
+            "small",
+            "all",
+            "on-use"
+          ]
+        },
+        "smallMb": {
+          "type": "integer"
+        },
+        "here": {
+          "$ref": "#/$defs/LinkedFolderMachine"
+        },
+        "herePath": {
+          "type": "string"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "machines": {
+          "items": {
+            "$ref": "#/$defs/LinkedFolderMachine"
+          },
+          "type": "array"
+        },
+        "unlinked": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "scope",
+        "upload",
+        "smallMb",
+        "machines",
+        "text"
+      ]
+    },
+    "Look": {
+      "properties": {
+        "exposure": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0.5,
+          "description": "Brightness as a gain (1 unchanged)."
+        },
+        "contrast": {
+          "type": "number",
+          "maximum": 1.5,
+          "minimum": 0.5,
+          "description": "Around mid grey (1 unchanged)."
+        },
+        "saturation": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0.2,
+          "description": "1 unchanged."
+        },
+        "warmth": {
+          "type": "number",
+          "maximum": 0.3,
+          "minimum": -0.3,
+          "description": "Positive: warmer (more red, less blue)."
+        },
+        "tint": {
+          "type": "number",
+          "maximum": 0.3,
+          "minimum": -0.3,
+          "description": "Positive: greener; negative: more magenta."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MasterLoudness": {
+      "properties": {
+        "targetLufs": {
+          "type": "number",
+          "maximum": -8,
+          "minimum": -31,
+          "description": "Integrated loudness target (default from output.platform: -14 LUFS for social and YouTube, -16 generic)."
+        },
+        "truePeakDbtp": {
+          "type": "number",
+          "maximum": 0,
+          "minimum": -9,
+          "description": "True-peak ceiling (default -1 dBTP)."
+        },
+        "normalize": {
+          "type": "boolean",
+          "description": "Apply one static master gain so the estimated mix meets the target (default on for cuts with a voiceover; needs loudness evidence for the sources). QA measures the real render."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Mix": {
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/Bus",
+          "description": "The clips' own audio (production sound) and dialogue tracks."
+        },
+        "voiceover": {
+          "$ref": "#/$defs/Bus"
+        },
+        "music": {
+          "$ref": "#/$defs/Bus"
+        },
+        "sfx": {
+          "$ref": "#/$defs/Bus"
+        },
+        "muteSource": {
+          "type": "boolean"
+        },
+        "ducking": {
+          "$ref": "#/$defs/Ducking"
+        },
+        "loudness": {
+          "$ref": "#/$defs/MasterLoudness"
+        },
+        "levelSpeech": {
+          "type": "boolean",
+          "description": "Even out speech loudness between clips (on for new cuts; absent = off, as older cuts were made)."
+        },
+        "cutBlend": {
+          "type": "number",
+          "maximum": 0.5,
+          "minimum": 0,
+          "description": "Seconds the sound blends at straight cuts so they never click (new cuts: 0.1; absent = none, as older cuts were made)."
+        },
+        "voices": {
+          "items": {
+            "$ref": "#/$defs/VoiceSound"
+          },
+          "type": "array",
+          "maxItems": 50,
+          "description": "Per person (by the name the speaker data shows) or per recording: a level change and a clearer voice over their speech."
+        },
+        "enhanced": {
+          "items": {
+            "$ref": "#/$defs/EnhancedSound"
+          },
+          "type": "array",
+          "maxItems": 200,
+          "description": "The processed copies (clearer voices) recordings play instead of their own sound; written by sound enhance."
+        },
+        "said": {
+          "items": {
+            "$ref": "#/$defs/SaidSound"
+          },
+          "type": "array",
+          "maxItems": 100,
+          "description": "Words changed in the speaker's own voice copy, with their consent: the new sound plays instead of the recording's own over each stretch. Written by cut say place."
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MotionRef": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "The component's folder name (motion/\u003cname\u003e)."
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the component's canonical source archive: the exact version a person approved."
+        },
+        "libs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "The shared libraries it imports (@metarush/lib/\u003cname\u003e) and their exact versions (SHA-256)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "hash"
+      ]
+    },
+    "Op": {
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": [
+            "insertClip",
+            "removeClip",
+            "replaceClip",
+            "updateClip",
+            "moveClip",
+            "addOverlay",
+            "updateOverlay",
+            "removeOverlay",
+            "addAudio",
+            "updateAudio",
+            "removeAudio",
+            "setCaptions",
+            "setOutput",
+            "setBrand",
+            "setNotes",
+            "setTitle",
+            "lock",
+            "unlock",
+            "setScript",
+            "updateVoiceover",
+            "addBeat",
+            "updateBeat",
+            "moveBeat",
+            "removeBeat",
+            "setMix",
+            "setTransition",
+            "splitClip",
+            "trimClip",
+            "slipClip",
+            "deleteRange",
+            "removeWords",
+            "setResource",
+            "setConversation",
+            "setFixed"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "description": "Target clip/overlay/audio/beat ID (or 'captions', 'voiceover', 'mix') for update/remove/move/lock ops; setTransition: the clip the transition leads into; splitClip/trimClip/slipClip/removeWords: the clip."
+        },
+        "after": {
+          "type": "string",
+          "description": "Insert or move after this clip ID (beat ID for addBeat/moveBeat)."
+        },
+        "before": {
+          "type": "string",
+          "description": "Insert or move before this clip ID (beat ID for addBeat/moveBeat)."
+        },
+        "clip": {
+          "$ref": "#/$defs/Clip"
+        },
+        "overlay": {
+          "$ref": "#/$defs/Overlay"
+        },
+        "track": {
+          "$ref": "#/$defs/AudioTrack"
+        },
+        "captions": {
+          "$ref": "#/$defs/Captions"
+        },
+        "output": {
+          "$ref": "#/$defs/Output"
+        },
+        "brand": {
+          "$ref": "#/$defs/Brand"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Value for setNotes/setTitle; removeWords: the words removed (kept for the record)."
+        },
+        "set": {
+          "type": "object",
+          "description": "Fields to change for update ops."
+        },
+        "voiceover": {
+          "$ref": "#/$defs/Voiceover",
+          "description": "setScript: the whole voiceover (null removes it)."
+        },
+        "beat": {
+          "$ref": "#/$defs/Beat",
+          "description": "addBeat: the new beat."
+        },
+        "anchor": {
+          "$ref": "#/$defs/Anchor",
+          "description": "moveBeat: the beat's new anchor (or use after/before to reorder the script)."
+        },
+        "mix": {
+          "$ref": "#/$defs/Mix",
+          "description": "setMix: the whole mix (null removes it)."
+        },
+        "transition": {
+          "$ref": "#/$defs/Transition",
+          "description": "setTransition: how the clip (id) comes in, picture and sound (null = a plain cut). With edge end: how it fades out (type fade or dip-to-black, duration)."
+        },
+        "edge": {
+          "type": "string",
+          "enum": [
+            "in",
+            "end"
+          ],
+          "description": "setTransition: in (default) = the cut into the clip; end = the clip's fade-out (the end of the whole video when it is the last clip). trimClip: in = the clip's start, end = its end."
+        },
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "description": "splitClip: the moment in the clip's footage (source seconds) where it is cut in two."
+        },
+        "from": {
+          "type": "number",
+          "minimum": 0,
+          "description": "deleteRange: where the removed stretch starts (seconds on the cut's timeline); removeWords: where it starts in the clip's footage (source seconds)."
+        },
+        "to": {
+          "type": "number",
+          "minimum": 0,
+          "description": "deleteRange: where the removed stretch ends (timeline seconds); removeWords: where it ends in the footage; trimClip: the edge's new moment in the clip's footage (source seconds)."
+        },
+        "by": {
+          "type": "number",
+          "maximum": 36000,
+          "minimum": -36000,
+          "description": "slipClip: seconds to slide the clip's footage (positive: later in the recording); the clip keeps its length and place."
+        },
+        "newId": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "splitClip, deleteRange, removeWords: the name of the second part when a clip is cut in two (default: the clip's name with -2, -3…)."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "ripple",
+            "roll"
+          ],
+          "description": "trimClip: ripple (default: the rest of the cut moves up or back) or roll (the neighbouring clip's edge moves with it, so the cut keeps its length)."
+        },
+        "resource": {
+          "$ref": "#/$defs/ResourcePin",
+          "description": "setResource: the resource and exact version the short name (id) stands for (null removes it)."
+        },
+        "conversation": {
+          "$ref": "#/$defs/ConversationPin",
+          "description": "setConversation: the conversation and how this cut renders it, under the short name (id) its clips use (null removes it)."
+        },
+        "fixed": {
+          "$ref": "#/$defs/FixedPin",
+          "description": "setFixed: the fixed copy the footage (id, an asset ID) plays in this cut (null: the original again)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "op"
+      ]
+    },
+    "OpInfo": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "mutating": {
+          "type": "boolean"
+        },
+        "humanOnly": {
+          "type": "boolean"
+        },
+        "localOnly": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "summary",
+        "mutating",
+        "humanOnly",
+        "localOnly"
+      ]
+    },
+    "Output": {
+      "properties": {
+        "preset": {
+          "type": "string",
+          "enum": [
+            "vertical-1080p",
+            "landscape-1080p",
+            "square-1080"
+          ]
+        },
+        "width": {
+          "type": "integer",
+          "maximum": 4096,
+          "minimum": 64
+        },
+        "height": {
+          "type": "integer",
+          "maximum": 4096,
+          "minimum": 64
+        },
+        "fps": {
+          "type": "integer",
+          "enum": [
+            24,
+            25,
+            30,
+            50,
+            60
+          ]
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "platform": {
+          "type": "string",
+          "enum": [
+            "generic",
+            "youtube",
+            "shorts",
+            "tiktok",
+            "reels"
+          ],
+          "description": "Selects caption/end-card safe margins."
+        },
+        "framing": {
+          "type": "string",
+          "enum": [
+            "faces",
+            "follow",
+            "center"
+          ],
+          "description": "faces: crops keep the main face in frame (new cuts); follow: crops move with the subject as it moves; center or absent: crops keep the middle (older cuts). A clip's own focus or framing.auto wins."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Overlay": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "template": {
+          "type": "string",
+          "enum": [
+            "lower-third.clean",
+            "lower-third.cinematic",
+            "quote.kinetic",
+            "endcard.cta",
+            "datacard.stat",
+            "title.card",
+            "logo.corner",
+            "slide.title",
+            "slide.bullets",
+            "slide.code",
+            "slide.architecture",
+            "slide.screenshot",
+            "slide.quote",
+            "name.bar",
+            "end.screen"
+          ],
+          "description": "A vetted template (the default). Leave it out for a project motion graphic (or for a role the layout pack fills)."
+        },
+        "motion": {
+          "$ref": "#/$defs/MotionRef",
+          "description": "A project motion graphic (motion/\u003cname\u003e in the project folder) by name and approved version, instead of a template."
+        },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z][a-z-]{0,23}(:[a-z][a-z0-9-]{0,23})?$",
+          "description": "The part it plays in the layout pack: title-card, lower-third, end-screen, quote-card or chapter-card (a variant after a colon: lower-third:guest). Without a template the pack fills it."
+        },
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "description": "When the graphic starts (seconds on the finished video; with a span: seconds after the span starts)."
+        },
+        "duration": {
+          "type": "number",
+          "maximum": 7200,
+          "minimum": 0,
+          "description": "How long it stays (seconds; at least 0.2). With a span: 0 = to the span's end."
+        },
+        "params": {
+          "type": "object"
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "type": "array",
+          "maxItems": 20
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "A person's notes about this graphic (kept with the cut; not shown in the video)."
+        },
+        "span": {
+          "$ref": "#/$defs/OverlaySpan",
+          "description": "Last a section ({from, to}: clip names) or the whole video ({}); at and duration are then measured inside it."
+        },
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/OverlayChange"
+          },
+          "type": "array",
+          "maxItems": 3000,
+          "description": "Moments in the footage from which the graphic's fields change while it stays on screen (a name bar's name follows who is on screen)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "at",
+        "duration",
+        "params"
+      ]
+    },
+    "OverlayChange": {
+      "properties": {
+        "footage": {
+          "type": "string",
+          "pattern": "^(ast_[0-9a-z]{26}|cut:prj_[0-9a-z]{26}/rev_[0-9a-z]{26}|conv:[a-z][a-z0-9_-]{0,47})$",
+          "description": "The footage the moment is in (a clip's assetId)."
+        },
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Seconds in that footage from which the new fields apply."
+        },
+        "params": {
+          "type": "object",
+          "description": "The fields that change (merged over the graphic's own; a picture field can't change)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "footage",
+        "at",
+        "params"
+      ]
+    },
+    "OverlaySpan": {
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "The clip the graphic starts with (default: the first)."
+        },
+        "to": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "The clip it ends with (default: the last)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Peaks": {
+      "properties": {
+        "version": {
+          "type": "integer"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "bucketSeconds": {
+          "type": "number"
+        },
+        "peaks": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array",
+          "description": "Max absolute amplitude per bucket (0 to 1)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "version",
+        "duration",
+        "bucketSeconds",
+        "peaks"
+      ]
+    },
+    "PiPStyle": {
+      "properties": {
+        "corner": {
+          "type": "string",
+          "enum": [
+            "",
+            "bottom-right",
+            "bottom-left",
+            "top-right",
+            "top-left"
+          ],
+          "description": "Where the inset sits (default bottom-right)."
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "",
+            "small",
+            "medium",
+            "large"
+          ],
+          "description": "How large the inset is (default medium)."
+        },
+        "shape": {
+          "type": "string",
+          "enum": [
+            "",
+            "rounded",
+            "square",
+            "circle"
+          ],
+          "description": "rounded (default), square or circle (a round camera bubble)."
+        },
+        "frame": {
+          "type": "string",
+          "enum": [
+            "",
+            "none",
+            "accent",
+            "primary",
+            "text"
+          ],
+          "description": "A line around the inset in one of the brand's colours (default none)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Plan": {
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "pattern": "^prj_[0-9a-z]{26}$"
+        },
+        "baseRevisionId": {
+          "type": "string",
+          "pattern": "^rev_[0-9a-z]{26}$",
+          "description": "Revision this plan was written against. Required unless the project has no revisions yet."
+        },
+        "branch": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "instruction": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "The user's request"
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 8000,
+          "description": "Editorial reasoning for the whole change."
+        },
+        "origin": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[a-z][a-z0-9-]*:[A-Za-z0-9_./-]+$",
+          "description": "Where the plan came from (set by MetaRush; e.g. assistant:\u003crun\u003e/\u003cfile\u003e for a dashboard-assistant proposal). Recorded on the revision."
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "A few words saying what this version changes (flicker fixes and headline cards); shown on the version."
+        },
+        "spec": {
+          "$ref": "#/$defs/Spec"
+        },
+        "ops": {
+          "items": {
+            "$ref": "#/$defs/Op"
+          },
+          "type": "array",
+          "maxItems": 200
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "PlanResult": {
+      "properties": {
+        "plan": {
+          "$ref": "#/$defs/Plan"
+        },
+        "check": {
+          "$ref": "#/$defs/EditCheckOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "plan",
+        "check"
+      ]
+    },
+    "PlanUsage": {
+      "properties": {
+        "fiveHour": {
+          "$ref": "#/$defs/PlanWindow",
+          "description": "The plan's five-hour window."
+        },
+        "sevenDay": {
+          "$ref": "#/$defs/PlanWindow",
+          "description": "The plan's weekly window."
+        },
+        "status": {
+          "type": "string",
+          "description": "allowed, allowed_warning (getting close) or rejected (used up until it resets)."
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When Claude Code said so."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at"
+      ]
+    },
+    "PlanWindow": {
+      "properties": {
+        "used": {
+          "type": "number",
+          "description": "Share used, 0–1."
+        },
+        "resetsAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "used",
+        "resetsAt"
+      ]
+    },
+    "Problem": {
+      "properties": {
+        "severity": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warning"
+          ]
+        },
+        "code": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "col": {
+          "type": "integer"
+        },
+        "endCol": {
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "hint": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string",
+          "description": "JSON pointer into the edit spec (for findings from validation)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ]
+    },
+    "ProcessedRef": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "preset": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "offset": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "preset"
+      ]
+    },
+    "QuestionAnswer": {
+      "properties": {
+        "choices": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array",
+          "maxItems": 12,
+          "description": "The picked choices, numbered from 1."
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "An answer in the person's own words."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "QuestionCard": {
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "choices": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Answers to pick from (none: a free-text question)."
+        },
+        "multiple": {
+          "type": "boolean",
+          "description": "Several choices may be picked (tick boxes)."
+        },
+        "other": {
+          "type": "boolean",
+          "description": "The person may also write an answer of their own."
+        },
+        "why": {
+          "type": "string",
+          "description": "Why Claude asks (shown under the question)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "text"
+      ]
+    },
+    "QueuedMessage": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "shown": {
+          "type": "string"
+        },
+        "answerTo": {
+          "type": "string"
+        },
+        "attachments": {
+          "items": {
+            "$ref": "#/$defs/KeepFile"
+          },
+          "type": "array"
+        },
+        "context": {
+          "$ref": "#/$defs/TurnContext"
+        },
+        "user": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "note": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "prompt",
+        "context",
+        "at"
+      ]
+    },
+    "RecipeCardChange": {
+      "properties": {
+        "part": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "changes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "part",
+        "label",
+        "changes"
+      ]
+    },
+    "RecipeCardInput": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "words": {
+          "type": "string"
+        },
+        "given": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "label",
+        "words"
+      ]
+    },
+    "RecipeCardPick": {
+      "properties": {
+        "part": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "moment",
+            "short"
+          ]
+        },
+        "n": {
+          "type": "integer"
+        },
+        "when": {
+          "type": "string"
+        },
+        "of": {
+          "type": "string",
+          "description": "The footage or conversation it is from."
+        },
+        "why": {
+          "type": "string"
+        },
+        "words": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "first",
+            "standin",
+            "kept",
+            "changed",
+            "dropped"
+          ]
+        },
+        "changes": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "part",
+        "kind",
+        "n",
+        "when",
+        "state"
+      ]
+    },
+    "RecipeCardView": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "run",
+            "again",
+            "save",
+            "update",
+            "publish",
+            "picks",
+            "sheet",
+            "suggested"
+          ]
+        },
+        "recipe": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "link": {
+          "type": "string"
+        },
+        "lands": {
+          "type": "string"
+        },
+        "makes": {
+          "type": "string"
+        },
+        "inputs": {
+          "items": {
+            "$ref": "#/$defs/RecipeCardInput"
+          },
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/RecipeStep"
+          },
+          "type": "array"
+        },
+        "changes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reused": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "claude": {
+          "type": "boolean",
+          "description": "The run waits for Claude to choose the moments."
+        },
+        "budget": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "varies": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "stays": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "differences": {
+          "items": {
+            "$ref": "#/$defs/RecipeCardChange"
+          },
+          "type": "array"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "against": {
+          "type": "integer"
+        },
+        "removedRules": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "note": {
+          "type": "string"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "replanned": {
+          "type": "boolean"
+        },
+        "run": {
+          "type": "string",
+          "description": "The run, as people name it (run 4 of “App teaser”)."
+        },
+        "change": {
+          "type": "string",
+          "description": "What the card keeps or changes, in plain words."
+        },
+        "picks": {
+          "items": {
+            "$ref": "#/$defs/RecipeCardPick"
+          },
+          "type": "array"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "new": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind",
+        "title"
+      ]
+    },
+    "RecipeSpent": {
+      "properties": {
+        "usd": {
+          "type": "number"
+        },
+        "credits": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "RecipeStep": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "inputs",
+            "place",
+            "sample",
+            "approve",
+            "code",
+            "shots",
+            "assemble",
+            "voice",
+            "claude",
+            "sound",
+            "review",
+            "pack",
+            "finish"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "who": {
+          "type": "string",
+          "enum": [
+            "metarush",
+            "claude",
+            "person"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "running",
+            "waiting",
+            "done",
+            "skipped",
+            "failed"
+          ]
+        },
+        "detail": {
+          "type": "string"
+        },
+        "estimate": {
+          "type": "number"
+        },
+        "spent": {
+          "$ref": "#/$defs/RecipeSpent"
+        },
+        "jobs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "made": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "What it made: clips, a version, a render."
+        },
+        "started": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ended": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "who",
+        "state",
+        "spent"
+      ]
+    },
+    "Recording": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "recording",
+            "adding",
+            "ready",
+            "failed",
+            "discarded"
+          ]
+        },
+        "tracks": {
+          "items": {
+            "$ref": "#/$defs/RecordingTrack"
+          },
+          "type": "array"
+        },
+        "clock": {
+          "$ref": "#/$defs/RecordingClock"
+        },
+        "pauses": {
+          "items": {
+            "$ref": "#/$defs/RecordingPause"
+          },
+          "type": "array"
+        },
+        "length": {
+          "type": "number"
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "pip",
+            "side-by-side",
+            "screen",
+            "camera"
+          ]
+        },
+        "script": {
+          "$ref": "#/$defs/RecordingScript"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/RecordingLink"
+          },
+          "type": "array"
+        },
+        "installationId": {
+          "type": "string"
+        },
+        "machineName": {
+          "type": "string"
+        },
+        "remote": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": "string"
+        },
+        "ended": {
+          "type": "string",
+          "enum": [
+            "stopped",
+            "track",
+            "kept",
+            "expired"
+          ]
+        },
+        "addingAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "addingBy": {
+          "type": "string"
+        },
+        "expiryNoticeAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lined": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastPieceAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the latest piece arrived."
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "workspaceId",
+        "name",
+        "state",
+        "tracks",
+        "length",
+        "installationId",
+        "createdAt",
+        "createdBy",
+        "updatedAt",
+        "lastPieceAt"
+      ]
+    },
+    "RecordingClock": {
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "clock"
+          ]
+        },
+        "spread": {
+          "type": "number"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "method",
+        "spread",
+        "at"
+      ]
+    },
+    "RecordingClockIn": {
+      "properties": {
+        "tracks": {
+          "items": {
+            "$ref": "#/$defs/RecordingTrackClock"
+          },
+          "type": "array",
+          "maxItems": 3
+        },
+        "pauses": {
+          "items": {
+            "$ref": "#/$defs/RecordingPause"
+          },
+          "type": "array",
+          "maxItems": 1000
+        },
+        "length": {
+          "type": "number",
+          "minimum": 0
+        },
+        "spread": {
+          "type": "number",
+          "minimum": 0
+        },
+        "ended": {
+          "type": "string",
+          "enum": [
+            "stopped",
+            "track"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "tracks",
+        "length"
+      ]
+    },
+    "RecordingCreateIn": {
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "pattern": "^prj_[0-9a-z]{26}$",
+          "description": "The project it is for (its footage goes there); without one"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "pip",
+            "side-by-side",
+            "screen",
+            "camera"
+          ],
+          "description": "How the first cut shows the screen and camera."
+        },
+        "tracks": {
+          "items": {
+            "$ref": "#/$defs/RecordingTrackIn"
+          },
+          "type": "array",
+          "maxItems": 3,
+          "minItems": 1
+        },
+        "script": {
+          "$ref": "#/$defs/RecordingScript"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "tracks"
+      ]
+    },
+    "RecordingLink": {
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "conversationId": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "projectId",
+        "conversationId",
+        "at"
+      ]
+    },
+    "RecordingPause": {
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "length": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at",
+        "length"
+      ]
+    },
+    "RecordingPieceOut": {
+      "properties": {
+        "offset": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "offset"
+      ]
+    },
+    "RecordingScript": {
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "project",
+            "pasted"
+          ]
+        },
+        "lines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 2000
+        },
+        "revisionId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "source",
+        "lines"
+      ]
+    },
+    "RecordingTrack": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "screen",
+            "camera",
+            "voice"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "surface": {
+          "type": "string",
+          "enum": [
+            "monitor",
+            "window",
+            "browser"
+          ]
+        },
+        "format": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "sound": {
+          "type": "string",
+          "enum": [
+            "own",
+            "mic",
+            "none"
+          ]
+        },
+        "rate": {
+          "type": "integer",
+          "description": "The voice's samples per second."
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "start": {
+          "type": "number"
+        },
+        "drift": {
+          "type": "number"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "receiving",
+            "adding",
+            "ready",
+            "failed"
+          ]
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "format",
+        "bytes",
+        "start",
+        "state"
+      ]
+    },
+    "RecordingTrackClock": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "screen",
+            "camera",
+            "voice"
+          ]
+        },
+        "start": {
+          "type": "number",
+          "maximum": 60,
+          "minimum": -60,
+          "description": "Where the file starts on the recording's clock (seconds)."
+        },
+        "drift": {
+          "type": "number",
+          "maximum": 5000,
+          "minimum": -5000,
+          "description": "How much faster its clock runs (parts per million)."
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "start"
+      ]
+    },
+    "RecordingTrackIn": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": [
+            "screen",
+            "camera",
+            "voice"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "surface": {
+          "type": "string",
+          "enum": [
+            "monitor",
+            "window",
+            "browser"
+          ]
+        },
+        "format": {
+          "type": "string",
+          "maxLength": 120,
+          "minLength": 1
+        },
+        "sound": {
+          "type": "string",
+          "enum": [
+            "own",
+            "mic",
+            "none"
+          ]
+        },
+        "rate": {
+          "type": "integer",
+          "maximum": 384000,
+          "minimum": 0
+        },
+        "width": {
+          "type": "integer",
+          "maximum": 16384,
+          "minimum": 0
+        },
+        "height": {
+          "type": "integer",
+          "maximum": 16384,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "format"
+      ]
+    },
+    "Ref": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "RemotionClipSource": {
+      "properties": {
+        "sourceId": {
+          "type": "string"
+        },
+        "sourceName": {
+          "type": "string"
+        },
+        "sourceTitle": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "versionNumber": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "render",
+            "existing",
+            "sound"
+          ]
+        },
+        "composition": {
+          "type": "string"
+        },
+        "props": {
+          "type": "string"
+        },
+        "frames": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "renderKey": {
+          "type": "string"
+        },
+        "words": {
+          "type": "string"
+        },
+        "wordsNumber": {
+          "type": "integer"
+        },
+        "pictures": {
+          "type": "string"
+        },
+        "picturesNumber": {
+          "type": "integer"
+        },
+        "ownPictures": {
+          "items": {
+            "$ref": "#/$defs/RemotionPictureValue"
+          },
+          "type": "array"
+        },
+        "sound": {
+          "type": "string"
+        },
+        "soundOf": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string",
+          "description": "Where the project came from, in a few words."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "sourceId",
+        "sourceName",
+        "version",
+        "versionNumber",
+        "kind"
+      ]
+    },
+    "RemotionPictureValue": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "resourceId": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string",
+          "description": "The resource's short name."
+        },
+        "title": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "ext": {
+          "type": "string",
+          "enum": [
+            "",
+            "png",
+            "jpg",
+            "webp",
+            "gif",
+            "svg"
+          ]
+        },
+        "size": {
+          "type": "integer"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "RenderRequest": {
+      "properties": {
+        "revisionId": {
+          "type": "string",
+          "pattern": "^rev_[0-9a-z]{26}$",
+          "description": "Render this existing revision."
+        },
+        "plan": {
+          "type": "string",
+          "description": "Or: render the revision created by applying this plan file (same folder)."
+        },
+        "quality": {
+          "type": "string",
+          "enum": [
+            "review",
+            "final"
+          ]
+        },
+        "preset": {
+          "type": "string",
+          "enum": [
+            "vertical-1080p",
+            "landscape-1080p",
+            "square-1080"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ResourcePin": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^res_[0-9a-z]{26}$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The exact version: the SHA-256 of its file. Updating to a newer version is an explicit change."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "sha256"
+      ]
+    },
+    "ResourceResult": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "image",
+            "svg",
+            "pdf",
+            "font"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "project",
+            "workspace"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "added",
+            "version",
+            "same"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "title",
+        "kind",
+        "scope",
+        "status",
+        "message"
+      ]
+    },
+    "Rights": {
+      "properties": {
+        "license": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "attribution": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SaidSound": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^swc_[0-9a-z]{26}$",
+          "description": "The change's record: who asked, whose voice copy and consent, and how it was checked."
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "The recording whose words changed."
+        },
+        "from": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where in the recording the new sound starts (seconds; it begins and ends with the recording's own sound)."
+        },
+        "to": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where it ends."
+        },
+        "sound": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "The new sound (a clip MetaRush made, as long as the stretch)."
+        },
+        "wordsFrom": {
+          "type": "number",
+          "minimum": 0
+        },
+        "wordsTo": {
+          "type": "number",
+          "minimum": 0
+        },
+        "words": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1,
+          "description": "What is said now."
+        },
+        "before": {
+          "type": "string",
+          "maxLength": 400,
+          "description": "What was said."
+        },
+        "who": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "picture": {
+          "type": "string",
+          "pattern": "^(ast_[0-9a-z]{26})?$",
+          "description": "The stretch with the mouth matched to the new words (a clip MetaRush made, as long as the stretch)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "assetId",
+        "from",
+        "to",
+        "sound",
+        "wordsFrom",
+        "wordsTo",
+        "words",
+        "before"
+      ]
+    },
+    "ScanResult": {
+      "properties": {
+        "added": {
+          "type": "integer",
+          "description": "New resources."
+        },
+        "versions": {
+          "type": "integer",
+          "description": "Changed files that became new versions."
+        },
+        "footage": {
+          "type": "integer",
+          "description": "Footage added as sources."
+        },
+        "missing": {
+          "type": "integer",
+          "description": "Files that went away (their resources stay, marked missing)."
+        },
+        "waiting": {
+          "type": "integer",
+          "description": "Large files kept on this machine until a cut uses them."
+        },
+        "pending": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Files still being copied in."
+        },
+        "errors": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Files this look couldn't add, each with why (they are tried again)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "added",
+        "versions",
+        "footage",
+        "missing",
+        "waiting",
+        "pending",
+        "errors"
+      ]
+    },
+    "SendToEditorIn": {
+      "properties": {
+        "revisionId": {
+          "type": "string"
+        },
+        "app": {
+          "type": "string",
+          "enum": [
+            "resolve",
+            "finalcut",
+            "premiere"
+          ]
+        },
+        "footage": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "revisionId",
+        "app",
+        "footage"
+      ]
+    },
+    "SendToEditorOut": {
+      "properties": {
+        "folder": {
+          "type": "string"
+        },
+        "export": {
+          "$ref": "#/$defs/ExportTimelineOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "folder",
+        "export"
+      ]
+    },
+    "ServerEvent": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Collection name (such as jobs or edit_revisions or notifications) or a local event type (upload or assistant or settings)."
+        },
+        "op": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "Session": {
+      "properties": {
+        "user": {
+          "$ref": "#/$defs/UserRef"
+        },
+        "installation": {
+          "$ref": "#/$defs/Ref"
+        },
+        "workspace": {
+          "$ref": "#/$defs/Ref"
+        },
+        "version": {
+          "type": "string"
+        },
+        "access": {
+          "$ref": "#/$defs/Access"
+        },
+        "avatar": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "boolean"
+        },
+        "owners": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "user",
+        "installation",
+        "workspace",
+        "version",
+        "access",
+        "owner",
+        "owners"
+      ]
+    },
+    "Shot": {
+      "properties": {
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where it starts on the conversation's clock (seconds)."
+        },
+        "member": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "One person full frame."
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "side-by-side",
+            "stacked",
+            "pip",
+            "grid"
+          ]
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 9
+        },
+        "card": {
+          "type": "string",
+          "maxLength": 240,
+          "description": "A text card (an off-camera interviewer's question)."
+        },
+        "broll": {
+          "$ref": "#/$defs/ShotBRoll"
+        },
+        "dissolve": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at"
+      ]
+    },
+    "ShotBRoll": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where in that footage it starts (seconds)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "in"
+      ]
+    },
+    "SideBySideStyle": {
+      "properties": {
+        "gap": {
+          "type": "string",
+          "enum": [
+            "",
+            "none",
+            "thin",
+            "wide"
+          ],
+          "description": "The gap between the pictures (default thin)."
+        },
+        "frame": {
+          "type": "string",
+          "enum": [
+            "",
+            "none",
+            "accent",
+            "primary",
+            "text"
+          ],
+          "description": "A line around each picture in one of the brand's colours (default none)."
+        },
+        "backdrop": {
+          "type": "string",
+          "enum": [
+            "",
+            "black",
+            "brand"
+          ],
+          "description": "What shows between the pictures: black (default) or the brand's background colour."
+        },
+        "rounded": {
+          "type": "boolean",
+          "description": "Round the pictures' corners."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SignInRequest": {
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "email",
+        "password"
+      ]
+    },
+    "SignInResult": {
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "userId",
+        "name"
+      ]
+    },
+    "SoundTransition": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "cut",
+            "lead",
+            "carry",
+            "auto"
+          ],
+          "description": "cut: the sound changes with the picture; lead: this clip's sound starts early, before we see it (J-cut); carry: the previous clip's sound carries on over this clip (L-cut); auto: MetaRush moves the sound change into the nearest pause so no word is cut."
+        },
+        "duration": {
+          "type": "number",
+          "maximum": 3,
+          "minimum": 0,
+          "description": "lead/carry: seconds. auto: the most it may move the sound (default 1)."
+        },
+        "blend": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0,
+          "description": "Seconds over which one clip's sound fades out while the other's fades in (default: the mix's cutBlend, else 0.1)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode"
+      ]
+    },
+    "Spec": {
+      "properties": {
+        "schemaVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "output": {
+          "$ref": "#/$defs/Output"
+        },
+        "clips": {
+          "items": {
+            "$ref": "#/$defs/Clip"
+          },
+          "type": "array",
+          "maxItems": 500,
+          "minItems": 1
+        },
+        "audio": {
+          "items": {
+            "$ref": "#/$defs/AudioTrack"
+          },
+          "type": "array",
+          "maxItems": 60
+        },
+        "captions": {
+          "$ref": "#/$defs/Captions"
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/Overlay"
+          },
+          "type": "array",
+          "maxItems": 100
+        },
+        "brand": {
+          "$ref": "#/$defs/Brand"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Editorial treatment summary shown to reviewers."
+        },
+        "voiceover": {
+          "$ref": "#/$defs/Voiceover"
+        },
+        "mix": {
+          "$ref": "#/$defs/Mix"
+        },
+        "resources": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ResourcePin"
+          },
+          "type": "object",
+          "description": "Short name (lowercase letters, digits, - and _) → the resource and its exact version."
+        },
+        "conversations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ConversationPin"
+          },
+          "type": "object",
+          "description": "Short name → a conversation (several recordings of one talk, aligned) and how this cut renders it."
+        },
+        "fixed": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FixedPin"
+          },
+          "type": "object",
+          "description": "Footage (asset ID) → the fixed copy this cut plays instead of the original (steadier picture, cleaned-up voices…)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "output",
+        "clips"
+      ]
+    },
+    "Status": {
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "installation": {
+          "type": "string"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "workspace": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "mediaStore": {
+          "type": "string"
+        },
+        "mediaShared": {
+          "type": "boolean"
+        },
+        "workerTypes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "workerOn": {
+          "type": "boolean"
+        },
+        "watch": {
+          "$ref": "#/$defs/WatchStatus"
+        },
+        "transcriber": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "dbOk": {
+          "type": "boolean"
+        },
+        "dbError": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "version",
+        "installation",
+        "hostname",
+        "workspace",
+        "user",
+        "mediaStore",
+        "mediaShared",
+        "workerTypes",
+        "workerOn",
+        "startedAt",
+        "dbOk"
+      ]
+    },
+    "StorageChooseOut": {
+      "properties": {
+        "canceled": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "canceled"
+      ]
+    },
+    "StorageMovePlanIn": {
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/StorageTarget"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "target"
+      ]
+    },
+    "StorageMovePlanOut": {
+      "properties": {
+        "moveId": {
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/$defs/StoragePlanOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "moveId",
+        "plan"
+      ]
+    },
+    "StorageMoveStartIn": {
+      "properties": {
+        "moveId": {
+          "type": "string"
+        },
+        "readBack": {
+          "type": "boolean",
+          "description": "Also download every file from the new storage again and check it (slower; may cost downloads)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "moveId"
+      ]
+    },
+    "StorageMoveStartOut": {
+      "properties": {
+        "started": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "started",
+        "summary"
+      ]
+    },
+    "StoragePlanOut": {
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/StorageSide"
+        },
+        "to": {
+          "$ref": "#/$defs/StorageSide"
+        },
+        "catchUp": {
+          "type": "boolean"
+        },
+        "nothing": {
+          "type": "boolean"
+        },
+        "files": {
+          "type": "integer",
+          "description": "Files in the old storage."
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "present": {
+          "type": "integer",
+          "description": "Already in the new storage (same size)."
+        },
+        "presentBytes": {
+          "type": "integer"
+        },
+        "toCopy": {
+          "type": "integer"
+        },
+        "toCopyBytes": {
+          "type": "integer"
+        },
+        "local": {
+          "type": "integer",
+          "description": "Of the files to copy, those already on this machine (not downloaded)."
+        },
+        "localBytes": {
+          "type": "integer"
+        },
+        "download": {
+          "type": "integer",
+          "description": "Bytes to download from the old storage."
+        },
+        "differ": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Keys the new storage already holds with another size (never overwritten; the move cannot finish until they are removed there)."
+        },
+        "machines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Other machines in this workspace: each switches with its own run of the move."
+        },
+        "overrides": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Environment variables that would override the new settings in config.yaml."
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "catchUp",
+        "nothing",
+        "files",
+        "bytes",
+        "present",
+        "presentBytes",
+        "toCopy",
+        "toCopyBytes",
+        "local",
+        "localBytes",
+        "download",
+        "differ",
+        "machines",
+        "overrides",
+        "notes",
+        "summary"
+      ]
+    },
+    "StorageSide": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The storage in words (Google Cloud Storage bucket media)."
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "filesystem",
+            "s3",
+            "gcs"
+          ]
+        },
+        "locator": {
+          "type": "string",
+          "description": "Where it is, without secrets (gs://bucket/prefix, s3://bucket/prefix@host, fs:/folder)."
+        },
+        "shared": {
+          "type": "boolean",
+          "description": "Every machine in the workspace can reach it."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "provider",
+        "locator",
+        "shared"
+      ]
+    },
+    "StorageTarget": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "filesystem",
+            "s3",
+            "gcs"
+          ],
+          "description": "filesystem (a folder: on this computer or a shared drive), s3 (S3-compatible online storage) or gcs (Google Cloud Storage)."
+        },
+        "root": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "filesystem: the folder that holds the media."
+        },
+        "shared": {
+          "type": "boolean",
+          "description": "filesystem: every machine of the workspace reaches the folder (a shared drive)."
+        },
+        "preset": {
+          "type": "string",
+          "enum": [
+            "",
+            "tigris",
+            "r2",
+            "b2",
+            "aws",
+            "gcs",
+            "custom"
+          ]
+        },
+        "endpoint": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "region": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "bucket": {
+          "type": "string",
+          "maxLength": 222
+        },
+        "prefix": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "accessKeyId": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "forcePathStyle": {
+          "type": "boolean"
+        },
+        "secretAccessKey": {
+          "type": "string",
+          "maxLength": 400,
+          "description": "Sent once, never returned: kept in this computer's keychain."
+        },
+        "secretVariable": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "The environment variable that holds the secret (installations that keep their secrets in the environment)."
+        },
+        "credentialsFile": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "gcs: a service-account key file on this computer (empty: this computer's Google sign-in)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "provider"
+      ]
+    },
+    "TTSVoiceSettings": {
+      "properties": {
+        "stability": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "similarityBoost": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "style": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "speed": {
+          "type": "number",
+          "maximum": 1.2,
+          "minimum": 0.7
+        },
+        "speakerBoost": {
+          "type": "boolean"
+        },
+        "outputFormat": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Provider output format (e.g. mp3_44100_128)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TakeRef": {
+      "properties": {
+        "takeId": {
+          "type": "string",
+          "pattern": "^tk_[0-9a-z]{26}$"
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0
+        },
+        "out": {
+          "type": "number",
+          "minimum": 0
+        },
+        "speed": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0.5,
+          "description": "Playback rate (pitch preserved). Fitting may speed TTS up by at most 8%."
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "scratch",
+            "tts",
+            "recorded",
+            "imported"
+          ]
+        },
+        "aiVoice": {
+          "type": "boolean",
+          "description": "Generated by a synthetic voice (TTS or a voice clone); carried into delivery sidecars."
+        },
+        "processed": {
+          "$ref": "#/$defs/ProcessedRef"
+        },
+        "useProcessed": {
+          "type": "boolean",
+          "description": "Play the processed (cleanup) version instead of the original (A/B)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "in",
+        "out"
+      ]
+    },
+    "TechnicalEvidence": {
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "proxy",
+            "original"
+          ]
+        },
+        "scenes": {
+          "items": {
+            "$ref": "#/$defs/EvidenceScene"
+          },
+          "type": "array"
+        },
+        "silences": {
+          "items": {
+            "$ref": "#/$defs/EvidenceSpan"
+          },
+          "type": "array"
+        },
+        "black": {
+          "items": {
+            "$ref": "#/$defs/EvidenceSpan"
+          },
+          "type": "array"
+        },
+        "freezes": {
+          "items": {
+            "$ref": "#/$defs/EvidenceSpan"
+          },
+          "type": "array"
+        },
+        "loudness": {
+          "$ref": "#/$defs/TechnicalLoudness"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "visualChanges": {
+          "items": {
+            "$ref": "#/$defs/VisualChange"
+          },
+          "type": "array"
+        },
+        "activity": {
+          "$ref": "#/$defs/Activity"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "version",
+        "source",
+        "scenes",
+        "silences",
+        "black",
+        "freezes",
+        "loudness",
+        "notes"
+      ]
+    },
+    "TechnicalLoudness": {
+      "properties": {
+        "integratedLufs": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rangeLu": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "truePeakDbfs": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "measured": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "integratedLufs",
+        "rangeLu",
+        "truePeakDbfs",
+        "measured"
+      ]
+    },
+    "TodoItem": {
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed"
+          ]
+        },
+        "activeForm": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "content",
+        "status"
+      ]
+    },
+    "TokenUsage": {
+      "properties": {
+        "input": {
+          "type": "integer",
+          "description": "New input tokens (not from the prompt cache)."
+        },
+        "cacheWrite": {
+          "type": "integer",
+          "description": "Tokens written to the prompt cache."
+        },
+        "cacheRead": {
+          "type": "integer",
+          "description": "Tokens read from the prompt cache: every step reads the conversation again."
+        },
+        "output": {
+          "type": "integer",
+          "description": "Tokens Claude wrote, its thinking included."
+        },
+        "total": {
+          "type": "integer",
+          "description": "All of them: what the conversation's limit counts."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "cacheWrite",
+        "cacheRead",
+        "output",
+        "total"
+      ]
+    },
+    "ToolCall": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string",
+          "description": "Readable one-line description (e.g. Read transcript · Interview A 0:11–0:18)."
+        },
+        "group": {
+          "type": "string",
+          "description": "Consecutive steps with the same group show as one line."
+        },
+        "many": {
+          "type": "string",
+          "description": "The line for several steps of this group (%d is how many)."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Condensed input: the command or file or skill."
+        },
+        "isError": {
+          "type": "boolean"
+        },
+        "denied": {
+          "type": "boolean",
+          "description": "The read-only allowlist refused this call."
+        },
+        "input": {
+          "type": "string",
+          "description": "Raw tool input as JSON"
+        },
+        "output": {
+          "type": "string",
+          "description": "Start of the tool's raw output (tool_result; raw view only)."
+        },
+        "outcome": {
+          "type": "string",
+          "description": "Short outcome in plain words (e.g. looks good, 2 notes)."
+        },
+        "images": {
+          "items": {
+            "$ref": "#/$defs/ImageRef"
+          },
+          "type": "array",
+          "description": "Images Claude looked at (served by GET /api/assistant/image)."
+        },
+        "todos": {
+          "items": {
+            "$ref": "#/$defs/TodoItem"
+          },
+          "type": "array",
+          "description": "The checklist when Claude used TodoWrite."
+        },
+        "proposal": {
+          "type": "string",
+          "description": "The proposal file this call wrote (t\u003cturn\u003e/\u003cname\u003e)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id"
+      ]
+    },
+    "Transition": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "cut",
+            "fade",
+            "crossfade",
+            "dip-to-black",
+            "dip-to-white",
+            "wipe",
+            "slide",
+            "push",
+            "zoom",
+            "whip"
+          ],
+          "description": "cut; fade (in from the background); crossfade (dissolve); dip-to-black / dip-to-white (fade through black or white); wipe, slide, push, zoom, whip (see metarush edit transitions)."
+        },
+        "duration": {
+          "type": "number",
+          "maximum": 5,
+          "minimum": 0
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right",
+            "up",
+            "down"
+          ],
+          "description": "wipe/slide/push/whip: the way the picture moves (left = the next shot comes in from the right). Default left."
+        },
+        "easing": {
+          "type": "string",
+          "enum": [
+            "ease-in-out",
+            "linear",
+            "ease-in",
+            "ease-out"
+          ],
+          "description": "How the movement or blend is paced (default ease-in-out)."
+        },
+        "audio": {
+          "$ref": "#/$defs/SoundTransition"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "Turn": {
+      "properties": {
+        "n": {
+          "type": "integer"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "What the person typed."
+        },
+        "sent": {
+          "type": "string",
+          "description": "The exact message sent to Claude Code: context preamble plus the prompt (raw view only)."
+        },
+        "context": {
+          "$ref": "#/$defs/TurnContext"
+        },
+        "user": {
+          "type": "string",
+          "description": "Who sent it (their name)."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Who sent it: the person who typed it or answered, or for a note the person whose decision it reports (absent on older messages: the person who started the conversation)."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "running",
+            "succeeded",
+            "failed",
+            "interrupted",
+            "stopped",
+            "timed_out",
+            "budget",
+            "lost"
+          ]
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "costUsd": {
+          "type": "number"
+        },
+        "durationMs": {
+          "type": "integer"
+        },
+        "steps": {
+          "type": "integer",
+          "description": "Claude Code's agentic steps in this turn."
+        },
+        "denials": {
+          "type": "integer",
+          "description": "Tool calls the read-only allowlist refused."
+        },
+        "error": {
+          "type": "string"
+        },
+        "proposals": {
+          "type": "integer"
+        },
+        "contextTokens": {
+          "type": "integer"
+        },
+        "tokens": {
+          "$ref": "#/$defs/TokenUsage",
+          "description": "What this message used."
+        },
+        "resumed": {
+          "type": "boolean",
+          "description": "Claude Code was restarted with --resume for this turn."
+        },
+        "compact": {
+          "type": "boolean",
+          "description": "MetaRush had Claude summarize the conversation, not something the person typed."
+        },
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": "string"
+        },
+        "note": {
+          "type": "boolean",
+          "description": "A dashboard update (an action's outcome) rather than something the person typed."
+        },
+        "shown": {
+          "type": "string",
+          "description": "What the person reads for this message (a note's plain line, an answer); the prompt is what Claude was sent."
+        },
+        "answerTo": {
+          "type": "string"
+        },
+        "attachments": {
+          "items": {
+            "$ref": "#/$defs/KeepFile"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "n",
+        "prompt",
+        "context",
+        "state",
+        "startedAt",
+        "costUsd",
+        "durationMs",
+        "steps",
+        "denials",
+        "proposals"
+      ]
+    },
+    "TurnContext": {
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "projectName": {
+          "type": "string"
+        },
+        "headRevisionId": {
+          "type": "string"
+        },
+        "headRevisionNumber": {
+          "type": "integer"
+        },
+        "revisionId": {
+          "type": "string"
+        },
+        "revisionNumber": {
+          "type": "integer"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "assetName": {
+          "type": "string"
+        },
+        "clipId": {
+          "type": "string"
+        },
+        "time": {
+          "type": "number"
+        },
+        "timeBase": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TurnResult": {
+      "properties": {
+        "subtype": {
+          "type": "string",
+          "description": "Claude Code result subtype (success or error_max_budget_usd or error_max_turns or error_during_execution)."
+        },
+        "isError": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        },
+        "costUsd": {
+          "type": "number",
+          "description": "Spent in this turn."
+        },
+        "totalCostUsd": {
+          "type": "number",
+          "description": "Spent in the conversation so far."
+        },
+        "durationMs": {
+          "type": "integer"
+        },
+        "steps": {
+          "type": "integer"
+        },
+        "denials": {
+          "type": "integer"
+        },
+        "contextTokens": {
+          "type": "integer"
+        },
+        "contextWindow": {
+          "type": "integer"
+        },
+        "tokens": {
+          "$ref": "#/$defs/TokenUsage"
+        },
+        "totalTokens": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "subtype",
+        "isError",
+        "costUsd",
+        "totalCostUsd",
+        "durationMs",
+        "steps",
+        "denials"
+      ]
+    },
+    "UploadCreateIn": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "size"
+      ]
+    },
+    "UploadList": {
+      "properties": {
+        "uploads": {
+          "items": {
+            "$ref": "#/$defs/UploadRecord"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "uploads"
+      ]
+    },
+    "UploadRecord": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Bytes the server has received."
+        },
+        "fingerprint": {
+          "type": "string",
+          "description": "fp1 fingerprint the browser computed (first + last MiB); used to resume a re-dropped file."
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "receiving",
+            "ingesting",
+            "done",
+            "failed",
+            "canceled"
+          ]
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "sending",
+            "checking",
+            "fingerprinting",
+            "storing",
+            "done"
+          ]
+        },
+        "stageDone": {
+          "type": "integer"
+        },
+        "stageTotal": {
+          "type": "integer"
+        },
+        "rate": {
+          "type": "number",
+          "description": "Bytes per second in the current stage (server-measured)."
+        },
+        "stageStartedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastProgressAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When bytes last moved (received or processed)."
+        },
+        "result": {
+          "$ref": "#/$defs/IngestResult"
+        },
+        "error": {
+          "type": "string"
+        },
+        "dismissed": {
+          "type": "boolean"
+        },
+        "disconnected": {
+          "type": "boolean",
+          "description": "The last chunk was cut off before it finished; cleared when sending resumes."
+        },
+        "notified": {
+          "type": "boolean",
+          "description": "An upload-interrupted notification was written."
+        },
+        "via": {
+          "type": "string",
+          "enum": [
+            "dashboard",
+            "extension"
+          ]
+        },
+        "owner": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/AssetSource"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "size",
+        "offset",
+        "state",
+        "stage",
+        "stageDone",
+        "stageTotal",
+        "stageStartedAt",
+        "lastProgressAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserRef": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "email"
+      ]
+    },
+    "VisualChange": {
+      "properties": {
+        "at": {
+          "type": "number",
+          "description": "When the change is clearest (source seconds)."
+        },
+        "from": {
+          "type": "number",
+          "description": "Where it starts (a cut: the same as at)."
+        },
+        "to": {
+          "type": "number",
+          "description": "Where it ends (a cut: the same as at)."
+        },
+        "score": {
+          "type": "number",
+          "description": "How big the change is"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "cut",
+            "gradual",
+            "motion"
+          ]
+        },
+        "frames": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at",
+        "from",
+        "to",
+        "score",
+        "kind",
+        "frames"
+      ]
+    },
+    "VoiceRef": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "local",
+            "elevenlabs"
+          ]
+        },
+        "voiceId": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "modelId": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "settings": {
+          "$ref": "#/$defs/TTSVoiceSettings"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "provider"
+      ]
+    },
+    "VoiceSound": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "The person as the speaker data names them (Maya, Speaker 2)."
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "Instead of a person: a whole recording (one person's own track)."
+        },
+        "gainDb": {
+          "type": "number",
+          "maximum": 12,
+          "minimum": -30,
+          "description": "Level change over their speech in dB (0 = as recorded)."
+        },
+        "enhance": {
+          "$ref": "#/$defs/Enhance"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Voiceover": {
+      "properties": {
+        "beats": {
+          "items": {
+            "$ref": "#/$defs/Beat"
+          },
+          "type": "array",
+          "maxItems": 300
+        },
+        "settings": {
+          "$ref": "#/$defs/VoiceoverSettings"
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "beats",
+            "continuous"
+          ]
+        },
+        "continuous": {
+          "$ref": "#/$defs/ContinuousVO"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "original": {
+          "type": "string",
+          "maxLength": 200000,
+          "description": "The script exactly as the person pasted or imported it (never changed afterwards; a new whole script replaces it)."
+        },
+        "fitted": {
+          "$ref": "#/$defs/FittedScript"
+        },
+        "active": {
+          "type": "string",
+          "enum": [
+            "original",
+            "fitted"
+          ],
+          "description": "Which version of the script the lines are (original by default)."
+        },
+        "parked": {
+          "items": {
+            "$ref": "#/$defs/Beat"
+          },
+          "type": "array",
+          "maxItems": 300,
+          "description": "The lines of the script version not in use (not part of the cut)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "beats"
+      ]
+    },
+    "VoiceoverSettings": {
+      "properties": {
+        "speakingRateWpm": {
+          "type": "number",
+          "maximum": 320,
+          "minimum": 60,
+          "description": "Words per minute for fit checks of beats without audio (default 155; a recording sets the measured rate)."
+        },
+        "rateSource": {
+          "type": "string",
+          "enum": [
+            "default",
+            "measured",
+            "user"
+          ]
+        },
+        "fitPolicy": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "ask",
+            "shorten"
+          ],
+          "description": "auto: recorded or imported audio extends the shot and TTS speeds up at most 8%; ask: warn and wait; shorten: rewrite the line. Warnings are always shown."
+        },
+        "gap": {
+          "type": "number",
+          "maximum": 5,
+          "minimum": 0,
+          "description": "Default pause (s) before a beat anchored after the previous one (default 0.3)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "WaitingCount": {
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "userId",
+        "userName",
+        "count"
+      ]
+    },
+    "WatchStatus": {
+      "properties": {
+        "dir": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "missing": {
+          "type": "boolean"
+        },
+        "pending": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Files waiting to stop changing before they are ingested."
+        },
+        "ingesting": {
+          "type": "string",
+          "description": "The file being ingested right now."
+        },
+        "lastScan": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastIngest": {
+          "type": "string"
+        },
+        "lastIngestAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastIngestName": {
+          "type": "string"
+        },
+        "lastIngestTitle": {
+          "type": "string"
+        },
+        "lastIngestAsset": {
+          "type": "string"
+        },
+        "lastIngestStatus": {
+          "type": "string"
+        },
+        "errors": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ingested": {
+          "type": "integer",
+          "description": "Files ingested since the watcher started."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "dir",
+        "enabled",
+        "pending",
+        "lastScan",
+        "errors",
+        "ingested"
+      ]
+    },
+    "WordOp": {
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string",
+          "enum": [
+            "same",
+            "del",
+            "add"
+          ],
+          "description": "same: in both; del: only in the person's line; add: only in Claude's."
+        },
+        "was": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "text",
+        "op"
+      ]
+    }
+  },
+  "properties": {
+    "error": {
+      "$ref": "#/$defs/ApiErrorBody"
+    },
+    "status": {
+      "$ref": "#/$defs/Status"
+    },
+    "session": {
+      "$ref": "#/$defs/Session"
+    },
+    "authState": {
+      "$ref": "#/$defs/AuthState"
+    },
+    "signInRequest": {
+      "$ref": "#/$defs/SignInRequest"
+    },
+    "signInResult": {
+      "$ref": "#/$defs/SignInResult"
+    },
+    "linkInfo": {
+      "$ref": "#/$defs/LinkInfo"
+    },
+    "linkAccept": {
+      "$ref": "#/$defs/LinkAccept"
+    },
+    "opInfo": {
+      "$ref": "#/$defs/OpInfo"
+    },
+    "upload": {
+      "$ref": "#/$defs/UploadRecord"
+    },
+    "uploadList": {
+      "$ref": "#/$defs/UploadList"
+    },
+    "uploadCreateIn": {
+      "$ref": "#/$defs/UploadCreateIn"
+    },
+    "serverEvent": {
+      "$ref": "#/$defs/ServerEvent"
+    },
+    "eventsHello": {
+      "$ref": "#/$defs/EventsHello"
+    },
+    "peaks": {
+      "$ref": "#/$defs/Peaks"
+    },
+    "technicalEvidence": {
+      "$ref": "#/$defs/TechnicalEvidence"
+    },
+    "assistantStatus": {
+      "$ref": "#/$defs/AssistantStatus"
+    },
+    "assistantEvent": {
+      "$ref": "#/$defs/AssistantEvent"
+    },
+    "assistantPartial": {
+      "$ref": "#/$defs/AssistantPartial"
+    },
+    "assistantConversation": {
+      "$ref": "#/$defs/Conversation"
+    },
+    "renderRequest": {
+      "$ref": "#/$defs/RenderRequest"
+    },
+    "extPairIn": {
+      "$ref": "#/$defs/ExtPairIn"
+    },
+    "extPairOut": {
+      "$ref": "#/$defs/ExtPairOut"
+    },
+    "extHelloOut": {
+      "$ref": "#/$defs/ExtHelloOut"
+    },
+    "extUploadIn": {
+      "$ref": "#/$defs/ExtUploadIn"
+    },
+    "extUploadOut": {
+      "$ref": "#/$defs/ExtUploadOut"
+    },
+    "extImportIn": {
+      "$ref": "#/$defs/ExtImportIn"
+    },
+    "extImportOut": {
+      "$ref": "#/$defs/ExtImportOut"
+    },
+    "extPageIn": {
+      "$ref": "#/$defs/ExtPageIn"
+    },
+    "extPageOut": {
+      "$ref": "#/$defs/ExtPageOut"
+    },
+    "sendToEditorIn": {
+      "$ref": "#/$defs/SendToEditorIn"
+    },
+    "sendToEditorOut": {
+      "$ref": "#/$defs/SendToEditorOut"
+    },
+    "exportRevealIn": {
+      "$ref": "#/$defs/ExportRevealIn"
+    },
+    "folderChooseIn": {
+      "$ref": "#/$defs/FolderChooseIn"
+    },
+    "folderChooseOut": {
+      "$ref": "#/$defs/FolderChooseOut"
+    },
+    "storageMovePlanIn": {
+      "$ref": "#/$defs/StorageMovePlanIn"
+    },
+    "storageMovePlanOut": {
+      "$ref": "#/$defs/StorageMovePlanOut"
+    },
+    "storageMoveStartIn": {
+      "$ref": "#/$defs/StorageMoveStartIn"
+    },
+    "storageMoveStartOut": {
+      "$ref": "#/$defs/StorageMoveStartOut"
+    },
+    "storageChooseOut": {
+      "$ref": "#/$defs/StorageChooseOut"
+    },
+    "recordingCreateIn": {
+      "$ref": "#/$defs/RecordingCreateIn"
+    },
+    "recordingClockIn": {
+      "$ref": "#/$defs/RecordingClockIn"
+    },
+    "recordingPieceOut": {
+      "$ref": "#/$defs/RecordingPieceOut"
+    },
+    "recording": {
+      "$ref": "#/$defs/Recording"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "error",
+    "status",
+    "session",
+    "authState",
+    "signInRequest",
+    "signInResult",
+    "linkInfo",
+    "linkAccept",
+    "opInfo",
+    "upload",
+    "uploadList",
+    "uploadCreateIn",
+    "serverEvent",
+    "eventsHello",
+    "peaks",
+    "technicalEvidence",
+    "assistantStatus",
+    "assistantEvent",
+    "assistantPartial",
+    "assistantConversation",
+    "renderRequest",
+    "extPairIn",
+    "extPairOut",
+    "extHelloOut",
+    "extUploadIn",
+    "extUploadOut",
+    "extImportIn",
+    "extImportOut",
+    "extPageIn",
+    "extPageOut",
+    "sendToEditorIn",
+    "sendToEditorOut",
+    "exportRevealIn",
+    "folderChooseIn",
+    "folderChooseOut",
+    "storageMovePlanIn",
+    "storageMovePlanOut",
+    "storageMoveStartIn",
+    "storageMoveStartOut",
+    "storageChooseOut",
+    "recordingCreateIn",
+    "recordingClockIn",
+    "recordingPieceOut",
+    "recording"
+  ],
+  "title": "ApiContract",
+  "description": "HTTP payloads of the local dashboard server outside /api/ops (generated from internal/api ContractTypes)."
+}

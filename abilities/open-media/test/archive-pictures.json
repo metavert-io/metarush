@@ -1,0 +1,10 @@
+{
+  "responseHeader": {"status": 0, "QTime": 12},
+  "response": {
+    "numFound": 2, "start": 0,
+    "docs": [
+      {"identifier": "example-lighthouse-postcards", "title": "Lighthouse postcards", "creator": ["Example Printing Co."], "licenseurl": "http://creativecommons.org/publicdomain/mark/1.0/", "mediatype": "image"},
+      {"identifier": "example-nc-photos", "title": "Lighthouse photos", "creator": "A. Photographer", "licenseurl": "https://creativecommons.org/licenses/by-nc/4.0/", "mediatype": "image"}
+    ]
+  }
+}

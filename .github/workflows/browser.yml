@@ -1,0 +1,110 @@
+name: browser
+# The browser runs (scripts/*-e2e.sh) that work on Linux, one job each, side by side (D194,
+# docs/testing.md): nightly, on version tags and by hand — not on every push (each builds the
+# dashboard and the binary and drives Chromium for minutes). They run as coverage builds (COVERAGE=1,
+# D195) and send what they reach in Go to Codecov (flag go-e2e). A failed run's home, logs and
+# screenshots are kept as an artifact.
+#
+# Mac-only (not here): every run that needs tests/fixtures/gen (made with macOS `say`: cards, generate,
+# library, people, sound, sources, storage, transcript, voiceover, voiceover-live, and acceptance)
+# and remote (its spoofing check sends from fe80::1%lo0; lo0 is macOS's loopback). docs/testing.md lists why.
+on:
+  schedule:
+    - cron: "23 4 * * *" # nightly, 04:23 UTC
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      suites:
+        description: "Which runs (space separated, e.g. about playback); empty: every one listed below"
+        required: false
+        default: ""
+jobs:
+  browser:
+    name: browser (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      id-token: write # Codecov through GitHub's OIDC: no token secret
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [about, accounts, components, content, keep, playback, presenters, recipes, recorder, remotion, review-desk]
+    steps:
+      - name: chosen?
+        id: chosen
+        env:
+          SUITES: ${{ inputs.suites }}
+          SUITE: ${{ matrix.suite }}
+        run: |
+          if [ -z "$SUITES" ] || [[ " $SUITES " == *" $SUITE "* ]]; then echo "run=1" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.chosen.outputs.run
+      - uses: actions/setup-go@v5
+        if: steps.chosen.outputs.run
+        with: { go-version: "1.27" }
+      - uses: actions/setup-node@v4
+        if: steps.chosen.outputs.run
+        with: { node-version: 22 }
+      - name: ffmpeg, and where the run keeps its files
+        if: steps.chosen.outputs.run
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          mkdir -p "$RUNNER_TEMP/e2e" "$RUNNER_TEMP/e2e-runs"
+          echo "TMPDIR=$RUNNER_TEMP/e2e/" >> "$GITHUB_ENV"
+          echo "METARUSH_E2E_RUNS=$RUNNER_TEMP/e2e-runs" >> "$GITHUB_ENV"
+          echo "COVERAGE=1" >> "$GITHUB_ENV"
+      - name: MongoDB as a one-member replica set (the dashboard's live updates need one)
+        if: steps.chosen.outputs.run
+        run: |
+          docker run -d --name mongo -p 27018:27017 mongo:8.0 --replSet rs0 --bind_ip_all
+          for _ in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.runCommand({ping:1}).ok' 2>/dev/null | grep -q 1 && break; sleep 1; done
+          docker exec mongo mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+          for _ in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -q true && break; sleep 1; done
+      - name: packages and Chromium
+        if: steps.chosen.outputs.run
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: scripts/${{ matrix.suite }}-e2e.sh
+        if: steps.chosen.outputs.run
+        run: scripts/${{ matrix.suite }}-e2e.sh
+      - name: coverage (Go, from every program the run started)
+        if: always() && steps.chosen.outputs.run
+        run: scripts/coverage.sh --no-check || true
+      - name: coverage to Codecov (Go)
+        if: always() && steps.chosen.outputs.run && hashFiles('.coverage/go-e2e.cov') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: .coverage/go-e2e.cov
+          flags: go-e2e
+          name: browser-${{ matrix.suite }}-go
+          disable_search: true
+          fail_ci_if_error: false
+      - name: coverage to Codecov (the dashboard's pages)
+        if: always() && steps.chosen.outputs.run && hashFiles('.coverage/web-e2e.lcov') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: .coverage/web-e2e.lcov
+          flags: web-e2e
+          name: browser-${{ matrix.suite }}-web
+          disable_search: true
+          fail_ci_if_error: false
+      - name: what a failed run left (homes, logs, screenshots)
+        if: failure() && steps.chosen.outputs.run
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-${{ matrix.suite }}
+          path: |
+            ${{ runner.temp }}/e2e
+            ${{ runner.temp }}/e2e-runs
+            .agent-home
+            tests/out
+            !**/renderer/**
+            !**/node_modules/**
+            !**/components/**
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,34 @@
+{
+  "page": 1,
+  "per_page": 2,
+  "total_results": 2,
+  "url": "https://www.pexels.com/search/videos/ocean%20waves/",
+  "videos": [
+    {
+      "id": 1001,
+      "width": 3840,
+      "height": 2160,
+      "duration": 12,
+      "url": "https://www.pexels.com/video/waves-at-dusk-1001/",
+      "image": "https://images.pexels.com/videos/1001/free-video-1001.jpg",
+      "user": {"id": 501, "name": "Rowan Example", "url": "https://www.pexels.com/@rowan-example"},
+      "video_files": [
+        {"id": 11, "quality": "uhd", "file_type": "video/mp4", "width": 3840, "height": 2160, "fps": 25, "link": "https://videos.pexels.com/video-files/1001/1001-uhd_3840_2160_25fps.mp4"},
+        {"id": 12, "quality": "hd", "file_type": "video/mp4", "width": 1920, "height": 1080, "fps": 25, "link": "https://videos.pexels.com/video-files/1001/1001-hd_1920_1080_25fps.mp4"},
+        {"id": 13, "quality": "sd", "file_type": "video/mp4", "width": 960, "height": 540, "fps": 25, "link": "https://videos.pexels.com/video-files/1001/1001-sd_960_540_25fps.mp4"}
+      ]
+    },
+    {
+      "id": 1002,
+      "width": 1080,
+      "height": 1920,
+      "duration": 8,
+      "url": "https://www.pexels.com/video/a-wave-breaking-1002/",
+      "image": "https://images.pexels.com/videos/1002/free-video-1002.jpg",
+      "user": {"id": 502, "name": "Sam Placeholder", "url": "https://www.pexels.com/@sam-placeholder"},
+      "video_files": [
+        {"id": 21, "quality": "hd", "file_type": "video/mp4", "width": 1080, "height": 1920, "fps": 30, "link": "https://videos.pexels.com/video-files/1002/1002-hd_1080_1920_30fps.mp4"}
+      ]
+    }
+  ]
+}

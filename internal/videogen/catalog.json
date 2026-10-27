@@ -1,0 +1,200 @@
+{
+  "_comment": "Generative-video models and dated price tables (D123). Data, not code: add a model, retire one (retiredOn) or add a newer price table (a later 'effective' date wins from that day on) here. Prices are US dollars per million tokens; videoTokensPerSecond is what one second of output costs in tokens at each resolution. Checked against the provider's pricing page on 'checked'. A provider priced by the second (Veo on Vertex AI, D282) gives perSecondUsd by resolution instead of tokens; secondsAllowed lists the only lengths a model makes; region is where a cloud project's models run.",
+  "providers": [
+    {
+      "name": "gemini",
+      "title": "Google Gemini",
+      "keyHost": "generativelanguage.googleapis.com",
+      "spendLimitsPer10Minutes": [10, 50, 200],
+      "defaults": {
+        "model": "gemini-omni-1.1-flash",
+        "seconds": 6,
+        "aspectRatio": "16:9",
+        "draftResolution": "720p",
+        "finalResolution": "1080p",
+        "projectBudgetUsd": 10,
+        "dailyCapUsd": 10
+      },
+      "models": [
+        {
+          "id": "gemini-omni-1.1-flash",
+          "title": "Gemini Omni 1.1 Flash",
+          "stage": "ga",
+          "since": "2026-09-23",
+          "retiredOn": "",
+          "tasks": ["text_to_video", "image_to_video", "reference_to_video", "interpolate", "edit", "extend"],
+          "minSeconds": 3,
+          "maxSeconds": 10,
+          "extendTotalSeconds": 40,
+          "inputVideoMaxSeconds": 10,
+          "resolutions": ["360p", "720p", "1080p", "4k"],
+          "upscaled": ["1080p", "4k"],
+          "aspectRatios": ["16:9", "9:16"],
+          "fps": 24,
+          "audio": "always",
+          "maxImageRefs": 10,
+          "maxVideoRefs": 3,
+          "videoRefMaxSeconds": 3,
+          "seed": false,
+          "negativePrompt": false,
+          "watermark": "SynthID",
+          "inlineMaxBytes": 4000000
+        }
+      ],
+      "prices": [
+        {
+          "model": "gemini-omni-1.1-flash",
+          "effective": "2026-10-19",
+          "checked": "2026-10-20",
+          "source": "ai.google.dev/gemini-api/docs/pricing",
+          "videoOutputPerMillion": 17.50,
+          "textOutputPerMillion": 9.00,
+          "inputPerMillion": 1.50,
+          "videoTokensPerSecond": {"360p": 1931, "720p": 5792, "1080p": 8688, "4k": 17376},
+          "imageInputTokens": 1120,
+          "videoInputTokensPerSecond": 300,
+          "promptCharsPerToken": 4,
+          "thinkingTokensAllowance": 3000
+        }
+      ]
+    },
+    {
+      "name": "vertex",
+      "title": "Google Cloud Vertex AI",
+      "keyHost": "us-central1-aiplatform.googleapis.com",
+      "region": "us-central1",
+      "data": "Google Cloud doesn't use what you send or what Veo makes to train its models without your permission; it may cache them in memory for up to 24 hours and log prompts to look for abuse. MetaRush names no Cloud Storage bucket, so the video comes back in the answer and nothing is left in your project. Data stays in us-central1, where Veo runs (Google Cloud's data governance page, read 25 Oct 2026).",
+      "defaults": {
+        "model": "veo-3.1-fast-generate-001",
+        "seconds": 8,
+        "aspectRatio": "16:9",
+        "draftResolution": "720p",
+        "finalResolution": "1080p",
+        "projectBudgetUsd": 10,
+        "dailyCapUsd": 10
+      },
+      "models": [
+        {
+          "id": "veo-3.1-generate-001",
+          "title": "Veo 3.1",
+          "stage": "ga",
+          "since": "2025-11-17",
+          "retiredOn": "",
+          "tasks": [
+            "text_to_video",
+            "image_to_video",
+            "interpolate",
+            "reference_to_video"
+          ],
+          "minSeconds": 4,
+          "maxSeconds": 8,
+          "secondsAllowed": [
+            4,
+            6,
+            8
+          ],
+          "extendTotalSeconds": 0,
+          "inputVideoMaxSeconds": 0,
+          "resolutions": [
+            "720p",
+            "1080p",
+            "4k"
+          ],
+          "aspectRatios": [
+            "16:9",
+            "9:16"
+          ],
+          "fps": 24,
+          "audio": "always",
+          "maxImageRefs": 3,
+          "maxVideoRefs": 0,
+          "videoRefMaxSeconds": 0,
+          "seed": true,
+          "negativePrompt": true,
+          "watermark": "SynthID",
+          "inlineMaxBytes": 20000000
+        },
+        {
+          "id": "veo-3.1-fast-generate-001",
+          "title": "Veo 3.1 Fast",
+          "stage": "ga",
+          "since": "2025-11-17",
+          "retiredOn": "",
+          "tasks": [
+            "text_to_video",
+            "image_to_video",
+            "interpolate",
+            "reference_to_video"
+          ],
+          "minSeconds": 4,
+          "maxSeconds": 8,
+          "secondsAllowed": [
+            4,
+            6,
+            8
+          ],
+          "extendTotalSeconds": 0,
+          "inputVideoMaxSeconds": 0,
+          "resolutions": [
+            "720p",
+            "1080p"
+          ],
+          "aspectRatios": [
+            "16:9",
+            "9:16"
+          ],
+          "fps": 24,
+          "audio": "always",
+          "maxImageRefs": 3,
+          "maxVideoRefs": 0,
+          "videoRefMaxSeconds": 0,
+          "seed": true,
+          "negativePrompt": true,
+          "watermark": "SynthID",
+          "inlineMaxBytes": 20000000
+        }
+      ],
+      "prices": [
+        {
+          "model": "veo-3.1-generate-001",
+          "effective": "2026-10-25",
+          "checked": "2026-10-25",
+          "source": "https://cloud.google.com/vertex-ai/generative-ai/pricing",
+          "videoOutputPerMillion": 0,
+          "textOutputPerMillion": 0,
+          "inputPerMillion": 0,
+          "videoTokensPerSecond": {},
+          "imageInputTokens": 0,
+          "videoInputTokensPerSecond": 0,
+          "promptCharsPerToken": 4,
+          "thinkingTokensAllowance": 0,
+          "perSecondUsd": {
+            "720p": 0.4,
+            "1080p": 0.4,
+            "4k": 0.6
+          },
+          "note": "Google Cloud's price page writes the unit as \"1 count\"; Veo is billed by the second of video made, which is how MetaRush reads it. With sound, as MetaRush always asks for (without sound it is half or less)."
+        },
+        {
+          "model": "veo-3.1-fast-generate-001",
+          "effective": "2026-10-25",
+          "checked": "2026-10-25",
+          "source": "https://cloud.google.com/vertex-ai/generative-ai/pricing",
+          "videoOutputPerMillion": 0,
+          "textOutputPerMillion": 0,
+          "inputPerMillion": 0,
+          "videoTokensPerSecond": {},
+          "imageInputTokens": 0,
+          "videoInputTokensPerSecond": 0,
+          "promptCharsPerToken": 4,
+          "thinkingTokensAllowance": 0,
+          "perSecondUsd": {
+            "720p": 0.1,
+            "1080p": 0.12
+          },
+          "note": "Google Cloud's price page writes the unit as \"1 count\"; Veo is billed by the second of video made, which is how MetaRush reads it. With sound, as MetaRush always asks for (without sound it is half or less)."
+        }
+      ]
+    }
+  ]
+}

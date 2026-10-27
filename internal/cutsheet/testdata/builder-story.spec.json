@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "title": "What would you build?",
+  "output": {"preset": "vertical-1080p", "fps": 30, "platform": "reels"},
+  "clips": [
+    {"id": "hook", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0", "in": 0.4, "out": 4.2, "framing": {"mode": "fill", "focusX": 0.42, "focusY": 0.38},
+     "transitionIn": {"type": "fade", "duration": 0.5},
+     "rationale": "Opens on the confession; the doubt is the hook.",
+     "evidence": [{"kind": "transcript", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0", "from": 0.5, "to": 4.1, "quote": "When I started building my first robot I had no idea."},
+                  {"kind": "frame", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0", "from": 2.0, "note": "Face is left of center; focus kept on her."}],
+     "notes": "The director likes the breath before 'I had no idea'. Keep it."},
+    {"id": "garage", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz1", "in": 1.0, "out": 3.25, "muted": true, "speed": 1.25, "label": "The garage",
+     "transitionIn": {"type": "crossfade", "duration": 0.4},
+     "rationale": "B-roll of the workbench while she talks."},
+    {"id": "twice", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0", "in": 9.9, "out": 13.25, "volume": 1.1,
+     "transitionIn": {"type": "cut"},
+     "rationale": "The repetition lands the point.",
+     "evidence": [{"kind": "transcript", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0", "from": 10, "to": 13.1, "quote": "So we built it twice, so we built it very quickly."}]},
+    {"id": "question", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0", "in": 15.8, "out": 19.5, "fadeOut": 1.2, "locked": true,
+     "transitionIn": {"type": "dip-to-black", "duration": 0.8},
+     "rationale": "End on the thesis line.",
+     "notes": "Locked: the client approved this ending.\n\nDo not trim the last word."}
+  ],
+  "audio": [
+    {"id": "bed", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz2", "role": "music", "in": 0, "out": 18, "at": 0, "gainDb": -16, "fadeIn": 1, "fadeOut": 2.5,
+     "duckUnderDialogue": true, "rights": {"license": "CC BY 4.0", "attribution": "A composer", "source": "a music library"},
+     "rationale": "Warm pad under the talk; ducks for speech."}
+  ],
+  "captions": {"enabled": true, "style": "emphasis", "position": "lower", "maxWordsPerLine": 4, "emphasis": ["twice", "nobody"]},
+  "overlays": [
+    {"id": "who", "template": "lower-third.clean", "at": 0.8, "duration": 3.2, "params": {"name": "Ada", "title": "Builder and teacher", "align": "left"},
+     "rationale": "Introduce her early, away from the captions."},
+    {"id": "quote", "template": "quote.kinetic", "at": 14, "duration": 4, "params": {"text": "What would you build if nobody was watching?", "emphasis": ["nobody"], "motion": "restrained"},
+     "evidence": [{"kind": "transcript", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0", "from": 16, "to": 19, "quote": "What would you build if nobody was watching?"}],
+     "notes": "Maybe too much with captions on; ask."}
+  ],
+  "brand": {"accent": "#E0A458", "font": "Fraunces"},
+  "notes": "An intimate 20-second story: doubt, two tries, the question.\nVertical for Reels; captions in the lower band."
+}

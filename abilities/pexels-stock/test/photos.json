@@ -1,0 +1,34 @@
+{
+  "page": 1,
+  "per_page": 2,
+  "total_results": 2,
+  "photos": [
+    {
+      "id": 2001,
+      "width": 6000,
+      "height": 4000,
+      "url": "https://www.pexels.com/photo/waves-on-a-beach-2001/",
+      "photographer": "Rowan Example",
+      "photographer_url": "https://www.pexels.com/@rowan-example",
+      "alt": "Waves on a beach at sunset",
+      "src": {
+        "original": "https://images.pexels.com/photos/2001/pexels-photo-2001.jpeg",
+        "large2x": "https://images.pexels.com/photos/2001/pexels-photo-2001.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "large": "https://images.pexels.com/photos/2001/pexels-photo-2001.jpeg?auto=compress&cs=tinysrgb&h=650&w=940"
+      }
+    },
+    {
+      "id": 2002,
+      "width": 4000,
+      "height": 6000,
+      "url": "https://www.pexels.com/photo/a-lighthouse-2002/",
+      "photographer": "Sam Placeholder",
+      "photographer_url": "https://www.pexels.com/@sam-placeholder",
+      "alt": "",
+      "src": {
+        "original": "https://images.pexels.com/photos/2002/pexels-photo-2002.jpeg",
+        "large2x": "https://images.pexels.com/photos/2002/pexels-photo-2002.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+      }
+    }
+  ]
+}

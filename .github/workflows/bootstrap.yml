@@ -1,0 +1,21 @@
+name: bootstrap
+# ./bootstrap.sh --dry-run on macOS (D194). It was a job of ci.yml and often ended "cancelled": it
+# waited 15 minutes for a macOS runner that never came (no step ran; Oct 20 and 22, while the
+# account's Actions spending limit held macOS jobs back) — nothing to do with the other jobs. On its
+# own it runs only when the bootstrap changes, weekly, and by hand, so macOS minutes (ten times a
+# Linux minute) go where they tell something.
+on:
+  push:
+    paths: [bootstrap.sh, start.sh, scripts/dev-mongo.sh, .github/workflows/bootstrap.yml]
+  pull_request:
+    paths: [bootstrap.sh, start.sh, scripts/dev-mongo.sh, .github/workflows/bootstrap.yml]
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC
+  workflow_dispatch:
+jobs:
+  bootstrap:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./bootstrap.sh --dry-run

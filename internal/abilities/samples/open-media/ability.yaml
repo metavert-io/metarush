@@ -1,0 +1,15 @@
+ability: 1
+name: open-media
+title: Openly licensed media
+does: Finds public-domain and openly licensed pictures, sound and video, and brings them in with the credit each needs.
+runs: python3 run.py
+inputs:
+  words: {kind: words, max: 100, says: What to look for}
+outputs: [picture, sound, footage]
+cost: free
+hosts: [api.commons.example, files.commons.example]
+sends: [words]
+needs: {programs: [python3]}
+licence: MIT
+search: [public domain, creative commons, archive, credit]
+test: {inputs: {words: moon}}

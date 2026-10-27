@@ -1,0 +1,17 @@
+ability: 1
+name: stock-music
+title: Stock music
+does: Finds a licensed music track by mood and length and brings it in, paid per track.
+runs: python3 run.py
+inputs:
+  mood: {kind: words, max: 100, says: The mood}
+  seconds: {kind: number, min: 5, max: 600, default: 60}
+outputs: [sound]
+cost: {service: Example Music, usd: 1.5, per: track, as-of: 2026-10-01}
+keys: [{name: stock-music, env: MUSIC_KEY, hosts: [api.music.example]}]
+hosts: [api.music.example]
+sends: [words]
+needs: {programs: [python3]}
+licence: MIT
+search: [music, soundtrack, licensed, mood]
+test: {inputs: {mood: calm}}

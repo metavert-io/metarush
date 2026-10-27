@@ -1,0 +1,15 @@
+{
+  "name": "metarush",
+  "owner": {
+    "name": "Metavert LLC"
+  },
+  "description": "MetaRush for Claude Code: the AI video studio that plays by your rules.",
+  "plugins": [
+    {
+      "name": "metarush",
+      "source": "./plugins/claude-code",
+      "description": "Edit video by talking to Claude Code, in your style and with your sign-off: import footage, find the best moments, cut, caption, fix the sound, add graphics, check the finished file and deliver it. Needs the metarush program installed (metarush setup).",
+      "category": "media"
+    }
+  ]
+}

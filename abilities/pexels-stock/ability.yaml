@@ -1,0 +1,22 @@
+ability: 1
+name: pexels-stock
+title: Stock videos and photos from Pexels
+does: Finds free stock videos or photos on Pexels that match a few words and brings them in, each with its licence and the photographer's credit.
+runs: python3 fetch.py
+inputs:
+  words: {kind: words, max: 100, says: What the footage or photo shows}
+  kind: {kind: choice, options: [videos, photos], default: videos, says: Videos or photos}
+  count: {kind: number, min: 1, max: 6, default: 3, says: How many to bring in}
+  orientation: {kind: choice, options: [any, landscape, portrait, square], default: any, says: Which way up}
+outputs: [footage, picture]
+cost: free
+keys: [{name: pexels, env: PEXELS_API_KEY, hosts: [api.pexels.com]}]
+hosts: [api.pexels.com, images.pexels.com, videos.pexels.com]
+sends: [words]
+changes-outside: no
+likeness: no
+needs: {programs: [python3], os: [mac, linux]}
+licence: MIT
+search: [stock, footage, b-roll, video, photo, picture, free, pexels]
+limits: {minutes: 10, mb: 2000}
+test: {inputs: {words: ocean waves}}

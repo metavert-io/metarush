@@ -1,0 +1,182 @@
+name: ci
+# Every push and pull request (D194, docs/testing.md): static checks, the Go tests split across four
+# jobs side by side (scripts/ci-go-packages.sh), the dashboard and Remotion package checks, and
+# coverage sent to Codecov (D195; never fails CI). The browser runs are in browser.yml (nightly, tags,
+# by hand); the macOS bootstrap check is in bootstrap.yml.
+on: [push, pull_request]
+concurrency:
+  # A newer push to the same pull request replaces the run in progress; pushes to main all run.
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: no likely secrets in tracked files
+        run: scripts/secret-scan.sh
+
+  go-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.27" }
+      - name: gofmt
+        run: |
+          out="$(gofmt -l cmd internal scripts tests tools ./*.go)"
+          [ -z "$out" ] || { echo "not gofmt-formatted:"; echo "$out"; exit 1; }
+      - run: go vet ./...
+      - name: builds for macOS too
+        run: GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./...
+      - name: the CI groups cover every package once
+        run: scripts/ci-go-packages.sh --all
+      - name: shell scripts parse
+        run: for f in scripts/*.sh scripts/lib/*.sh bootstrap.sh start.sh; do bash -n "$f"; done
+      - name: the browser runs' shared library (scripts/lib/e2e.sh)
+        run: scripts/lib/e2e-test.sh
+      - name: the fixture scripts pick the same voices on every macOS (scripts/lib/voices.sh)
+        run: scripts/lib/voices-test.sh
+
+  go:
+    name: go (${{ matrix.group }})
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Codecov through GitHub's OIDC: no token secret
+      contents: read
+    strategy:
+      fail-fast: false # every group reports, whichever fails
+      matrix:
+        group: [assistant, ops, heavy, rest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.27" }
+      # bubblewrap: the abilities' sandbox on Linux (D232). Ubuntu's AppArmor blocks the user
+      # namespaces it needs unless the limit is lifted (docs/abilities.md, Linux).
+      - run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      # Like the dev database (scripts/dev-mongo.sh): the dashboard's live updates are
+      # change streams, which a standalone server doesn't have.
+      - name: MongoDB as a one-member replica set
+        run: |
+          docker run -d --name mongo -p 27018:27017 mongo:8.0 --replSet rs0 --bind_ip_all
+          for _ in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.runCommand({ping:1}).ok' 2>/dev/null | grep -q 1 && break; sleep 1; done
+          docker exec mongo mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+          for _ in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -q true && break; sleep 1; done
+      - name: test (with coverage)
+        env:
+          METARUSH_TEST_MONGODB_URI: mongodb://127.0.0.1:27018/?directConnection=true
+          METARUSH_REQUIRE_MONGO: "1"
+        # 45 minutes: under load internal/ops has come close to 30 on a Mac (Oct 2026).
+        run: |
+          go test -timeout 45m -coverpkg=./internal/... -coverprofile=go-unit.raw.cov $(scripts/ci-go-packages.sh ${{ matrix.group }})
+      - name: coverage profile (each block once)
+        if: always()
+        run: |
+          [ -s go-unit.raw.cov ] || exit 0
+          go run ./scripts/covreport merge -o go-unit.cov go-unit.raw.cov
+          go run ./scripts/covreport table go-unit.cov | tail -1
+      - name: coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: go-unit.cov
+          flags: go-unit
+          name: go-${{ matrix.group }}
+          disable_search: true
+          fail_ci_if_error: false
+
+  sandbox-linux:
+    # The abilities' sandbox on Linux (D232, docs/abilities.md): bubblewrap as the runner has it
+    # (what MetaRush says where it can't run), then MetaRush's AppArmor profile (does it suffice?),
+    # then with the limit lifted, where every sandbox test must run (METARUSH_TEST_SANDBOX=require).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.27" }
+      - run: sudo apt-get update && sudo apt-get install -y bubblewrap
+      - name: as the runner is
+        run: |
+          uname -a; cat /etc/os-release | head -2; bwrap --version
+          for f in kernel/apparmor_restrict_unprivileged_userns kernel/unprivileged_userns_clone user/max_user_namespaces; do
+            echo "$f = $(cat /proc/sys/$f 2>/dev/null || echo -)"
+          done
+          bwrap --unshare-all --ro-bind / / -- /bin/true && echo "bubblewrap runs" || echo "bubblewrap can't run"
+          go test -count=1 -v -run 'TestIsolationHere|TestNamespaceLimits|TestBwrapArgs' ./internal/sandbox/
+      - name: with MetaRush's AppArmor profile for bubblewrap (a finding, never fails)
+        run: |
+          if [ -d /etc/apparmor.d ] && command -v apparmor_parser >/dev/null; then
+            sudo cp internal/sandbox/bwrap.apparmor /etc/apparmor.d/bwrap
+            sudo apparmor_parser -r /etc/apparmor.d/bwrap || echo "the profile didn't load"
+          fi
+          bwrap --unshare-all --ro-bind / / -- /bin/true && echo "bubblewrap runs with the profile" || echo "bubblewrap still can't run"
+      - name: with the limit lifted, every sandbox test
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --unshare-all --ro-bind / / -- /bin/true
+          METARUSH_TEST_SANDBOX=require go test -count=1 -v ./internal/sandbox/
+
+  go-live:
+    # Real buckets: only when the secrets are there (never on forks or their pull requests).
+    runs-on: ubuntu-latest
+    env:
+      HAS_LIVE_BUCKET: ${{ secrets.METARUSH_TEST_S3_BUCKET != '' && secrets.METARUSH_TEST_S3_SECRET_ACCESS_KEY != '' }}
+      HAS_LIVE_GCS: ${{ secrets.METARUSH_TEST_GCS_BUCKET != '' && secrets.METARUSH_TEST_GCS_CREDENTIALS_JSON != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.HAS_LIVE_BUCKET == 'true' || env.HAS_LIVE_GCS == 'true'
+      - uses: actions/setup-go@v5
+        if: env.HAS_LIVE_BUCKET == 'true' || env.HAS_LIVE_GCS == 'true'
+        with: { go-version: "1.27" }
+      - name: live bucket test (real S3-compatible bucket; key limited to ci-test/)
+        if: env.HAS_LIVE_BUCKET == 'true'
+        env:
+          METARUSH_TEST_S3_BUCKET: ${{ secrets.METARUSH_TEST_S3_BUCKET }}
+          METARUSH_TEST_S3_ENDPOINT: ${{ secrets.METARUSH_TEST_S3_ENDPOINT }}
+          METARUSH_TEST_S3_REGION: ${{ secrets.METARUSH_TEST_S3_REGION }}
+          METARUSH_TEST_S3_ACCESS_KEY_ID: ${{ secrets.METARUSH_TEST_S3_ACCESS_KEY_ID }}
+          METARUSH_TEST_S3_SECRET_ACCESS_KEY: ${{ secrets.METARUSH_TEST_S3_SECRET_ACCESS_KEY }}
+        run: go test -count=1 -run TestS3Live -v ./internal/media/
+      - name: live GCS bucket test (real Google Cloud Storage; account limited to ci-test/)
+        if: env.HAS_LIVE_GCS == 'true'
+        env:
+          METARUSH_TEST_GCS_BUCKET: ${{ secrets.METARUSH_TEST_GCS_BUCKET }}
+          METARUSH_TEST_GCS_PREFIX: ci-test
+          GCS_KEY_JSON: ${{ secrets.METARUSH_TEST_GCS_CREDENTIALS_JSON }}
+        run: |
+          umask 077
+          key="$RUNNER_TEMP/metarush-gcs-key.json"
+          trap 'rm -f "$key"' EXIT
+          printf '%s' "$GCS_KEY_JSON" > "$key"
+          METARUSH_TEST_GCS_CREDENTIALS="$key" go test -count=1 -run TestGCSLive -v ./internal/media/
+
+  js:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npm run typecheck
+      - name: the dashboard's unit tests (with coverage)
+        run: npm run test:coverage -w web
+      - run: npm run test:motion -w video
+      - run: node --test extension/test/detect.test.cjs extension/test/page.test.cjs extension/test/address.test.cjs
+      - run: npm run build -w web
+      - name: coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: web/coverage/lcov.info
+          flags: web
+          name: web-unit
+          disable_search: true
+          fail_ci_if_error: false

@@ -1,0 +1,51 @@
+{
+  "batchcomplete": true,
+  "query": {
+    "pages": [
+      {
+        "pageid": 9001, "ns": 6, "title": "File:Lighthouse at dawn, example coast.jpg", "index": 1,
+        "imageinfo": [{
+          "size": 5242880, "width": 4000, "height": 3000, "mime": "image/jpeg",
+          "url": "https://upload.wikimedia.org/wikipedia/commons/a/a1/Lighthouse_at_dawn%2C_example_coast.jpg",
+          "thumburl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Lighthouse_at_dawn%2C_example_coast.jpg/1920px-Lighthouse_at_dawn%2C_example_coast.jpg",
+          "thumbwidth": 1920, "thumbheight": 1440,
+          "descriptionurl": "https://commons.wikimedia.org/wiki/File:Lighthouse_at_dawn,_example_coast.jpg",
+          "extmetadata": {
+            "LicenseShortName": {"value": "CC BY-SA 4.0", "source": "commons-desc-page"},
+            "License": {"value": "cc-by-sa-4.0", "source": "commons-templates"},
+            "LicenseUrl": {"value": "https://creativecommons.org/licenses/by-sa/4.0", "source": "commons-desc-page"},
+            "Artist": {"value": "<a href=\"//commons.wikimedia.org/wiki/User:Example_Walker\" title=\"User:Example Walker\">Example Walker</a>", "source": "commons-desc-page"},
+            "AttributionRequired": {"value": "true", "source": "commons-desc-page"},
+            "Restrictions": {"value": "", "source": "commons-desc-page"}
+          }
+        }]
+      },
+      {
+        "pageid": 9002, "ns": 6, "title": "File:Old lighthouse plan.png", "index": 2,
+        "imageinfo": [{
+          "size": 204800, "width": 1200, "height": 900, "mime": "image/png",
+          "url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Old_lighthouse_plan.png",
+          "descriptionurl": "https://commons.wikimedia.org/wiki/File:Old_lighthouse_plan.png",
+          "extmetadata": {
+            "LicenseShortName": {"value": "Public domain", "source": "commons-desc-page"},
+            "License": {"value": "pd", "source": "commons-templates"},
+            "Artist": {"value": "<span>Unknown author</span>", "source": "commons-desc-page"},
+            "AttributionRequired": {"value": "false", "source": "commons-desc-page"}
+          }
+        }]
+      },
+      {
+        "pageid": 9003, "ns": 6, "title": "File:Lighthouse logo.svg", "index": 3,
+        "imageinfo": [{
+          "size": 10240, "width": 512, "height": 512, "mime": "image/svg+xml",
+          "url": "https://upload.wikimedia.org/wikipedia/commons/c/c3/Lighthouse_logo.svg",
+          "descriptionurl": "https://commons.wikimedia.org/wiki/File:Lighthouse_logo.svg",
+          "extmetadata": {
+            "LicenseShortName": {"value": "Fair use", "source": "commons-desc-page"},
+            "Artist": {"value": "A company", "source": "commons-desc-page"}
+          }
+        }]
+      }
+    ]
+  }
+}

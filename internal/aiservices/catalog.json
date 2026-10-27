@@ -1,0 +1,508 @@
+{
+  "_comment": "AI services' providers, models and dated prices (D225). Data, not code: add a model, retire one (retiredOn), add a newer price table (a later 'effective' day wins from that day on) or change a licence or data term here, with the day it was checked. Each model belongs to one kind of work. 'rank' is MetaRush's own order of how good a model's results are within its kind (higher is better, from the providers' own descriptions); it is shown with every estimate's alternatives, never a hidden score. Prices are US dollars per 'unit' (picture, second, minute, hour, song, thousand-characters, request), 'byOption' by a picture's size; Google's prices add what is sent, in tokens. A provider whose 'route' is 'local' runs its models on this computer: no key, no money, nothing leaves it (D278). A provider whose 'route' is 'gateway' would serve other providers' models (its models naming it in 'via'); none is built (D224). A model reachable only through a gateway names it in 'onlyVia' (D282): it is listed with its terms, never offered, chosen or sent. Generated video's models stay in internal/videogen/catalog.json.",
+  "defaults": {
+    "picture": "gemini/gemini-nano-banana-2.1",
+    "voice": "gemini/gemini-3.8-flash-tts",
+    "voice-copy": "elevenlabs/instant",
+    "voice-change": "elevenlabs/eleven_multilingual_sts_v2",
+    "sound-effect": "elevenlabs/eleven_text_to_sound_v2",
+    "music": "elevenlabs/music_v2",
+    "dubbing": "elevenlabs/dubbing_v1",
+    "transcription": "elevenlabs/scribe_v2",
+    "presenter": "d-id/express",
+    "presenter-make": "d-id/express",
+    "background-removal": "local/apple-vision",
+    "upscale": "local/real-esrgan-x4v3",
+    "lip-sync": "sync/lipsync-2"
+  },
+  "providers": [
+    {
+      "name": "gemini",
+      "title": "Google Gemini",
+      "key": "gemini",
+      "keyHost": "generativelanguage.googleapis.com",
+      "route": "direct",
+      "data": {
+        "summary": "On a Google project with billing turned on, Google doesn't use what you send or what it makes to improve its products, and keeps them only for a limited time to look for misuse. On the free tier Google may use them to improve its products, and people at Google may read them. MetaRush asks Google not to keep its requests and deletes the files it uploads right after use.",
+        "training": "Not on a project with billing turned on; on the free tier Google may use what you send to improve its products.",
+        "retention": "Logged for a limited time to look for misuse. Requests MetaRush sends aren't kept (store: false); files it uploads are deleted after use (Google deletes them after two days anyway). Voice copies are kept for a year after their last use, until MetaRush deletes them.",
+        "region": "Any country where Google or its agents have facilities.",
+        "source": "https://ai.google.dev/gemini-api/terms",
+        "checked": "2026-10-25"
+      },
+      "consentScripts": {
+        "en-US": "I am the owner of this voice and I consent to Google using this voice to create a synthetic voice model."
+      },
+      "models": [
+        {
+          "id": "gemini-nano-banana-2.1", "title": "Nano Banana 2.1", "kind": "picture", "tasks": ["generate", "edit"], "stage": "ga", "since": "2026-10-06", "retiredOn": "", "rank": 3,
+          "limits": {"sizes": ["1K", "2K", "4K"], "aspectRatios": ["1:1", "3:2", "2:3", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"], "maxInputs": 14, "maxPromptChars": 8000},
+          "watermark": "SynthID", "freeTier": false,
+          "licence": {"summary": "Google's terms say it doesn't claim ownership of what it makes for you and that you're responsible for how you use it; they say nothing more about commercial use. Every picture carries Google's invisible SynthID watermark.", "commercial": "unstated", "broadcast": "unstated", "source": "https://ai.google.dev/gemini-api/terms", "checked": "2026-10-25"},
+          "docs": "https://ai.google.dev/gemini-api/docs/image-generation", "checked": "2026-10-25",
+          "notes": ["The docs list the shapes only for Nano Banana 2 Lite; MetaRush offers the same shapes here.", "Sizes are written with a capital K (1K, 2K, 4K).", "Google's picture page counts a 4K picture as 2,520 tokens and its price page as 3,780; MetaRush uses the price page's $0.113."]
+        },
+        {
+          "id": "gemini-3-pro-image", "title": "Nano Banana Pro", "kind": "picture", "tasks": ["generate", "edit"], "stage": "ga", "since": "", "retiredOn": "", "rank": 5,
+          "limits": {"sizes": ["1K", "2K", "4K"], "aspectRatios": ["1:1", "3:2", "2:3", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"], "maxInputs": 14, "maxPromptChars": 8000},
+          "watermark": "SynthID", "freeTier": false,
+          "licence": {"summary": "Google's terms say it doesn't claim ownership of what it makes for you and that you're responsible for how you use it; they say nothing more about commercial use. Every picture carries Google's invisible SynthID watermark.", "commercial": "unstated", "broadcast": "unstated", "source": "https://ai.google.dev/gemini-api/terms", "checked": "2026-10-25"},
+          "docs": "https://ai.google.dev/gemini-api/docs/image-generation", "checked": "2026-10-25"
+        },
+        {
+          "id": "lyria-3.5", "title": "Lyria 3.5", "kind": "music", "tasks": ["generate"], "stage": "ga", "since": "2026-09-03", "retiredOn": "", "rank": 4,
+          "limits": {"minSeconds": 10, "maxSeconds": 180, "maxInputs": 10, "maxPromptChars": 4000},
+          "watermark": "SynthID", "freeTier": false,
+          "licence": {"summary": "Google's music page doesn't say whether music made with Lyria may be used commercially; its terms say Google doesn't claim ownership of what it makes for you. Every song carries an inaudible SynthID watermark. Prompts naming real artists or asking for copyrighted lyrics are blocked.", "commercial": "unstated", "broadcast": "unstated", "source": "https://ai.google.dev/gemini-api/docs/music-generation", "checked": "2026-10-25"},
+          "docs": "https://ai.google.dev/gemini-api/docs/music-generation", "checked": "2026-10-25",
+          "notes": ["Lyria takes a song's length and whether it has singing from the prompt; MetaRush says them there.", "A whole song is priced the same whatever its length."]
+        },
+        {
+          "id": "gemini-3.8-flash-tts", "title": "Gemini 3.8 Flash TTS", "kind": "voice", "tasks": ["speak"], "stage": "ga", "since": "2026-09-22", "retiredOn": "", "rank": 4,
+          "limits": {"maxChars": 5000, "voices": ["Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat"]},
+          "freeTier": true,
+          "licence": {"summary": "Google's terms say it doesn't claim ownership of what it makes for you and that you're responsible for how you use it.", "commercial": "unstated", "broadcast": "unstated", "source": "https://ai.google.dev/gemini-api/terms", "checked": "2026-10-25"},
+          "docs": "https://ai.google.dev/gemini-api/docs/speech-generation", "checked": "2026-10-25",
+          "notes": ["Google states no longest text per request; MetaRush sends up to 5,000 characters at a time.", "The price doubles on 1 Jan 2027."]
+        },
+        {
+          "id": "gemini-3.8-flash-lite-tts", "title": "Gemini 3.8 Flash-Lite TTS", "kind": "voice", "tasks": ["speak"], "stage": "ga", "since": "2026-09-22", "retiredOn": "", "rank": 3,
+          "limits": {"maxChars": 5000, "voices": ["Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat"]},
+          "freeTier": true,
+          "licence": {"summary": "Google's terms say it doesn't claim ownership of what it makes for you and that you're responsible for how you use it.", "commercial": "unstated", "broadcast": "unstated", "source": "https://ai.google.dev/gemini-api/terms", "checked": "2026-10-25"},
+          "docs": "https://ai.google.dev/gemini-api/docs/speech-generation", "checked": "2026-10-25",
+          "notes": ["The price doubles on 1 Jan 2027."]
+        },
+        {
+          "id": "gemini-3.8-flash-tts", "title": "Gemini voice replication", "kind": "voice-copy", "tasks": ["copy"], "stage": "ga", "since": "2026-09-24", "retiredOn": "", "rank": 4,
+          "limits": {"sampleMinSeconds": 10, "sampleMaxSeconds": 30, "maxInputs": 2},
+          "freeTier": true,
+          "licence": {"summary": "The copy speaks only through Google's voices for this project; Google needs the speaker's own recorded consent, read from its script.", "commercial": "unstated", "broadcast": "unstated", "source": "https://ai.google.dev/gemini-api/docs/voice-replication", "checked": "2026-10-25"},
+          "docs": "https://ai.google.dev/gemini-api/docs/voice-replication", "checked": "2026-10-25",
+          "notes": ["A 10 to 30 second sample of clean speech and the same adult reading Google's consent script, ideally with the same microphone in the same room.", "Google's page names no price for making a copy; speech made with it is priced like Gemini 3.8 Flash TTS.", "A copy is kept for a year after its last use, 200 to a project.", "Google's guide and its API reference disagree on whether a voice is stored by default; MetaRush always says store true, so speech can use the copy by its ID."]
+        },
+        {
+          "id": "gemini-3.5-transcribe", "title": "Gemini 3.5 Transcribe", "kind": "transcription", "tasks": ["transcribe"], "stage": "ga", "since": "2026-08-26", "retiredOn": "", "rank": 4,
+          "limits": {"maxSeconds": 1800, "maxSpeakers": 8},
+          "freeTier": true,
+          "licence": {"summary": "The transcript is your recording's words.", "commercial": "yes", "broadcast": "yes", "source": "https://ai.google.dev/gemini-api/terms", "checked": "2026-10-25"},
+          "docs": "https://ai.google.dev/gemini-api/docs/generate-content/transcribe", "checked": "2026-10-25",
+          "notes": ["Up to an hour a request, 30 minutes with word times (MetaRush needs them).", "Word times can't be combined with a word list, so MetaRush's spelling lists correct the words afterwards instead."]
+        }
+      ],
+      "prices": [
+        {"model": "gemini-nano-banana-2.1", "kind": "picture", "effective": "2026-10-06", "checked": "2026-10-25", "source": "https://ai.google.dev/gemini-api/docs/pricing", "unit": "picture", "usd": 0.0336, "byOption": {"1K": 0.0336, "2K": 0.0504, "4K": 0.113}, "inputPerMillion": 1.50, "inputPictureTokens": 1120, "charsPerToken": 4},
+        {"model": "gemini-3-pro-image", "kind": "picture", "effective": "2026-10-22", "checked": "2026-10-25", "source": "https://ai.google.dev/gemini-api/docs/pricing", "unit": "picture", "usd": 0.134, "byOption": {"1K": 0.134, "2K": 0.134, "4K": 0.24}, "inputPerMillion": 2.00, "inputPictureTokens": 1120, "charsPerToken": 4},
+        {"model": "lyria-3.5", "kind": "music", "effective": "2026-09-03", "checked": "2026-10-25", "source": "https://ai.google.dev/gemini-api/docs/pricing", "unit": "song", "usd": 0.08},
+        {"model": "gemini-3.8-flash-tts", "kind": "voice", "effective": "2026-09-22", "checked": "2026-10-25", "source": "https://ai.google.dev/gemini-api/docs/pricing", "unit": "second", "usd": 0.000225, "inputPerMillion": 0.50, "charsPerToken": 4, "charsPerSecond": 14},
+        {"model": "gemini-3.8-flash-tts", "kind": "voice", "effective": "2027-01-01", "checked": "2026-10-25", "source": "https://ai.google.dev/gemini-api/docs/pricing", "unit": "second", "usd": 0.00045, "inputPerMillion": 1.00, "charsPerToken": 4, "charsPerSecond": 14},
+        {"model": "gemini-3.8-flash-lite-tts", "kind": "voice", "effective": "2026-09-22", "checked": "2026-10-25", "source": "https://ai.google.dev/gemini-api/docs/pricing", "unit": "second", "usd": 0.00015, "inputPerMillion": 0.50, "charsPerToken": 4, "charsPerSecond": 14},
+        {"model": "gemini-3.8-flash-lite-tts", "kind": "voice", "effective": "2027-01-01", "checked": "2026-10-25", "source": "https://ai.google.dev/gemini-api/docs/pricing", "unit": "second", "usd": 0.0003, "inputPerMillion": 1.00, "charsPerToken": 4, "charsPerSecond": 14},
+        {"model": "gemini-3.8-flash-tts", "kind": "voice-copy", "effective": "2026-09-24", "checked": "2026-10-25", "source": "https://ai.google.dev/gemini-api/docs/voice-replication", "unit": "request", "usd": 0, "note": "Google's pages name no price for making a voice copy."},
+        {"model": "gemini-3.5-transcribe", "kind": "transcription", "effective": "2026-08-26", "checked": "2026-10-25", "source": "https://ai.google.dev/gemini-api/docs/pricing", "unit": "minute", "usd": 0.005, "note": "About $0.003 a minute for the sound heard and $0.002 for the words written."}
+      ]
+    },
+    {
+      "name": "elevenlabs",
+      "title": "ElevenLabs",
+      "key": "elevenlabs",
+      "keyHost": "api.elevenlabs.io",
+      "route": "direct",
+      "data": {
+        "summary": "ElevenLabs keeps what you send and what it makes under its privacy policy, to run and improve its services; keeping nothing is offered only to its Enterprise customers. MetaRush deletes dubbing projects, transcripts and the history it can find at ElevenLabs right after downloading; sound effects and music can't be deleted through its API. ElevenLabs' logs may still keep some of it, and backups keep deleted data up to 30 days.",
+        "training": "ElevenLabs' docs don't say whether it trains its own models on what you send through its API.",
+        "retention": "Kept under ElevenLabs' privacy policy until deleted; deleted data stays in its backups up to 30 days.",
+        "region": "ElevenLabs' servers for the region chosen with the narration voice (US, EU, India or Singapore), else its default servers.",
+        "source": "https://elevenlabs.io/docs/developers/resources/zero-retention-mode",
+        "checked": "2026-10-25"
+      },
+      "models": [
+        {
+          "id": "eleven_text_to_sound_v2", "title": "Eleven Sound Effects v2", "kind": "sound-effect", "tasks": ["generate"], "stage": "ga", "since": "", "retiredOn": "", "rank": 4,
+          "limits": {"minSeconds": 0.5, "maxSeconds": 30, "maxPromptChars": 1000},
+          "licence": {"summary": "ElevenLabs' paid plans (from Starter up) come with a commercial licence; its free plan doesn't.", "commercial": "plan", "broadcast": "plan", "source": "https://elevenlabs.io/pricing", "checked": "2026-10-25"},
+          "docs": "https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert", "checked": "2026-10-25",
+          "notes": ["ElevenLabs' price list says $0.12 a minute and its questions page says sound effects are billed per generation; MetaRush prices them by the minute.", "The API takes eleven_text_to_sound_v3 too, but ElevenLabs' list of models doesn't name it, so MetaRush doesn't offer it yet.", "ElevenLabs offers no way to delete a sound effect through its API."]
+        },
+        {
+          "id": "music_v2", "title": "Eleven Music v2", "kind": "music", "tasks": ["generate"], "stage": "ga", "since": "", "retiredOn": "", "rank": 4,
+          "limits": {"minSeconds": 3, "maxSeconds": 300, "maxPromptChars": 4000},
+          "licence": {"summary": "On ElevenLabs' Starter, Creator and Pro plans only individuals may use it (Scale: companies under 10 people; Business: under 50). Online and offline commercial use is allowed except film, TV, radio and studio games, which only the Enterprise Music plan covers; Starter can't put it on streaming services, and no plan may build a music library from it. You keep the rights to what you make.", "commercial": "plan", "broadcast": "plan",
+            "plans": [
+              {"plans": "Free", "terms": "Individuals only; nothing to download, no streaming, attribution needed; no API."},
+              {"plans": "Starter", "terms": "Individuals only; commercial use except film, TV, radio and studio games; not on streaming services."},
+              {"plans": "Creator, Pro", "terms": "Individuals only; commercial use except film, TV, radio and studio games."},
+              {"plans": "Scale", "terms": "Companies under 10 people; commercial use except film, TV, radio and studio games."},
+              {"plans": "Business", "terms": "Companies under 50 people; commercial use except film, TV, radio and studio games."},
+              {"plans": "Enterprise Music", "terms": "Film, TV, radio and studio games too."}
+            ],
+            "source": "https://elevenlabs.io/music-terms", "checked": "2026-10-25"},
+          "docs": "https://elevenlabs.io/docs/api-reference/music/compose", "checked": "2026-10-25",
+          "notes": ["ElevenLabs' price list says at most 5 minutes a song; its API reference allows 10. MetaRush asks for at most 5.", "ElevenLabs offers no way to delete music through its API."]
+        },
+        {
+          "id": "music_v2_5", "title": "Eleven Music v2.5", "kind": "music", "tasks": ["generate"], "stage": "ga", "since": "", "retiredOn": "", "rank": 5,
+          "limits": {"minSeconds": 3, "maxSeconds": 300, "maxPromptChars": 4000},
+          "licence": {"summary": "On ElevenLabs' Starter, Creator and Pro plans only individuals may use it (Scale: companies under 10 people; Business: under 50). Online and offline commercial use is allowed except film, TV, radio and studio games, which only the Enterprise Music plan covers; Starter can't put it on streaming services, and no plan may build a music library from it. You keep the rights to what you make.", "commercial": "plan", "broadcast": "plan",
+            "plans": [
+              {"plans": "Free", "terms": "Individuals only; nothing to download, no streaming, attribution needed; no API."},
+              {"plans": "Starter", "terms": "Individuals only; commercial use except film, TV, radio and studio games; not on streaming services."},
+              {"plans": "Creator, Pro", "terms": "Individuals only; commercial use except film, TV, radio and studio games."},
+              {"plans": "Scale", "terms": "Companies under 10 people; commercial use except film, TV, radio and studio games."},
+              {"plans": "Business", "terms": "Companies under 50 people; commercial use except film, TV, radio and studio games."},
+              {"plans": "Enterprise Music", "terms": "Film, TV, radio and studio games too."}
+            ],
+            "source": "https://elevenlabs.io/music-terms", "checked": "2026-10-25"},
+          "docs": "https://elevenlabs.io/docs/api-reference/music/compose", "checked": "2026-10-25"
+        },
+        {
+          "id": "dubbing_v1", "title": "ElevenLabs Dubbing v1", "kind": "dubbing", "tasks": ["dub"], "stage": "ga", "since": "", "retiredOn": "", "rank": 3,
+          "limits": {"minSeconds": 1, "maxSeconds": 10800, "maxSpeakers": 32, "maxInputBytes": 3000000000},
+          "licence": {"summary": "ElevenLabs' paid plans (from Starter up) come with a commercial licence; its free plan doesn't, and free dubs are watermarked.", "commercial": "plan", "broadcast": "plan", "source": "https://elevenlabs.io/pricing", "checked": "2026-10-25"},
+          "docs": "https://elevenlabs.io/docs/api-reference/dubbing/create", "checked": "2026-10-25",
+          "notes": ["MetaRush asks for no watermark ($0.50 a minute; $0.33 with one).", "Without the speakers' consent MetaRush asks for similar voices from ElevenLabs' library instead of copies of theirs.", "ElevenLabs states no longest dub through its API; MetaRush sends up to 3 hours (3 GB).", "ElevenLabs now lists this API (/v1/dubbing) as legacy; its newer dubbing projects (Dubbing v2, $2.20 a minute) aren't offered yet."]
+        },
+        {
+          "id": "eleven_multilingual_sts_v2", "title": "Eleven Multilingual v2 voice changer", "kind": "voice-change", "tasks": ["change"], "stage": "ga", "since": "", "retiredOn": "", "rank": 4,
+          "limits": {"minSeconds": 0.5, "maxSeconds": 300},
+          "licence": {"summary": "ElevenLabs' paid plans (from Starter up) come with a commercial licence; its free plan doesn't.", "commercial": "plan", "broadcast": "plan", "source": "https://elevenlabs.io/pricing", "checked": "2026-10-25"},
+          "docs": "https://elevenlabs.io/docs/api-reference/speech-to-speech/convert", "checked": "2026-10-25",
+          "notes": ["ElevenLabs states no longest recording; MetaRush sends up to 5 minutes at a time.", "The API reference names the address /v1/voice-changer/{voice}; ElevenLabs' privacy page names /v1/speech-to-speech/. MetaRush follows the API reference."]
+        },
+        {
+          "id": "eleven_english_sts_v2", "title": "Eleven English v2 voice changer", "kind": "voice-change", "tasks": ["change"], "stage": "ga", "since": "", "retiredOn": "", "rank": 3,
+          "limits": {"minSeconds": 0.5, "maxSeconds": 300, "languages": ["en"]},
+          "licence": {"summary": "ElevenLabs' paid plans (from Starter up) come with a commercial licence; its free plan doesn't.", "commercial": "plan", "broadcast": "plan", "source": "https://elevenlabs.io/pricing", "checked": "2026-10-25"},
+          "docs": "https://elevenlabs.io/docs/api-reference/speech-to-speech/convert", "checked": "2026-10-25"
+        },
+        {
+          "id": "scribe_v2", "title": "Scribe v2", "kind": "transcription", "tasks": ["transcribe"], "stage": "ga", "since": "", "retiredOn": "", "rank": 4,
+          "limits": {"maxSeconds": 36000, "maxSpeakers": 32, "maxInputBytes": 3000000000},
+          "licence": {"summary": "The transcript is your recording's words.", "commercial": "yes", "broadcast": "yes", "source": "https://elevenlabs.io/pricing/api", "checked": "2026-10-25"},
+          "docs": "https://elevenlabs.io/docs/api-reference/speech-to-text/convert", "checked": "2026-10-25",
+          "notes": ["Silence counts toward what is billed.", "ElevenLabs' overview says files up to 3 GB; its API reference says 5 GB. MetaRush sends up to 3 GB."]
+        },
+        {
+          "id": "eleven_v4", "title": "Eleven v4", "kind": "voice", "tasks": ["speak"], "stage": "ga", "since": "", "retiredOn": "", "rank": 5,
+          "limits": {"maxChars": 10000},
+          "licence": {"summary": "ElevenLabs' paid plans (from Starter up) come with a commercial licence; its free plan doesn't.", "commercial": "plan", "broadcast": "plan", "source": "https://elevenlabs.io/pricing", "checked": "2026-10-25"},
+          "docs": "https://elevenlabs.io/docs/overview/models", "checked": "2026-10-25"
+        },
+        {
+          "id": "eleven_multilingual_v2", "title": "Eleven Multilingual v2", "kind": "voice", "tasks": ["speak"], "stage": "ga", "since": "", "retiredOn": "", "rank": 4,
+          "limits": {"maxChars": 10000},
+          "licence": {"summary": "ElevenLabs' paid plans (from Starter up) come with a commercial licence; its free plan doesn't.", "commercial": "plan", "broadcast": "plan", "source": "https://elevenlabs.io/pricing", "checked": "2026-10-25"},
+          "docs": "https://elevenlabs.io/docs/overview/models", "checked": "2026-10-25"
+        },
+        {
+          "id": "eleven_flash_v2_5", "title": "Eleven Flash v2.5", "kind": "voice", "tasks": ["speak"], "stage": "ga", "since": "", "retiredOn": "", "rank": 3,
+          "limits": {"maxChars": 40000},
+          "licence": {"summary": "ElevenLabs' paid plans (from Starter up) come with a commercial licence; its free plan doesn't.", "commercial": "plan", "broadcast": "plan", "source": "https://elevenlabs.io/pricing", "checked": "2026-10-25"},
+          "docs": "https://elevenlabs.io/docs/overview/models", "checked": "2026-10-25"
+        },
+        {
+          "id": "instant", "title": "ElevenLabs instant voice copy", "kind": "voice-copy", "tasks": ["copy"], "stage": "ga", "since": "", "retiredOn": "", "rank": 4,
+          "limits": {"sampleMinSeconds": 10, "sampleMaxSeconds": 600, "maxInputs": 25},
+          "licence": {"summary": "ElevenLabs' paid plans (from Starter up) come with a commercial licence. Its professional copies are only of your own voice; MetaRush makes instant copies, of your voice or, with their recorded consent, someone else's.", "commercial": "plan", "broadcast": "plan", "source": "https://elevenlabs.io/docs/help-center/product/voices/voice-cloning/can-i-create-a-professional-voice-clone-of-someone-elses-voice", "checked": "2026-10-25"},
+          "docs": "https://elevenlabs.io/docs/api-reference/voices/ivc/create", "checked": "2026-10-25",
+          "notes": ["A minute or two of clean speech gives the best copy."]
+        }
+      ],
+      "prices": [
+        {"model": "eleven_text_to_sound_v2", "kind": "sound-effect", "effective": "2026-10-23", "checked": "2026-10-25", "source": "https://elevenlabs.io/pricing/api", "unit": "minute", "usd": 0.12},
+        {"model": "music_v2", "kind": "music", "effective": "2026-10-23", "checked": "2026-10-25", "source": "https://elevenlabs.io/pricing/api", "unit": "minute", "usd": 0.15},
+        {"model": "music_v2_5", "kind": "music", "effective": "2026-10-23", "checked": "2026-10-25", "source": "https://elevenlabs.io/pricing/api", "unit": "minute", "usd": 0.15},
+        {"model": "dubbing_v1", "kind": "dubbing", "effective": "2026-10-23", "checked": "2026-10-25", "source": "https://elevenlabs.io/pricing/api", "unit": "minute", "usd": 0.50, "note": "Without a watermark; $0.33 a minute with one."},
+        {"model": "eleven_multilingual_sts_v2", "kind": "voice-change", "effective": "2026-10-23", "checked": "2026-10-25", "source": "https://elevenlabs.io/pricing/api", "unit": "minute", "usd": 0.12},
+        {"model": "eleven_english_sts_v2", "kind": "voice-change", "effective": "2026-10-23", "checked": "2026-10-25", "source": "https://elevenlabs.io/pricing/api", "unit": "minute", "usd": 0.12},
+        {"model": "scribe_v2", "kind": "transcription", "effective": "2026-10-23", "checked": "2026-10-25", "source": "https://elevenlabs.io/pricing/api", "unit": "hour", "usd": 0.22},
+        {"model": "eleven_v4", "kind": "voice", "effective": "2026-10-23", "checked": "2026-10-25", "source": "https://elevenlabs.io/pricing/api", "unit": "thousand-characters", "usd": 0.08},
+        {"model": "eleven_multilingual_v2", "kind": "voice", "effective": "2026-10-23", "checked": "2026-10-25", "source": "https://elevenlabs.io/pricing/api", "unit": "thousand-characters", "usd": 0.08},
+        {"model": "eleven_flash_v2_5", "kind": "voice", "effective": "2026-10-23", "checked": "2026-10-25", "source": "https://elevenlabs.io/pricing/api", "unit": "thousand-characters", "usd": 0.04},
+        {"model": "instant", "kind": "voice-copy", "effective": "2026-10-23", "checked": "2026-10-25", "source": "https://elevenlabs.io/pricing/api", "unit": "request", "usd": 0, "note": "Making a voice copy comes with ElevenLabs' paid plans; ElevenLabs lists no price for it."}
+      ]
+    },
+    {
+      "name": "local",
+      "title": "This computer",
+      "key": "",
+      "keyHost": "",
+      "route": "local",
+      "data": {
+        "summary": "Nothing leaves this computer: the model runs here, needs no key and costs nothing, and what it makes stays in MetaRush.",
+        "training": "None: nothing is sent anywhere.",
+        "retention": "Only what MetaRush keeps, like any clip or picture.",
+        "region": "This computer.",
+        "source": "docs/ai-services.md",
+        "checked": "2026-10-25"
+      },
+      "models": [
+        {
+          "id": "kokoro-v1", "title": "Kokoro v1.0", "kind": "voice", "tasks": ["speak"], "stage": "ga", "since": "2025-01-27", "retiredOn": "", "rank": 3,
+          "limits": {"maxChars": 10000, "voices": ["af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica", "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky", "am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam", "am_michael", "am_onyx", "am_puck", "am_santa", "bf_alice", "bf_emma", "bf_isabella", "bf_lily", "bm_daniel", "bm_fable", "bm_george", "bm_lewis", "ef_dora", "em_alex", "ff_siwis", "hf_alpha", "hf_beta", "hm_omega", "hm_psi", "if_sara", "im_nicola", "pf_dora", "pm_alex", "pm_santa", "em_santa"], "languages": ["en", "es", "fr", "hi", "it", "pt"]},
+          "licence": {"summary": "The model and its voices are under Apache-2.0, which allows commercial use; the voices are made, not copies of anyone's.", "commercial": "yes", "broadcast": "yes", "source": "https://huggingface.co/hexgrad/Kokoro-82M", "checked": "2026-10-25"},
+          "docs": "docs/ai-services.md", "checked": "2026-10-25",
+          "notes": ["Runs on this computer through sherpa-onnx; a person sets it up once (about 370 MB: the program and the model).", "A voice's first letter is its language: a and b English (American, British), e Spanish, f French, h Hindi, i Italian, p Portuguese.", "It doesn't take a way of saying it (a style)."]
+        },
+        {
+          "id": "kitten-nano", "title": "Kitten nano", "kind": "voice", "tasks": ["speak"], "stage": "ga", "since": "2026-02-01", "retiredOn": "", "rank": 2,
+          "limits": {"maxChars": 10000, "voices": ["expr-voice-2-m", "expr-voice-2-f", "expr-voice-3-m", "expr-voice-3-f", "expr-voice-4-m", "expr-voice-4-f", "expr-voice-5-m", "expr-voice-5-f"], "languages": ["en"]},
+          "licence": {"summary": "The model and its voices are under Apache-2.0, which allows commercial use; the voices are made, not copies of anyone's.", "commercial": "yes", "broadcast": "yes", "source": "https://github.com/KittenML/KittenTTS", "checked": "2026-10-25"},
+          "docs": "docs/ai-services.md", "checked": "2026-10-25",
+          "notes": ["Runs on this computer through sherpa-onnx; a person sets it up once (about 50 MB: the program and the model).", "English only; the smallest and fastest offline voice."]
+        },
+        {
+          "id": "apple-vision", "title": "Apple Vision subject lifting", "kind": "background-removal", "tasks": ["cut-out"], "stage": "ga", "since": "2023-09-26", "retiredOn": "", "rank": 3,
+          "limits": {"maxInputs": 1},
+          "licence": {"summary": "The picture is yours: macOS's Vision framework only works out which part is the subject; nothing new is made.", "commercial": "yes", "broadcast": "yes", "source": "https://developer.apple.com/documentation/vision/vngenerateforegroundinstancemaskrequest", "checked": "2026-10-25"},
+          "docs": "docs/ai-services.md", "checked": "2026-10-25",
+          "notes": ["On a Mac with macOS 14 or later, through MetaRush's own helper (the same mask as the pictures fix Remove the background); nothing is downloaded.", "It finds people, animals and things in front; a picture without a clear subject says so."]
+        },
+        {
+          "id": "real-esrgan-x4v3", "title": "Real-ESRGAN general x4v3", "kind": "upscale", "tasks": ["upscale"], "stage": "ga", "since": "2022-04-20", "retiredOn": "", "rank": 3,
+          "limits": {"maxInputs": 1, "scales": [2, 4], "maxPixels": 4194304},
+          "licence": {"summary": "Real-ESRGAN is under the BSD-3-Clause licence, which allows commercial use; the detail it adds is made up by the model.", "commercial": "yes", "broadcast": "yes", "source": "https://github.com/xinntao/Real-ESRGAN/blob/master/LICENSE", "checked": "2026-10-25"},
+          "docs": "docs/ai-services.md", "checked": "2026-10-25",
+          "notes": ["Runs on this computer through the transcriber's onnxruntime; a person sets it up once (about 5 MB).", "Pictures up to about 4 million pixels (2048 × 2048); 2× is the 4× result made half the size."]
+        },
+        {
+          "id": "parakeet-v2", "title": "Parakeet v2", "kind": "transcription", "tasks": ["transcribe"], "stage": "ga", "since": "2025-05-01", "retiredOn": "", "rank": 4,
+          "limits": {"languages": ["en"]},
+          "licence": {"summary": "The transcript is your recording's words. The model is NVIDIA's Parakeet TDT 0.6B v2 under CC BY 4.0, which allows commercial use.", "commercial": "yes", "broadcast": "yes", "source": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2", "checked": "2026-10-25"},
+          "docs": "docs/transcripts.md", "checked": "2026-10-25",
+          "notes": ["English only; MetaRush's usual recognizer for English.", "Set up by ./bootstrap.sh or metarush doctor; nothing is downloaded when it runs."]
+        },
+        {
+          "id": "whisper-cpp", "title": "Whisper", "kind": "transcription", "tasks": ["transcribe"], "stage": "ga", "since": "2024-10-01", "retiredOn": "", "rank": 3,
+          "limits": {},
+          "licence": {"summary": "The transcript is your recording's words. whisper.cpp and OpenAI's Whisper models are under the MIT licence.", "commercial": "yes", "broadcast": "yes", "source": "https://github.com/ggml-org/whisper.cpp", "checked": "2026-10-25"},
+          "docs": "docs/transcripts.md", "checked": "2026-10-25",
+          "notes": ["Every language Whisper knows; MetaRush's recognizer for languages other than English.", "Set up by ./bootstrap.sh or metarush doctor; nothing is downloaded when it runs."]
+        }
+      ],
+      "prices": [
+        {"model": "kokoro-v1", "kind": "voice", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "second", "usd": 0},
+        {"model": "kitten-nano", "kind": "voice", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "second", "usd": 0},
+        {"model": "apple-vision", "kind": "background-removal", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "picture", "usd": 0},
+        {"model": "real-esrgan-x4v3", "kind": "upscale", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "picture", "usd": 0},
+        {"model": "parakeet-v2", "kind": "transcription", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "minute", "usd": 0},
+        {"model": "whisper-cpp", "kind": "transcription", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "minute", "usd": 0}
+      ]
+    },
+    {
+      "name": "sync",
+      "title": "sync.",
+      "key": "sync",
+      "keyHost": "api.sync.so",
+      "route": "direct",
+      "data": {
+        "summary": "sync.'s privacy policy says it may use what you upload — the footage and sound MetaRush sends — to develop and train its AI models, names no way to opt out, and keeps data for as long as it needs it, in the United States. MetaRush deletes the generation and the uploaded files at sync. right after the download.",
+        "training": "Its privacy policy says it may train its models on what you upload; it names no opt-out.",
+        "retention": "As long as sync. needs it (no fixed period); MetaRush deletes the generation and both uploads after the download.",
+        "region": "The United States, and wherever sync. transfers data.",
+        "source": "https://sync.so/privacy",
+        "checked": "2026-10-25"
+      },
+      "models": [
+        {
+          "id": "lipsync-2",
+          "title": "sync. lipsync-2",
+          "kind": "lip-sync",
+          "tasks": [
+            "sync"
+          ],
+          "stage": "ga",
+          "since": "",
+          "retiredOn": "",
+          "rank": 3,
+          "limits": {
+            "maxSeconds": 300,
+            "maxInputBytes": 5368709120
+          },
+          "licence": {
+            "summary": "sync.'s terms say you keep the rights to what you upload and must hold the rights and consents of the people in it; they don't say who owns what it makes or grant commercial use outright. Its Free and Hobbyist plans add a watermark.",
+            "commercial": "unstated",
+            "broadcast": "unstated",
+            "source": "https://sync.so/terms",
+            "checked": "2026-10-25"
+          },
+          "docs": "https://sync.so/docs/api-reference/api/generate-api/create-with-files",
+          "checked": "2026-10-25",
+          "notes": [
+            "sync.'s standard model.",
+            "How long a clip may be depends on the sync. plan: 1 minute on Hobbyist, 5 on Creator, 10 on Growth, 30 on Scale; MetaRush sends up to 5 minutes."
+          ]
+        },
+        {
+          "id": "lipsync-2-pro",
+          "title": "sync. lipsync-2-pro",
+          "kind": "lip-sync",
+          "tasks": [
+            "sync"
+          ],
+          "stage": "ga",
+          "since": "",
+          "retiredOn": "",
+          "rank": 4,
+          "limits": {
+            "maxSeconds": 300,
+            "maxInputBytes": 5368709120
+          },
+          "licence": {
+            "summary": "sync.'s terms say you keep the rights to what you upload and must hold the rights and consents of the people in it; they don't say who owns what it makes or grant commercial use outright. Its Free and Hobbyist plans add a watermark.",
+            "commercial": "unstated",
+            "broadcast": "unstated",
+            "source": "https://sync.so/terms",
+            "checked": "2026-10-25"
+          },
+          "docs": "https://sync.so/docs/api-reference/api/generate-api/create-with-files",
+          "checked": "2026-10-25",
+          "notes": [
+            "sync.'s studio-grade model.",
+            "How long a clip may be depends on the sync. plan: 1 minute on Hobbyist, 5 on Creator, 10 on Growth, 30 on Scale; MetaRush sends up to 5 minutes."
+          ]
+        },
+        {
+          "id": "sync-3",
+          "title": "sync. sync-3",
+          "kind": "lip-sync",
+          "tasks": [
+            "sync"
+          ],
+          "stage": "ga",
+          "since": "",
+          "retiredOn": "",
+          "rank": 5,
+          "limits": {
+            "maxSeconds": 300,
+            "maxInputBytes": 5368709120
+          },
+          "licence": {
+            "summary": "sync.'s terms say you keep the rights to what you upload and must hold the rights and consents of the people in it; they don't say who owns what it makes or grant commercial use outright. Its Free and Hobbyist plans add a watermark.",
+            "commercial": "unstated",
+            "broadcast": "unstated",
+            "source": "https://sync.so/terms",
+            "checked": "2026-10-25"
+          },
+          "docs": "https://sync.so/docs/api-reference/api/generate-api/create-with-files",
+          "checked": "2026-10-25",
+          "notes": [
+            "sync.'s newest model: side angles, low light, animation, closed lips.",
+            "How long a clip may be depends on the sync. plan: 1 minute on Hobbyist, 5 on Creator, 10 on Growth, 30 on Scale; MetaRush sends up to 5 minutes."
+          ]
+        }
+      ],
+      "prices": [
+        {
+          "model": "lipsync-2",
+          "kind": "lip-sync",
+          "effective": "2026-10-25",
+          "checked": "2026-10-25",
+          "source": "https://sync.so/pricing",
+          "unit": "second",
+          "usd": 0.05,
+          "note": "The Hobbyist and Creator plans' price; Growth pays 5% less and Scale 20% less."
+        },
+        {
+          "model": "lipsync-2-pro",
+          "kind": "lip-sync",
+          "effective": "2026-10-25",
+          "checked": "2026-10-25",
+          "source": "https://sync.so/pricing",
+          "unit": "second",
+          "usd": 0.08325,
+          "note": "The Hobbyist and Creator plans' price; Growth pays 5% less and Scale 20% less."
+        },
+        {
+          "model": "sync-3",
+          "kind": "lip-sync",
+          "effective": "2026-10-25",
+          "checked": "2026-10-25",
+          "source": "https://sync.so/pricing",
+          "unit": "second",
+          "usd": 0.1334,
+          "note": "The Hobbyist and Creator plans' price; Growth pays 5% less and Scale 20% less."
+        }
+      ]
+    },
+    {
+      "name": "d-id", "title": "D-ID", "key": "d-id", "keyHost": "api.d-id.com", "route": "direct",
+      "data": {
+        "summary": "D-ID erases what its API is sent within 24 hours unless asked to keep it, and doesn't look at it for any purpose, training its models included, while it is stored. A presenter stays at D-ID until it is deleted. MetaRush deletes each clip, the sound sent for it and the voice D-ID copies from a training take right after use, and deletes the presenter and D-ID's consent record when the presenter is retired.",
+        "training": "Not while it is stored; D-ID's biometric privacy policy says what it keeps of a face isn't used to train its models.",
+        "trainsOnUploads": "no",
+        "retention": "API uploads erased within 24 hours unless kept on purpose; links to finished clips last 24 hours; a presenter and its consent record stay until deleted.",
+        "region": "D-ID's terms don't say.",
+        "source": "https://www.d-id.com/privacy-policy/",
+        "checked": "2026-10-25"
+      },
+      "presenters": {
+        "consentMode": "api-upload",
+        "consentLanguages": {"en": "english", "nl": "dutch", "tr": "turkish", "sv": "swedish", "id": "indonesian", "fil": "filipino", "tl": "filipino", "cs": "czech", "ro": "romanian", "da": "danish", "ms": "malay", "sk": "slovak", "hr": "croatian", "pl": "polish", "de": "german", "es": "spanish", "fr": "french", "it": "italian", "pt": "portuguese"},
+        "consentMinutes": 30,
+        "takeAdvice": "At least a minute of the person speaking naturally to the camera, in one take (two or three minutes is better), well lit and steady; filmed against a green screen when you want a colour behind the presenter.",
+        "backgrounds": "A colour behind the presenter only when its training take was filmed against a green screen; otherwise the take's own background.",
+        "deletes": "Deleting a presenter at D-ID removes it; D-ID's docs don't say whether the training footage it fetched goes with it (its uploads are erased within 24 hours unless kept).",
+        "erasure": "To have D-ID erase what it keeps about a person's face, ask D-ID as its biometric privacy policy says (https://www.d-id.com/biometric-privacy-policy/).",
+        "stock": {"summary": "D-ID's API pages don't say which plans license its stock presenters for commercial use, client work or ads, so MetaRush doesn't offer them.", "commercial": "unstated", "clientWork": "unstated", "ads": "unstated", "source": "https://www.d-id.com/studio-end-user-license-agreement/", "checked": "2026-10-25"},
+        "source": "https://docs.d-id.com/docs/v3-instant-avatar-quickstart.md",
+        "checked": "2026-10-25"
+      },
+      "models": [
+        {
+          "id": "express", "title": "D-ID Express", "kind": "presenter", "tasks": ["read"], "stage": "ga", "since": "", "retiredOn": "", "rank": 3,
+          "limits": {"maxSeconds": 300, "maxInputs": 1, "maxInputBytes": 6291456},
+          "licence": {"summary": "D-ID's terms license what its paid plans make for commercial use; its trial and personal plans are for personal use and carry a watermark. Its API pages don't list which plan is which.", "commercial": "plan", "broadcast": "unstated", "source": "https://www.d-id.com/studio-end-user-license-agreement/", "checked": "2026-10-25"},
+          "docs": "https://docs.d-id.com/reference/create-scene.md", "checked": "2026-10-25",
+          "notes": ["D-ID reads up to 5 minutes of sound a clip.", "The clip keeps the training take's shape. D-ID's scene reference names no transparent background, so a presenter made against a green screen gets a colour behind it (green to key out later)."]
+        },
+        {
+          "id": "express", "title": "D-ID Express", "kind": "presenter-make", "tasks": ["train"], "stage": "ga", "since": "", "retiredOn": "", "rank": 3,
+          "limits": {"sampleMinSeconds": 60, "sampleMaxSeconds": 600},
+          "licence": {"summary": "A person's presenter is theirs to use only with their consent; D-ID's terms bar impersonating anyone and are for people 18 or older.", "commercial": "plan", "broadcast": "unstated", "source": "https://www.d-id.com/studio-end-user-license-agreement/", "checked": "2026-10-25"},
+          "docs": "https://docs.d-id.com/reference/create-express-avatar.md", "checked": "2026-10-25",
+          "notes": ["D-ID checks the person reading its consent words, with their passcode, against its own text before it makes the presenter.", "Training takes D-ID five to ten minutes."]
+        }
+      ],
+      "prices": [
+        {"model": "express", "kind": "presenter", "effective": "2026-10-25", "checked": "2026-10-25", "source": "https://www.d-id.com/pricing/", "unit": "minute", "usd": 1.11, "roundSeconds": 15, "note": "D-ID sells minutes in monthly plans and doesn't show their prices on its own pages; this is the cheapest plan for commercial use divided by its minutes, as others list it on 25 Oct 2026. Check your plan."},
+        {"model": "express", "kind": "presenter-make", "effective": "2026-10-25", "checked": "2026-10-25", "source": "https://www.d-id.com/pricing/", "unit": "request", "usd": 0, "note": "D-ID's pages don't say that making a presenter uses minutes."}
+      ]
+    },
+    {
+      "name": "heygen", "title": "HeyGen", "key": "heygen", "keyHost": "api.heygen.com", "route": "direct",
+      "data": {
+        "summary": "HeyGen's privacy policy lets it use what you send to improve its services and train its models unless the account asks it not to; deleted data goes within about 72 hours of a request and stays in its backups 60 days. MetaRush deletes each clip and the sound sent for it right after the download.",
+        "training": "Yes, unless the account opts out by writing to HeyGen's privacy team; its Enterprise customers' data is governed by their contracts.",
+        "trainsOnUploads": "unless-opted-out",
+        "optOut": "Ask HeyGen's privacy team to opt the account out of training, as its privacy policy says (https://www.heygen.com/privacy).",
+        "retention": "Uploads and videos stay until deleted; deleted within about 72 hours of a request, then 60 days in backups.",
+        "region": "HeyGen's privacy policy doesn't say.",
+        "source": "https://www.heygen.com/privacy",
+        "checked": "2026-10-25"
+      },
+      "presenters": {
+        "consentMode": "hosted-page",
+        "takeAdvice": "HeyGen makes a person's own presenter only after they record its consent on HeyGen's own page, which MetaRush can't take people through yet.",
+        "backgrounds": "Any colour behind a stock presenter.",
+        "deletes": "Deleting a video at HeyGen removes it; the sound uploaded for it is deleted on its own.",
+        "erasure": "To have HeyGen erase what it keeps about a person, ask HeyGen as its privacy policy says (https://www.heygen.com/privacy).",
+        "stock": {"summary": "HeyGen says its stock avatars are cleared for commercial use, ads, marketing, social media and client work on eligible paid plans; it doesn't say which plans are eligible.", "commercial": "plan", "clientWork": "plan", "ads": "plan", "source": "https://www.heygen.com/avatars", "checked": "2026-10-25"},
+        "source": "https://developers.heygen.com/docs/avatars.md",
+        "checked": "2026-10-25"
+      },
+      "models": [
+        {
+          "id": "avatar-iv", "title": "HeyGen Avatar IV", "kind": "presenter", "tasks": ["read"], "stage": "ga", "since": "", "retiredOn": "", "rank": 4,
+          "limits": {"maxSeconds": 600, "maxInputs": 1, "maxInputBytes": 33554432, "aspectRatios": ["16:9", "9:16", "4:5", "5:4", "1:1"]},
+          "licence": {"summary": "HeyGen says videos made on its paid plans may be used commercially; its free plan adds a watermark.", "commercial": "plan", "broadcast": "unstated", "source": "https://www.heygen.com/avatars", "checked": "2026-10-25"},
+          "docs": "https://developers.heygen.com/reference/create-video.md", "checked": "2026-10-25",
+          "notes": ["HeyGen reads up to 10 minutes of sound a clip.", "Some of HeyGen's stock presenters are withdrawn from time to time; MetaRush says so when one is."]
+        }
+      ],
+      "prices": [
+        {"model": "avatar-iv", "kind": "presenter", "effective": "2026-10-20", "checked": "2026-10-25", "source": "https://www.heygen.com/blog/ai-video-generator-pricing", "unit": "second", "usd": 0.05, "note": "HeyGen's pricing article gives $0.05 a second for Avatar IV photo presenters and its Enterprise table counts its studio presenters the same; its self-serve rate card for stock presenters didn't load. Check your balance."}
+      ]
+    }
+  ]
+}

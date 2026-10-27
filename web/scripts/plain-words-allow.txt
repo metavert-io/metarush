@@ -1,0 +1,9 @@
+# Dashboard strings that intentionally keep a technical word, with the reason.
+# Format: file (relative to web/, or a folder ending in /) | text the string contains (* = any) | why it is fine
+src/components/Timeline.tsx | {clip.id} | a clip's short name in the cut ("hook", "advice"), which people and Claude use to talk about it
+src/components/CutReview.tsx | {o.id} | a graphic's short name in the cut ("who", "route"), the same name the cut sheet and Claude use for it
+src/screens/studio/CutSheetTab.tsx | {a.clipId} | a clip's short name in the cut sheet ("hook"), the name the sheet itself shows
+src/components/WatchFolder.tsx | ~/Videos/MetaRush | an example of what to type in the folder path field
+src/components/WatchFolder.tsx | Ingested | the real name of the folder MetaRush moves added files into, which the person sees in Finder
+src/screens/settings/StorageMove.tsx | /Volumes/Studio/MetaRush | an example of what to type in the folder field when moving the media (a placeholder)
+src/screens/settings/StorageMove.tsx | ~/keys/metarush-media.json | an example of what to type in the key file field when moving the media to Google Cloud Storage (a placeholder)

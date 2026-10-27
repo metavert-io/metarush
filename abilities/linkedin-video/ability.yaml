@@ -1,0 +1,27 @@
+# NOT YET RUNNABLE. This is the shape posting a video to LinkedIn needs; `metarush ability check`
+# refuses it today because MetaRush doesn't yet have three of the things it uses:
+#   signin                             - a person's own sign-in (OAuth) kept by MetaRush, as it keeps YouTube's
+#   inputs.video kind delivered        - a version's final render as an input (Content Credentials needs it too)
+#   inputs.notes kind delivery-notes   - the version's title and description (its delivery notes) as an input
+# notes.md says what each one is; internal/abilities' TestPublishingNotYetRunnable keeps this list true.
+ability: 1
+name: linkedin-video
+title: Post a video on LinkedIn
+does: Posts an approved version on LinkedIn as you, with the words from its delivery notes; a person starts every run.
+runs: python3 post.py
+signin: {service: linkedin, scopes: [w_member_social, openid, profile], hosts: [api.linkedin.com, www.linkedin.com]}
+inputs:
+  video: {kind: delivered, optional: true, says: The version's final render (a run needs it)}
+  notes: {kind: delivery-notes, optional: true, says: The words that go with it}
+  visibility: {kind: choice, options: [connections, public], default: connections, says: Who sees the post}
+outputs: [document]
+cost: free
+hosts: [api.linkedin.com, www.linkedin.com]
+sends: [footage, words]
+changes-outside: yes
+likeness: no
+needs: {programs: [python3], os: [mac, linux]}
+licence: MIT
+search: [linkedin, post video, share, social, publish]
+limits: {minutes: 60, mb: 10}
+test: {inputs: {}}

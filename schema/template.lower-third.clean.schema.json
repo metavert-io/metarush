@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:template:lower-third.clean:1",
+  "$ref": "#/$defs/LowerThirdParams",
+  "$defs": {
+    "LowerThirdParams": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 60,
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "align": {
+          "type": "string",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        "logo": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}(#[1-9][0-9]{0,2})?$",
+          "format": "metarush-resource",
+          "description": "A logo from the cut's resources, drawn at the start of the strap."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    }
+  },
+  "title": "Params for lower-third.clean"
+}

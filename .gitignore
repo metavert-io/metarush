@@ -1,0 +1,61 @@
+# Secrets and local config — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+
+# Local dev state (dev home, local MongoDB data, caches)
+.dev/
+.agent-home/
+.metarush/
+
+# Build outputs
+/bin/
+/dist/
+/metarush
+*.test
+coverage.out
+# Coverage (scripts/coverage.sh, npm run test:coverage -w web)
+.coverage/
+web/coverage/
+web/dist/*
+!web/dist/.gitkeep
+video/build/
+video/.bundle-cache/
+
+# Node
+node_modules/
+.npm/
+*.tsbuildinfo
+
+# Generated fixtures (the script that makes them is committed)
+tests/fixtures/gen/
+# Openly licensed speech fetched for the multilingual measurement (scripts/fetch-speech.sh; never committed)
+tests/fixtures/speech/
+tests/out/
+
+# Playwright
+test-results/
+playwright-report/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Claude Code local state (agent worktrees)
+.claude/
+
+# Release builds (goreleaser) and the renderer package they ship
+/.release/
+# This computer's signing setup for releases (scripts/macos-sign.sh): never in the repository
+/release-signing.env
+
+# claude plugin eval writes its runs here (plugins/claude-code/evals, D319)
+plugins/claude-code/evals/results/
+
+# This repository's own publish deny-list and other local-only files (scripts/check-public.sh, docs/publish-check.md)
+/local/

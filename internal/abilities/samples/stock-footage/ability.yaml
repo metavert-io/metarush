@@ -1,0 +1,17 @@
+ability: 1
+name: stock-footage
+title: Stock footage
+does: Finds free stock videos and photos that match a few words and brings them in with their licence.
+runs: python3 run.py
+inputs:
+  words: {kind: words, max: 100, says: What the shot shows}
+  count: {kind: number, min: 1, max: 6, default: 3}
+outputs: [footage, picture]
+cost: free
+keys: [{name: stock-library, env: STOCK_KEY, hosts: [api.stock.example], header: X-Api-Key}]
+hosts: [api.stock.example, media.stock.example]
+sends: [words]
+needs: {programs: [python3]}
+licence: MIT
+search: [stock, footage, video, photos, free]
+test: {inputs: {words: ocean waves}}

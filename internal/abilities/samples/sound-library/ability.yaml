@@ -1,0 +1,16 @@
+ability: 1
+name: sound-library
+title: Sound library
+does: Finds recorded sound effects that match a few words in a library, each with its licence.
+runs: python3 run.py
+inputs:
+  words: {kind: words, max: 100, says: The sound}
+outputs: [sound]
+cost: free
+keys: [{name: sound-library, env: SOUNDS_KEY, hosts: [api.sounds.example], query: token}]
+hosts: [api.sounds.example, cdn.sounds.example]
+sends: [words]
+needs: {programs: [python3]}
+licence: MIT
+search: [sound effects, foley, recorded sounds, library]
+test: {inputs: {words: door}}

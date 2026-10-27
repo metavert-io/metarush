@@ -1,0 +1,26 @@
+# NOT YET RUNNABLE. This is the shape posting to Vimeo needs; `metarush ability check`
+# refuses it today because MetaRush doesn't yet have two of the things it uses:
+#   inputs.video kind delivered        - a version's final render as an input (Content Credentials needs it too)
+#   inputs.notes kind delivery-notes   - the version's title and description (its delivery notes) as an input
+# notes.md says what each one is; internal/abilities' TestPublishingNotYetRunnable keeps this list true.
+ability: 1
+name: vimeo-upload
+title: Post to Vimeo
+does: Posts an approved version to your Vimeo account as you, with the title and description from its delivery notes; a person starts every run.
+runs: python3 upload.py
+inputs:
+  video: {kind: delivered, optional: true, says: The version's final render (a run needs it)}
+  notes: {kind: delivery-notes, optional: true, says: Its title and description}
+  privacy: {kind: choice, options: [private, unlisted, public], default: private, says: Who can see it}
+outputs: [document]
+cost: free
+keys: [{name: vimeo, env: VIMEO_TOKEN, hosts: [api.vimeo.com, "*.cloud.vimeo.com"]}]
+hosts: [api.vimeo.com, "*.cloud.vimeo.com"]
+sends: [footage, words]
+changes-outside: yes
+likeness: no
+needs: {programs: [python3], os: [mac, linux]}
+licence: MIT
+search: [vimeo, post video, upload, publish, share]
+limits: {minutes: 60, mb: 10}
+test: {inputs: {}}

@@ -1,0 +1,5 @@
+{
+  "_comment": "The article before a number as it is said aloud (\"an 8-second shot\", \"a 6-second shot\"): eight, eleven, eighteen and the eighties start with a vowel sound, also as the first group of a larger number. Shared by internal/plainwords (TestAOrAnFollowsHowTheNumberIsSaid) and web/scripts/article-test.mjs (aOrAn in web/src/lib/format.ts), so Go and the dashboard agree.",
+  "an": [8, 11, 18, 80, 81, 86, 89, 800, 811, 850, 899, 8000, 8500, 11000, 11999, 18000, 80000, 86000, 89999, 800000, 899999, 8000000, 11000000],
+  "a": [0, 1, 2, 3, 6, 7, 9, 10, 12, 17, 19, 20, 28, 79, 90, 100, 108, 111, 118, 180, 188, 700, 799, 900, 1000, 1100, 1800, 1999, 7999, 9000, 10000, 12000, 19000, 79000, 90000, 100000, 180000, 1000000, 1800000]
+}

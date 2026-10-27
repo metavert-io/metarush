@@ -1,0 +1,532 @@
+@import "tailwindcss";
+
+/* Theme switch is an attribute on <html> (set before first paint in index.html). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+ * The top bar's height (the Shell measures it: it grows while the activity strip shows).
+ * Whatever sticks below the bar uses it, so the bar never covers it.
+ */
+:root {
+  --mr-header-h: 57px;
+}
+
+/*
+ * MetaRush console palette: warm near-black neutrals, one amber accent, off-white text.
+ * Shape system: panels 16px, controls 10px, thumbnails 10px, pills full.
+ * Semantic state colors (approved / failed) are the only other hues.
+ */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0c0b;
+  --bg-raised: #141311;
+  --bg-panel: #191816;
+  --bg-hover: #222019;
+  --bg-active: #2a2721;
+  --bg-inset: #080807;
+  --line: rgb(242 236 228 / 0.075);
+  --line-strong: rgb(242 236 228 / 0.14);
+  --fg: #f2ece4;
+  --fg-muted: #b5aca2;
+  --fg-subtle: #8f877e;
+  --accent: #e0a458;
+  --accent-hover: #ebb370;
+  --accent-ink: #1c1307;
+  --accent-text: #e8b169;
+  --accent-soft: rgb(224 164 88 / 0.13);
+  --accent-line: rgb(224 164 88 / 0.38);
+  --ok: #92c79c;
+  --ok-soft: rgb(146 199 156 / 0.13);
+  --danger: #ef8d80;
+  --danger-soft: rgb(239 141 128 / 0.13);
+  --info: #a9b9cc;
+  --info-soft: rgb(169 185 204 / 0.12);
+  --shadow-color: 20 14 6;
+  --overlay: rgb(6 5 4 / 0.72);
+  --wave: rgb(242 236 228 / 0.42);
+  --wave-played: #e0a458;
+  /* The timeline's sound lane (drawn on the dark media surface in both themes). */
+  --wave-lane: rgb(169 185 204 / 0.62);
+  --wave-muted: rgb(242 236 228 / 0.16);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f2f1ee;
+  --bg-raised: #f9f8f6;
+  --bg-panel: #ffffff;
+  --bg-hover: #ebe9e5;
+  --bg-active: #e2dfda;
+  --bg-inset: #161513;
+  --line: rgb(28 26 24 / 0.09);
+  --line-strong: rgb(28 26 24 / 0.17);
+  --fg: #1b1a18;
+  --fg-muted: #57524c;
+  --fg-subtle: #6c665f;
+  --accent: #e0a458;
+  --accent-hover: #d6953f;
+  --accent-ink: #1c1307;
+  --accent-text: #8e5410;
+  --accent-soft: rgb(224 164 88 / 0.2);
+  --accent-line: rgb(178 112 30 / 0.45);
+  --ok: #2c7341;
+  --ok-soft: rgb(44 115 65 / 0.11);
+  --danger: #b03b2b;
+  --danger-soft: rgb(176 59 43 / 0.1);
+  --info: #3d5674;
+  --info-soft: rgb(61 86 116 / 0.1);
+  --shadow-color: 60 48 30;
+  --overlay: rgb(24 22 20 / 0.45);
+  /* Waveforms are drawn on the dark media surface (bg-inset) in this theme too,
+     so their bars stay light to be seen there. */
+  --wave: rgb(242 236 228 / 0.5);
+  --wave-played: #e8b169;
+  --wave-lane: rgb(190 205 222 / 0.7);
+  --wave-muted: rgb(242 236 228 / 0.18);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-raised: var(--bg-raised);
+  --color-panel: var(--bg-panel);
+  --color-hover: var(--bg-hover);
+  --color-active: var(--bg-active);
+  --color-inset: var(--bg-inset);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-snap: cubic-bezier(0.32, 0.72, 0, 1);
+  --shadow-float: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 18px 48px -18px rgb(var(--shadow-color) / 0.55),
+    0 2px 8px -2px rgb(var(--shadow-color) / 0.35);
+  --shadow-soft: 0 10px 30px -16px rgb(var(--shadow-color) / 0.45);
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--fg);
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  /* Owner-only settings seen by someone else (D191, components/OwnerOnly.tsx):
+     the fieldset disables every control; they look it too. */
+  fieldset[data-owner-only]:disabled :is(button, input, select, textarea):disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  fieldset[data-owner-only]:disabled label {
+    cursor: not-allowed;
+  }
+  img,
+  video {
+    display: block;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+}
+
+@layer components {
+  .tc {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .panel {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+  }
+  .well {
+    background: var(--bg-inset);
+    border-radius: 12px;
+  }
+  .hairline {
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-hover);
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.05), transparent);
+    animation: mr-shimmer 1.6s var(--ease-snap) infinite;
+  }
+  :root[data-theme="light"] .skeleton::after {
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.6), transparent);
+  }
+  .fade-up {
+    animation: mr-fade-up 0.5s var(--ease-out-expo) both;
+  }
+  .fade-in {
+    animation: mr-fade-in 0.3s var(--ease-out-expo) both;
+  }
+  .clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  /* The clapper on the logo closes a little on hover (feedback for the home link). */
+  .mr-clapper {
+    transform-box: view-box;
+    transform-origin: 6px 13.3px;
+    transition: transform 0.28s var(--ease-snap);
+  }
+  .group:hover .mr-clapper,
+  .group:focus-visible .mr-clapper {
+    transform: rotate(9deg);
+  }
+  /* Drop targets for library items dragged onto projects. */
+  .mr-drop-target {
+    outline: 2px dashed var(--accent-line);
+    outline-offset: 3px;
+  }
+  .mr-drop-over {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    background: var(--accent-soft);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes mr-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes mr-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mr-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes mr-slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+/* The Claude Code panel's navigator lands on a card or question: a short glow. */
+@keyframes mr-flash {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px var(--accent-line);
+  }
+  35% {
+    box-shadow:
+      inset 0 0 0 2px var(--accent),
+      0 0 0 4px color-mix(in oklab, var(--accent) 22%, transparent);
+  }
+}
+.mr-flash {
+  animation: mr-flash 1.3s var(--ease-out-expo) 1;
+}
+/* Toasts keep clear of the Claude Code panel's message box and its ‹ › (the
+   panel sets data-ask-panel on <body> while it is open): beside a docked panel
+   on a wide screen, at the top when the panel fills the screen. */
+@media (min-width: 1024px) {
+  body[data-ask-panel="docked"] [data-toasts] {
+    padding-right: 580px;
+  }
+}
+@media (max-width: 1023.98px) {
+  body[data-ask-panel] [data-toasts] {
+    top: 0;
+    bottom: auto;
+  }
+}
+body[data-ask-panel="full"] [data-toasts] {
+  top: 0;
+  bottom: auto;
+}
+@keyframes mr-progress-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@keyframes mr-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Transition picker tiles: two shots, A and B, showing what each transition does.
+   At rest each shows its middle moment; the chosen one (and one under the
+   pointer) plays the whole move. */
+.mr-tt-cut .mr-tt-b {
+  clip-path: inset(0 0 0 50%);
+}
+.mr-tt-crossfade .mr-tt-b,
+.mr-tt-fade .mr-tt-b {
+  opacity: 0.5;
+}
+.mr-tt-fade .mr-tt-a {
+  opacity: 0;
+}
+.mr-tt-dip-to-black .mr-tt-b,
+.mr-tt-dip-to-white .mr-tt-b {
+  opacity: 0;
+}
+.mr-tt-dip-to-black .mr-tt-a,
+.mr-tt-dip-to-white .mr-tt-a {
+  opacity: 0.3;
+}
+.mr-tt-dip-to-white {
+  background: #fff;
+}
+.mr-tt-wipe .mr-tt-b {
+  clip-path: inset(0 0 0 50%);
+}
+.mr-tt-slide .mr-tt-b {
+  transform: translateX(50%);
+}
+.mr-tt-push .mr-tt-a {
+  transform: translateX(-50%);
+}
+.mr-tt-push .mr-tt-b {
+  transform: translateX(50%);
+}
+.mr-tt-zoom .mr-tt-a {
+  transform: scale(1.7);
+  opacity: 0.55;
+}
+.mr-tt-zoom .mr-tt-b {
+  opacity: 0;
+}
+.mr-tt-whip .mr-tt-a {
+  transform: translateX(-45%);
+  filter: blur(5px);
+}
+.mr-tt-whip .mr-tt-b {
+  transform: translateX(55%);
+  filter: blur(5px);
+}
+:is(.mr-tt[data-live], button:hover > .mr-tt) .mr-tt-b {
+  clip-path: none;
+}
+:is(.mr-tt-cut[data-live], button:hover > .mr-tt-cut) .mr-tt-b {
+  animation: mr-tt-cut 2.4s steps(1, end) infinite;
+}
+:is(.mr-tt-crossfade[data-live], button:hover > .mr-tt-crossfade) .mr-tt-b,
+:is(.mr-tt-fade[data-live], button:hover > .mr-tt-fade) .mr-tt-b {
+  animation: mr-tt-in 2.4s ease-in-out infinite;
+}
+:is(.mr-tt-dip-to-black[data-live], button:hover > .mr-tt-dip-to-black, .mr-tt-dip-to-white[data-live], button:hover > .mr-tt-dip-to-white) .mr-tt-a {
+  animation: mr-tt-dip-out 2.4s ease-in-out infinite;
+}
+:is(.mr-tt-dip-to-black[data-live], button:hover > .mr-tt-dip-to-black, .mr-tt-dip-to-white[data-live], button:hover > .mr-tt-dip-to-white) .mr-tt-b {
+  animation: mr-tt-dip-in 2.4s ease-in-out infinite;
+}
+:is(.mr-tt-wipe[data-live], button:hover > .mr-tt-wipe) .mr-tt-b {
+  animation: mr-tt-wipe 2.4s ease-in-out infinite;
+}
+:is(.mr-tt-slide[data-live], button:hover > .mr-tt-slide, .mr-tt-push[data-live], button:hover > .mr-tt-push) .mr-tt-b {
+  animation: mr-tt-slide-in 2.4s ease-in-out infinite;
+}
+:is(.mr-tt-push[data-live], button:hover > .mr-tt-push) .mr-tt-a {
+  animation: mr-tt-push-out 2.4s ease-in-out infinite;
+}
+:is(.mr-tt-zoom[data-live], button:hover > .mr-tt-zoom) .mr-tt-a {
+  animation: mr-tt-zoom-out 2.4s ease-in infinite;
+}
+:is(.mr-tt-zoom[data-live], button:hover > .mr-tt-zoom) .mr-tt-b {
+  animation: mr-tt-zoom-in 2.4s ease-out infinite;
+}
+:is(.mr-tt-whip[data-live], button:hover > .mr-tt-whip) .mr-tt-a {
+  animation: mr-tt-whip-out 2.4s ease-in infinite;
+}
+:is(.mr-tt-whip[data-live], button:hover > .mr-tt-whip) .mr-tt-b {
+  animation: mr-tt-whip-in 2.4s ease-out infinite;
+}
+@keyframes mr-tt-cut {
+  0% { opacity: 0; }
+  50% { opacity: 1; }
+}
+@keyframes mr-tt-in {
+  0%, 25% { opacity: 0; }
+  65%, 100% { opacity: 1; }
+}
+@keyframes mr-tt-dip-out {
+  0%, 20% { opacity: 1; }
+  45%, 100% { opacity: 0; }
+}
+@keyframes mr-tt-dip-in {
+  0%, 50% { opacity: 0; }
+  78%, 100% { opacity: 1; }
+}
+@keyframes mr-tt-wipe {
+  0%, 22% { clip-path: inset(0 0 0 100%); }
+  68%, 100% { clip-path: inset(0 0 0 0); }
+}
+@keyframes mr-tt-slide-in {
+  0%, 22% { transform: translateX(100%); }
+  68%, 100% { transform: translateX(0); }
+}
+@keyframes mr-tt-push-out {
+  0%, 22% { transform: translateX(0); }
+  68%, 100% { transform: translateX(-100%); }
+}
+@keyframes mr-tt-zoom-out {
+  0%, 25% { transform: scale(1); opacity: 1; }
+  55%, 100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes mr-tt-zoom-in {
+  0%, 45% { transform: scale(0.6); opacity: 0; }
+  70%, 100% { transform: scale(1); opacity: 1; }
+}
+@keyframes mr-tt-whip-out {
+  0%, 30% { transform: translateX(0); filter: blur(0); }
+  50%, 100% { transform: translateX(-100%); filter: blur(6px); }
+}
+@keyframes mr-tt-whip-in {
+  0%, 30% { transform: translateX(100%); filter: blur(6px); }
+  50% { transform: translateX(0); filter: blur(3px); }
+  60%, 100% { transform: translateX(0); filter: blur(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The still middle moment only. */
+  .mr-tt .mr-tt-a,
+  .mr-tt .mr-tt-b {
+    animation: none !important;
+  }
+}
+
+/* Claude Code panel: the cursor while a reply streams, and the "Working" shimmer. */
+.mr-cursor {
+  display: inline-block;
+  width: 0.45em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.16em;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: mr-blink 1.1s steps(2, start) infinite;
+}
+.mr-shimmer-text {
+  background: linear-gradient(90deg, var(--fg-muted) 0%, var(--fg) 45%, var(--fg-muted) 90%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: mr-text-shimmer 2.2s linear infinite;
+}
+@keyframes mr-blink {
+  to {
+    visibility: hidden;
+  }
+}
+@keyframes mr-text-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mr-cursor {
+    animation: none;
+  }
+  .mr-shimmer-text {
+    animation: none;
+    background: none;
+    color: var(--fg-muted);
+  }
+}

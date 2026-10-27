@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "title": "The garage episode",
+  "output": {"preset": "landscape-1080p", "fps": 30, "framing": "faces"},
+  "conversations": {
+    "call": {
+      "id": "cnv_01jabcdefghjkmnpqrstvwxyz0",
+      "gate": {"mode": "speaking", "depthDb": 18},
+      "members": [
+        {"id": "ada", "name": "Ada", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz0", "start": 0, "tag": "Host", "framing": {"auto": "faces"}},
+        {"id": "sam", "name": "Sam", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz3", "start": 0.412, "drift": 35.5, "crop": {"bottom": 0.08}, "framing": {"auto": "faces"}, "look": {"exposure": 1.06, "warmth": -0.03}}
+      ]
+    }
+  },
+  "clips": [
+    {"id": "talk", "assetId": "conv:call", "in": 0, "out": 13.5, "rationale": "The question and the first answer.",
+     "shots": [
+       {"at": 0, "layout": "side-by-side", "rationale": "Open on both of them."},
+       {"at": 0.9, "member": "ada", "rationale": "Ada starts the story at 0:00.5; the picture follows 0.4 s later (J-cut)."},
+       {"at": 6.4, "member": "sam", "dissolve": 0.3},
+       {"at": 10.2, "layout": "side-by-side", "members": ["ada", "sam"], "rationale": "Both laugh."}
+     ]},
+    {"id": "answer", "assetId": "conv:call", "in": 15.8, "out": 19.5, "mutedMembers": ["ada"],
+     "shots": [{"at": 15.8, "card": "What would you build?", "members": ["sam"]}],
+     "transitionIn": {"type": "cut", "audio": {"mode": "auto"}}}
+  ],
+  "captions": {"enabled": true, "showSpeakers": true},
+  "mix": {"levelSpeech": true, "cutBlend": 0.1}
+}

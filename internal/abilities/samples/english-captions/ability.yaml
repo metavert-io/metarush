@@ -1,0 +1,13 @@
+ability: 1
+name: english-captions
+title: English captions from any language
+does: Writes English captions for a clip spoken in another language, on this computer.
+runs: whisper-cli
+inputs:
+  clip: {kind: footage, says: The clip, optional: true}
+outputs: [document]
+cost: free
+needs: {programs: [whisper-cli]}
+licence: MIT
+search: [english, translate, captions, subtitles, foreign language]
+test: {inputs: {}}

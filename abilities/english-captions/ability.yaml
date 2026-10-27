@@ -1,0 +1,20 @@
+ability: 1
+name: english-captions
+title: English captions by whisper.cpp
+does: Writes English captions for a clip spoken in another language, translated on this computer by whisper.cpp, and keeps them with the clip.
+runs: python3 translate.py
+inputs:
+  clip: {kind: footage, optional: true, says: The clip (video or sound) whose speech to translate}
+  language: {kind: words, max: 12, optional: true, says: "The language spoken, as a code like es (default: whisper.cpp listens)"}
+outputs: [captions]
+cost: free
+changes-outside: no
+likeness: no
+needs:
+  programs: [python3, ffmpeg, whisper-cli]
+  files: [{name: whisper-model, kind: whisper-translator, says: "A whisper.cpp model that can translate: ggml-medium.bin, ggml-small.bin or ggml-large-v3.bin (not a turbo or .en model)"}]
+  os: [mac, linux]
+licence: MIT
+search: [captions, subtitles, translate, translation, english, whisper, srt, local]
+limits: {minutes: 60, mb: 50}
+test: {inputs: {}}

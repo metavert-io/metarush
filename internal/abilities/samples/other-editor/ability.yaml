@@ -1,0 +1,14 @@
+ability: 1
+name: other-editor
+title: Build the cut in another editing app
+does: Drives another editing app on this computer to build the cut there, clip by clip.
+runs: python3 run.py
+inputs:
+  project: {kind: words, max: 200, says: The project in the other app}
+outputs: []
+cost: free
+changes-outside: yes
+needs: {programs: [python3], os: [mac]}
+licence: MIT
+search: [editing app, send the cut, timeline, finish elsewhere]
+test: {inputs: {project: Test}}

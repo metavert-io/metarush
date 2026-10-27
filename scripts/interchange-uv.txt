@@ -1,0 +1,9 @@
+# uv, pinned by version and SHA-256, for scripts/interchange-check.sh when no
+# uv and no Python 3.12 is on PATH: it brings a managed Python 3.12 into the
+# check's temporary folder (D303). Wheels for Apple silicon, Intel Macs and
+# Linux (x86_64, aarch64).
+uv==0.12.19 \
+    --hash=sha256:5da0401c0898b5fe767968f5a72f27525276b119d69e0c7c25b721f63ecef650 \
+    --hash=sha256:13e1f008a379b71f07a2f8caf62c0baac9d9039f4238e2e9192f7ddcfc0a1913 \
+    --hash=sha256:a63d18a0aa38ee9f21a5406afbbaeb41303bcd954be9d6b7c1b95ac275e53958 \
+    --hash=sha256:b466eb0f74645883df52446d54474905e8515d75fdf0b313bf099dedc3237896

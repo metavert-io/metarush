@@ -1,0 +1,13 @@
+ability: 1
+name: content-credentials
+title: Content credentials
+does: Adds content credentials to a finished video, saying how it was made and by whom.
+runs: c2patool
+inputs:
+  video: {kind: footage, says: The finished video, optional: true}
+outputs: [footage]
+cost: free
+needs: {programs: [c2patool]}
+licence: MIT
+search: [provenance, credentials, signed, authenticity]
+test: {inputs: {}}

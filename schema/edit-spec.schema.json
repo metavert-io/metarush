@@ -1,0 +1,2034 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:edit-spec:1",
+  "$ref": "#/$defs/Spec",
+  "$defs": {
+    "Anchor": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "clip",
+            "moment",
+            "after",
+            "time"
+          ]
+        },
+        "clipId": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "clip: the clip; moment: optional, the clip that shows the moment when several do."
+        },
+        "edge": {
+          "type": "string",
+          "enum": [
+            "start",
+            "end"
+          ],
+          "description": "clip: its start (default) or end."
+        },
+        "offset": {
+          "type": "number",
+          "maximum": 60,
+          "minimum": -60,
+          "description": "Seconds added to the anchor point (negative = earlier)."
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "moment: the source asset."
+        },
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "description": "moment: source seconds in assetId; time: timeline seconds."
+        },
+        "quote": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "What happens at the moment, in words (e.g. 'right after she laughs')."
+        },
+        "ref": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Transcript segment or insight ID behind a moment."
+        },
+        "gap": {
+          "type": "number",
+          "maximum": 10,
+          "minimum": 0,
+          "description": "after: pause after the previous beat (default settings.gap)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind"
+      ]
+    },
+    "AudioTrack": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "voiceover",
+            "music",
+            "sfx",
+            "dialogue"
+          ]
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0
+        },
+        "out": {
+          "type": "number",
+          "minimum": 0
+        },
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Timeline position in seconds."
+        },
+        "gainDb": {
+          "type": "number",
+          "maximum": 12,
+          "minimum": -60
+        },
+        "fadeIn": {
+          "type": "number",
+          "maximum": 10,
+          "minimum": 0
+        },
+        "fadeOut": {
+          "type": "number",
+          "maximum": 10,
+          "minimum": 0
+        },
+        "duckUnderDialogue": {
+          "type": "boolean"
+        },
+        "duckDb": {
+          "type": "number",
+          "maximum": 0,
+          "minimum": -30
+        },
+        "rights": {
+          "$ref": "#/$defs/Rights"
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "A person's notes about this sound (kept with the cut; not heard in the video)."
+        },
+        "fit": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "manual"
+          ],
+          "description": "auto: starts with the video and ends with it (smooth fade; a longer track ends on a beat near the end when it has one, a shorter one fades out early or loops); manual (default): exactly in → out from at."
+        },
+        "loop": {
+          "type": "boolean",
+          "description": "fit auto: repeat a shorter track until the video ends."
+        },
+        "ending": {
+          "type": "string",
+          "enum": [
+            "phrase",
+            "beat"
+          ],
+          "description": "fit auto: where it ends near the video's end. phrase: where the music starts its next phrase (else its next bar, else a beat); beat: on a beat. Absent: on a beat (music added before phrases were found)."
+        },
+        "duck": {
+          "type": "boolean",
+          "description": "true: gets quieter while someone talks (by duckDb or the mix's depths); false: never; absent: as the mix decides."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "assetId",
+        "role",
+        "in",
+        "out",
+        "at"
+      ]
+    },
+    "Beat": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 2000,
+          "minLength": 1,
+          "description": "The words to speak."
+        },
+        "anchor": {
+          "$ref": "#/$defs/Anchor"
+        },
+        "delivery": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "How to say it (warm, slower, smiling): shown to whoever records and sent to TTS as context, never spoken."
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "type": "array",
+          "maxItems": 10
+        },
+        "voice": {
+          "$ref": "#/$defs/VoiceRef"
+        },
+        "take": {
+          "$ref": "#/$defs/TakeRef"
+        },
+        "gainDb": {
+          "type": "number",
+          "maximum": 12,
+          "minimum": -30
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "scratch",
+            "generated",
+            "recorded",
+            "imported",
+            "final"
+          ],
+          "description": "Where this beat's audio stands (informational)."
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "text",
+        "anchor"
+      ]
+    },
+    "Brand": {
+      "properties": {
+        "primary": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "accent": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "text": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "font": {
+          "type": "string",
+          "enum": [
+            "Inter",
+            "Fraunces",
+            "JetBrains Mono"
+          ]
+        },
+        "fontFile": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "A font from the cut's resources (its short name); used instead of font."
+        },
+        "logo": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "The brand's main logo (a resource name, usually logo): a graphic showing it shows the logo made for its background instead when the cut has one."
+        },
+        "logoDark": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "The logo for dark backgrounds (a resource name, usually logo-dark)."
+        },
+        "logoLight": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "The logo for light backgrounds (a resource name, usually logo-light)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Bus": {
+      "properties": {
+        "gainDb": {
+          "type": "number",
+          "maximum": 12,
+          "minimum": -60
+        },
+        "mute": {
+          "type": "boolean"
+        },
+        "solo": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "CaptionSegment": {
+      "properties": {
+        "from": {
+          "type": "number",
+          "minimum": 0
+        },
+        "to": {
+          "type": "number",
+          "minimum": 0
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "speaker": {
+          "type": "string",
+          "maxLength": 60
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "text"
+      ]
+    },
+    "Captions": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "clean",
+            "emphasis",
+            "boxed",
+            "bold",
+            "highlight",
+            "subtitle"
+          ],
+          "description": "The look: clean, emphasis (the spoken word lights up), boxed, bold (big capitals for phones), highlight (a box follows the spoken word) or subtitle (plain subtitles)."
+        },
+        "position": {
+          "type": "string",
+          "enum": [
+            "bottom",
+            "lower",
+            "middle",
+            "top"
+          ]
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "description": "How large the words are: small, medium (the default) or large."
+        },
+        "maxWordsPerLine": {
+          "type": "integer",
+          "maximum": 12,
+          "minimum": 1
+        },
+        "uppercase": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "transcript",
+            "dialogue",
+            "voiceover",
+            "both",
+            "manual"
+          ],
+          "description": "transcript or dialogue = the clips' transcripts (default); voiceover = the narration (take word timings or the script); both = dialogue and narration; manual = segments."
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/CaptionSegment"
+          },
+          "type": "array",
+          "maxItems": 2000
+        },
+        "emphasis": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 50,
+          "description": "Words to emphasize (emphasis style)."
+        },
+        "showSpeakers": {
+          "type": "boolean",
+          "description": "Show who is speaking above each caption line."
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "enabled"
+      ]
+    },
+    "Clip": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^(ast_[0-9a-z]{26}|cut:prj_[0-9a-z]{26}/rev_[0-9a-z]{26}|conv:[a-z][a-z0-9_-]{0,47})$",
+          "description": "An asset ID, cut:\u003cprojectId\u003e/\u003crevisionId\u003e for a cut from another project (nested, pinned to that version), or conv:\u003cname\u003e for a conversation the cut pins (its in and out are then seconds on the conversation's clock)."
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Source in-point in seconds."
+        },
+        "out": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Source out-point in seconds (exclusive)."
+        },
+        "speed": {
+          "type": "number",
+          "maximum": 4,
+          "minimum": 0.25
+        },
+        "volume": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0,
+          "description": "Linear gain for the clip's own audio (1 = unchanged)."
+        },
+        "muted": {
+          "type": "boolean"
+        },
+        "framing": {
+          "$ref": "#/$defs/Framing"
+        },
+        "transitionIn": {
+          "$ref": "#/$defs/Transition"
+        },
+        "fadeOut": {
+          "type": "number",
+          "maximum": 5,
+          "minimum": 0
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "type": "array",
+          "maxItems": 20
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "A person's notes about this clip (kept with the cut; not shown in the video)."
+        },
+        "shots": {
+          "items": {
+            "$ref": "#/$defs/Shot"
+          },
+          "type": "array",
+          "maxItems": 3000,
+          "description": "A conversation clip's picture over time: one person, a layout, a text card or other footage, each until the next."
+        },
+        "mutedMembers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 16,
+          "description": "A conversation clip: members whose sound is left out of this clip."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "assetId",
+        "in",
+        "out"
+      ]
+    },
+    "ContinuousVO": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0
+        },
+        "out": {
+          "type": "number",
+          "minimum": 0
+        },
+        "anchor": {
+          "$ref": "#/$defs/Anchor"
+        },
+        "gainDb": {
+          "type": "number",
+          "maximum": 12,
+          "minimum": -30
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "scratch",
+            "tts",
+            "recorded",
+            "imported"
+          ]
+        },
+        "aiVoice": {
+          "type": "boolean"
+        },
+        "processed": {
+          "$ref": "#/$defs/ProcessedRef"
+        },
+        "useProcessed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "in",
+        "out",
+        "anchor"
+      ]
+    },
+    "ConversationGate": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "speaking",
+            "off"
+          ],
+          "description": "speaking: each track gets quieter while its person isn't speaking (less echo and bleed when nobody wore headphones); off: every track plays at its level throughout."
+        },
+        "depthDb": {
+          "type": "number",
+          "maximum": 40,
+          "minimum": 6,
+          "description": "How much quieter (dB; default 18)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode"
+      ]
+    },
+    "ConversationMember": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "The short name shots use."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1,
+          "description": "The person's name (name tags, captions; per-person sound settings find them by it)."
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "use": {
+          "type": "string",
+          "enum": [
+            "both",
+            "sound",
+            "picture"
+          ],
+          "description": "both: picture and sound of one person (default); sound: one person's audio; picture: a shared picture such as a gallery view (its sound is not mixed)."
+        },
+        "start": {
+          "type": "number",
+          "maximum": 36000,
+          "minimum": -36000,
+          "description": "Where the recording starts on the conversation's clock (seconds; negative when it started earlier)."
+        },
+        "drift": {
+          "type": "number",
+          "maximum": 5000,
+          "minimum": -5000,
+          "description": "Clock drift in parts per million: recording time = (t − start) × (1 + drift/10⁶)."
+        },
+        "personId": {
+          "type": "string",
+          "pattern": "^per_[0-9a-z]{26}$"
+        },
+        "tag": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "The name tag's second line (a role, from People's notes)."
+        },
+        "crop": {
+          "$ref": "#/$defs/Crop"
+        },
+        "framing": {
+          "$ref": "#/$defs/Framing",
+          "description": "How this person's picture is framed (fill or fit, faces, focus, zoom)."
+        },
+        "look": {
+          "$ref": "#/$defs/Look"
+        },
+        "muted": {
+          "type": "boolean",
+          "description": "Leave this recording's sound out."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "assetId",
+        "start"
+      ]
+    },
+    "ConversationPin": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^cnv_[0-9a-z]{26}$",
+          "description": "The conversation in the library."
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/ConversationMember"
+          },
+          "type": "array",
+          "maxItems": 16,
+          "minItems": 1
+        },
+        "gate": {
+          "$ref": "#/$defs/ConversationGate"
+        },
+        "nameTags": {
+          "type": "string",
+          "enum": [
+            "on",
+            "off"
+          ],
+          "description": "Name tags in layouts: on (default) or off."
+        },
+        "sampleAligned": {
+          "type": "boolean",
+          "description": "Each recording plays exactly where its start says, to the sample (new cuts). Absent: from the cut's next frame, as cuts made before it rendered."
+        },
+        "layoutStyle": {
+          "$ref": "#/$defs/LayoutStyle",
+          "description": "How its picture-in-picture and side-by-side layouts look (from the layout pack). Absent: as they always looked."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "members"
+      ]
+    },
+    "Crop": {
+      "properties": {
+        "left": {
+          "type": "number",
+          "maximum": 0.45,
+          "minimum": 0
+        },
+        "top": {
+          "type": "number",
+          "maximum": 0.45,
+          "minimum": 0
+        },
+        "right": {
+          "type": "number",
+          "maximum": 0.45,
+          "minimum": 0
+        },
+        "bottom": {
+          "type": "number",
+          "maximum": 0.45,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Ducking": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Automatic ducking (default on whenever the cut has a voiceover or a mix section)."
+        },
+        "musicUnderVoiceoverDb": {
+          "type": "number",
+          "maximum": 0,
+          "minimum": -40,
+          "description": "Music while narration plays (default -14 dB)."
+        },
+        "sourceUnderVoiceoverDb": {
+          "type": "number",
+          "maximum": 0,
+          "minimum": -60,
+          "description": "Clip audio while narration plays (default -18 dB)."
+        },
+        "musicUnderDialogueDb": {
+          "type": "number",
+          "maximum": 0,
+          "minimum": -40,
+          "description": "Music under on-camera speech (default -12 dB; a track's own duckDb overrides it)."
+        },
+        "attack": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0.02,
+          "description": "Seconds the level ramps down before speech starts (default 0.25)."
+        },
+        "release": {
+          "type": "number",
+          "maximum": 3,
+          "minimum": 0.02,
+          "description": "Seconds the level ramps back up after speech (default 0.5)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Enhance": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "clean",
+            "studio",
+            "cloud"
+          ],
+          "description": "clean: on this machine, fast (less hiss and echo, softer harsh s sounds, clearer tone); studio: on this machine, slower and stronger (optional component); cloud: ElevenLabs voice isolation (paid)."
+        },
+        "strength": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0,
+          "description": "How much of the processed voice is heard (0–1; default 1: all of it)."
+        },
+        "off": {
+          "type": "boolean",
+          "description": "Play the original voice (the settings and the processed copy are kept)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode"
+      ]
+    },
+    "EnhancedSound": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "The recording."
+        },
+        "start": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where in the recording the copy starts (whole seconds)."
+        },
+        "variant": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "The processed copy (an audio asset with the recording's timing from start)."
+        },
+        "settings": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "The voice settings it was made with (who, how, how strongly)"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "start",
+        "variant",
+        "settings"
+      ]
+    },
+    "Evidence": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "transcript",
+            "insight",
+            "frame",
+            "scene",
+            "user",
+            "analysis"
+          ]
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "from": {
+          "type": "number",
+          "minimum": 0
+        },
+        "to": {
+          "type": "number",
+          "minimum": 0
+        },
+        "ref": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "ID of a transcript segment or insight."
+        },
+        "quote": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind"
+      ]
+    },
+    "FittedLine": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "The person's line this fits (its ID)."
+        },
+        "original": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "The person's words for the line"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 2000,
+          "minLength": 1,
+          "description": "Claude's words for the line (the same words when only the timing changes)."
+        },
+        "anchor": {
+          "$ref": "#/$defs/Anchor",
+          "description": "Where Claude starts the line (none: it follows the previous line)."
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 600,
+          "description": "Why Claude changed it"
+        },
+        "kept": {
+          "type": "boolean",
+          "description": "The person kept their own line here (Claude's change turned down)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "original",
+        "text"
+      ]
+    },
+    "FittedScript": {
+      "properties": {
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/FittedLine"
+          },
+          "type": "array",
+          "maxItems": 300
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "lines"
+      ]
+    },
+    "FixedPin": {
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The fixed copy: the SHA-256 of its file."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "sha256"
+      ]
+    },
+    "Framing": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "fill",
+            "fit"
+          ]
+        },
+        "auto": {
+          "type": "string",
+          "enum": [
+            "faces",
+            "follow"
+          ],
+          "description": "faces: keep the main face in frame (from the clip's on-screen index); follow: move the crop with the subject as it moves."
+        },
+        "focusX": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0,
+          "description": "Horizontal focal point kept in frame when cropping (0 left … 1 right)."
+        },
+        "focusY": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "zoom": {
+          "type": "number",
+          "maximum": 3,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "LayoutStyle": {
+      "properties": {
+        "pip": {
+          "$ref": "#/$defs/PiPStyle",
+          "description": "Picture in picture: where the inset sits, its size, shape and frame."
+        },
+        "sideBySide": {
+          "$ref": "#/$defs/SideBySideStyle",
+          "description": "Side by side (and stacked): the gap, frame and what shows between the pictures."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Look": {
+      "properties": {
+        "exposure": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0.5,
+          "description": "Brightness as a gain (1 unchanged)."
+        },
+        "contrast": {
+          "type": "number",
+          "maximum": 1.5,
+          "minimum": 0.5,
+          "description": "Around mid grey (1 unchanged)."
+        },
+        "saturation": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0.2,
+          "description": "1 unchanged."
+        },
+        "warmth": {
+          "type": "number",
+          "maximum": 0.3,
+          "minimum": -0.3,
+          "description": "Positive: warmer (more red, less blue)."
+        },
+        "tint": {
+          "type": "number",
+          "maximum": 0.3,
+          "minimum": -0.3,
+          "description": "Positive: greener; negative: more magenta."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MasterLoudness": {
+      "properties": {
+        "targetLufs": {
+          "type": "number",
+          "maximum": -8,
+          "minimum": -31,
+          "description": "Integrated loudness target (default from output.platform: -14 LUFS for social and YouTube, -16 generic)."
+        },
+        "truePeakDbtp": {
+          "type": "number",
+          "maximum": 0,
+          "minimum": -9,
+          "description": "True-peak ceiling (default -1 dBTP)."
+        },
+        "normalize": {
+          "type": "boolean",
+          "description": "Apply one static master gain so the estimated mix meets the target (default on for cuts with a voiceover; needs loudness evidence for the sources). QA measures the real render."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Mix": {
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/Bus",
+          "description": "The clips' own audio (production sound) and dialogue tracks."
+        },
+        "voiceover": {
+          "$ref": "#/$defs/Bus"
+        },
+        "music": {
+          "$ref": "#/$defs/Bus"
+        },
+        "sfx": {
+          "$ref": "#/$defs/Bus"
+        },
+        "muteSource": {
+          "type": "boolean"
+        },
+        "ducking": {
+          "$ref": "#/$defs/Ducking"
+        },
+        "loudness": {
+          "$ref": "#/$defs/MasterLoudness"
+        },
+        "levelSpeech": {
+          "type": "boolean",
+          "description": "Even out speech loudness between clips (on for new cuts; absent = off, as older cuts were made)."
+        },
+        "cutBlend": {
+          "type": "number",
+          "maximum": 0.5,
+          "minimum": 0,
+          "description": "Seconds the sound blends at straight cuts so they never click (new cuts: 0.1; absent = none, as older cuts were made)."
+        },
+        "voices": {
+          "items": {
+            "$ref": "#/$defs/VoiceSound"
+          },
+          "type": "array",
+          "maxItems": 50,
+          "description": "Per person (by the name the speaker data shows) or per recording: a level change and a clearer voice over their speech."
+        },
+        "enhanced": {
+          "items": {
+            "$ref": "#/$defs/EnhancedSound"
+          },
+          "type": "array",
+          "maxItems": 200,
+          "description": "The processed copies (clearer voices) recordings play instead of their own sound; written by sound enhance."
+        },
+        "said": {
+          "items": {
+            "$ref": "#/$defs/SaidSound"
+          },
+          "type": "array",
+          "maxItems": 100,
+          "description": "Words changed in the speaker's own voice copy, with their consent: the new sound plays instead of the recording's own over each stretch. Written by cut say place."
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MotionRef": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "The component's folder name (motion/\u003cname\u003e)."
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the component's canonical source archive: the exact version a person approved."
+        },
+        "libs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "The shared libraries it imports (@metarush/lib/\u003cname\u003e) and their exact versions (SHA-256)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "hash"
+      ]
+    },
+    "Output": {
+      "properties": {
+        "preset": {
+          "type": "string",
+          "enum": [
+            "vertical-1080p",
+            "landscape-1080p",
+            "square-1080"
+          ]
+        },
+        "width": {
+          "type": "integer",
+          "maximum": 4096,
+          "minimum": 64
+        },
+        "height": {
+          "type": "integer",
+          "maximum": 4096,
+          "minimum": 64
+        },
+        "fps": {
+          "type": "integer",
+          "enum": [
+            24,
+            25,
+            30,
+            50,
+            60
+          ]
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "platform": {
+          "type": "string",
+          "enum": [
+            "generic",
+            "youtube",
+            "shorts",
+            "tiktok",
+            "reels"
+          ],
+          "description": "Selects caption/end-card safe margins."
+        },
+        "framing": {
+          "type": "string",
+          "enum": [
+            "faces",
+            "follow",
+            "center"
+          ],
+          "description": "faces: crops keep the main face in frame (new cuts); follow: crops move with the subject as it moves; center or absent: crops keep the middle (older cuts). A clip's own focus or framing.auto wins."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Overlay": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "template": {
+          "type": "string",
+          "enum": [
+            "lower-third.clean",
+            "lower-third.cinematic",
+            "quote.kinetic",
+            "endcard.cta",
+            "datacard.stat",
+            "title.card",
+            "logo.corner",
+            "slide.title",
+            "slide.bullets",
+            "slide.code",
+            "slide.architecture",
+            "slide.screenshot",
+            "slide.quote",
+            "name.bar",
+            "end.screen"
+          ],
+          "description": "A vetted template (the default). Leave it out for a project motion graphic (or for a role the layout pack fills)."
+        },
+        "motion": {
+          "$ref": "#/$defs/MotionRef",
+          "description": "A project motion graphic (motion/\u003cname\u003e in the project folder) by name and approved version, instead of a template."
+        },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z][a-z-]{0,23}(:[a-z][a-z0-9-]{0,23})?$",
+          "description": "The part it plays in the layout pack: title-card, lower-third, end-screen, quote-card or chapter-card (a variant after a colon: lower-third:guest). Without a template the pack fills it."
+        },
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "description": "When the graphic starts (seconds on the finished video; with a span: seconds after the span starts)."
+        },
+        "duration": {
+          "type": "number",
+          "maximum": 7200,
+          "minimum": 0,
+          "description": "How long it stays (seconds; at least 0.2). With a span: 0 = to the span's end."
+        },
+        "params": {
+          "type": "object"
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "type": "array",
+          "maxItems": 20
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "A person's notes about this graphic (kept with the cut; not shown in the video)."
+        },
+        "span": {
+          "$ref": "#/$defs/OverlaySpan",
+          "description": "Last a section ({from, to}: clip names) or the whole video ({}); at and duration are then measured inside it."
+        },
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/OverlayChange"
+          },
+          "type": "array",
+          "maxItems": 3000,
+          "description": "Moments in the footage from which the graphic's fields change while it stays on screen (a name bar's name follows who is on screen)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "at",
+        "duration",
+        "params"
+      ]
+    },
+    "OverlayChange": {
+      "properties": {
+        "footage": {
+          "type": "string",
+          "pattern": "^(ast_[0-9a-z]{26}|cut:prj_[0-9a-z]{26}/rev_[0-9a-z]{26}|conv:[a-z][a-z0-9_-]{0,47})$",
+          "description": "The footage the moment is in (a clip's assetId)."
+        },
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Seconds in that footage from which the new fields apply."
+        },
+        "params": {
+          "type": "object",
+          "description": "The fields that change (merged over the graphic's own; a picture field can't change)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "footage",
+        "at",
+        "params"
+      ]
+    },
+    "OverlaySpan": {
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "The clip the graphic starts with (default: the first)."
+        },
+        "to": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "The clip it ends with (default: the last)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "PiPStyle": {
+      "properties": {
+        "corner": {
+          "type": "string",
+          "enum": [
+            "",
+            "bottom-right",
+            "bottom-left",
+            "top-right",
+            "top-left"
+          ],
+          "description": "Where the inset sits (default bottom-right)."
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "",
+            "small",
+            "medium",
+            "large"
+          ],
+          "description": "How large the inset is (default medium)."
+        },
+        "shape": {
+          "type": "string",
+          "enum": [
+            "",
+            "rounded",
+            "square",
+            "circle"
+          ],
+          "description": "rounded (default), square or circle (a round camera bubble)."
+        },
+        "frame": {
+          "type": "string",
+          "enum": [
+            "",
+            "none",
+            "accent",
+            "primary",
+            "text"
+          ],
+          "description": "A line around the inset in one of the brand's colours (default none)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ProcessedRef": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "preset": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "offset": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "preset"
+      ]
+    },
+    "ResourcePin": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^res_[0-9a-z]{26}$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The exact version: the SHA-256 of its file. Updating to a newer version is an explicit change."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "sha256"
+      ]
+    },
+    "Rights": {
+      "properties": {
+        "license": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "attribution": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SaidSound": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^swc_[0-9a-z]{26}$",
+          "description": "The change's record: who asked, whose voice copy and consent, and how it was checked."
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "The recording whose words changed."
+        },
+        "from": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where in the recording the new sound starts (seconds; it begins and ends with the recording's own sound)."
+        },
+        "to": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where it ends."
+        },
+        "sound": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "The new sound (a clip MetaRush made, as long as the stretch)."
+        },
+        "wordsFrom": {
+          "type": "number",
+          "minimum": 0
+        },
+        "wordsTo": {
+          "type": "number",
+          "minimum": 0
+        },
+        "words": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1,
+          "description": "What is said now."
+        },
+        "before": {
+          "type": "string",
+          "maxLength": 400,
+          "description": "What was said."
+        },
+        "who": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "picture": {
+          "type": "string",
+          "pattern": "^(ast_[0-9a-z]{26})?$",
+          "description": "The stretch with the mouth matched to the new words (a clip MetaRush made, as long as the stretch)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "assetId",
+        "from",
+        "to",
+        "sound",
+        "wordsFrom",
+        "wordsTo",
+        "words",
+        "before"
+      ]
+    },
+    "Shot": {
+      "properties": {
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where it starts on the conversation's clock (seconds)."
+        },
+        "member": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "One person full frame."
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "side-by-side",
+            "stacked",
+            "pip",
+            "grid"
+          ]
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 9
+        },
+        "card": {
+          "type": "string",
+          "maxLength": 240,
+          "description": "A text card (an off-camera interviewer's question)."
+        },
+        "broll": {
+          "$ref": "#/$defs/ShotBRoll"
+        },
+        "dissolve": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at"
+      ]
+    },
+    "ShotBRoll": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where in that footage it starts (seconds)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "in"
+      ]
+    },
+    "SideBySideStyle": {
+      "properties": {
+        "gap": {
+          "type": "string",
+          "enum": [
+            "",
+            "none",
+            "thin",
+            "wide"
+          ],
+          "description": "The gap between the pictures (default thin)."
+        },
+        "frame": {
+          "type": "string",
+          "enum": [
+            "",
+            "none",
+            "accent",
+            "primary",
+            "text"
+          ],
+          "description": "A line around each picture in one of the brand's colours (default none)."
+        },
+        "backdrop": {
+          "type": "string",
+          "enum": [
+            "",
+            "black",
+            "brand"
+          ],
+          "description": "What shows between the pictures: black (default) or the brand's background colour."
+        },
+        "rounded": {
+          "type": "boolean",
+          "description": "Round the pictures' corners."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SoundTransition": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "cut",
+            "lead",
+            "carry",
+            "auto"
+          ],
+          "description": "cut: the sound changes with the picture; lead: this clip's sound starts early, before we see it (J-cut); carry: the previous clip's sound carries on over this clip (L-cut); auto: MetaRush moves the sound change into the nearest pause so no word is cut."
+        },
+        "duration": {
+          "type": "number",
+          "maximum": 3,
+          "minimum": 0,
+          "description": "lead/carry: seconds. auto: the most it may move the sound (default 1)."
+        },
+        "blend": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0,
+          "description": "Seconds over which one clip's sound fades out while the other's fades in (default: the mix's cutBlend, else 0.1)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode"
+      ]
+    },
+    "Spec": {
+      "properties": {
+        "schemaVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "output": {
+          "$ref": "#/$defs/Output"
+        },
+        "clips": {
+          "items": {
+            "$ref": "#/$defs/Clip"
+          },
+          "type": "array",
+          "maxItems": 500,
+          "minItems": 1
+        },
+        "audio": {
+          "items": {
+            "$ref": "#/$defs/AudioTrack"
+          },
+          "type": "array",
+          "maxItems": 60
+        },
+        "captions": {
+          "$ref": "#/$defs/Captions"
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/Overlay"
+          },
+          "type": "array",
+          "maxItems": 100
+        },
+        "brand": {
+          "$ref": "#/$defs/Brand"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Editorial treatment summary shown to reviewers."
+        },
+        "voiceover": {
+          "$ref": "#/$defs/Voiceover"
+        },
+        "mix": {
+          "$ref": "#/$defs/Mix"
+        },
+        "resources": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ResourcePin"
+          },
+          "type": "object",
+          "description": "Short name (lowercase letters, digits, - and _) → the resource and its exact version."
+        },
+        "conversations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ConversationPin"
+          },
+          "type": "object",
+          "description": "Short name → a conversation (several recordings of one talk, aligned) and how this cut renders it."
+        },
+        "fixed": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FixedPin"
+          },
+          "type": "object",
+          "description": "Footage (asset ID) → the fixed copy this cut plays instead of the original (steadier picture, cleaned-up voices…)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "output",
+        "clips"
+      ]
+    },
+    "TTSVoiceSettings": {
+      "properties": {
+        "stability": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "similarityBoost": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "style": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "speed": {
+          "type": "number",
+          "maximum": 1.2,
+          "minimum": 0.7
+        },
+        "speakerBoost": {
+          "type": "boolean"
+        },
+        "outputFormat": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Provider output format (e.g. mp3_44100_128)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "TakeRef": {
+      "properties": {
+        "takeId": {
+          "type": "string",
+          "pattern": "^tk_[0-9a-z]{26}$"
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0
+        },
+        "out": {
+          "type": "number",
+          "minimum": 0
+        },
+        "speed": {
+          "type": "number",
+          "maximum": 2,
+          "minimum": 0.5,
+          "description": "Playback rate (pitch preserved). Fitting may speed TTS up by at most 8%."
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "scratch",
+            "tts",
+            "recorded",
+            "imported"
+          ]
+        },
+        "aiVoice": {
+          "type": "boolean",
+          "description": "Generated by a synthetic voice (TTS or a voice clone); carried into delivery sidecars."
+        },
+        "processed": {
+          "$ref": "#/$defs/ProcessedRef"
+        },
+        "useProcessed": {
+          "type": "boolean",
+          "description": "Play the processed (cleanup) version instead of the original (A/B)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "in",
+        "out"
+      ]
+    },
+    "Transition": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "cut",
+            "fade",
+            "crossfade",
+            "dip-to-black",
+            "dip-to-white",
+            "wipe",
+            "slide",
+            "push",
+            "zoom",
+            "whip"
+          ],
+          "description": "cut; fade (in from the background); crossfade (dissolve); dip-to-black / dip-to-white (fade through black or white); wipe, slide, push, zoom, whip (see metarush edit transitions)."
+        },
+        "duration": {
+          "type": "number",
+          "maximum": 5,
+          "minimum": 0
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right",
+            "up",
+            "down"
+          ],
+          "description": "wipe/slide/push/whip: the way the picture moves (left = the next shot comes in from the right). Default left."
+        },
+        "easing": {
+          "type": "string",
+          "enum": [
+            "ease-in-out",
+            "linear",
+            "ease-in",
+            "ease-out"
+          ],
+          "description": "How the movement or blend is paced (default ease-in-out)."
+        },
+        "audio": {
+          "$ref": "#/$defs/SoundTransition"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "VoiceRef": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "local",
+            "elevenlabs"
+          ]
+        },
+        "voiceId": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "modelId": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "settings": {
+          "$ref": "#/$defs/TTSVoiceSettings"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "provider"
+      ]
+    },
+    "VoiceSound": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "The person as the speaker data names them (Maya, Speaker 2)."
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "Instead of a person: a whole recording (one person's own track)."
+        },
+        "gainDb": {
+          "type": "number",
+          "maximum": 12,
+          "minimum": -30,
+          "description": "Level change over their speech in dB (0 = as recorded)."
+        },
+        "enhance": {
+          "$ref": "#/$defs/Enhance"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Voiceover": {
+      "properties": {
+        "beats": {
+          "items": {
+            "$ref": "#/$defs/Beat"
+          },
+          "type": "array",
+          "maxItems": 300
+        },
+        "settings": {
+          "$ref": "#/$defs/VoiceoverSettings"
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "beats",
+            "continuous"
+          ]
+        },
+        "continuous": {
+          "$ref": "#/$defs/ContinuousVO"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "original": {
+          "type": "string",
+          "maxLength": 200000,
+          "description": "The script exactly as the person pasted or imported it (never changed afterwards; a new whole script replaces it)."
+        },
+        "fitted": {
+          "$ref": "#/$defs/FittedScript"
+        },
+        "active": {
+          "type": "string",
+          "enum": [
+            "original",
+            "fitted"
+          ],
+          "description": "Which version of the script the lines are (original by default)."
+        },
+        "parked": {
+          "items": {
+            "$ref": "#/$defs/Beat"
+          },
+          "type": "array",
+          "maxItems": 300,
+          "description": "The lines of the script version not in use (not part of the cut)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "beats"
+      ]
+    },
+    "VoiceoverSettings": {
+      "properties": {
+        "speakingRateWpm": {
+          "type": "number",
+          "maximum": 320,
+          "minimum": 60,
+          "description": "Words per minute for fit checks of beats without audio (default 155; a recording sets the measured rate)."
+        },
+        "rateSource": {
+          "type": "string",
+          "enum": [
+            "default",
+            "measured",
+            "user"
+          ]
+        },
+        "fitPolicy": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "ask",
+            "shorten"
+          ],
+          "description": "auto: recorded or imported audio extends the shot and TTS speeds up at most 8%; ask: warn and wait; shorten: rewrite the line. Warnings are always shown."
+        },
+        "gap": {
+          "type": "number",
+          "maximum": 5,
+          "minimum": 0,
+          "description": "Default pause (s) before a beat anchored after the previous one (default 0.3)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  "title": "MetaRush edit spec v1"
+}

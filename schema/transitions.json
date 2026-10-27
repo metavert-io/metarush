@@ -1,0 +1,359 @@
+{
+  "generatedBy": "metarush schema export (internal/editspec Transitions); do not edit",
+  "transitions": [
+    {
+      "type": "cut",
+      "name": "Cut",
+      "summary": "Straight from one shot to the next.",
+      "whenToUse": "Almost always, especially inside a conversation. Let a voice start a moment early or carry over to keep the talk flowing.",
+      "overlap": false,
+      "easing": false,
+      "defaultDuration": 0,
+      "minDuration": 0,
+      "maxDuration": 0,
+      "sound": "Changes with the picture (new cuts blend it over 0.1 s so it never clicks).",
+      "flashy": false,
+      "styles": [
+        "natural",
+        "snappy",
+        "smooth",
+        "playful"
+      ]
+    },
+    {
+      "type": "crossfade",
+      "name": "Dissolve",
+      "summary": "The next shot slowly fades in over this one.",
+      "whenToUse": "Time passing, a change of place, a gentle mood. Not between two people talking.",
+      "overlap": true,
+      "easing": true,
+      "defaultDuration": 0.5,
+      "minDuration": 0.1,
+      "maxDuration": 5,
+      "sound": "Blends from one to the other at an even loudness.",
+      "flashy": false,
+      "styles": [
+        "natural",
+        "smooth"
+      ]
+    },
+    {
+      "type": "dip-to-black",
+      "name": "Fade through black",
+      "summary": "This shot fades to black, then the next fades up.",
+      "whenToUse": "Endings, chapter breaks, a long jump in time.",
+      "overlap": false,
+      "easing": false,
+      "defaultDuration": 0.8,
+      "minDuration": 0.2,
+      "maxDuration": 5,
+      "sound": "Fades out with the picture, then the next shot's sound fades in.",
+      "flashy": false,
+      "styles": [
+        "natural",
+        "snappy",
+        "smooth",
+        "playful"
+      ]
+    },
+    {
+      "type": "dip-to-white",
+      "name": "Fade through white",
+      "summary": "This shot fades to white, then the next fades up.",
+      "whenToUse": "A memory, a dream, a bright upbeat break. Use sparingly.",
+      "overlap": false,
+      "easing": false,
+      "defaultDuration": 0.8,
+      "minDuration": 0.2,
+      "maxDuration": 5,
+      "sound": "Fades out with the picture, then the next shot's sound fades in.",
+      "flashy": false,
+      "styles": [
+        "smooth",
+        "playful"
+      ]
+    },
+    {
+      "type": "fade",
+      "name": "Fade in",
+      "summary": "The shot fades in from the background color (black unless the cut sets another).",
+      "whenToUse": "The very first shot, or coming back after a pause.",
+      "overlap": false,
+      "easing": false,
+      "defaultDuration": 0.6,
+      "minDuration": 0.1,
+      "maxDuration": 5,
+      "sound": "Fades in with the picture.",
+      "flashy": false,
+      "styles": [
+        "natural",
+        "snappy",
+        "smooth",
+        "playful"
+      ]
+    },
+    {
+      "type": "wipe",
+      "name": "Wipe",
+      "summary": "An edge sweeps across the frame and reveals the next shot.",
+      "whenToUse": "Playful or retro pieces, or a clear \"meanwhile\". Flashy: only when the project's transition style asks for it.",
+      "overlap": true,
+      "directions": [
+        "left",
+        "right",
+        "up",
+        "down"
+      ],
+      "defaultDirection": "left",
+      "easing": true,
+      "defaultDuration": 0.5,
+      "minDuration": 0.15,
+      "maxDuration": 3,
+      "sound": "Blends from one to the other over the wipe.",
+      "flashy": true,
+      "styles": [
+        "playful"
+      ]
+    },
+    {
+      "type": "slide",
+      "name": "Slide",
+      "summary": "The next shot slides in over this one.",
+      "whenToUse": "Lists, steps, before/after. Flashy: only when the project's transition style asks for it.",
+      "overlap": true,
+      "directions": [
+        "left",
+        "right",
+        "up",
+        "down"
+      ],
+      "defaultDirection": "left",
+      "easing": true,
+      "defaultDuration": 0.4,
+      "minDuration": 0.15,
+      "maxDuration": 3,
+      "sound": "Blends from one to the other over the slide.",
+      "flashy": true,
+      "styles": [
+        "playful"
+      ]
+    },
+    {
+      "type": "push",
+      "name": "Push",
+      "summary": "The next shot pushes this one out of the frame.",
+      "whenToUse": "Energetic sequences, moving on to the next thing. Flashy: only when the project's transition style asks for it.",
+      "overlap": true,
+      "directions": [
+        "left",
+        "right",
+        "up",
+        "down"
+      ],
+      "defaultDirection": "left",
+      "easing": true,
+      "defaultDuration": 0.4,
+      "minDuration": 0.15,
+      "maxDuration": 3,
+      "sound": "Blends from one to the other over the push.",
+      "flashy": true,
+      "styles": [
+        "snappy",
+        "playful"
+      ]
+    },
+    {
+      "type": "zoom",
+      "name": "Zoom",
+      "summary": "The picture zooms in and through into the next shot.",
+      "whenToUse": "Punchy reveals, hype moments. Flashy: only when the project's transition style asks for it.",
+      "overlap": true,
+      "easing": true,
+      "defaultDuration": 0.4,
+      "minDuration": 0.15,
+      "maxDuration": 2,
+      "sound": "Blends from one to the other over the zoom.",
+      "flashy": true,
+      "styles": [
+        "playful"
+      ]
+    },
+    {
+      "type": "whip",
+      "name": "Whip",
+      "summary": "A fast blurred swish, as if the camera whipped over to the next shot.",
+      "whenToUse": "Fast energetic pieces, on a beat. Flashy: only when the project's transition style asks for it.",
+      "overlap": true,
+      "directions": [
+        "left",
+        "right",
+        "up",
+        "down"
+      ],
+      "defaultDirection": "left",
+      "easing": true,
+      "defaultDuration": 0.3,
+      "minDuration": 0.1,
+      "maxDuration": 1,
+      "sound": "Blends quickly from one to the other.",
+      "flashy": true,
+      "styles": [
+        "snappy",
+        "playful"
+      ]
+    }
+  ],
+  "sound": [
+    {
+      "mode": "cut",
+      "name": "With the picture",
+      "summary": "The sound changes at the same moment as the picture.",
+      "example": "Sam's voice starts when we see him.",
+      "takesDuration": false
+    },
+    {
+      "mode": "lead",
+      "name": "Voice starts early",
+      "summary": "The next shot's sound starts a moment before we see it (an editor would call this a J-cut). The shot before it gets quieter as it starts.",
+      "example": "Sam's voice starts 0.4 s before we see him.",
+      "takesDuration": true,
+      "defaultDuration": 0.4,
+      "maxDuration": 3
+    },
+    {
+      "mode": "carry",
+      "name": "Voice carries over",
+      "summary": "This shot's sound keeps going for a moment over the next shot (an editor would call this an L-cut).",
+      "example": "Maya's voice carries 0.3 s over the next shot.",
+      "takesDuration": true,
+      "defaultDuration": 0.3,
+      "maxDuration": 3
+    },
+    {
+      "mode": "auto",
+      "name": "Into the nearest pause",
+      "summary": "MetaRush moves the sound change into the nearest pause, using the transcript, so no word is cut off.",
+      "example": "The voices change in the pause after \"…and that's how it started.\"",
+      "takesDuration": true,
+      "defaultDuration": 1,
+      "maxDuration": 3
+    }
+  ],
+  "easings": [
+    {
+      "id": "ease-in-out",
+      "name": "Smooth",
+      "summary": "Starts and ends gently (default)."
+    },
+    {
+      "id": "linear",
+      "name": "Even speed",
+      "summary": "The same speed all the way through."
+    },
+    {
+      "id": "ease-in",
+      "name": "Speeds up",
+      "summary": "Starts slowly and finishes fast."
+    },
+    {
+      "id": "ease-out",
+      "name": "Slows down",
+      "summary": "Starts fast and settles gently."
+    }
+  ],
+  "directions": [
+    {
+      "id": "left",
+      "name": "Left",
+      "summary": "The next shot comes in from the right and moves left."
+    },
+    {
+      "id": "right",
+      "name": "Right",
+      "summary": "The next shot comes in from the left and moves right."
+    },
+    {
+      "id": "up",
+      "name": "Up",
+      "summary": "The next shot comes in from the bottom and moves up."
+    },
+    {
+      "id": "down",
+      "name": "Down",
+      "summary": "The next shot comes in from the top and moves down."
+    }
+  ],
+  "edges": [
+    {
+      "edge": "start",
+      "name": "Fade in at the start",
+      "summary": "The video fades in from black.",
+      "how": "the first clip's transitionIn {\"type\":\"fade\",\"duration\":1} (or \"dip-to-white\" to fade in from white)",
+      "maxDuration": 5
+    },
+    {
+      "edge": "end",
+      "name": "Fade out at the end",
+      "summary": "The video fades out to black, picture and sound together.",
+      "how": "the last clip's \"fadeOut\": 1.5 (or setTransition with edge \"end\")",
+      "maxDuration": 5
+    }
+  ],
+  "styles": [
+    {
+      "id": "natural",
+      "name": "Natural",
+      "summary": "Straight cuts, with voices that start early or carry over; a dissolve only when time passes; fade through black for endings.",
+      "uses": [
+        "cut",
+        "crossfade",
+        "dip-to-black",
+        "fade"
+      ],
+      "splitEdits": "Often: voices carry over a reaction, the next speaker starts a moment early (0.3–0.8 s)."
+    },
+    {
+      "id": "snappy",
+      "name": "Snappy",
+      "summary": "Tight straight cuts, with voices that start a moment early; the odd push or whip on a beat.",
+      "uses": [
+        "cut",
+        "push",
+        "whip",
+        "dip-to-black"
+      ],
+      "splitEdits": "Short ones (0.2–0.4 s), mostly the next speaker starting early."
+    },
+    {
+      "id": "smooth",
+      "name": "Smooth",
+      "summary": "Dissolves between scenes, longer fades, gentle sound blends.",
+      "uses": [
+        "cut",
+        "crossfade",
+        "dip-to-black",
+        "dip-to-white",
+        "fade"
+      ],
+      "splitEdits": "Longer ones (0.5–1 s) with longer blends (0.2–0.3 s)."
+    },
+    {
+      "id": "playful",
+      "name": "Playful",
+      "summary": "Slides, pushes, zooms, wipes and whips are welcome, still with clean cuts inside a conversation.",
+      "uses": [
+        "cut",
+        "slide",
+        "push",
+        "zoom",
+        "wipe",
+        "whip",
+        "dip-to-white"
+      ],
+      "splitEdits": "As in Natural inside conversations."
+    }
+  ],
+  "defaultEasing": "ease-in-out",
+  "cutBlend": 0.1,
+  "splitBlend": 0.1
+}

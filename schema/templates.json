@@ -1,0 +1,170 @@
+{
+  "generatedBy": "metarush schema export (internal/editspec Templates); do not edit",
+  "templates": [
+    {
+      "id": "lower-third.clean",
+      "version": "1",
+      "summary": "A clean name title at the bottom of the screen with a thin accent line, optionally with a small logo. Good for interviews.",
+      "minDuration": 2,
+      "maxDuration": 10,
+      "region": "lower",
+      "resourceParams": [
+        "logo"
+      ]
+    },
+    {
+      "id": "lower-third.cinematic",
+      "version": "1",
+      "summary": "An elegant name title at the bottom in widely spaced serif letters that appears slowly, optionally with a small logo. Good for a documentary feel.",
+      "minDuration": 2.5,
+      "maxDuration": 10,
+      "region": "lower",
+      "resourceParams": [
+        "logo"
+      ]
+    },
+    {
+      "id": "quote.kinetic",
+      "version": "1",
+      "summary": "A quote that appears calmly, word by word, with optional highlighted words.",
+      "minDuration": 2.5,
+      "maxDuration": 15,
+      "region": "center"
+    },
+    {
+      "id": "endcard.cta",
+      "version": "1",
+      "summary": "An end card in your brand's look with a headline, a call to action and your handle, kept clear of the apps' buttons; optional logo and background picture.",
+      "minDuration": 2,
+      "maxDuration": 10,
+      "region": "full",
+      "resourceParams": [
+        "logo",
+        "image"
+      ]
+    },
+    {
+      "id": "datacard.stat",
+      "version": "1",
+      "summary": "An animated number with a label and its source on screen (a source is required).",
+      "minDuration": 2.5,
+      "maxDuration": 10,
+      "region": "center"
+    },
+    {
+      "id": "title.card",
+      "version": "1",
+      "summary": "Opening title over a softened frame; optional logo above it and a picture behind it.",
+      "minDuration": 1.5,
+      "maxDuration": 8,
+      "region": "center",
+      "resourceParams": [
+        "logo",
+        "image"
+      ]
+    },
+    {
+      "id": "logo.corner",
+      "version": "1",
+      "summary": "A logo in one corner of the frame (top-right by default), for as long as you like.",
+      "minDuration": 1,
+      "maxDuration": 600,
+      "region": "corner",
+      "persistent": true,
+      "resourceParams": [
+        "logo"
+      ]
+    },
+    {
+      "id": "slide.title",
+      "version": "1",
+      "summary": "Slide: a title in the brand's colours, with an optional label above, a logo and a darkened picture behind.",
+      "minDuration": 2,
+      "maxDuration": 60,
+      "region": "full",
+      "resourceParams": [
+        "logo",
+        "image"
+      ]
+    },
+    {
+      "id": "slide.bullets",
+      "version": "1",
+      "summary": "Slide: a title and up to six points that appear one by one, optionally beside a picture.",
+      "minDuration": 3,
+      "maxDuration": 60,
+      "region": "full",
+      "resourceParams": [
+        "image"
+      ]
+    },
+    {
+      "id": "slide.code",
+      "version": "1",
+      "summary": "Slide: a picture of code from a repository, under a title; long code scrolls.",
+      "minDuration": 3,
+      "maxDuration": 60,
+      "region": "full",
+      "resourceParams": [
+        "code"
+      ]
+    },
+    {
+      "id": "slide.architecture",
+      "version": "1",
+      "summary": "Slide: a diagram of how something fits together (or any picture), under a title.",
+      "minDuration": 3,
+      "maxDuration": 60,
+      "region": "full",
+      "resourceParams": [
+        "diagram"
+      ]
+    },
+    {
+      "id": "slide.screenshot",
+      "version": "1",
+      "summary": "Slide: a web page snapshot (or any screenshot) in a browser or phone frame; a whole-page snapshot scrolls.",
+      "minDuration": 2,
+      "maxDuration": 60,
+      "region": "full",
+      "resourceParams": [
+        "image"
+      ]
+    },
+    {
+      "id": "slide.quote",
+      "version": "1",
+      "summary": "Slide: a quote with who said it, optionally beside a portrait or logo.",
+      "minDuration": 3,
+      "maxDuration": 60,
+      "region": "full",
+      "resourceParams": [
+        "image"
+      ]
+    },
+    {
+      "id": "name.bar",
+      "version": "1",
+      "summary": "A bar across the bottom that hides the names a call app printed in the picture and shows your own; the name can follow who is on screen, and it can stay up for the whole video.",
+      "minDuration": 1,
+      "maxDuration": 7200,
+      "region": "lower",
+      "persistent": true,
+      "resourceParams": [
+        "logo"
+      ]
+    },
+    {
+      "id": "end.screen",
+      "version": "1",
+      "summary": "An end screen for a video's last 5–20 seconds in your brand's look: a headline, a line and the logo beside empty room where a video platform places the next videos and the subscribe button.",
+      "minDuration": 5,
+      "maxDuration": 20,
+      "region": "full",
+      "resourceParams": [
+        "logo",
+        "image"
+      ]
+    }
+  ]
+}

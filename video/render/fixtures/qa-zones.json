@@ -1,0 +1,172 @@
+{
+  "checks": [
+    {
+      "box": [
+        0.075,
+        0.7114,
+        0.8653,
+        0.7914
+      ],
+      "frame": 30,
+      "what": "captions"
+    },
+    {
+      "box": [
+        0.075,
+        0.7288,
+        0.8653,
+        0.7914
+      ],
+      "frame": 90,
+      "what": "lower third"
+    },
+    {
+      "box": [
+        0.075,
+        0.7114,
+        0.8653,
+        0.7914
+      ],
+      "frame": 150,
+      "what": "captions"
+    }
+  ],
+  "generatedBy": "go test ./internal/qa -run TestSelftestZones -update (do not edit)",
+  "media": {
+    "dark": "dark.mp4"
+  },
+  "plans": {
+    "qa-zones": {
+      "schemaVersion": 1,
+      "revisionId": "rev_selftest_qa",
+      "projectId": "prj_selftest",
+      "specHash": "9057d570848ed5e455cb8f26cd5ea0a9fd5f9974c88ea35acf52b7f7e3e4d249",
+      "media": "original",
+      "width": 720,
+      "height": 1280,
+      "fps": 30,
+      "durationInFrames": 180,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 128,
+        "bottom": 256,
+        "left": 43,
+        "right": 86
+      },
+      "clips": [
+        {
+          "id": "dark",
+          "assetId": "dark",
+          "from": 0,
+          "durationInFrames": 180,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 6,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1280,
+          "sourceHeight": 720,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1
+            },
+            {
+              "f": 179,
+              "g": 1
+            }
+          ]
+        }
+      ],
+      "audio": [],
+      "dialogueRanges": [],
+      "captions": {
+        "style": "clean",
+        "position": "bottom",
+        "uppercase": false,
+        "precision": "segment",
+        "lines": [
+          {
+            "from": 6,
+            "to": 54,
+            "text": "Captions sit in their band",
+            "words": []
+          },
+          {
+            "from": 126,
+            "to": 174,
+            "text": "low on the screen, two lines at most",
+            "words": []
+          }
+        ]
+      },
+      "overlays": [
+        {
+          "id": "who",
+          "template": "lower-third.clean",
+          "templateVersion": "1",
+          "from": 63,
+          "durationInFrames": 54,
+          "params": {
+            "name": "A builder",
+            "title": "Teacher"
+          }
+        }
+      ],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": false,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 6,
+          "releaseFrames": 6
+        },
+        "voiceRanges": [],
+        "targetLufs": -14,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "masterGainDb": 0
+      }
+    }
+  }
+}

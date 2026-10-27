@@ -1,0 +1,13 @@
+{
+  "name": "metarush-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MetaRush JS workspaces: generated schema types, Remotion templates, dashboard.",
+  "workspaces": ["schema", "video", "web"],
+  "scripts": {
+    "gen:types": "node schema/gen-types.mjs",
+    "build": "npm run build -w video --if-present && npm run build -w web",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": { "node": ">=22" }
+}

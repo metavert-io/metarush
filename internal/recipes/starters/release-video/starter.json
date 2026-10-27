@@ -1,0 +1,19 @@
+{
+  "name": "release-video",
+  "title": "A release tag becomes a release video",
+  "makes": "one widescreen video, 45–90 s: the release's title, two code slides, a diagram and an end card, narrated in an AI voice",
+  "summary": "Give it a repository's tag: Claude fetches the repository at the tag, makes two code slides and a diagram (each keeps its repository and commit — repo@commit:path:lines for a code slide, shown in its caption) and writes a line of narration for each slide; MetaRush reads them in an AI voice (priced first, a sample line first) over a title slide and an end card in your layout pack.",
+  "gives": [
+    "a repository's tag",
+    "two code slides and a diagram made from it",
+    "a line of narration per slide"
+  ],
+  "uses": [
+    "metarush/github-repositories",
+    "metarush/code-slides",
+    "metarush/diagrams",
+    "metarush/ai-narration",
+    "metarush/quality-check"
+  ],
+  "order": 2
+}

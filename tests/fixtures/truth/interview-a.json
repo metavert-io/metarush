@@ -1,0 +1,19 @@
+{
+  "file": "interview-a.mov",
+  "voice": "Samantha",
+  "rate_wpm": 170,
+  "duration_s": 27.016104,
+  "speech_start_s": 0.50,
+  "speech_end_s": 26.016105,
+  "pause_after_word": "question",
+  "pause_before_word": "What",
+  "pause_seconds": 1.50,
+  "pause_start_s": 15.036188,
+  "pause_end_s": 16.536188,
+  "hooks": [
+    "What would you build if nobody was watching?",
+    "Today I teach kids how to build their own machines, and every single one of them fails first.",
+    "I burned through three motors in a single weekend, and honestly, I almost quit."
+  ],
+  "notes": "pause_start_s/pause_end_s are exact sample boundaries of inserted digital silence; TTS segments were trimmed at -55 dBFS, so the true acoustic gap is >= pause_seconds by a few ms of sub-threshold tail."
+}

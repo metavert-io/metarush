@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "title": "Workshop recap",
+  "output": {"preset": "landscape-1080p", "fps": 25, "platform": "youtube", "background": "#0B0B0E"},
+  "clips": [
+    {"id": "intro", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz3", "in": 2, "out": 9.5, "framing": {"mode": "fit"}},
+    {"id": "stat", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz3", "in": 30, "out": 41.04, "framing": {"zoom": 1.15, "focusY": 0.3}},
+    {"id": "outro", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz3", "in": 50, "out": 58, "transitionIn": {"type": "crossfade", "duration": 1}}
+  ],
+  "audio": [
+    {"id": "vo", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz2", "role": "voiceover", "in": 1, "out": 12.5, "at": 3, "gainDb": 0},
+    {"id": "whoosh", "assetId": "ast_01jabcdefghjkmnpqrstvwxyz2", "role": "sfx", "in": 20, "out": 21, "at": 9.2, "gainDb": -6, "locked": true}
+  ],
+  "captions": {"enabled": true, "style": "boxed", "position": "bottom", "source": "manual", "maxWordsPerLine": 7, "uppercase": true,
+    "segments": [{"from": 0.5, "to": 3.2, "text": "Forty people, one weekend.", "speaker": "Host"},
+                 {"from": 3.2, "to": 6, "text": "Here is what they built."}]},
+  "overlays": [
+    {"id": "title", "template": "title.card", "at": 0, "duration": 2.5, "params": {"title": "Workshop recap", "subtitle": "Spring session"}},
+    {"id": "number", "template": "datacard.stat", "at": 9, "duration": 5, "params": {"value": "40", "label": "builders", "source": "Sign-in sheet", "trend": "up"},
+     "evidence": [{"kind": "user", "note": "Count confirmed by the organizer."}]},
+    {"id": "end", "template": "endcard.cta", "at": 21, "duration": 4, "params": {"headline": "See you in the fall", "cta": "Sign up"}, "locked": true}
+  ],
+  "brand": {"primary": "#F2EDE4", "accent": "#E0A458", "text": "#F7F5F0", "background": "#0B0B0E", "font": "Inter"}
+}

@@ -1,0 +1,6 @@
+{"schemaVersion":1,"title":"The road to Porto","output":{"preset":"vertical-1080p","fps":30,"platform":"shorts"},
+ "clips":[{"id":"hook","assetId":"ast_01jabcdefghjkmnpqrstvwxyz0","in":0.5,"out":5.2},
+          {"id":"drive","assetId":"ast_01jabcdefghjkmnpqrstvwxyz1","in":0,"out":6,"transitionIn":{"type":"crossfade","duration":0.4}}],
+ "captions":{"enabled":true,"style":"emphasis","position":"bottom","maxWordsPerLine":4},
+ "overlays":[{"id":"who","template":"lower-third.clean","at":0.5,"duration":3,"params":{"name":"Ada","title":"Builder"}},
+             {"id":"route","motion":{"name":"route-map","hash":"9b460ee0d0be2c56bdff1e8fb03d4aa07b9961643e4fe0a60a503966b44c3c08"},"at":5,"duration":4,"params":{"from":"Lisbon","to":"Porto"}}]}

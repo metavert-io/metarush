@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Send to MetaRush</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Send to MetaRush</h1>
+      <section id="loading" aria-live="polite"><p class="muted">Checking…</p></section>
+
+      <section id="unpaired" hidden>
+        <p>Pair this browser with MetaRush. In MetaRush open <b>Settings → Browser extension</b> and choose <b>Pair a browser</b>, then type the code here.</p>
+        <form id="pair-form">
+          <label for="code">Pairing code</label>
+          <input id="code" name="code" autocomplete="off" spellcheck="false" placeholder="ABCD-EFGH" maxlength="12" required />
+          <details>
+            <summary>MetaRush address</summary>
+            <label for="base">Address</label>
+            <input id="base" name="base" value="http://127.0.0.1:4845" spellcheck="false" />
+            <p class="muted small">MetaRush on this computer: http://127.0.0.1:4845 (or its own port). MetaRush on another of your computers, over Tailscale: its address, like https://studio.tail1234.ts.net (Settings → Browser extension there shows it).</p>
+          </details>
+          <button type="submit" id="pair-btn">Pair</button>
+        </form>
+        <p id="pair-error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section id="paired" hidden>
+        <p class="ok" id="paired-line">Paired with MetaRush.</p>
+        <p id="offline" class="error" role="alert" hidden></p>
+        <button type="button" id="send-btn">Send this video</button>
+        <p class="muted small" id="send-note">On a YouTube, TikTok or X video page, use the “Send to MetaRush” button, or this one.</p>
+        <button type="button" id="page-btn" class="second">Send this page</button>
+        <p class="muted small" id="page-note">A picture of what you see and the page's text go to MetaRush's resources, for graphics. Signed-in pages stay as you see them.</p>
+        <p id="page-result" role="status" hidden></p>
+        <p class="muted small">This browser can only send videos and pages to MetaRush. It can't see your projects or clips.</p>
+        <button type="button" id="unpair-btn" class="quiet">Unpair this browser</button>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

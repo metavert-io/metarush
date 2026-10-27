@@ -1,0 +1,19 @@
+{
+  "_comment": "People's own words, marked “…” in text shown to a person, are theirs (D113). Shared by internal/plainwords (TestPeoplesOwnWordsAreTheirs) and web/scripts/plain-words-test.mjs, so the Go and dashboard checkers agree. 'shown': nothing to flag with CheckShown. 'still': CheckShown still finds this.",
+  "shown": [
+    "Transcribed “riverside_sam_raw-video-cfr_garden_show_0002”",
+    "Who is Speaker 2 in “riverside_maya_raw-video-cfr_garden_show_0001”?",
+    "Make an automatic cut of “Garden call”: reaction-heavy",
+    "Put “B-roll proxy (final_v2)” under the video",
+    "“tiny_garage”, “--loud--” and “metarush edit check” are in the Inbox"
+  ],
+  "still": {
+    "warning heavy_crop on “Garden call”": "code heavy_crop",
+    "Transcribed “ast_01m5cndsmfahaa6k0rab5bpss0”": "id ast_01m5cndsmfahaa6k0rab5bpss0",
+    "Put “undefined” under the video": "leak undefined",
+    "Run it with --apply to put “Garden call” in the cut": "flag --apply",
+    "The QA of “riverside_sam_raw” found nothing": "jargon QA",
+    "an unclosed “riverside_sam_raw stays checked": "code riverside_sam_raw",
+    "“Garden call” is in /Users/you/Movies/garden_show.mp4": "path /Users/you/Movies/garden_show.mp4"
+  }
+}

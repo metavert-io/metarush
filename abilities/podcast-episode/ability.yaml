@@ -1,0 +1,28 @@
+# NOT YET RUNNABLE. This is the shape posting an episode to a podcast host needs (Buzzsprout's API
+# first; other hosts with a key take the same shape); `metarush ability check` refuses it today because
+# MetaRush doesn't yet have two of the things it uses:
+#   inputs.episode kind delivered      - a version's final render as an input; the program sends its sound
+#   inputs.notes kind delivery-notes   - the version's title, description, chapters and show notes (its delivery notes)
+# notes.md says what each one is; internal/abilities' TestPublishingNotYetRunnable keeps this list true.
+ability: 1
+name: podcast-episode
+title: Post an episode to your podcast host
+does: Posts a version's sound as a podcast episode on Buzzsprout, with the title, show notes and chapters from its delivery notes; a person starts every run.
+runs: python3 post.py
+inputs:
+  episode: {kind: delivered, optional: true, says: The version whose sound is the episode (a run needs it)}
+  notes: {kind: delivery-notes, optional: true, says: "Its title, show notes and chapters"}
+  podcast: {kind: words, max: 20, says: Your podcast's number at Buzzsprout}
+  publish: {kind: choice, options: [draft, now], default: draft, says: Publish it now or keep it as a draft there}
+outputs: [document]
+cost: free
+keys: [{name: buzzsprout, env: BUZZSPROUT_TOKEN, hosts: [www.buzzsprout.com]}]
+hosts: [www.buzzsprout.com]
+sends: [sound, words]
+changes-outside: yes
+likeness: no
+needs: {programs: [python3, ffmpeg], os: [mac, linux]}
+licence: MIT
+search: [podcast, episode, buzzsprout, show notes, audio, publish]
+limits: {minutes: 60, mb: 10}
+test: {inputs: {podcast: "123"}}

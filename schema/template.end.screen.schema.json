@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:template:end.screen:1",
+  "$ref": "#/$defs/EndScreenParams",
+  "$defs": {
+    "EndScreenParams": {
+      "properties": {
+        "headline": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "subline": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "slots": {
+          "type": "string",
+          "enum": [
+            "two-videos",
+            "one-video",
+            "videos-only"
+          ],
+          "description": "The room left for the platform's elements: two-videos (two videos and the subscribe button, the default), one-video (one video and the button) or videos-only (two videos)."
+        },
+        "outline": {
+          "type": "boolean",
+          "description": "Draw a faint outline where each element goes (a guide while placing them)."
+        },
+        "logo": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}(#[1-9][0-9]{0,2})?$",
+          "format": "metarush-resource",
+          "description": "A logo from the cut's resources, above the headline."
+        },
+        "image": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}(#[1-9][0-9]{0,2})?$",
+          "format": "metarush-resource",
+          "description": "A picture from the cut's resources behind the screen, darkened."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "headline"
+      ]
+    }
+  },
+  "title": "Params for end.screen"
+}

@@ -1,0 +1,25 @@
+# NOT YET RUNNABLE. This is the shape an ability needs to drive DaVinci Resolve
+# through the community DaVinci Resolve MCP server; `metarush ability check` refuses it
+# today because MetaRush doesn't yet have three of the things it uses:
+#   serves: mcp   - a server MetaRush keeps running for a conversation, whose tools Claude
+#                   reaches through find and run_change, each call a person's step
+#   tools         - the server's tools it offers, each a change outside MetaRush
+#   app           - reaching a running app over its own local connection (Resolve's
+#                   scripting library, loaded into the server; not HTTP, so the one local service an owner allows can't carry it)
+# notes.md says what each one is; internal/abilities' TestStarterNotYetRunnable keeps this list true.
+ability: 1
+name: davinci-resolve
+title: DaVinci Resolve through its MCP server
+does: Lets Claude work in DaVinci Resolve Studio on this computer through the community DaVinci Resolve MCP server — projects, the media pool, timelines, markers and renders — each step started by a person.
+runs: python3 launch.py
+serves: mcp
+tools: [project_manager, media_pool, timeline, timeline_markers, render]
+app: {name: DaVinci Resolve Studio, connection: scripting}
+cost: free
+changes-outside: yes
+likeness: no
+needs: {programs: [python3, resolve-mcp], os: [mac, linux]}
+licence: MIT
+search: [davinci resolve, resolve, color, grading, timeline, mcp, finishing]
+limits: {minutes: 60}
+test: {inputs: {}}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:template:slide.screenshot:1",
+  "$ref": "#/$defs/SlideScreenshotParams",
+  "$defs": {
+    "SlideScreenshotParams": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "image": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]{0,47}(#[1-9][0-9]{0,2})?$",
+          "format": "metarush-resource",
+          "description": "A web page snapshot (name: for a computer; name#2: a phone; name#3: the whole page) or any picture."
+        },
+        "frame": {
+          "type": "string",
+          "enum": [
+            "browser",
+            "phone",
+            "none"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "caption": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "scroll": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "image"
+      ]
+    }
+  },
+  "title": "Params for slide.screenshot"
+}

@@ -1,0 +1,4 @@
+{"schemaVersion":1,"output":{"preset":"vertical-1080p"},
+ "clips":[{"id":"hook","assetId":"ast_01jabcdefghjkmnpqrstvwxyz0","in":1,"out":4},
+          {"id":"broll","assetId":"ast_01jabcdefghjkmnpqrstvwxyz1","in":0,"out":3,"transitionIn":{"type":"crossfade","duration":0.5}},
+          {"id":"end","assetId":"ast_01jabcdefghjkmnpqrstvwxyz0","in":10,"out":14,"locked":true}]}

@@ -1,0 +1,30 @@
+ability: 1
+name: comfyui-local
+title: Pictures from ComfyUI on this computer
+does: Makes pictures from a few words with the ComfyUI server running on this computer, using a model you already have in it.
+runs: python3 make.py
+inputs:
+  words: {kind: words, max: 500, says: What the picture shows}
+  avoid: {kind: words, max: 300, optional: true, says: What it shouldn't show}
+  model: {kind: words, max: 200, optional: true, says: The checkpoint ComfyUI should use (default the first it lists)}
+  shape: {kind: choice, options: [landscape, portrait, square], default: landscape, says: Its shape}
+  count: {kind: number, min: 1, max: 4, default: 1, says: How many pictures}
+  steps: {kind: number, min: 1, max: 60, default: 20, says: Sampling steps (more is slower)}
+  seed: {kind: number, min: 0, max: 4294967295, optional: true, says: A seed to make the same picture again}
+outputs: [picture]
+cost: free
+network: metarush
+local:
+  port: 8188
+  service: ComfyUI
+  # What tells ComfyUI apart from anything else on the port: MetaRush asks it when an
+  # owner approves and before each run.
+  probe: {path: /system_stats, expect: [system.comfyui_version, devices]}
+sends: [nothing]
+changes-outside: no
+likeness: no
+needs: {programs: [python3], os: [mac, linux]}
+licence: MIT
+search: [comfyui, stable diffusion, generate, picture, image, ai, local, gpu]
+limits: {minutes: 30, mb: 500}
+test: {inputs: {words: a lighthouse at dawn}}

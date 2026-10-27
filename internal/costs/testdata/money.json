@@ -1,0 +1,18 @@
+{
+  "_comment": "How an amount is said (costs.Money in Go, money in web/src/lib/costs.ts): both read these cases.",
+  "cases": [
+    { "usd": 0, "money": "$0" },
+    { "usd": -1, "money": "$0" },
+    { "usd": 0.004, "money": "less than a cent" },
+    { "usd": 0.009, "money": "less than a cent" },
+    { "usd": 0.01, "money": "$0.01" },
+    { "usd": 0.399, "money": "$0.40" },
+    { "usd": 1.8, "money": "$1.80" },
+    { "usd": 12.5, "money": "$12.50" },
+    { "usd": 99.999, "money": "$100" },
+    { "usd": 120, "money": "$120" },
+    { "usd": 1234.56, "money": "$1,234.56" },
+    { "usd": 1234.999, "money": "$1,235" },
+    { "usd": 12000, "money": "$12,000" }
+  ]
+}

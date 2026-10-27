@@ -1,0 +1,23 @@
+# NOT YET RUNNABLE. This is the shape this ability needs; `metarush ability check`
+# refuses it today because MetaRush doesn't yet have three of the things it uses:
+#   inputs.video kind delivered  - a video MetaRush delivered, as an input
+#   outputs: [delivered-copy]    - a copy written next to the delivered file (people only)
+#   signs                        - MetaRush signing for the run, so the private key never enters the sandbox
+# notes.md says what each one is; internal/abilities' TestStarterNotYetRunnable keeps this list true.
+ability: 1
+name: content-credentials
+title: Content Credentials on a delivered video
+does: Adds Content Credentials (C2PA) to a video MetaRush delivered, saying it was made with MetaRush and which parts are AI-generated, signed with your certificate, as a copy next to the delivered file.
+runs: python3 sign.py
+inputs:
+  video: {kind: delivered, optional: true, says: A video MetaRush delivered}
+outputs: [delivered-copy]
+signs: {key: content-credentials, alg: es256}
+cost: free
+changes-outside: yes
+likeness: no
+needs: {programs: [python3, c2patool], os: [mac, linux]}
+licence: MIT
+search: [content credentials, c2pa, provenance, sign, delivery, authenticity]
+limits: {minutes: 10, mb: 20000}
+test: {inputs: {}}

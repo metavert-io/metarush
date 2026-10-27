@@ -1,0 +1,477 @@
+[
+  {
+    "name": "widescreen breaks most promises",
+    "promises": [
+      {
+        "ruleId": "rul_1",
+        "text": "Under 60 seconds",
+        "measure": "max-length:60",
+        "says": "The video is at most a minute.",
+        "status": "broken",
+        "measured": "It lasts 1:12, 12 seconds longer than a minute.",
+        "value": 72,
+        "limit": 60,
+        "unit": "seconds",
+        "basis": "observed",
+        "findingId": "f7",
+        "findingIds": [
+          "f7"
+        ]
+      },
+      {
+        "ruleId": "rul_2",
+        "text": "Under 60 seconds for shorts",
+        "measure": "max-length:60@vertical",
+        "says": "The video is at most a minute when it is vertical.",
+        "status": "notApplicable",
+        "measured": "It is a widescreen video, so the promise is for other videos.",
+        "basis": "observed"
+      },
+      {
+        "ruleId": "rul_3",
+        "text": "Captions on every video",
+        "measure": "captions",
+        "says": "Captions are on wherever someone speaks, large enough and slow enough to read.",
+        "status": "broken",
+        "measured": "Only 45% of the speech has captions (the first stretch without them around 0:30).",
+        "value": 45.386,
+        "limit": 90,
+        "unit": "percent",
+        "basis": "heuristic",
+        "findingId": "f5",
+        "findingIds": [
+          "f5"
+        ]
+      },
+      {
+        "ruleId": "rul_4",
+        "text": "Logo in the last 3 s",
+        "measure": "logo-end:3",
+        "house": true,
+        "houseOf": "Acme",
+        "says": "A logo or an end card is on screen for the last 3 seconds.",
+        "status": "kept",
+        "measured": "The end card “Thanks for watching” is on screen for the last 3 seconds.",
+        "value": 3,
+        "limit": 3,
+        "unit": "seconds",
+        "basis": "heuristic"
+      },
+      {
+        "ruleId": "rul_5",
+        "text": "Logo within the first 5 seconds",
+        "measure": "logo-start:5",
+        "says": "A logo is on screen within the first 5 seconds.",
+        "status": "broken",
+        "measured": "Nothing shows a logo in the first 5 seconds.",
+        "value": 0,
+        "limit": 5,
+        "unit": "seconds",
+        "basis": "heuristic",
+        "findingId": "f1",
+        "findingIds": [
+          "f1"
+        ]
+      },
+      {
+        "ruleId": "rul_6",
+        "text": "Voices 10 dB over the music",
+        "measure": "speech-over-music:10",
+        "says": "The voices are at least 10 loudness steps louder than the music.",
+        "status": "broken",
+        "measured": "Where the music comes closest (around 0:00), the voices are 8 loudness steps louder than it.",
+        "value": 8,
+        "limit": 10,
+        "unit": "steps",
+        "basis": "heuristic",
+        "findingId": "f2",
+        "findingIds": [
+          "f2"
+        ]
+      },
+      {
+        "ruleId": "rul_7",
+        "text": "No music louder than speech",
+        "measure": "speech-over-music:0",
+        "says": "The music is never louder than the voices.",
+        "status": "kept",
+        "measured": "Where the music comes closest (around 0:00), the voices are 8 loudness steps louder than it.",
+        "value": 8,
+        "limit": 0,
+        "unit": "steps",
+        "basis": "heuristic"
+      },
+      {
+        "ruleId": "rul_8",
+        "text": "Nothing generated without disclosure",
+        "measure": "disclosed",
+        "says": "Every AI-generated clip, picture and voice is disclosed, on screen or in the version's description.",
+        "status": "broken",
+        "measured": "Neither a graphic saying so while it plays nor the version's description tells viewers about the AI voice.",
+        "value": 1,
+        "unit": "clips",
+        "basis": "heuristic",
+        "findingId": "f6",
+        "findingIds": [
+          "f6"
+        ],
+        "expected": "Made with AI: the shot “dream” (Google Gemini) and the narration's voice."
+      },
+      {
+        "ruleId": "rul_9",
+        "text": "No faces cut off",
+        "measure": "faces-in-frame",
+        "says": "No face is cut off by the edge of the picture.",
+        "status": "unmeasured",
+        "measured": "MetaRush looks at faces only in footage it has indexed on a Mac.",
+        "basis": "heuristic",
+        "findingId": "f9",
+        "findingIds": [
+          "f9"
+        ]
+      },
+      {
+        "ruleId": "rul_10",
+        "text": "Delivered in 4K",
+        "measure": "min-size:2160",
+        "says": "The picture is at least 2160 pixels on its shorter side.",
+        "status": "broken",
+        "measured": "Its picture is 1920×1080, 1080 pixels on its shorter side.",
+        "value": 1080,
+        "limit": 2160,
+        "unit": "pixels",
+        "basis": "observed",
+        "findingId": "f3",
+        "findingIds": [
+          "f3"
+        ]
+      },
+      {
+        "ruleId": "rul_11",
+        "text": "At least 24 fps",
+        "measure": "min-fps:24",
+        "says": "It plays at least 24 frames a second.",
+        "status": "kept",
+        "measured": "It plays 30 frames a second.",
+        "value": 30,
+        "limit": 24,
+        "unit": "fps",
+        "basis": "observed"
+      },
+      {
+        "ruleId": "rul_12",
+        "text": "First names only",
+        "measure": "first-names",
+        "says": "Names on screen are first names only.",
+        "status": "broken",
+        "measured": "A graphic shows more than a first name.",
+        "basis": "heuristic",
+        "findingId": "f9",
+        "findingIds": [
+          "f9"
+        ]
+      },
+      {
+        "ruleId": "rul_13",
+        "text": "Warm and friendly",
+        "measure": "",
+        "says": "MetaRush can't measure this promise.",
+        "status": "unmeasured",
+        "measured": "Nothing measures it: keep it as a sign-off instead.",
+        "basis": "heuristic",
+        "findingId": "f10",
+        "findingIds": [
+          "f10"
+        ]
+      }
+    ],
+    "findings": [
+      {
+        "id": "f1",
+        "severity": "error",
+        "kind": "promise_broken",
+        "basis": "heuristic",
+        "from": 0,
+        "to": 5,
+        "timecode": "0:00.000–0:05.000",
+        "message": "The promise “Logo within the first 5 seconds” isn't kept: nothing shows a logo in the first 5 seconds.",
+        "fix": {
+          "summary": "Show your logo (or an end card) for the first 5 seconds.",
+          "ops": [
+            {
+              "op": "addOverlay",
+              "overlay": {
+                "id": "promise-logo",
+                "template": "logo.corner",
+                "at": 0,
+                "duration": 5,
+                "params": {
+                  "logo": "logo"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "f2",
+        "severity": "error",
+        "kind": "promise_broken",
+        "basis": "heuristic",
+        "from": 0,
+        "to": 0.5,
+        "timecode": "0:00.000–0:00.500",
+        "message": "The promise “Voices 10 dB over the music” isn't kept: where the music comes closest (around 0:00), the voices are 8 loudness steps louder than it.",
+        "fix": {
+          "summary": "Turn the music down about 2 loudness steps on the Sound tab, or let it dip further while people speak.",
+          "ops": [
+            {
+              "op": "setMix",
+              "mix": {
+                "music": {
+                  "gainDb": -2
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "f3",
+        "severity": "error",
+        "kind": "promise_broken",
+        "basis": "observed",
+        "from": 0,
+        "to": 72,
+        "timecode": "0:00.000–1:12.000",
+        "message": "The promise “Delivered in 4K” isn't kept: its picture is 1920×1080, 1080 pixels on its shorter side.",
+        "fix": {
+          "summary": "Render it at least 2160 pixels on its shorter side."
+        }
+      },
+      {
+        "id": "f4",
+        "severity": "error",
+        "kind": "promise_broken",
+        "basis": "heuristic",
+        "from": 5,
+        "to": 9,
+        "timecode": "0:05.000–0:09.000",
+        "message": "The promise “First names only”: the name title ada shows “Ada Lovelace”.",
+        "overlayIds": [
+          "ada"
+        ],
+        "fix": {
+          "summary": "Use first names only.",
+          "ops": [
+            {
+              "op": "updateOverlay",
+              "id": "ada",
+              "set": {
+                "params": {
+                  "name": "Ada"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "f5",
+        "severity": "error",
+        "kind": "promise_broken",
+        "basis": "heuristic",
+        "from": 30,
+        "to": 72,
+        "timecode": "0:30.000–1:12.000",
+        "message": "The promise “Captions on every video” isn't kept: only 45% of the speech has captions (the first stretch without them around 0:30).",
+        "fix": {
+          "summary": "Make the captions cover every part with speech, large enough and slow enough to read."
+        }
+      },
+      {
+        "id": "f6",
+        "severity": "error",
+        "kind": "promise_broken",
+        "basis": "heuristic",
+        "from": 50,
+        "to": 55,
+        "timecode": "0:50.000–0:55.000",
+        "message": "The promise “Nothing generated without disclosure” isn't kept: neither a graphic saying so while it plays nor the version's description tells viewers about the AI voice.",
+        "fix": {
+          "summary": "Put this line in the version's description (its delivery notes): “Made with AI: the shot “dream” (Google Gemini) and the narration's voice.” — or a title saying it was made with AI on screen while each part plays."
+        }
+      },
+      {
+        "id": "f7",
+        "severity": "error",
+        "kind": "promise_broken",
+        "basis": "observed",
+        "from": 60,
+        "to": 72,
+        "timecode": "1:00.000–1:12.000",
+        "message": "The promise “Under 60 seconds” isn't kept: it lasts 1:12, 12 seconds longer than a minute.",
+        "fix": {
+          "summary": "Shorten it by at least 12 seconds."
+        }
+      },
+      {
+        "id": "f8",
+        "severity": "warning",
+        "kind": "rule_broken",
+        "basis": "heuristic",
+        "from": 0,
+        "to": 2,
+        "timecode": "0:00.000–0:02.000",
+        "message": "The project's rule “Our logo in the first 2 seconds”: nothing shows a logo in the first 2 seconds.",
+        "fix": {
+          "summary": "Show your logo (or an end card) for the first 2 seconds.",
+          "ops": [
+            {
+              "op": "addOverlay",
+              "overlay": {
+                "id": "promise-logo",
+                "template": "logo.corner",
+                "at": 0,
+                "duration": 2,
+                "params": {
+                  "logo": "logo"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "f9",
+        "severity": "warning",
+        "kind": "promise_unmeasured",
+        "basis": "heuristic",
+        "from": 0,
+        "to": 72,
+        "timecode": "0:00.000–1:12.000",
+        "message": "The promise “No faces cut off” couldn't be measured here. MetaRush looks at faces only in footage it has indexed on a Mac. Look for it yourself before it goes out."
+      },
+      {
+        "id": "f10",
+        "severity": "warning",
+        "kind": "promise_unmeasured",
+        "basis": "heuristic",
+        "from": 0,
+        "to": 72,
+        "timecode": "0:00.000–1:12.000",
+        "message": "The promise “Warm and friendly” can't be measured, so the quality check can't keep it for you. Keep it as a sign-off instead."
+      }
+    ],
+    "check": {
+      "name": "promises",
+      "status": "fail",
+      "basis": "observed",
+      "detail": "7 problems and 2 things worth checking.",
+      "threshold": "each promise measured on the render or the cut: a length within 1 frame; captions over 90% of the speech, letters 3.5% of the shorter side, at most 25 letters a second; a logo through the window; voices over the music in 0.5 s stretches; generated clips disclosed on screen or in the description; faces from the on-screen check; size and frame rate as decoded"
+    }
+  },
+  {
+    "name": "a vertical short keeps them all",
+    "promises": [
+      {
+        "ruleId": "rul_1",
+        "text": "Under 60 seconds for shorts",
+        "measure": "max-length:60@vertical",
+        "says": "The video is at most a minute when it is vertical.",
+        "status": "kept",
+        "measured": "It lasts 45 seconds.",
+        "value": 45,
+        "limit": 60,
+        "unit": "seconds",
+        "basis": "observed"
+      },
+      {
+        "ruleId": "rul_2",
+        "text": "Captions on every video",
+        "measure": "captions",
+        "says": "Captions are on wherever someone speaks, large enough and slow enough to read.",
+        "status": "kept",
+        "measured": "Captions show over 100% of the speech, their letters are 7.0% of the picture's shorter side and the fastest line shows 2 letters a second.",
+        "value": 100,
+        "limit": 90,
+        "unit": "percent",
+        "basis": "heuristic"
+      },
+      {
+        "ruleId": "rul_3",
+        "text": "Logo in the last 3 s",
+        "measure": "logo-end:3",
+        "says": "A logo or an end card is on screen for the last 3 seconds.",
+        "status": "kept",
+        "measured": "The corner logo is on screen for the last 3 seconds.",
+        "value": 3,
+        "limit": 3,
+        "unit": "seconds",
+        "basis": "heuristic"
+      },
+      {
+        "ruleId": "rul_4",
+        "text": "Nothing generated without disclosure",
+        "measure": "disclosed",
+        "says": "Every AI-generated clip, picture and voice is disclosed, on screen or in the version's description.",
+        "status": "kept",
+        "measured": "The version's description says what was made with AI, as the records have it: Made with AI: the shot “dream” (Google Gemini).",
+        "value": 0,
+        "unit": "clips",
+        "basis": "heuristic",
+        "expected": "Made with AI: the shot “dream” (Google Gemini)."
+      },
+      {
+        "ruleId": "rul_5",
+        "text": "No music louder than speech",
+        "measure": "speech-over-music:6",
+        "says": "The voices are at least 6 loudness steps louder than the music.",
+        "status": "kept",
+        "measured": "It has no music.",
+        "basis": "heuristic"
+      },
+      {
+        "ruleId": "rul_6",
+        "text": "No faces cut off",
+        "measure": "faces-in-frame",
+        "says": "No face is cut off by the edge of the picture.",
+        "status": "kept",
+        "measured": "No face is cut off by the edge of the picture.",
+        "basis": "observed"
+      },
+      {
+        "ruleId": "rul_7",
+        "text": "At least 1080p",
+        "measure": "min-size:1080",
+        "says": "The picture is at least 1080 pixels on its shorter side.",
+        "status": "kept",
+        "measured": "Its picture is 1080×1920, 1080 pixels on its shorter side.",
+        "value": 1080,
+        "limit": 1080,
+        "unit": "pixels",
+        "basis": "observed"
+      },
+      {
+        "ruleId": "rul_8",
+        "text": "30 fps",
+        "measure": "min-fps:30",
+        "says": "It plays at least 30 frames a second.",
+        "status": "kept",
+        "measured": "It plays 30 frames a second.",
+        "value": 30,
+        "limit": 30,
+        "unit": "fps",
+        "basis": "observed"
+      }
+    ],
+    "findings": null,
+    "check": {
+      "name": "promises",
+      "status": "pass",
+      "basis": "observed",
+      "detail": "Nothing to report.",
+      "threshold": "each promise measured on the render or the cut: a length within 1 frame; captions over 90% of the speech, letters 3.5% of the shorter side, at most 25 letters a second; a logo through the window; voices over the music in 0.5 s stretches; generated clips disclosed on screen or in the description; faces from the on-screen check; size and frame rate as decoded"
+    }
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "created": 1761400000,
+  "files": [
+    {"name": "postcard-01.jpg", "source": "original", "format": "JPEG", "size": "834512"},
+    {"name": "postcard-01_thumb.jpg", "source": "derivative", "format": "JPEG Thumb", "size": "8120"},
+    {"name": "__ia_thumb.jpg", "source": "original", "format": "Item Tile", "size": "6013"},
+    {"name": "example-lighthouse-postcards_meta.xml", "source": "original", "format": "Metadata", "size": "1200"}
+  ],
+  "metadata": {"identifier": "example-lighthouse-postcards", "title": "Lighthouse postcards", "creator": "Example Printing Co.", "licenseurl": "http://creativecommons.org/publicdomain/mark/1.0/"}
+}

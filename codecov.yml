@@ -1,0 +1,72 @@
+# Codecov (D195, docs/testing.md). Uploads come from CI through GitHub's OIDC (no token): go-unit from
+# the four Go test jobs (ci.yml), web from the dashboard's unit tests (ci.yml), go-e2e and web-e2e from
+# the browser runs (browser.yml: nightly, tags, by hand; the Go code and the dashboard's pages they
+# reached). Codecov never fails CI by itself (fail_ci_if_error: false); its statuses on pull requests
+# say whether coverage held.
+codecov:
+  require_ci_to_pass: false
+
+coverage:
+  precision: 1
+  round: down
+  range: "50...90"
+  status:
+    project:
+      default:
+        # Fail only when the whole drops by more than half a point.
+        target: auto
+        threshold: 0.5%
+    patch:
+      default:
+        # New and changed lines: at least 80% covered.
+        target: 80%
+
+comment:
+  layout: "condensed_header, diff, flags, components, condensed_files"
+  behavior: default
+  require_changes: false
+
+flag_management:
+  default_rules:
+    # A commit that doesn't run a kind of test keeps that kind's last numbers (the browser runs are
+    # nightly, not on every push).
+    carryforward: true
+  individual_flags:
+    - name: go-unit
+      paths: [internal/, cmd/]
+    - name: go-e2e
+      paths: [internal/, cmd/]
+    - name: web
+      paths: [web/src/]
+    - name: web-e2e
+      paths: [web/src/]
+
+component_management:
+  individual_components:
+    - component_id: assistant
+      name: assistant
+      paths: [internal/assistant/**]
+    - component_id: ops
+      name: ops
+      paths: [internal/ops/**]
+    - component_id: editspec-cutsheet
+      name: editspec / cutsheet
+      paths: [internal/editspec/**, internal/cutsheet/**]
+    - component_id: api-auth
+      name: api / auth
+      paths: [internal/api/**, internal/auth/**, internal/sessions/**, internal/remote/**, internal/playback/**]
+    - component_id: cli
+      name: cli
+      paths: [internal/cli/**, cmd/**]
+    - component_id: media-storage
+      name: media / storage
+      paths: [internal/media/**, internal/storagemove/**, internal/store/**, internal/cache/**, internal/uploads/**, internal/ingest/**, internal/probe/**, internal/fixes/**, internal/sources/**]
+    - component_id: faces-voice
+      name: faces / voice
+      paths: [internal/faces/**, internal/faceid/**, internal/voice/**, internal/speakers/**, internal/onnx/**, internal/vision/**, internal/visual/**, internal/transcribe/**, internal/transcripts/**]
+    - component_id: remotion
+      name: remotion
+      paths: [internal/remotion/**, internal/motion/**, internal/renderer/**]
+    - component_id: web
+      name: web
+      paths: [web/src/**]

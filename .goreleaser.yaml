@@ -1,0 +1,77 @@
+# Release builds (D77). Run through scripts/release.sh, which always does the
+# dry run first:
+#
+#   goreleaser release --snapshot --clean     # dry run: archives + checksums in dist/, nothing published
+#
+# Publishing is scripts/release.sh's job (gh release create, then the Homebrew
+# tap), so goreleaser's own GitHub release step is off.
+version: 2
+project_name: metarush
+
+before:
+  hooks:
+    # The dashboard is embedded in the binary; the renderer package (D75) is
+    # embedded too, and also shipped next to the binary for reading.
+    - npm ci --no-audit --no-fund
+    - npm run build -w web
+    - go run ./cmd/metarush renderer export --dir .release/renderer
+
+builds:
+  - id: metarush
+    main: ./cmd/metarush
+    binary: metarush
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [arm64, amd64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/metavert-io/metarush/internal/version.Version={{ .Version }}
+      - -X github.com/metavert-io/metarush/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/metavert-io/metarush/internal/version.Date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    # macOS builds are signed and notarized here, before they are archived, when this computer is set up
+    # for it (D257: a Developer ID and a notarization profile, never in the repository); otherwise the script
+    # says so in one line and the build goes on.
+    hooks:
+      post:
+        - cmd: scripts/macos-sign.sh "{{ .Path }}" "{{ .Os }}"
+          output: true
+
+archives:
+  - id: metarush
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: true
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+      - src: docs/*.md
+        dst: docs
+      - src: skills/**/*.md
+        dst: skills
+      # `**/*` does not match the top level: the workspace manifest and the
+      # lockfile need their own entry (scripts/release.sh checks both).
+      - src: .release/renderer/*.json
+        dst: renderer
+      - src: .release/renderer/**/*
+        dst: renderer
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# A release builds from its tag (vX.Y.Z, made by scripts/bump-version.sh), so .Version is X.Y.Z. A snapshot
+# is versioned like every other build (D130): scripts/release.sh passes scripts/version.sh's answer
+# (0.2.0 at the tag, 0.2.0-dev.3 three commits after it).
+snapshot:
+  version_template: '{{ envOrDefault "METARUSH_VERSION" (printf "%s-dev" .Version) }}'
+
+release:
+  disable: true
+
+changelog:
+  disable: true

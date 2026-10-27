@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:template:slide.quote:1",
+  "$ref": "#/$defs/SlideQuoteParams",
+  "$defs": {
+    "SlideQuoteParams": {
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 280,
+          "minLength": 1
+        },
+        "attribution": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Who they are (CTO, Acme)."
+        },
+        "image": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}(#[1-9][0-9]{0,2})?$",
+          "format": "metarush-resource",
+          "description": "A portrait or logo beside the quote."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "text"
+      ]
+    }
+  },
+  "title": "Params for slide.quote"
+}

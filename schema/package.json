@@ -1,0 +1,9 @@
+{
+  "name": "@metarush/schema",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "TypeScript types generated from MetaRush's Go-defined JSON Schemas. Do not edit ts/ by hand — run `npm run gen:types` at the repo root.",
+  "exports": { ".": "./ts/index.ts", "./schemas/*": "./*" },
+  "devDependencies": { "json-schema-to-typescript": "^15.0.4" }
+}

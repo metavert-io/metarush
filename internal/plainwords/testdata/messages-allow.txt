@@ -1,0 +1,20 @@
+# Messages people read that intentionally keep a technical word, with the reason.
+# Format: file | text the message contains | why it is fine
+# (Usage errors about the command just typed — E_INVALID_INPUT in internal/cli — may name its flags without an entry.)
+internal/machines/machines.go | choose another place with --out | machine invite only runs in a terminal; --out is a flag of the command being typed
+internal/machines/machines.go | --access-key-id also needs the key's secret | machine invite --access-key-id (a hand-made storage key) only runs in a terminal; this is about the flag just typed
+internal/machines/machines.go | run the invite again with --access-key-id | a hand-made storage key has no dashboard path; the hint continues the terminal command being typed
+internal/machines/machines.go | Revoke the one you mean by its ID (add --details to see them) | machine revoke only runs in a terminal; the IDs themselves stay behind --details
+internal/machines/machines.go | or add --force | machine revoke's override, offered only after the refusal is said in words
+internal/machines/rekey.go | --access-key-id also needs the key's secret | machine rekey --access-key-id (a hand-made storage key) only runs in a terminal; this is about the flag just typed
+internal/machines/rekey.go | run the rekey again with --access-key-id | a hand-made storage key has no dashboard path; the hint continues the terminal command being typed (as invite's does)
+internal/cli/machine.go | --dry-run first says what it would do | machine rekey refuses without a terminal; its dry run is a flag of the command being typed
+internal/secretpath/secretpath.go | --allow-unsafe-secret-path | init's escape hatch in a terminal, named after the refusal is said in words (the secretpath test requires it)
+internal/mcp/server.go | arguments must be a JSON object | a JSON-RPC protocol error for MCP client programs; never shown to a person
+internal/cli/init.go | Add --reconfigure to change its settings, or --home | init on a machine that is already set up: the two ways forward are flags of the command being typed
+internal/cli/init.go | Add --secrets env | init when the keychain can't be used: the alternative is a flag of the command being typed
+internal/cli/machine.go | Add --home to join from a separate folder | machine join on a machine that is already set up: a flag of the command being typed
+internal/cli/machine.go | choose another file with --out | machine ci-key when its file already exists: a flag of the command being typed
+internal/cli/providers.go | Pass --yes | removing a key without a terminal to confirm in: the flag that confirms it
+internal/cli/describe.go | the scenes file is not a JSON array | footage describe --save reads a file Claude writes; the error is about that file's format
+internal/cli/recipe.go | or write over it with --force | checkout writes a file of the command being typed; its override is a flag, offered only after the refusal is said in words

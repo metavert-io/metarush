@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:template:slide.code:1",
+  "$ref": "#/$defs/SlideCodeParams",
+  "$defs": {
+    "SlideCodeParams": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]{0,47}(#[1-9][0-9]{0,2})?$",
+          "format": "metarush-resource",
+          "description": "The code picture (a resource made with metarush resources make code)."
+        },
+        "caption": {
+          "type": "string",
+          "maxLength": 140
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "code"
+      ]
+    }
+  },
+  "title": "Params for slide.code"
+}

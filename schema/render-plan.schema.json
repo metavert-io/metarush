@@ -1,0 +1,1462 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:metarush:render-plan:1",
+  "$ref": "#/$defs/RenderPlan",
+  "$defs": {
+    "Brand": {
+      "properties": {
+        "primary": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "accent": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "text": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "font": {
+          "type": "string",
+          "enum": [
+            "Inter",
+            "Fraunces",
+            "JetBrains Mono"
+          ]
+        },
+        "fontFile": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "A font from the cut's resources (its short name); used instead of font."
+        },
+        "logo": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "The brand's main logo (a resource name, usually logo): a graphic showing it shows the logo made for its background instead when the cut has one."
+        },
+        "logoDark": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "The logo for dark backgrounds (a resource name, usually logo-dark)."
+        },
+        "logoLight": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+          "description": "The logo for light backgrounds (a resource name, usually logo-light)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "FocusKey": {
+      "properties": {
+        "f": {
+          "type": "integer"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "f",
+        "x",
+        "y"
+      ]
+    },
+    "FrameRange": {
+      "properties": {
+        "from": {
+          "type": "integer"
+        },
+        "to": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ]
+    },
+    "GainPoint": {
+      "properties": {
+        "f": {
+          "type": "integer"
+        },
+        "g": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "f",
+        "g"
+      ]
+    },
+    "NestedPlan": {
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "revisionId": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "projectName": {
+          "type": "string"
+        },
+        "newerRevisionId": {
+          "type": "string"
+        },
+        "newerNumber": {
+          "type": "integer"
+        },
+        "plan": {
+          "$ref": "#/$defs/RenderPlan"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "projectId",
+        "revisionId",
+        "number",
+        "plan"
+      ]
+    },
+    "PlanAudio": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "voiceover",
+            "music",
+            "sfx",
+            "dialogue"
+          ]
+        },
+        "from": {
+          "type": "integer"
+        },
+        "durationInFrames": {
+          "type": "integer"
+        },
+        "trimBefore": {
+          "type": "integer"
+        },
+        "trimFraction": {
+          "type": "number",
+          "description": "The rest of the trim below a frame (−0.5 to 0.5): trimBefore + trimFraction is the exact place in the file (recordings placed to the sample)."
+        },
+        "gainDb": {
+          "type": "number"
+        },
+        "fadeInFrames": {
+          "type": "integer"
+        },
+        "fadeOutFrames": {
+          "type": "integer"
+        },
+        "duckUnderDialogue": {
+          "type": "boolean"
+        },
+        "duckDb": {
+          "type": "number"
+        },
+        "bus": {
+          "type": "string",
+          "enum": [
+            "source",
+            "voiceover",
+            "music",
+            "sfx"
+          ]
+        },
+        "beatId": {
+          "type": "string"
+        },
+        "beatIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "playbackRate": {
+          "type": "number"
+        },
+        "aiVoice": {
+          "type": "boolean"
+        },
+        "gain": {
+          "items": {
+            "$ref": "#/$defs/GainPoint"
+          },
+          "type": "array"
+        },
+        "variant": {
+          "$ref": "#/$defs/PlanVariant"
+        },
+        "fit": {
+          "type": "string",
+          "enum": [
+            "auto"
+          ]
+        },
+        "piece": {
+          "type": "integer"
+        },
+        "endsOnBeat": {
+          "type": "boolean"
+        },
+        "endsOn": {
+          "type": "string",
+          "enum": [
+            "phrase",
+            "bar",
+            "beat"
+          ]
+        },
+        "nested": {
+          "type": "string"
+        },
+        "conversation": {
+          "type": "string"
+        },
+        "member": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "assetId",
+        "role",
+        "from",
+        "durationInFrames",
+        "trimBefore",
+        "gainDb",
+        "fadeInFrames",
+        "fadeOutFrames",
+        "duckUnderDialogue",
+        "duckDb"
+      ]
+    },
+    "PlanBeat": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "anchorFrame": {
+          "type": "integer"
+        },
+        "from": {
+          "type": "integer"
+        },
+        "to": {
+          "type": "integer"
+        },
+        "windowEnd": {
+          "type": "integer"
+        },
+        "words": {
+          "type": "integer"
+        },
+        "estimated": {
+          "type": "boolean"
+        },
+        "hasAudio": {
+          "type": "boolean"
+        },
+        "fit": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "tight",
+            "over",
+            "unresolved"
+          ]
+        },
+        "problem": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "index",
+        "text",
+        "anchorFrame",
+        "from",
+        "to",
+        "windowEnd",
+        "words",
+        "estimated",
+        "hasAudio",
+        "fit"
+      ]
+    },
+    "PlanBorder": {
+      "properties": {
+        "width": {
+          "type": "number",
+          "description": "Output pixels."
+        },
+        "color": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "width",
+        "color"
+      ]
+    },
+    "PlanBus": {
+      "properties": {
+        "gainDb": {
+          "type": "number"
+        },
+        "muted": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "gainDb",
+        "muted"
+      ]
+    },
+    "PlanCaptionLine": {
+      "properties": {
+        "from": {
+          "type": "integer"
+        },
+        "to": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "speaker": {
+          "type": "string"
+        },
+        "words": {
+          "items": {
+            "$ref": "#/$defs/PlanWord"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "text",
+        "words"
+      ]
+    },
+    "PlanCaptions": {
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": [
+            "clean",
+            "emphasis",
+            "boxed",
+            "bold",
+            "highlight",
+            "subtitle"
+          ]
+        },
+        "position": {
+          "type": "string",
+          "enum": [
+            "bottom",
+            "lower",
+            "middle",
+            "top"
+          ]
+        },
+        "uppercase": {
+          "type": "boolean"
+        },
+        "precision": {
+          "type": "string",
+          "enum": [
+            "word",
+            "segment"
+          ]
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "small",
+            "large"
+          ]
+        },
+        "showSpeakers": {
+          "type": "boolean"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/PlanCaptionLine"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "style",
+        "position",
+        "uppercase",
+        "precision",
+        "lines"
+      ]
+    },
+    "PlanCard": {
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "text"
+      ]
+    },
+    "PlanClip": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "from": {
+          "type": "integer"
+        },
+        "durationInFrames": {
+          "type": "integer"
+        },
+        "trimBefore": {
+          "type": "integer"
+        },
+        "sourceIn": {
+          "type": "number"
+        },
+        "sourceOut": {
+          "type": "number"
+        },
+        "playbackRate": {
+          "type": "number"
+        },
+        "volume": {
+          "type": "number"
+        },
+        "muted": {
+          "type": "boolean"
+        },
+        "hasAudio": {
+          "type": "boolean"
+        },
+        "sourceWidth": {
+          "type": "integer"
+        },
+        "sourceHeight": {
+          "type": "integer"
+        },
+        "framing": {
+          "$ref": "#/$defs/PlanFraming"
+        },
+        "transitionIn": {
+          "$ref": "#/$defs/PlanTransition"
+        },
+        "fadeOutFrames": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "gain": {
+          "items": {
+            "$ref": "#/$defs/GainPoint"
+          },
+          "type": "array"
+        },
+        "transitionOut": {
+          "$ref": "#/$defs/PlanTransition"
+        },
+        "audio": {
+          "$ref": "#/$defs/PlanClipAudio"
+        },
+        "speechLufs": {
+          "type": "number"
+        },
+        "levelDb": {
+          "type": "number"
+        },
+        "conversation": {
+          "$ref": "#/$defs/PlanConversation"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "assetId",
+        "from",
+        "durationInFrames",
+        "trimBefore",
+        "sourceIn",
+        "sourceOut",
+        "playbackRate",
+        "volume",
+        "muted",
+        "hasAudio",
+        "sourceWidth",
+        "sourceHeight",
+        "framing",
+        "transitionIn",
+        "fadeOutFrames"
+      ]
+    },
+    "PlanClipAudio": {
+      "properties": {
+        "from": {
+          "type": "integer"
+        },
+        "durationInFrames": {
+          "type": "integer"
+        },
+        "trimBefore": {
+          "type": "integer"
+        },
+        "blendInFrames": {
+          "type": "integer"
+        },
+        "blendOutFrames": {
+          "type": "integer"
+        },
+        "gain": {
+          "items": {
+            "$ref": "#/$defs/GainPoint"
+          },
+          "type": "array"
+        },
+        "variant": {
+          "$ref": "#/$defs/PlanVariant"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "durationInFrames",
+        "trimBefore",
+        "blendInFrames",
+        "blendOutFrames"
+      ]
+    },
+    "PlanConversation": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "shots": {
+          "items": {
+            "$ref": "#/$defs/PlanShot"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "shots"
+      ]
+    },
+    "PlanCutAudio": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "cut",
+            "lead",
+            "carry",
+            "auto"
+          ]
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "cut",
+            "lead",
+            "carry"
+          ],
+          "description": "What the sound does (auto resolves to one of these)."
+        },
+        "cutFrame": {
+          "type": "integer",
+          "description": "Timeline frame of the picture cut (the middle of an overlapping transition)."
+        },
+        "editFrame": {
+          "type": "integer",
+          "description": "Timeline frame where the incoming clip's sound starts."
+        },
+        "blendFrames": {
+          "type": "integer"
+        },
+        "requestedFrames": {
+          "type": "integer",
+          "description": "lead/carry as asked, when the footage or the neighbouring cuts allowed less."
+        },
+        "limited": {
+          "type": "string",
+          "enum": [
+            "footage",
+            "neighbours"
+          ]
+        },
+        "noPause": {
+          "type": "boolean",
+          "description": "auto: no pause within reach, so a word may be cut."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode",
+        "result",
+        "cutFrame",
+        "editFrame",
+        "blendFrames"
+      ]
+    },
+    "PlanDucking": {
+      "properties": {
+        "auto": {
+          "type": "boolean"
+        },
+        "musicUnderVoiceoverDb": {
+          "type": "number"
+        },
+        "sourceUnderVoiceoverDb": {
+          "type": "number"
+        },
+        "musicUnderDialogueDb": {
+          "type": "number"
+        },
+        "attackFrames": {
+          "type": "integer"
+        },
+        "releaseFrames": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "auto",
+        "musicUnderVoiceoverDb",
+        "sourceUnderVoiceoverDb",
+        "musicUnderDialogueDb",
+        "attackFrames",
+        "releaseFrames"
+      ]
+    },
+    "PlanFraming": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "fill",
+            "fit"
+          ]
+        },
+        "focusX": {
+          "type": "number"
+        },
+        "focusY": {
+          "type": "number"
+        },
+        "zoom": {
+          "type": "number"
+        },
+        "from": {
+          "type": "string",
+          "enum": [
+            "faces",
+            "follow"
+          ]
+        },
+        "path": {
+          "items": {
+            "$ref": "#/$defs/FocusKey"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode",
+        "focusX",
+        "focusY",
+        "zoom"
+      ]
+    },
+    "PlanMix": {
+      "properties": {
+        "buses": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PlanBus"
+          },
+          "type": "object"
+        },
+        "ducking": {
+          "$ref": "#/$defs/PlanDucking"
+        },
+        "voiceRanges": {
+          "items": {
+            "$ref": "#/$defs/FrameRange"
+          },
+          "type": "array"
+        },
+        "targetLufs": {
+          "type": "number"
+        },
+        "truePeakDbtp": {
+          "type": "number"
+        },
+        "normalize": {
+          "type": "boolean"
+        },
+        "estimatedLufs": {
+          "type": "number"
+        },
+        "masterGainDb": {
+          "type": "number"
+        },
+        "peakLimited": {
+          "type": "boolean"
+        },
+        "levelSpeech": {
+          "type": "boolean"
+        },
+        "speechTargetLufs": {
+          "type": "number"
+        },
+        "cutBlendFrames": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "buses",
+        "ducking",
+        "voiceRanges",
+        "targetLufs",
+        "truePeakDbtp",
+        "normalize",
+        "masterGainDb"
+      ]
+    },
+    "PlanMotion": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "hash": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string",
+          "enum": [
+            "lower",
+            "center",
+            "full"
+          ]
+        },
+        "libs": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "hash",
+        "region"
+      ]
+    },
+    "PlanMotionStill": {
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "at": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url",
+        "label",
+        "at"
+      ]
+    },
+    "PlanMotionStills": {
+      "properties": {
+        "seconds": {
+          "type": "number"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "frames": {
+          "items": {
+            "$ref": "#/$defs/PlanMotionStill"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "seconds",
+        "width",
+        "height",
+        "frames"
+      ]
+    },
+    "PlanOverlay": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string"
+        },
+        "templateVersion": {
+          "type": "string"
+        },
+        "from": {
+          "type": "integer"
+        },
+        "durationInFrames": {
+          "type": "integer"
+        },
+        "params": true,
+        "motion": {
+          "$ref": "#/$defs/PlanMotion"
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/PlanSegment"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "template",
+        "templateVersion",
+        "from",
+        "durationInFrames",
+        "params"
+      ]
+    },
+    "PlanRect": {
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ]
+    },
+    "PlanResource": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "image",
+            "svg",
+            "pdf",
+            "font",
+            "repo",
+            "website"
+          ]
+        },
+        "mime": {
+          "type": "string"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "pages": {
+          "items": {
+            "$ref": "#/$defs/PlanResourcePage"
+          },
+          "type": "array"
+        },
+        "family": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "sha256",
+        "kind"
+      ]
+    },
+    "PlanResourcePage": {
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "number",
+        "sha256",
+        "width",
+        "height"
+      ]
+    },
+    "PlanSegment": {
+      "properties": {
+        "from": {
+          "type": "integer",
+          "description": "Frames after the graphic starts."
+        },
+        "params": true
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "params"
+      ]
+    },
+    "PlanShot": {
+      "properties": {
+        "from": {
+          "type": "integer",
+          "description": "Clip-relative frame where it starts."
+        },
+        "durationInFrames": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "member",
+            "layout",
+            "card",
+            "broll"
+          ]
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "side-by-side",
+            "stacked",
+            "pip",
+            "grid"
+          ]
+        },
+        "tiles": {
+          "items": {
+            "$ref": "#/$defs/PlanTile"
+          },
+          "type": "array"
+        },
+        "card": {
+          "$ref": "#/$defs/PlanCard"
+        },
+        "backdrop": {
+          "type": "string"
+        },
+        "dissolveFrames": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "durationInFrames",
+        "kind",
+        "tiles"
+      ]
+    },
+    "PlanTag": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "cover": {
+          "$ref": "#/$defs/PlanRect"
+        },
+        "box": {
+          "$ref": "#/$defs/PlanRect"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "PlanTile": {
+      "properties": {
+        "member": {
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "rect": {
+          "$ref": "#/$defs/PlanRect",
+          "description": "The tile in the frame (output pixels)."
+        },
+        "video": {
+          "$ref": "#/$defs/PlanRect"
+        },
+        "window": {
+          "$ref": "#/$defs/PlanRect"
+        },
+        "trimBefore": {
+          "type": "integer",
+          "description": "Frames (at the output rate) into the recording at the shot's first frame."
+        },
+        "trimFraction": {
+          "type": "number",
+          "description": "The rest of the trim below a frame (−0.5 to 0.5): trimBefore + trimFraction is the exact place in the recording."
+        },
+        "playbackRate": {
+          "type": "number"
+        },
+        "delay": {
+          "type": "integer"
+        },
+        "color": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array",
+          "description": "An sRGB colour matrix (feColorMatrix values) that matches this webcam to the others."
+        },
+        "radius": {
+          "type": "number"
+        },
+        "border": {
+          "$ref": "#/$defs/PlanBorder"
+        },
+        "tag": {
+          "$ref": "#/$defs/PlanTag"
+        },
+        "soft": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "rect",
+        "video",
+        "trimBefore",
+        "playbackRate"
+      ]
+    },
+    "PlanTransition": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "cut",
+            "fade",
+            "crossfade",
+            "dip-to-black",
+            "dip-to-white",
+            "wipe",
+            "slide",
+            "push",
+            "zoom",
+            "whip"
+          ]
+        },
+        "durationInFrames": {
+          "type": "integer"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right",
+            "up",
+            "down"
+          ]
+        },
+        "easing": {
+          "type": "string",
+          "enum": [
+            "ease-in-out",
+            "linear",
+            "ease-in",
+            "ease-out"
+          ]
+        },
+        "audio": {
+          "$ref": "#/$defs/PlanCutAudio"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type",
+        "durationInFrames"
+      ]
+    },
+    "PlanVariant": {
+      "properties": {
+        "assetId": {
+          "type": "string"
+        },
+        "trimBefore": {
+          "type": "integer",
+          "description": "Output frames into the copy."
+        },
+        "trimFraction": {
+          "type": "number",
+          "description": "The rest of the trim below a frame (−0.5 to 0.5): trimBefore + trimFraction is the exact place in the copy."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "trimBefore"
+      ]
+    },
+    "PlanVoiceover": {
+      "properties": {
+        "layout": {
+          "type": "string",
+          "enum": [
+            "beats",
+            "continuous"
+          ]
+        },
+        "speakingRateWpm": {
+          "type": "number"
+        },
+        "beats": {
+          "items": {
+            "$ref": "#/$defs/PlanBeat"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "layout",
+        "speakingRateWpm",
+        "beats"
+      ]
+    },
+    "PlanWord": {
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "from": {
+          "type": "integer"
+        },
+        "to": {
+          "type": "integer"
+        },
+        "emphasis": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "text",
+        "from",
+        "to",
+        "emphasis"
+      ]
+    },
+    "RenderPlan": {
+      "properties": {
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "revisionId": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "specHash": {
+          "type": "string"
+        },
+        "media": {
+          "type": "string",
+          "enum": [
+            "proxy",
+            "original"
+          ]
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "fps": {
+          "type": "integer"
+        },
+        "durationInFrames": {
+          "type": "integer"
+        },
+        "background": {
+          "type": "string"
+        },
+        "brand": {
+          "$ref": "#/$defs/Brand"
+        },
+        "safeArea": {
+          "$ref": "#/$defs/SafeArea"
+        },
+        "clips": {
+          "items": {
+            "$ref": "#/$defs/PlanClip"
+          },
+          "type": "array"
+        },
+        "audio": {
+          "items": {
+            "$ref": "#/$defs/PlanAudio"
+          },
+          "type": "array"
+        },
+        "dialogueRanges": {
+          "items": {
+            "$ref": "#/$defs/FrameRange"
+          },
+          "type": "array"
+        },
+        "captions": {
+          "$ref": "#/$defs/PlanCaptions"
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/PlanOverlay"
+          },
+          "type": "array"
+        },
+        "sources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "sourceChannels": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "motionSources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "motionStills": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PlanMotionStills"
+          },
+          "type": "object"
+        },
+        "voiceover": {
+          "$ref": "#/$defs/PlanVoiceover"
+        },
+        "mix": {
+          "$ref": "#/$defs/PlanMix"
+        },
+        "resources": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PlanResource"
+          },
+          "type": "object"
+        },
+        "resourceSources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "nested": {
+          "additionalProperties": {
+            "$ref": "#/$defs/NestedPlan"
+          },
+          "type": "object"
+        },
+        "fixed": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "revisionId",
+        "projectId",
+        "specHash",
+        "media",
+        "width",
+        "height",
+        "fps",
+        "durationInFrames",
+        "background",
+        "brand",
+        "safeArea",
+        "clips",
+        "audio",
+        "dialogueRanges",
+        "overlays",
+        "sources"
+      ]
+    },
+    "SafeArea": {
+      "properties": {
+        "top": {
+          "type": "integer"
+        },
+        "bottom": {
+          "type": "integer"
+        },
+        "left": {
+          "type": "integer"
+        },
+        "right": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "top",
+        "bottom",
+        "left",
+        "right"
+      ]
+    }
+  },
+  "title": "MetaRush render plan v1"
+}

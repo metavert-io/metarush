@@ -1,0 +1,82 @@
+{
+  "generatedBy": "metarush schema export (internal/editspec CaptionLooks); do not edit",
+  "looks": [
+    {
+      "id": "clean",
+      "version": "1",
+      "name": "Clean",
+      "summary": "White words on a soft shade, for any video.",
+      "wordsPerLine": 6,
+      "weight": "display",
+      "lineHeight": 1.2,
+      "scale": 1,
+      "backdrop": "scrim"
+    },
+    {
+      "id": "emphasis",
+      "version": "1",
+      "name": "The spoken word lights up",
+      "summary": "Each word turns the accent colour as it is said; good for talking heads.",
+      "wordTimed": true,
+      "fallback": "clean",
+      "wordsPerLine": 6,
+      "weight": "strong",
+      "lineHeight": 1.2,
+      "scale": 1,
+      "backdrop": "scrim",
+      "spoken": "color"
+    },
+    {
+      "id": "boxed",
+      "version": "1",
+      "name": "Boxed",
+      "summary": "Words on a solid box, readable over busy footage.",
+      "wordsPerLine": 6,
+      "weight": "label",
+      "lineHeight": 1.38,
+      "scale": 1,
+      "backdrop": "box"
+    },
+    {
+      "id": "bold",
+      "version": "1",
+      "name": "Big and bold",
+      "summary": "A few large capitals at a time with an outline, for videos watched on phones.",
+      "wordsPerLine": 3,
+      "weight": "strong",
+      "lineHeight": 1.1,
+      "scale": 1.18,
+      "uppercase": true,
+      "backdrop": "none",
+      "outline": true,
+      "pop": true
+    },
+    {
+      "id": "highlight",
+      "version": "1",
+      "name": "A box follows the spoken word",
+      "summary": "The word being said sits on a box in the accent colour; lively, for short videos.",
+      "wordTimed": true,
+      "fallback": "boxed",
+      "wordsPerLine": 4,
+      "weight": "strong",
+      "lineHeight": 1.32,
+      "scale": 1.08,
+      "backdrop": "none",
+      "outline": true,
+      "spoken": "box"
+    },
+    {
+      "id": "subtitle",
+      "version": "1",
+      "name": "Plain subtitles",
+      "summary": "Smaller words with a thin outline and longer lines, like film subtitles.",
+      "wordsPerLine": 9,
+      "weight": "text",
+      "lineHeight": 1.25,
+      "scale": 0.86,
+      "backdrop": "none",
+      "outline": true
+    }
+  ]
+}

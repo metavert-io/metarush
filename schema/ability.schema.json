@@ -1,0 +1,405 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/metavert-io/metarush/internal/abilities/manifest",
+  "$ref": "#/$defs/Manifest",
+  "$defs": {
+    "Cost": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "free"
+          ]
+        },
+        {
+          "properties": {
+            "service": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "usd": {
+              "type": "number",
+              "minimum": 0
+            },
+            "per": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "from": {
+              "type": "string"
+            },
+            "as-of": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "usd",
+            "per",
+            "as-of"
+          ]
+        }
+      ]
+    },
+    "Input": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "words",
+            "number",
+            "choice",
+            "yes-no",
+            "footage",
+            "picture",
+            "sound"
+          ]
+        },
+        "says": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "min": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number",
+          "description": "Numbers: the largest value. Words: the most characters."
+        },
+        "default": true,
+        "options": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 40
+        },
+        "optional": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind"
+      ]
+    },
+    "Key": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        {
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,39}$"
+            },
+            "env": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]{0,63}$",
+              "description": "The variable the code reads the key's stand-in from (default NAME_API_KEY)."
+            },
+            "hosts": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "description": "The hosts it goes to (default: every host)."
+            },
+            "header": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9-]{0,63}$",
+              "description": "The request header it goes in (default Authorization)."
+            },
+            "query": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "description": "The query parameter it goes in, instead of a header."
+            }
+          },
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "name"
+          ]
+        }
+      ]
+    },
+    "Limits": {
+      "properties": {
+        "minutes": {
+          "type": "integer",
+          "maximum": 60,
+          "minimum": 1,
+          "description": "How long a run may take (default 10)."
+        },
+        "mb": {
+          "type": "integer",
+          "maximum": 20000,
+          "minimum": 1,
+          "description": "How much it may bring back in all (default 2000)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "LocalProbe": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^/[A-Za-z0-9._~/?=\u0026%-]{0,199}$"
+        },
+        "expect": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 8,
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "expect"
+      ]
+    },
+    "LocalService": {
+      "properties": {
+        "port": {
+          "type": "integer",
+          "maximum": 32767,
+          "minimum": 1024
+        },
+        "service": {
+          "type": "string",
+          "maxLength": 60,
+          "minLength": 1
+        },
+        "probe": {
+          "$ref": "#/$defs/LocalProbe"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "port",
+        "service"
+      ]
+    },
+    "Manifest": {
+      "properties": {
+        "ability": {
+          "type": "integer",
+          "enum": [
+            1
+          ],
+          "description": "The manifest's format (1)."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "does": {
+          "type": "string",
+          "maxLength": 300,
+          "minLength": 1
+        },
+        "runs": {
+          "type": "string",
+          "maxLength": 300,
+          "minLength": 1
+        },
+        "inputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Input"
+          },
+          "type": "object"
+        },
+        "outputs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "provides": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 8,
+          "description": "Kinds of AI work it does once approved: picture, voice, voice-change, sound-effect, music, background-removal, upscale."
+        },
+        "cost": {
+          "$ref": "#/$defs/Cost"
+        },
+        "keys": {
+          "items": {
+            "$ref": "#/$defs/Key"
+          },
+          "type": "array",
+          "maxItems": 8
+        },
+        "hosts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 32
+        },
+        "network": {
+          "type": "string",
+          "enum": [
+            "off",
+            "metarush",
+            "open"
+          ]
+        },
+        "local": {
+          "$ref": "#/$defs/LocalService"
+        },
+        "sends": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "changes-outside": {
+          "$ref": "#/$defs/YesNo",
+          "description": "It publishes, uploads or drives another app: people only."
+        },
+        "likeness": {
+          "$ref": "#/$defs/YesNo",
+          "description": "It makes someone's likeness (needs consent)."
+        },
+        "needs": {
+          "$ref": "#/$defs/Needs"
+        },
+        "licence": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "terms": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "search": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 20
+        },
+        "limits": {
+          "$ref": "#/$defs/Limits"
+        },
+        "test": {
+          "$ref": "#/$defs/Test"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ability",
+        "name",
+        "title",
+        "does",
+        "runs",
+        "cost",
+        "licence"
+      ]
+    },
+    "NeededFile": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "says": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "",
+            "whisper-model",
+            "whisper-translator"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "says"
+      ]
+    },
+    "Needs": {
+      "properties": {
+        "programs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 8
+        },
+        "os": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 2
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/NeededFile"
+          },
+          "type": "array",
+          "maxItems": 4
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Test": {
+      "properties": {
+        "inputs": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "YesNo": {
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "enum": [
+            "yes",
+            "no"
+          ]
+        }
+      ]
+    }
+  },
+  "title": "ability.yaml",
+  "description": "An ability's manifest: what it does, what it runs, its inputs and outputs, what it costs, the keys and hosts it uses and what leaves the computer (MetaRush, docs/abilities.md)."
+}

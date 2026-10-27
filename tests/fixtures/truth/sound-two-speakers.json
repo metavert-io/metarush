@@ -1,0 +1,12 @@
+{
+  "file": "noisy-two-speakers.wav",
+  "gap_s": 0.7,
+  "turns": [
+    {"speaker": "S1", "voice": "Samantha", "start_s": 0.700, "end_s": 4.348, "text": "Welcome back to the garden show. Today we are planting tomatoes."},
+    {"speaker": "S2", "voice": "Daniel", "start_s": 5.048, "end_s": 8.656, "text": "Thanks for having me. I brought three kinds of seedlings."},
+    {"speaker": "S1", "voice": "Samantha", "start_s": 9.356, "end_s": 11.640, "text": "Which one grows best on a small balcony?"},
+    {"speaker": "S2", "voice": "Daniel", "start_s": 12.340, "end_s": 16.030, "text": "The cherry tomato, because it stays compact and fruits early."},
+    {"speaker": "S1", "voice": "Samantha", "start_s": 16.730, "end_s": 19.431, "text": "Perfect. Let us put them in the pots right now."},
+    {"speaker": "S2", "voice": "Daniel", "start_s": 20.131, "end_s": 22.643, "text": "Water them gently, and keep them in the sun."}
+  ]
+}

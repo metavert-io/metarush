@@ -1,0 +1,51 @@
+{
+  "name": "@metarush/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MetaRush local dashboard: the visual console for browsing, reviewing, comparing, approving, uploading and monitoring. Built into the Go binary from web/dist.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/postbuild.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --no-warnings scripts/names-test.mjs && node --experimental-strip-types --no-warnings scripts/script-test.mjs && node --experimental-strip-types --no-warnings scripts/prompter-test.mjs && node --experimental-strip-types --no-warnings scripts/recorder-test.mjs && node --experimental-strip-types --no-warnings scripts/sound-test.mjs && node --experimental-strip-types --no-warnings scripts/recovery-test.mjs && node --experimental-strip-types --no-warnings scripts/article-test.mjs && node --experimental-strip-types --no-warnings scripts/costs-test.mjs && npm run test:editops && npm run test:plain",
+    "test:plain": "node scripts/plain-words-test.mjs",
+    "test:coverage": "c8 --reporter=lcov --reporter=text-summary --report-dir=coverage --temp-directory=coverage/.v8 --include='src/**' --exclude-after-remap npm test",
+    "preview": "vite preview",
+    "screenshots": "node scripts/screenshots.mjs",
+    "plain:e2e": "node scripts/plain-words-e2e.mjs",
+    "test:editops": "node scripts/editops-parity.mjs ../internal/editspec/testdata/studio-ops.golden.json && node scripts/words-parity.mjs ../internal/cutsheet/testdata/word-removals.golden.json"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.14",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@lezer/highlight": "^1.2.5",
+    "@metarush/schema": "*",
+    "@metarush/video": "*",
+    "@phosphor-icons/react": "^2.1.10",
+    "@remotion/player": "4.0.536",
+    "@tanstack/react-query": "^5.104.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router": "^7.18.4",
+    "remotion": "4.0.536"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "c8": "12.0.0",
+    "playwright": "^1.64.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "5.9.3",
+    "vite": "^7.3.7"
+  }
+}

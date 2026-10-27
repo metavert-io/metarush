@@ -1,0 +1,11 @@
+# The shape of local/publish-worknotes.txt: the file names of work notes that must never be tracked (the publish check
+# reports a tracked file with one of these names anywhere in the tree, and a .gitignore line naming one). These
+# entries are invented. Copy this file to local/publish-worknotes.txt (local/ is gitignored) and write your own.
+# pm/, local/, CLAUDE.local.md and the deny-lists are always work notes.
+#
+# One file name per line, ignoring case.
+
+handover.md
+plan-of-record.md
+sprint-journal.md
+pricing-notes.md

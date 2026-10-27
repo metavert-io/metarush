@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "metarush": {
+      "command": "metarush",
+      "args": [
+        "mcp",
+        "serve"
+      ]
+    }
+  }
+}

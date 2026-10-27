@@ -1,0 +1,17 @@
+# OpenTimelineIO and its adapters for scripts/interchange-check.sh, pinned by
+# version and SHA-256 (pip --require-hashes; D303). Python 3.12: OpenTimelineIO
+# 0.18.1 has wheels for CPython 3.9–3.13 on Apple silicon, Linux (x86_64,
+# aarch64) and Windows only, so newer Pythons and Intel Macs would build it
+# from source. Never a MetaRush dependency: a throwaway virtual environment.
+opentimelineio==0.18.1 \
+    --hash=sha256:1798102411fdd7fdace2441925f910b6daa71ca67c29cd523702a5a19e4e1ded \
+    --hash=sha256:8ba406c33afc15de91273a06df8b45ecee2a15fa11005be9e2b307f8f53ead8f \
+    --hash=sha256:8f0924f818b496cf771612d489082bdb83f42b6bd97ed06589dd2e2c086742c9 \
+    --hash=sha256:f59a24d0be0b1efd70657214c5ef193ee37f5b88948ad603c31218fd910bdd36
+# FCP7 XML (xmeml), FCPXML and CMX 3600 EDL adapters (pure Python).
+otio-fcp-adapter==1.0.0 \
+    --hash=sha256:6a425e3020be590e10c9076ac2aada22c1d5d7799abae9f3fbd51f08e07ffdeb
+otio-fcpx-xml-adapter==1.0.0 \
+    --hash=sha256:9891fcba190e1a2ebc339d2da42398ce98927dfb0055d57d8b37ea8769477f73
+otio-cmx3600-adapter==1.0.0 \
+    --hash=sha256:440ed9d862170d9d03d319a51bf77a19f917b162b73a578e3ebe9a79fa01625b

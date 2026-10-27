@@ -1,0 +1,641 @@
+{
+  "format": "metarush.recipe-file/1",
+  "made": "2026-10-26T00:00:00Z",
+  "metarush": "starter",
+  "workspace": "MetaRush's starter recipes",
+  "recipe": {
+    "name": "release-video",
+    "title": "A release tag becomes a release video",
+    "makes": "one widescreen video, 45–90 s: the release's title, two code slides, a diagram and an end card, narrated in an AI voice"
+  },
+  "version": {
+    "number": 1,
+    "hash": "52f330c2500c6c901c7c964ed0fe48fb4a13d375732e08ec7a855995989846ef",
+    "note": "MetaRush's starter recipe",
+    "state": "current"
+  },
+  "lineage": [
+    "52f330c2500c6c901c7c964ed0fe48fb4a13d375732e08ec7a855995989846ef"
+  ],
+  "doc": {
+    "format": "metarush.recipe/1",
+    "title": "A release tag becomes a release video",
+    "makes": "one widescreen video, 45–90 s: the release's title, two code slides, a diagram and an end card, narrated in an AI voice",
+    "lands": {
+      "kind": "new-project",
+      "name": "{release}: release video"
+    },
+    "length": {
+      "min": 45,
+      "max": 90
+    },
+    "inputs": [
+      {
+        "name": "release",
+        "kind": "words",
+        "label": "The release, as the title slide shows it",
+        "default": {
+          "text": "Widget 2.4"
+        },
+        "maxLength": 80
+      },
+      {
+        "name": "headline",
+        "kind": "words",
+        "label": "What the release is about, in a line",
+        "default": {
+          "text": "Saves that never wait, and retries that back off"
+        },
+        "maxLength": 140
+      },
+      {
+        "name": "code",
+        "kind": "pictures",
+        "label": "The two code slides, made from the repository at the tag",
+        "required": true,
+        "default": {
+          "items": [
+            "res_be7e3f7ac0d5933db6db623717",
+            "res_c72c77a6cd34f0e6d42f9c3b4f"
+          ]
+        },
+        "count": {
+          "min": 2,
+          "max": 2
+        }
+      },
+      {
+        "name": "change-1",
+        "kind": "words",
+        "label": "The first change's title",
+        "default": {
+          "text": "Saves take the next free worker"
+        },
+        "maxLength": 80
+      },
+      {
+        "name": "where-1",
+        "kind": "words",
+        "label": "Where the first change is: repository@commit:file:lines",
+        "default": {
+          "text": "github.com/acme/widget@1a2b3c4d:queue/worker.go:18-26"
+        },
+        "maxLength": 140
+      },
+      {
+        "name": "change-2",
+        "kind": "words",
+        "label": "The second change's title",
+        "default": {
+          "text": "Retries back off on their own"
+        },
+        "maxLength": 80
+      },
+      {
+        "name": "where-2",
+        "kind": "words",
+        "label": "Where the second change is: repository@commit:file:lines",
+        "default": {
+          "text": "github.com/acme/widget@1a2b3c4d:queue/retry.go:9-15"
+        },
+        "maxLength": 140
+      },
+      {
+        "name": "diagram",
+        "kind": "pictures",
+        "label": "The diagram of how the pieces fit",
+        "required": true,
+        "default": {
+          "items": [
+            "res_673ae6541c1982ba551adee4cd"
+          ]
+        },
+        "count": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      {
+        "name": "diagram-title",
+        "kind": "words",
+        "label": "The diagram's title",
+        "default": {
+          "text": "How a save travels"
+        },
+        "maxLength": 80
+      },
+      {
+        "name": "line-intro",
+        "kind": "words",
+        "label": "The narration over the title",
+        "default": {
+          "text": "Widget 2.4 is out. Here is what changed, and why your saves will feel faster from today, in under a minute."
+        },
+        "maxLength": 400
+      },
+      {
+        "name": "line-1",
+        "kind": "words",
+        "label": "The narration over the first code slide",
+        "default": {
+          "text": "Saves no longer wait for the whole queue. Each job now takes the next free worker the moment it is ready, so a busy hour stays quick."
+        },
+        "maxLength": 400
+      },
+      {
+        "name": "line-2",
+        "kind": "words",
+        "label": "The narration over the second code slide",
+        "default": {
+          "text": "Retries back off on their own. When a service is slow, Widget waits a little longer each time instead of sending a flood of requests."
+        },
+        "maxLength": 400
+      },
+      {
+        "name": "line-how",
+        "kind": "words",
+        "label": "The narration over the diagram",
+        "default": {
+          "text": "Here is how the pieces fit together: the queue hands each job to a worker, and every result lands in one store you can trust."
+        },
+        "maxLength": 400
+      },
+      {
+        "name": "line-end",
+        "kind": "words",
+        "label": "The narration over the end card",
+        "default": {
+          "text": "That is Widget 2.4. The release notes have everything else, with thanks to everyone who tried the early builds."
+        },
+        "maxLength": 400
+      },
+      {
+        "name": "voice",
+        "kind": "voice",
+        "label": "The AI voice (default: the narration voice in Content Settings)",
+        "default": {}
+      },
+      {
+        "name": "cta",
+        "kind": "words",
+        "label": "The end card's headline",
+        "default": {
+          "text": "Read the release notes"
+        },
+        "maxLength": 80
+      },
+      {
+        "name": "link",
+        "kind": "words",
+        "label": "Where to read them",
+        "default": {
+          "text": "example.com/releases"
+        },
+        "maxLength": 40
+      }
+    ],
+    "sections": [
+      {
+        "name": "intro",
+        "kind": "fixed",
+        "purpose": "the release's title",
+        "clips": [
+          {
+            "id": "intro",
+            "assetId": "ast_a82f5057e37527ce232bd3d838",
+            "in": 0,
+            "out": 7,
+            "speed": 1,
+            "muted": true
+          }
+        ]
+      },
+      {
+        "name": "change-1",
+        "kind": "fixed",
+        "purpose": "the first change, as code",
+        "clips": [
+          {
+            "id": "change-1",
+            "assetId": "ast_a82f5057e37527ce232bd3d838",
+            "in": 0,
+            "out": 11,
+            "speed": 1,
+            "muted": true
+          }
+        ]
+      },
+      {
+        "name": "change-2",
+        "kind": "fixed",
+        "purpose": "the second change, as code",
+        "clips": [
+          {
+            "id": "change-2",
+            "assetId": "ast_a82f5057e37527ce232bd3d838",
+            "in": 0,
+            "out": 11,
+            "speed": 1,
+            "muted": true
+          }
+        ]
+      },
+      {
+        "name": "how",
+        "kind": "fixed",
+        "purpose": "how the pieces fit",
+        "clips": [
+          {
+            "id": "how",
+            "assetId": "ast_a82f5057e37527ce232bd3d838",
+            "in": 0,
+            "out": 10,
+            "speed": 1,
+            "muted": true
+          }
+        ]
+      },
+      {
+        "name": "end",
+        "kind": "fixed",
+        "purpose": "where to read more",
+        "clips": [
+          {
+            "id": "end",
+            "assetId": "ast_a82f5057e37527ce232bd3d838",
+            "in": 0,
+            "out": 8,
+            "speed": 1,
+            "muted": true
+          }
+        ]
+      }
+    ],
+    "cut": {
+      "title": "Widget 2.4",
+      "output": {
+        "preset": "landscape-1080p",
+        "width": 1920,
+        "height": 1080,
+        "fps": 30,
+        "background": "#000000",
+        "platform": "youtube"
+      },
+      "overlays": [
+        {
+          "id": "title",
+          "template": "slide.title",
+          "role": "title-card",
+          "at": 0,
+          "duration": 0,
+          "params": {
+            "kicker": "What's new",
+            "subtitle": "Saves that never wait, and retries that back off",
+            "title": "Widget 2.4"
+          },
+          "span": {
+            "from": "intro",
+            "to": "intro"
+          }
+        },
+        {
+          "id": "code-1",
+          "template": "slide.code",
+          "at": 0,
+          "duration": 0,
+          "params": {
+            "caption": "github.com/acme/widget@1a2b3c4d:queue/worker.go:18-26",
+            "code": "code-1",
+            "title": "Saves take the next free worker"
+          },
+          "span": {
+            "from": "change-1",
+            "to": "change-1"
+          }
+        },
+        {
+          "id": "code-2",
+          "template": "slide.code",
+          "at": 0,
+          "duration": 0,
+          "params": {
+            "caption": "github.com/acme/widget@1a2b3c4d:queue/retry.go:9-15",
+            "code": "code-2",
+            "title": "Retries back off on their own"
+          },
+          "span": {
+            "from": "change-2",
+            "to": "change-2"
+          }
+        },
+        {
+          "id": "arch",
+          "template": "slide.architecture",
+          "at": 0,
+          "duration": 0,
+          "params": {
+            "diagram": "diagram",
+            "title": "How a save travels"
+          },
+          "span": {
+            "from": "how",
+            "to": "how"
+          }
+        },
+        {
+          "id": "end-card",
+          "template": "endcard.cta",
+          "role": "end-screen",
+          "at": 0,
+          "duration": 0,
+          "params": {
+            "cta": "Read more",
+            "handle": "example.com/releases",
+            "headline": "Read the release notes"
+          },
+          "span": {
+            "from": "end",
+            "to": "end"
+          }
+        }
+      ],
+      "voiceover": {
+        "beats": [
+          {
+            "id": "l-intro",
+            "text": "Widget 2.4 is out. Here is what changed, and why your saves will feel faster from today, in under a minute.",
+            "anchor": {
+              "kind": "clip",
+              "clipId": "intro",
+              "offset": 0.6
+            },
+            "state": "draft"
+          },
+          {
+            "id": "l-1",
+            "text": "Saves no longer wait for the whole queue. Each job now takes the next free worker the moment it is ready, so a busy hour stays quick.",
+            "anchor": {
+              "kind": "clip",
+              "clipId": "change-1",
+              "offset": 0.6
+            },
+            "state": "draft"
+          },
+          {
+            "id": "l-2",
+            "text": "Retries back off on their own. When a service is slow, Widget waits a little longer each time instead of sending a flood of requests.",
+            "anchor": {
+              "kind": "clip",
+              "clipId": "change-2",
+              "offset": 0.6
+            },
+            "state": "draft"
+          },
+          {
+            "id": "l-how",
+            "text": "Here is how the pieces fit together: the queue hands each job to a worker, and every result lands in one store you can trust.",
+            "anchor": {
+              "kind": "clip",
+              "clipId": "how",
+              "offset": 0.6
+            },
+            "state": "draft"
+          },
+          {
+            "id": "l-end",
+            "text": "That is Widget 2.4. The release notes have everything else, with thanks to everyone who tried the early builds.",
+            "anchor": {
+              "kind": "clip",
+              "clipId": "end",
+              "offset": 0.6
+            },
+            "state": "draft"
+          }
+        ]
+      },
+      "resources": {
+        "code-1": {
+          "id": "res_be7e3f7ac0d5933db6db623717",
+          "sha256": "31e80b912019f88d8e87c8986bef72d87c1d469855fd070aca8677794005bc87"
+        },
+        "code-2": {
+          "id": "res_c72c77a6cd34f0e6d42f9c3b4f",
+          "sha256": "abfdea38cae5e7b8d2ab8bffbf9c564a05c7efc5f41d1b954ac2c3e07460609f"
+        },
+        "diagram": {
+          "id": "res_673ae6541c1982ba551adee4cd",
+          "sha256": "372234596f08c598d918cc38474f1e6847c76232e06bbc3c2ec9ed730aa65011"
+        }
+      }
+    },
+    "bindings": [
+      {
+        "input": "release",
+        "to": "title"
+      },
+      {
+        "input": "release",
+        "to": "param:title.title"
+      },
+      {
+        "input": "headline",
+        "to": "param:title.subtitle"
+      },
+      {
+        "input": "code",
+        "to": "resource:code-1"
+      },
+      {
+        "input": "code",
+        "to": "resource:code-2"
+      },
+      {
+        "input": "change-1",
+        "to": "param:code-1.title"
+      },
+      {
+        "input": "where-1",
+        "to": "param:code-1.caption"
+      },
+      {
+        "input": "change-2",
+        "to": "param:code-2.title"
+      },
+      {
+        "input": "where-2",
+        "to": "param:code-2.caption"
+      },
+      {
+        "input": "diagram",
+        "to": "resource:diagram"
+      },
+      {
+        "input": "diagram-title",
+        "to": "param:arch.title"
+      },
+      {
+        "input": "line-intro",
+        "to": "line:l-intro"
+      },
+      {
+        "input": "line-1",
+        "to": "line:l-1"
+      },
+      {
+        "input": "line-2",
+        "to": "line:l-2"
+      },
+      {
+        "input": "line-how",
+        "to": "line:l-how"
+      },
+      {
+        "input": "line-end",
+        "to": "line:l-end"
+      },
+      {
+        "input": "voice",
+        "to": "voice"
+      },
+      {
+        "input": "cta",
+        "to": "param:end-card.headline"
+      },
+      {
+        "input": "link",
+        "to": "param:end-card.handle"
+      }
+    ],
+    "rules": [
+      {
+        "text": "Under 90 seconds",
+        "measure": "max-length:90"
+      }
+    ],
+    "signoffs": [
+      "The code on the slides is the tag's: each slide says its repository, commit, file and lines"
+    ],
+    "hints": [
+      "Fetch the repository at the release's tag, then make the two code slides from the changes that matter most and a diagram of how they fit; each keeps its repository, commit, file and lines.",
+      "Write one narration line per slide, said the way a person would explain it, short enough to fit its slide.",
+      "The AI voice is priced first, and a short sample line comes first; a person approves it before the rest."
+    ]
+  },
+  "pictures": [
+    {
+      "id": "res_be7e3f7ac0d5933db6db623717",
+      "name": "example-code-1",
+      "title": "An example code slide (Widget's worker loop)",
+      "kind": "svg",
+      "sha256": "31e80b912019f88d8e87c8986bef72d87c1d469855fd070aca8677794005bc87",
+      "size": 1931,
+      "fileName": "example-code-1.svg",
+      "license": "Made for MetaRush's starter recipes: free to use",
+      "source": {
+        "kind": "generated",
+        "name": "example-code-1.svg",
+        "url": "https://github.com/acme/widget",
+        "site": "github.com",
+        "commit": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+        "license": "MIT",
+        "author": "acme",
+        "file": "queue/worker.go",
+        "lines": "18-26",
+        "madeWith": {
+          "kind": "code",
+          "file": "queue/worker.go",
+          "from": 18,
+          "to": 26,
+          "language": "go"
+        },
+        "tool": "an example made for MetaRush's starter recipes",
+        "at": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "id": "res_c72c77a6cd34f0e6d42f9c3b4f",
+      "name": "example-code-2",
+      "title": "An example code slide (Widget's retries)",
+      "kind": "svg",
+      "sha256": "abfdea38cae5e7b8d2ab8bffbf9c564a05c7efc5f41d1b954ac2c3e07460609f",
+      "size": 1596,
+      "fileName": "example-code-2.svg",
+      "license": "Made for MetaRush's starter recipes: free to use",
+      "source": {
+        "kind": "generated",
+        "name": "example-code-2.svg",
+        "url": "https://github.com/acme/widget",
+        "site": "github.com",
+        "commit": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+        "license": "MIT",
+        "author": "acme",
+        "file": "queue/retry.go",
+        "lines": "9-15",
+        "madeWith": {
+          "kind": "code",
+          "file": "queue/retry.go",
+          "from": 9,
+          "to": 15,
+          "language": "go"
+        },
+        "tool": "an example made for MetaRush's starter recipes",
+        "at": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "id": "res_673ae6541c1982ba551adee4cd",
+      "name": "example-diagram",
+      "title": "An example diagram (how a save travels)",
+      "kind": "svg",
+      "sha256": "372234596f08c598d918cc38474f1e6847c76232e06bbc3c2ec9ed730aa65011",
+      "size": 910,
+      "fileName": "example-diagram.svg",
+      "license": "Made for MetaRush's starter recipes: free to use",
+      "source": {
+        "kind": "generated",
+        "name": "example-diagram.svg",
+        "url": "https://github.com/acme/widget",
+        "site": "github.com",
+        "commit": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+        "license": "MIT",
+        "author": "acme",
+        "madeWith": {
+          "kind": "diagram"
+        },
+        "tool": "an example made for MetaRush's starter recipes",
+        "at": "0001-01-01T00:00:00Z"
+      }
+    }
+  ],
+  "footage": [
+    {
+      "id": "ast_a82f5057e37527ce232bd3d838",
+      "title": "A plain backdrop for slides",
+      "fileName": "backdrop.mp4",
+      "kind": "video",
+      "sha256": "bf902ee8d9057c533885ef10bebb046dee599263ef3a19bc133da39247a289b3",
+      "size": 28171,
+      "duration": 12
+    }
+  ],
+  "code": [],
+  "leftOut": [],
+  "files": [
+    {
+      "sha256": "31e80b912019f88d8e87c8986bef72d87c1d469855fd070aca8677794005bc87",
+      "size": 1931
+    },
+    {
+      "sha256": "372234596f08c598d918cc38474f1e6847c76232e06bbc3c2ec9ed730aa65011",
+      "size": 910
+    },
+    {
+      "sha256": "abfdea38cae5e7b8d2ab8bffbf9c564a05c7efc5f41d1b954ac2c3e07460609f",
+      "size": 1596
+    },
+    {
+      "sha256": "bf902ee8d9057c533885ef10bebb046dee599263ef3a19bc133da39247a289b3",
+      "size": 28171
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+ability: 1
+name: open-media
+title: Public-domain and openly licensed media
+does: Finds public-domain and openly licensed pictures, video and sound on Wikimedia Commons and the Internet Archive and brings them in, each with its licence and the credit it asks for.
+runs: python3 fetch.py
+inputs:
+  words: {kind: words, max: 100, says: What it shows or sounds like}
+  kind: {kind: choice, options: [pictures, video, sound], default: pictures, says: "Pictures, video or sound"}
+  from: {kind: choice, options: [both, wikimedia-commons, internet-archive], default: both, says: Where to look}
+  count: {kind: number, min: 1, max: 6, default: 3, says: How many to bring in}
+  contact: {kind: words, max: 120, optional: true, says: An email or web address Wikimedia can reach you at (it asks every tool for one)}
+outputs: [footage, sound, picture]
+cost: free
+hosts: [commons.wikimedia.org, upload.wikimedia.org, archive.org, "*.archive.org"]
+sends: [words]
+changes-outside: no
+likeness: no
+needs: {programs: [python3], os: [mac, linux]}
+licence: MIT
+search: [public domain, creative commons, archive, wikimedia, commons, free, footage, pictures, sound, historical]
+limits: {minutes: 15, mb: 3000}
+test: {inputs: {words: lighthouse}}

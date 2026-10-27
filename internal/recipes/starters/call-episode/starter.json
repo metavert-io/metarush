@@ -1,0 +1,22 @@
+{
+  "name": "call-episode",
+  "title": "A call becomes an episode with shorts",
+  "makes": "one widescreen episode as long as the call needs, and up to 3 vertical shorts",
+  "summary": "Give it a call recording and the episode's title: Claude cleans the conversation up in its order, MetaRush makes the voices clearer (a sample first), captions it in your house style, picks shorts that stand on their own, and the delivery notes — chapters and show notes — wait to be written before it goes out.",
+  "gives": [
+    "a call recording",
+    "the episode's title"
+  ],
+  "uses": [
+    "metarush/transcripts",
+    "metarush/remove-ums",
+    "metarush/tighten-pauses",
+    "metarush/cloud-voices",
+    "metarush/caption-looks",
+    "metarush/best-moments",
+    "metarush/shorts",
+    "metarush/delivery-notes",
+    "metarush/quality-check"
+  ],
+  "order": 1
+}

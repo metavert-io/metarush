@@ -1,0 +1,23 @@
+ability: 1
+name: freesound-effects
+title: Sound effects from Freesound
+does: Finds sound effects on Freesound that match a few words and brings them in, each with its licence and the credit it asks for. Freesound's API is free for non-commercial use only.
+runs: python3 fetch.py
+inputs:
+  words: {kind: words, max: 100, says: What the sound is}
+  count: {kind: number, min: 1, max: 6, default: 3, says: How many to bring in}
+  longest: {kind: number, min: 1, max: 600, default: 30, says: The longest a sound may be (seconds)}
+  licences: {kind: choice, options: [cc0-and-cc-by, cc0-only], default: cc0-and-cc-by, says: "CC0 and CC BY (credit needed), or CC0 only. Freesound's API is free for non-commercial use only"}
+outputs: [sound]
+cost: free
+keys: [{name: freesound, env: FREESOUND_API_KEY, hosts: [freesound.org]}]
+hosts: [freesound.org, cdn.freesound.org]
+sends: [words]
+changes-outside: no
+likeness: no
+needs: {programs: [python3], os: [mac, linux]}
+licence: MIT
+terms: "Freesound's API is free for non-commercial use only: for client or other commercial work, ask Freesound first (the sounds' own licences are separate)."
+search: [sound effects, sfx, foley, ambience, sound, audio, freesound, free]
+limits: {minutes: 10, mb: 500}
+test: {inputs: {words: door creak}}

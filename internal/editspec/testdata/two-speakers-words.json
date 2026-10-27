@@ -1,0 +1,499 @@
+{
+ "note": "Parakeet word timings of tests/fixtures/gen/two-speakers.wav (scripts/make-fixtures.sh), for the auto split test; truth: tests/fixtures/truth/two-speakers.json",
+ "segments": [
+  {
+   "from": 0.32,
+   "to": 3.12,
+   "speaker": "Speaker 1",
+   "text": "So tell me how the project actually started.",
+   "words": [
+    {
+     "text": "So",
+     "from": 0.32,
+     "to": 0.64
+    },
+    {
+     "text": "tell",
+     "from": 0.8,
+     "to": 1.04
+    },
+    {
+     "text": "me",
+     "from": 1.04,
+     "to": 1.2
+    },
+    {
+     "text": "how",
+     "from": 1.2,
+     "to": 1.36
+    },
+    {
+     "text": "the",
+     "from": 1.36,
+     "to": 1.6
+    },
+    {
+     "text": "project",
+     "from": 1.6,
+     "to": 2.24
+    },
+    {
+     "text": "actually",
+     "from": 2.24,
+     "to": 2.56
+    },
+    {
+     "text": "started.",
+     "from": 2.56,
+     "to": 3.12
+    }
+   ]
+  },
+  {
+   "from": 3.6,
+   "to": 7.44,
+   "speaker": "Speaker 2",
+   "text": "It started in my garage with a broken drone and a lot of free time.",
+   "words": [
+    {
+     "text": "It",
+     "from": 3.6,
+     "to": 3.84
+    },
+    {
+     "text": "started",
+     "from": 3.84,
+     "to": 4.24
+    },
+    {
+     "text": "in",
+     "from": 4.24,
+     "to": 4.4
+    },
+    {
+     "text": "my",
+     "from": 4.4,
+     "to": 4.56
+    },
+    {
+     "text": "garage",
+     "from": 4.56,
+     "to": 5.12
+    },
+    {
+     "text": "with",
+     "from": 5.12,
+     "to": 5.28
+    },
+    {
+     "text": "a",
+     "from": 5.28,
+     "to": 5.36
+    },
+    {
+     "text": "broken",
+     "from": 5.36,
+     "to": 5.68
+    },
+    {
+     "text": "drone",
+     "from": 5.68,
+     "to": 6.08
+    },
+    {
+     "text": "and",
+     "from": 6.08,
+     "to": 6.24
+    },
+    {
+     "text": "a",
+     "from": 6.24,
+     "to": 6.4
+    },
+    {
+     "text": "lot",
+     "from": 6.4,
+     "to": 6.48
+    },
+    {
+     "text": "of",
+     "from": 6.48,
+     "to": 6.64
+    },
+    {
+     "text": "free",
+     "from": 6.64,
+     "to": 7.12
+    },
+    {
+     "text": "time.",
+     "from": 7.12,
+     "to": 7.44
+    }
+   ]
+  },
+  {
+   "from": 7.92,
+   "to": 10.88,
+   "speaker": "Speaker 1",
+   "text": "And when did you realize it could become a real business?",
+   "words": [
+    {
+     "text": "And",
+     "from": 7.92,
+     "to": 8.08
+    },
+    {
+     "text": "when",
+     "from": 8.08,
+     "to": 8.32
+    },
+    {
+     "text": "did",
+     "from": 8.32,
+     "to": 8.48
+    },
+    {
+     "text": "you",
+     "from": 8.48,
+     "to": 8.64
+    },
+    {
+     "text": "realize",
+     "from": 8.64,
+     "to": 9.12
+    },
+    {
+     "text": "it",
+     "from": 9.12,
+     "to": 9.28
+    },
+    {
+     "text": "could",
+     "from": 9.28,
+     "to": 9.52
+    },
+    {
+     "text": "become",
+     "from": 9.52,
+     "to": 9.76
+    },
+    {
+     "text": "a",
+     "from": 9.76,
+     "to": 9.92
+    },
+    {
+     "text": "real",
+     "from": 9.92,
+     "to": 10.16
+    },
+    {
+     "text": "business?",
+     "from": 10.16,
+     "to": 10.88
+    }
+   ]
+  },
+  {
+   "from": 11.2,
+   "to": 15.52,
+   "speaker": "Speaker 2",
+   "text": "Honestly, when strangers started emailing me to ask if they could buy one.",
+   "words": [
+    {
+     "text": "Honestly,",
+     "from": 11.2,
+     "to": 11.76
+    },
+    {
+     "text": "when",
+     "from": 12.08,
+     "to": 12.32
+    },
+    {
+     "text": "strangers",
+     "from": 12.32,
+     "to": 12.96
+    },
+    {
+     "text": "started",
+     "from": 12.96,
+     "to": 13.36
+    },
+    {
+     "text": "emailing",
+     "from": 13.36,
+     "to": 13.84
+    },
+    {
+     "text": "me",
+     "from": 13.84,
+     "to": 14
+    },
+    {
+     "text": "to",
+     "from": 14,
+     "to": 14.16
+    },
+    {
+     "text": "ask",
+     "from": 14.16,
+     "to": 14.4
+    },
+    {
+     "text": "if",
+     "from": 14.4,
+     "to": 14.56
+    },
+    {
+     "text": "they",
+     "from": 14.56,
+     "to": 14.72
+    },
+    {
+     "text": "could",
+     "from": 14.72,
+     "to": 14.88
+    },
+    {
+     "text": "buy",
+     "from": 14.88,
+     "to": 15.28
+    },
+    {
+     "text": "one.",
+     "from": 15.28,
+     "to": 15.52
+    }
+   ]
+  },
+  {
+   "from": 16,
+   "to": 18.4,
+   "speaker": "Speaker 1",
+   "text": "What was the hardest part of that first year?",
+   "words": [
+    {
+     "text": "What",
+     "from": 16,
+     "to": 16.24
+    },
+    {
+     "text": "was",
+     "from": 16.24,
+     "to": 16.4
+    },
+    {
+     "text": "the",
+     "from": 16.4,
+     "to": 16.56
+    },
+    {
+     "text": "hardest",
+     "from": 16.56,
+     "to": 17.04
+    },
+    {
+     "text": "part",
+     "from": 17.04,
+     "to": 17.2
+    },
+    {
+     "text": "of",
+     "from": 17.2,
+     "to": 17.44
+    },
+    {
+     "text": "that",
+     "from": 17.44,
+     "to": 17.76
+    },
+    {
+     "text": "first",
+     "from": 17.76,
+     "to": 18.08
+    },
+    {
+     "text": "year?",
+     "from": 18.08,
+     "to": 18.4
+    }
+   ]
+  },
+  {
+   "from": 18.72,
+   "to": 22.64,
+   "speaker": "Speaker 2",
+   "text": "Learning to say no to good ideas so we could finish the great ones.",
+   "words": [
+    {
+     "text": "Learning",
+     "from": 18.72,
+     "to": 19.2
+    },
+    {
+     "text": "to",
+     "from": 19.2,
+     "to": 19.36
+    },
+    {
+     "text": "say",
+     "from": 19.36,
+     "to": 19.52
+    },
+    {
+     "text": "no",
+     "from": 19.52,
+     "to": 19.76
+    },
+    {
+     "text": "to",
+     "from": 19.76,
+     "to": 19.92
+    },
+    {
+     "text": "good",
+     "from": 19.92,
+     "to": 20.16
+    },
+    {
+     "text": "ideas",
+     "from": 20.16,
+     "to": 20.56
+    },
+    {
+     "text": "so",
+     "from": 20.56,
+     "to": 20.8
+    },
+    {
+     "text": "we",
+     "from": 20.8,
+     "to": 20.96
+    },
+    {
+     "text": "could",
+     "from": 20.96,
+     "to": 21.12
+    },
+    {
+     "text": "finish",
+     "from": 21.12,
+     "to": 21.44
+    },
+    {
+     "text": "the",
+     "from": 21.44,
+     "to": 21.68
+    },
+    {
+     "text": "great",
+     "from": 21.68,
+     "to": 22
+    },
+    {
+     "text": "ones.",
+     "from": 22,
+     "to": 22.64
+    }
+   ]
+  },
+  {
+   "from": 22.96,
+   "to": 25.68,
+   "speaker": "Speaker 1",
+   "text": "That sounds like advice everyone needs to hear.",
+   "words": [
+    {
+     "text": "That",
+     "from": 22.96,
+     "to": 23.2
+    },
+    {
+     "text": "sounds",
+     "from": 23.2,
+     "to": 23.6
+    },
+    {
+     "text": "like",
+     "from": 23.6,
+     "to": 23.76
+    },
+    {
+     "text": "advice",
+     "from": 23.76,
+     "to": 24.32
+    },
+    {
+     "text": "everyone",
+     "from": 24.32,
+     "to": 24.72
+    },
+    {
+     "text": "needs",
+     "from": 24.72,
+     "to": 25.04
+    },
+    {
+     "text": "to",
+     "from": 25.04,
+     "to": 25.2
+    },
+    {
+     "text": "hear.",
+     "from": 25.2,
+     "to": 25.68
+    }
+   ]
+  },
+  {
+   "from": 26,
+   "to": 28.4,
+   "speaker": "Speaker 2",
+   "text": "It is the only advice I really trust.",
+   "words": [
+    {
+     "text": "It",
+     "from": 26,
+     "to": 26.16
+    },
+    {
+     "text": "is",
+     "from": 26.16,
+     "to": 26.32
+    },
+    {
+     "text": "the",
+     "from": 26.32,
+     "to": 26.48
+    },
+    {
+     "text": "only",
+     "from": 26.48,
+     "to": 26.72
+    },
+    {
+     "text": "advice",
+     "from": 26.72,
+     "to": 27.2
+    },
+    {
+     "text": "I",
+     "from": 27.2,
+     "to": 27.44
+    },
+    {
+     "text": "really",
+     "from": 27.44,
+     "to": 27.76
+    },
+    {
+     "text": "trust.",
+     "from": 27.76,
+     "to": 28.4
+    }
+   ]
+  }
+ ]
+}

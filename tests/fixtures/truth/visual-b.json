@@ -1,0 +1,17 @@
+{
+  "file": "visual-b.mp4",
+  "duration_s": 24,
+  "voice": "Samantha",
+  "speech_s": [[0.50, 4.544917], [8.50, 11.084375], [14.50, 16.376646], [20.50, 22.261708]],
+  "cuts_s": [8, 14, 20],
+  "walk_s": [0, 8],
+  "walk_face_x": [0.21, 0.77],
+  "same_face_as_visual_a": {"talking_head": [[0, 8], [14, 20]], "person_walking_in": [[8, 14]]},
+  "stranger_s": [20, 24],
+  "edge_face_x": [0.89, 0.99],
+  "low_face_y": [0.65, 0.93],
+  "text": {"SALE ENDS SUNDAY": [8, 14]},
+  "text_box": [0.275, 0.875, 0.45, 0.06],
+  "images": "tests/fixtures/images (public domain, see SOURCES.md)",
+  "notes": "A face walks left to right at 0-8 s (a vertical crop must follow it); at 8-14 s a face stands at the far right edge (a middle crop cuts it off) above a sign at the bottom (under bottom captions); at 14-20 s a face sits in the bottom third (captions and lower thirds cover it); 20-24 s is a face never seen in visual-a. The faces at 0-8 and 14-20 s are the talking head of visual-a; the face at 8-14 s is the person who walks in there."
+}

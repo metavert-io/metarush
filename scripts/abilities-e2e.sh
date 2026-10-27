@@ -42,7 +42,10 @@ cleanup() {
 trap cleanup EXIT
 . scripts/lib/e2e.sh && e2e_run "$DB" "$BASE"  # D194: stops what the run started, drops its database, removes its folder when it passes
 MR() { ./bin/metarush --home "$H" "$@"; }
-J() { python3 -I -c "import json,sys;d=json.load(sys.stdin);print($1)"; }
+J() { python3 -I -c "import json,sys
+d=json.load(sys.stdin)
+try: print($1)
+except (KeyError,IndexError,TypeError): sys.exit('unexpected answer: '+json.dumps(d)[:3000])"; }
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 command -v python3 >/dev/null || { echo "python3 is needed (the abilities are Python scripts)" >&2; exit 1; }
 if [ "${SKIP_BUILD:-}" != "1" ]; then

@@ -35975,6 +35975,7 @@ bytes?: number
 level?: number
 older?: boolean
 leftOut?: string[]
+scrubbed: ScrubSummary
 notes?: string[]
 error?: string
 says: string
@@ -35993,6 +35994,17 @@ files?: number
 filesDone?: number
 bytes?: number
 bytesDone?: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ScrubSummary".
+ */
+export interface ScrubSummary {
+records: number
+byKind?: {
+[k: string]: number
+}
+says?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

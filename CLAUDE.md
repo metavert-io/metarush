@@ -1016,12 +1016,17 @@ Read `docs/architecture.md` before structural changes.
   (canonical Extended JSON v2, one document per line, `_id` order, streamed both ways), `media.jsonl` and, included,
   `media/` (a folder store filled by `storagemove`). Every collection is in `wsarchive.Catalogue` (as-is / transformed
   / left-out / in-manifest with a why; `TestEveryCollectionIsClassified` and the docs table keep it whole — **add new
-  collections there**); unknown ones are named, credentials and computers' own state left out, every string scrubbed
-  by the log's redactor (byte-exact unless changed). Export only reads (`app.App.ReadOnly`; the CLI's log entry waits
+  collections there**); unknown ones are named, credentials and computers' own state left out; strings are scrubbed only of
+  secretpath's narrow credential shapes, sign-in tokens and `logbook.KnownSecrets` (≥ 8 characters), never `_id`,
+  `…Id` fields or unique-index fields (byte-exact unless changed; the manifest counts them); running and paid
+  waiting work is held for a person (`holdJob`). Export only reads (`app.App.ReadOnly`; the CLI's log entry waits
   in the spool; `ReadLevel`, refuses `newer_database`); another database's address only via `--db-uri-stdin|-env`.
-  Restore (not an op; `metarush workspace restore`, `setup --restore`) only into an empty database: verify every
-  checksum, media first (resumable), collections with options and indexes, the level, a hash check per collection,
-  `Migrate`, counts, `RecordRestore` into the copy; keeps the workspace ID; never deletes. `workspace.export|exports`
+  Restore (not an op; `metarush workspace restore`, `setup --restore`) only into an empty database and only
+  collections the catalogue exports (`CheckCollections`): verify every checksum, the `restore_lock` marker
+  (`store.CheckNoUnfinishedRestore`: Migrate, init and the daemon refuse a database it holds), referenced media looked
+  for, emptiness again, collections with options and indexes each checked by hash as it goes in, included media after
+  What may leave (`MayStore` → `ops.LeaveStorage`), the level last, `MigrateRestoring`, counts, `RecordRestore`; the
+  same restore started again continues; keeps the workspace ID; never deletes. `workspace.export|exports`
   are OwnerOnly + HumanOnly + `archivePeopleOnly`; the CLI needs a person's terminal (`personAtTerminal`); dashboard
   archives go to `<home>/archives`. Browser run `scripts/workspace-export-e2e.sh` (ports 5670–5679).
 - **Testing and coverage** (D194, D195, docs/testing.md): five layers (static → Go tests on a real MongoDB → several

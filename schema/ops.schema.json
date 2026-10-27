@@ -19848,6 +19848,9 @@
           },
           "type": "array"
         },
+        "scrubbed": {
+          "$ref": "#/$defs/ScrubSummary"
+        },
         "notes": {
           "items": {
             "type": "string"
@@ -19874,6 +19877,7 @@
         "startedAt",
         "updatedAt",
         "progress",
+        "scrubbed",
         "says"
       ]
     },
@@ -58004,6 +58008,27 @@
         "hasOriginal",
         "active",
         "timed"
+      ]
+    },
+    "ScrubSummary": {
+      "properties": {
+        "records": {
+          "type": "integer"
+        },
+        "byKind": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "says": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "records"
       ]
     },
     "SearchAsset": {

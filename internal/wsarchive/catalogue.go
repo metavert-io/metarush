@@ -62,7 +62,7 @@ var Catalogue = map[string]Entry{
 	store.CInsights:               {How: AsIs, Why: "what MetaRush learned from the footage (scenes, pauses, what is on screen)"},
 	store.CRevisions:              {How: AsIs, Why: "every version of every cut"},
 	store.CJobs:                   {How: Transformed, Why: "work: what finished is history; what was running is put back as waiting (the computer running it isn't in the archive); work asked for on one computer still waits for that computer", transform: releaseRunningJob},
-	store.CWorkers:                {How: LeftOut, Why: "each computer's live worker record (what it can do right now, its battery): written again when MetaRush starts on a computer"},
+	store.CWorkers:                {How: LeftOut, Why: "each computer's live record of what MetaRush can do there right now (its programs, its battery): written again when MetaRush starts on a computer"},
 	store.CRenders:                {How: AsIs, Why: "renders and where their files are kept"},
 	store.CComments:               {How: AsIs, Why: "comments on versions, outside reviewers' included"},
 	store.CAudit:                  {How: AsIs, Why: "the change history: who changed what, and when"},

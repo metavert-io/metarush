@@ -188,9 +188,9 @@ func seed(t *testing.T, db *store.DB, st media.Store) seeded {
 	ins(store.CJobs,
 		bson.M{"_id": ids.New(ids.Job), "type": "transcribe", "state": "succeeded", "idempotencyKey": "t1", "attemptCount": int32(1), "finishedAt": now},
 		bson.M{"_id": "job_running", "type": "render", "state": "running", "idempotencyKey": "r1", "attemptCount": int32(2),
-			"lease": bson.M{"owner": inst, "expiresAt": now.Add(time.Minute)},
+			"lease":    bson.M{"owner": inst, "expiresAt": now.Add(time.Minute)},
 			"attempts": bson.A{bson.M{"worker": inst, "startedAt": now.Add(-time.Hour), "endedAt": now.Add(-50 * time.Minute), "outcome": "failed"}, bson.M{"worker": inst, "startedAt": now}},
-			"error": "upload refused: secret_access_key=" + fakeS3Secret},
+			"error":    "upload refused: secret_access_key=" + fakeS3Secret},
 		bson.M{"_id": ids.New(ids.Job), "type": "import", "state": "queued", "idempotencyKey": "i1", "installation": inst})
 	ins(store.CAssistantConversations, bson.M{"_id": "asc_1", "title": "Tighter opening", "userId": owner, "installationId": inst, "installationName": "Maya's MacBook",
 		"state": "working", "holderPid": int32(4242), "archived": false, "turns": bson.A{bson.M{"prompt": "use this key " + fakeOpenAIKey + " for the voice"}}})

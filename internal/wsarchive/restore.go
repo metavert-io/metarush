@@ -91,16 +91,17 @@ type RestoredMedia struct {
 	MissingKeys []string `json:"missingKeys,omitempty"`
 }
 
-// ComputerWork is what stays a computer's in the copy: work asked for on it,
-// recipe runs it advances, recipes it plans by itself, Claude Code
+// ComputerWork is what stays a computer's in the copy: work asked for on
+// it, Recipes' runs it advances and plans it makes by itself, Claude Code
 // conversations whose sessions it holds.
 type ComputerWork struct {
-	Computer      string `json:"computer"`
-	ID            string `json:"id"`
-	Jobs          int64  `json:"jobs"`
-	RecipeRuns    int64  `json:"recipeRuns"`
-	Triggers      int64  `json:"triggers"`
-	Conversations int64  `json:"conversations"`
+	Computer string `json:"computer"`
+	ID       string `json:"id"`
+	Jobs     int64  `json:"jobs"`
+	Runs     int64  `json:"runs"` // Recipes' runs
+
+	Triggers      int64 `json:"triggers"`
+	Conversations int64 `json:"conversations"`
 }
 
 // ErrNotEmpty refuses a database that already holds something.
@@ -432,7 +433,7 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 	applied, err := o.DB.Migrate(ctx)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Database, err, "Bringing the copy up to date stopped: %v.", err).
-			WithHint("Run `metarush migrate` against the copy: it picks up where it stopped.")
+			WithHint("Bring it up to date again once MetaRush is set up with it: that picks up where it stopped.").WithCommand("metarush migrate")
 	}
 	rep.Migrated = append(rep.Migrated, applied...)
 	// The counts again: migrations only add.
@@ -531,7 +532,7 @@ func elsewhere(ctx context.Context, db *store.DB, ws string) []ComputerWork {
 		}
 	}
 	count(store.CJobs, "installation", bson.M{"state": models.JobQueued}, func(c *ComputerWork, n int64) { c.Jobs += n })
-	count(store.CRecipeRuns, "installation", bson.M{"state": bson.M{"$in": bson.A{models.RunRunning, models.RunWaiting}}}, func(c *ComputerWork, n int64) { c.RecipeRuns += n })
+	count(store.CRecipeRuns, "installation", bson.M{"state": bson.M{"$in": bson.A{models.RunRunning, models.RunWaiting}}}, func(c *ComputerWork, n int64) { c.Runs += n })
 	count(store.CRecipes, "triggers.installation", nil, func(c *ComputerWork, n int64) { c.Triggers += n })
 	count(store.CAssistantConversations, "installationId", bson.M{"archived": bson.M{"$ne": true}}, func(c *ComputerWork, n int64) { c.Conversations += n })
 	var out []ComputerWork

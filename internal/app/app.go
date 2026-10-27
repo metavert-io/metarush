@@ -43,6 +43,12 @@ type App struct {
 	// Log is the activity log (operations, jobs, program runs, Claude turns).
 	// Shared by copies of this App; nil records nothing.
 	Log *logbook.Logger
+	// ReadOnly: the database is only read through this App — an export of a
+	// workspace (D331), which must work with a read-only database user and on
+	// a database an older MetaRush migrated. Audit and TouchInstallation
+	// write nothing; its Log has no database (entries wait in this
+	// computer's spool).
+	ReadOnly bool
 }
 
 // openLog starts the activity log and connects the queue and the tools to it.
@@ -145,6 +151,9 @@ func NewMediaStoreFor(m config.Media) (media.Store, error) {
 
 // Audit appends an audit event. Failures are logged, never fatal.
 func (a *App) Audit(ctx context.Context, action, targetType, targetID, projectID string, details map[string]any) {
+	if a.ReadOnly {
+		return
+	}
 	ev := models.AuditEvent{ID: ids.New(ids.Audit), WorkspaceID: a.WorkspaceID(), At: time.Now().UTC(), Actor: a.Actor,
 		Action: action, TargetType: targetType, TargetID: targetID, ProjectID: projectID, Details: details}
 	if err := a.DB.Insert(ctx, store.CAudit, ev); err != nil {
@@ -157,6 +166,9 @@ func (a *App) Audit(ctx context.Context, action, targetType, targetID, projectID
 // it runs (D130: Settings → General compares every computer's with its own). The
 // daemon calls it when it starts and every minute.
 func (a *App) TouchInstallation(ctx context.Context) {
+	if a.ReadOnly {
+		return
+	}
 	b := version.Current()
 	_ = a.DB.Update(ctx, store.CInstallations, a.WorkspaceID(), a.Cfg.Installation.ID, map[string]any{"$set": map[string]any{
 		"lastSeenAt": time.Now().UTC(), "version": b.Version, "commit": b.Commit, "built": b.Date}})

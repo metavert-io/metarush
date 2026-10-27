@@ -103,6 +103,8 @@ var notDrafted = map[string]string{
 	"content.pack.decline": "Setting a proposed layout pack aside is the person's decision.",
 	// The ship gate (D299): sending a version out past what holds it is a person's, with their own note.
 	"delivery.override": "Sending a version out past the quality check or a waiting sign-off is a person's decision, with their own note: tell them what holds it.",
+	// Exporting a workspace (D332): everything about the work, people and their consent included, in one file.
+	"workspace.export": "An export holds everything about the work, people and their consent included, so only an owner makes one, in person: tell them why you'd suggest one.",
 }
 
 // MaxWaitingDrafts is how many drafts one app may have waiting at once.

@@ -1,12 +1,15 @@
 package wsarchive
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -441,11 +444,15 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 	}
 	switch resume {
 	case store.RestoreMigrating:
-		verifiedFromManifest(rep, m)
+		if err := recheck(ctx, o, a, rep, true); err != nil {
+			return nil, err
+		}
 		rep.Notes = append(rep.Notes, "This restore had stopped while the copy was brought up to date; it finished that now.")
 		return finishRestore(ctx, o, a, rep)
 	case store.RestoreFootage:
-		verifiedFromManifest(rep, m)
+		if err := recheck(ctx, o, a, rep, false); err != nil {
+			return nil, err
+		}
 		rep.Notes = append(rep.Notes, "This restore had stopped while its footage was copied; it went on from where it stopped.")
 		return footageThenFinish(ctx, o, a, rep, mo)
 	}
@@ -551,11 +558,146 @@ func footageOptions(o RestoreOptions, m *Manifest) (storagemove.Options, error) 
 	return mo, nil
 }
 
-// verifiedFromManifest lists the collections a resumed restore had checked.
-func verifiedFromManifest(rep *RestoreReport, m *Manifest) {
+// recheck is how a restore that continues checks the copy first. Before the
+// copy was brought up to date, its records must still be exactly the
+// archive's: every collection's count and checksum, as when they went in, and
+// nothing in a collection the archive hasn't. Once migrations ran, which
+// change records and may add some of the workspace's own (a project's Content
+// Settings), every record of the archive must still be there, by ID, and
+// nothing anywhere may belong to another workspace or to none.
+func recheck(ctx context.Context, o RestoreOptions, a *Opened, rep *RestoreReport, migrating bool) error {
+	m := a.Manifest
+	o.progress(ArchiveProgress{Phase: "checking"})
+	if migrating {
+		if err := allTheArchives(ctx, o, a); err != nil {
+			return err
+		}
+		for _, c := range m.Collections {
+			rep.Collections = append(rep.Collections, RestoredCollection{Name: c.Name, Count: c.Count, Verified: true})
+		}
+		return nil
+	}
+	inArchive := map[string]bool{}
 	for _, c := range m.Collections {
+		inArchive[c.Name] = true
+	}
+	colls, err := ListCollections(ctx, o.DB)
+	if err != nil {
+		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't look into the database.")
+	}
+	for _, c := range colls {
+		if inArchive[c.Name] || notTheCopys(o.DB, c.Name) {
+			continue
+		}
+		if n, err := o.DB.C(c.Name).CountDocuments(ctx, bson.M{}); err != nil {
+			return partial(err, "MetaRush couldn't count %s in the copy.", c.Name)
+		} else if n > 0 {
+			return partial(nil, "While the restore waited, records came into %s, which the archive hasn't, so it doesn't go on.", c.Name)
+		}
+	}
+	for i, c := range m.Collections {
+		o.progress(ArchiveProgress{Phase: "checking", Collection: c.Name, Collections: len(m.Collections), CollectionsDone: i})
+		n, err := o.DB.C(c.Name).CountDocuments(ctx, bson.M{})
+		if err != nil {
+			return partial(err, "MetaRush couldn't count the copy of %s.", c.Name)
+		}
+		d, err := HashCollection(ctx, o.DB, c.Name, m.Workspace.ID)
+		if err != nil {
+			return partial(err, "MetaRush couldn't read the copy of %s back.", c.Name)
+		}
+		if n != c.Count || d.Count != c.Count || d.SHA256 != c.SHA256 {
+			return partial(nil, "While the restore waited, the copy of %s changed (%d records; the archive has %d), so it doesn't go on.", c.Name, n, c.Count)
+		}
 		rep.Collections = append(rep.Collections, RestoredCollection{Name: c.Name, Count: c.Count, Verified: true})
 	}
+	return nil
+}
+
+// notTheCopys are the collections a restore's checks pass over: its marker,
+// the migration level and a test database's marker.
+func notTheCopys(db *store.DB, name string) bool {
+	return name == store.CRestoreLock || name == store.CMigrations || name == store.CTestRun && strings.HasPrefix(db.Name, store.TestDBPrefix)
+}
+
+// allTheArchives checks, once migrations ran on the copy, that every record of
+// the archive is still there (by ID) and that nothing in the database belongs
+// to another workspace or to none.
+func allTheArchives(ctx context.Context, o RestoreOptions, a *Opened) error {
+	m := a.Manifest
+	colls, err := ListCollections(ctx, o.DB)
+	if err != nil {
+		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't look into the database.")
+	}
+	for _, c := range colls {
+		if notTheCopys(o.DB, c.Name) {
+			continue
+		}
+		if n, err := o.DB.C(c.Name).CountDocuments(ctx, bson.M{"workspaceId": bson.M{"$ne": m.Workspace.ID}}); err != nil {
+			return partial(err, "MetaRush couldn't count %s in the copy.", c.Name)
+		} else if n > 0 {
+			return partial(nil, "The copy's %s holds %s that aren't the workspace's, so the restore doesn't go on.", c.Name, plural(n, "record", "records"))
+		}
+	}
+	for _, c := range m.Collections {
+		ok, err := hasRecords(ctx, o.DB, a.Dir, c, m.Workspace.ID)
+		if err != nil {
+			return partial(err, "MetaRush couldn't read the copy of %s back.", c.Name)
+		}
+		if !ok {
+			return partial(nil, "The copy of %s is missing records the archive has, so the restore doesn't go on.", c.Name)
+		}
+	}
+	return nil
+}
+
+// hasRecords reports whether a collection of the copy holds every record of
+// the archive's file for it, by ID (both in _id order; the copy may hold
+// more, which migrations added).
+func hasRecords(ctx context.Context, db *store.DB, dir string, c CollectionFile, ws string) (bool, error) {
+	f, err := os.Open(filepath.Join(dir, filepath.FromSlash(c.File)))
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	br := bufio.NewReaderSize(f, 1<<20)
+	next := func() (bson.RawValue, bool, error) {
+		for {
+			line, err := readLine(br)
+			if errors.Is(err, io.EOF) {
+				return bson.RawValue{}, false, nil
+			}
+			if err != nil {
+				return bson.RawValue{}, false, err
+			}
+			if len(bytes.TrimSpace(line)) == 0 {
+				continue
+			}
+			doc, err := FromLine(line)
+			if err != nil {
+				return bson.RawValue{}, false, err
+			}
+			id, err := doc.LookupErr("_id")
+			return id, true, err
+		}
+	}
+	want, more, err := next()
+	if err != nil {
+		return false, err
+	}
+	err = EachDoc(ctx, db, c.Name, ws, func(doc bson.Raw) error {
+		if !more {
+			return nil
+		}
+		if got, gerr := doc.LookupErr("_id"); gerr == nil && got.Type == want.Type && bytes.Equal(got.Value, want.Value) {
+			want, more, err = next()
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return !more, nil
 }
 
 // footageThenFinish copies an archive's footage into the storage — once What
@@ -614,16 +756,14 @@ func finishRestore(ctx context.Context, o RestoreOptions, a *Opened, rep *Restor
 			WithHint("Run the same restore again: every record is in and checked, and it finishes bringing the copy up to date.")
 	}
 	rep.Migrated = append(rep.Migrated, applied...)
-	// The counts again: migrations only add.
-	for i, c := range m.Collections {
-		n, err := o.DB.C(c.Name).CountDocuments(ctx, workspaceFilter(m.Workspace.ID))
-		if err != nil {
-			return nil, partial(err, "MetaRush couldn't count the copy of %s.", c.Name)
-		}
-		if n < c.Count {
+	// Again once it is up to date: every record of the archive still there,
+	// by ID (migrations change records and may add the workspace's own, never
+	// take one away), and nothing of another workspace.
+	if err := allTheArchives(ctx, o, a); err != nil {
+		for i := range rep.Collections {
 			rep.Collections[i].Verified = false
-			return nil, partial(nil, "After bringing it up to date, the copy of %s holds fewer records than the archive (%d of %d).", c.Name, n, c.Count)
 		}
+		return nil, err
 	}
 	// The copy's footage is in this storage when it was included.
 	if m.Media.Mode == MediaIncluded {

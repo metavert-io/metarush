@@ -342,3 +342,121 @@ func TestRestoreHoldsWorkThatCouldRunTwice(t *testing.T) {
 		t.Errorf("the report should list the held work: %d %v", rep.Held, rep.Notes)
 	}
 }
+
+// A restore that continues checks the copy again first: the records that went
+// in before it stopped must still be exactly the archive's — none added, none
+// changed (once migrations ran, which change records and may add the
+// workspace's own: none gone, none of another workspace) — or it stops,
+// saying so, and the database stays held. A copy
+// nobody touched continues and finishes. Exporting a database a restore still
+// holds is refused too: there is no whole workspace in it.
+func TestRestoreContinuesOnlyOverAnUntouchedCopy(t *testing.T) {
+	ctx := context.Background()
+	src := testutil.DB(t)
+	st := fsStore(t)
+	s := seed(t, src, st)
+	res := exportTo(t, src, st, s.ws, wsarchive.MediaIncluded, false)
+	stopped := func(t *testing.T) *store.DB {
+		t.Helper()
+		dst := emptyDB(t)
+		dir := t.TempDir()
+		_, err := wsarchive.Restore(ctx, wsarchive.RestoreOptions{Archive: res.Path, DB: dst, Store: fsStore(t), StoreWords: "the test storage",
+			StateDir: filepath.Join(dir, "state"), ScratchDir: filepath.Join(dir, "scratch"),
+			MayStore: func(context.Context, *store.DB, string) error { return apperr.New(apperr.Conflict, "Not now.") }})
+		if err == nil {
+			t.Fatal("the restore didn't stop")
+		}
+		if l, _ := dst.ReadRestoreLock(ctx); l == nil || l.State != store.RestoreFootage {
+			t.Fatalf("not held while its footage waits: %+v", l)
+		}
+		return dst
+	}
+	// As the restore leaves it once every record is in and its footage
+	// copied: the archive's migration level written, the copy being brought
+	// up to date.
+	migrating := func(t *testing.T, dst *store.DB) {
+		t.Helper()
+		l, _ := dst.ReadRestoreLock(ctx)
+		mb, _ := os.ReadFile(filepath.Join(res.Path, wsarchive.ManifestName))
+		m, err := wsarchive.ReadManifest(mb)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ap := range m.Level.Applied {
+			if _, err := dst.C(store.CMigrations).InsertOne(ctx, bson.M{"_id": ap.Version, "name": ap.Name, "appliedAt": ap.AppliedAt}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := dst.SetRestoreLock(ctx, l.Archive, l.Workspace, l.Name, store.RestoreMigrating); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		what   string
+		change func(t *testing.T, dst *store.DB)
+	}{
+		{"a record added", func(t *testing.T, dst *store.DB) {
+			if _, err := dst.C(store.CProjects).InsertOne(ctx, bson.M{"_id": ids.New(ids.Project), "workspaceId": s.ws, "name": "Autumn launch", "archived": false}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"a record changed", func(t *testing.T, dst *store.DB) {
+			if _, err := dst.C(store.CProjects).UpdateOne(ctx, bson.M{"workspaceId": s.ws}, bson.M{"$set": bson.M{"name": "Renamed meanwhile"}}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"another workspace's record", func(t *testing.T, dst *store.DB) {
+			if _, err := dst.C(store.CProjects).InsertOne(ctx, bson.M{"_id": ids.New(ids.Project), "workspaceId": ids.New(ids.Workspace), "name": "Elsewhere"}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"a record in a collection the archive hasn't", func(t *testing.T, dst *store.DB) {
+			if _, err := dst.C(store.CNotifications).InsertOne(ctx, bson.M{"_id": ids.New("ntf"), "workspaceId": s.ws}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"a record gone once it was being brought up to date", func(t *testing.T, dst *store.DB) {
+			migrating(t, dst)
+			if _, err := dst.C(store.CProjects).DeleteOne(ctx, bson.M{"workspaceId": s.ws}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"another workspace's record once it was being brought up to date", func(t *testing.T, dst *store.DB) {
+			migrating(t, dst)
+			if _, err := dst.C(store.CNotifications).InsertOne(ctx, bson.M{"_id": ids.New("ntf"), "workspaceId": ids.New(ids.Workspace)}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	} {
+		t.Run(tc.what, func(t *testing.T) {
+			dst := stopped(t)
+			tc.change(t, dst)
+			_, err := restoreInto(t, res.Path, dst, fsStore(t), false)
+			var ae *apperr.Error
+			if err == nil || !errorsAs(err, &ae) || !strings.Contains(ae.Hint, "new, empty database") {
+				t.Fatalf("continued over a copy changed meanwhile: %v", err)
+			}
+			if l, _ := dst.ReadRestoreLock(ctx); !l.Unfinished() {
+				t.Fatalf("the database was let go: %+v", l)
+			}
+		})
+	}
+	t.Run("untouched", func(t *testing.T) {
+		dst := stopped(t)
+		if _, err := wsarchive.Export(ctx, wsarchive.ExportOptions{DB: dst, Workspace: s.ws, To: filepath.Join(t.TempDir(), "again"), Store: st}); err == nil || !strings.Contains(err.Error(), "didn't finish") {
+			t.Fatalf("exported a half-restored database: %v", err)
+		}
+		rep, err := restoreInto(t, res.Path, dst, fsStore(t), false)
+		if err != nil || !rep.Verified {
+			t.Fatalf("continuing an untouched copy: %v %+v", err, rep)
+		}
+	})
+	t.Run("untouched while being brought up to date", func(t *testing.T) {
+		dst := stopped(t)
+		migrating(t, dst)
+		rep, err := restoreInto(t, res.Path, dst, fsStore(t), false)
+		if err != nil || !rep.Verified {
+			t.Fatalf("continuing an untouched copy: %v %+v", err, rep)
+		}
+	})
+}

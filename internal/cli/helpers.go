@@ -45,7 +45,7 @@ func openApp(c *cobra.Command, via string) (*app.App, error) {
 	defer cancel()
 	a, err := app.Open(ctx, h, via)
 	if err != nil {
-		if ae := apperr.From(err); ae.Code == apperr.UnsafeSecretPath || ae.Code == apperr.Database {
+		if ae := apperr.From(err); ae.Code == apperr.UnsafeSecretPath || ae.Code == apperr.Database || ae.Code == apperr.Conflict {
 			return nil, failErr(c, ae)
 		}
 		code := "E_NOT_CONFIGURED"

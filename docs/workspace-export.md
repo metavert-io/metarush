@@ -202,8 +202,9 @@ anything; restore into a new database name, or empty that one yourself). It:
 1. checks every file of the archive against the manifest's SHA-256 — and, with included footage, every file of it;
    one changed byte anywhere and nothing is written. An archive naming a kind of record an export never writes
    (passwords, say, or one MetaRush doesn't know) or a collection made as a view is refused the same way;
-2. puts its marker in the database: until the copy is whole, checked and up to date, MetaRush doesn't bring that
-   database up to date, set a computer up with it or start its background service there;
+2. puts its marker in the database: until the copy is whole, checked and up to date, MetaRush doesn't work in that
+   database at all — no command, background service, worker or assistant connection opens it, no computer is set up
+   with it, it isn't brought up to date and it can't be exported; the checkup (`metarush doctor`) says so;
 3. looks for referenced footage in the storage, and names what isn't there;
 4. looks at the database again — anything written into it meanwhile and the restore stops, merging nothing;
 5. makes each collection as it was made (its options, then all its indexes) and streams its records in, checking
@@ -211,14 +212,20 @@ anything; restore into a new database name, or empty that one yourself). It:
 6. with included footage, asks each client's rules (What may leave) whether their footage may go into that storage,
    then copies it in by content address, each file checked on the way in;
 7. sets the migration level the archive was made at, last of the copy's records;
-8. brings the copy up to date with this MetaRush's migrations, and checks that no collection lost a record;
+8. brings the copy up to date with this MetaRush's migrations, and checks that every record of the archive is still
+   there, by ID (migrations change records and may add the workspace's own, never take one away), and that nothing
+   in the database belongs to another workspace;
 9. marks the restore finished and writes it into the copy's activity log and change history, and says what happened
    in plain words.
 
 If it stops while the records go in, the database holds part of the copy and its marker stays: MetaRush says so,
 and you restore again into a new, empty database (it never deletes anything; empty that one yourself if you want it
 back). If it stops while copying the footage or bringing the copy up to date, running the same restore again goes on
-from there.
+from there — after checking the copy against the archive once more. Stopped while copying the footage: every
+collection's count and SHA-256 must be exactly the archive's, with nothing in a collection the archive hasn't.
+Stopped while bringing the copy up to date (migrations change records, and may add the workspace's own): every
+record of the archive must still be there, by ID, and nothing may belong to another workspace. Anything else and it
+stops, the marker staying.
 
 **Clients' rules.** An export writes only to this computer (or a drive attached to it): never into a folder a cloud
 service syncs, a code repository or a project folder, so making one sends nothing of a client's anywhere. The archive

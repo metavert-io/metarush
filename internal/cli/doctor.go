@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/metavert-io/metarush/internal/app"
+	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/components"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/firstrun"
@@ -277,6 +279,15 @@ func runDoctor(parent context.Context) []Check {
 				"It isn't recorded which MongoDB Atlas organization owns the database", "Check who owns it, and record it the next time you set MetaRush up.")
 		} else {
 			add("database", "Atlas organization", "ok", fmt.Sprintf("%s (%s), project %s — recorded at setup", cfg.Database.AtlasOrgName, cfg.Database.AtlasOrgID, cfg.Database.AtlasProjectID), "")
+		}
+	}
+	if err := db.CheckNoUnfinishedRestore(ctx); err != nil {
+		var u *store.ErrRestoreUnfinished
+		if errors.As(err, &u) {
+			msg := apperr.From(app.UnfinishedRestore(err)).Message
+			add("database", "restore", "fail", msg, "run the same restore again (`metarush workspace restore <archive>`)",
+				"A restore into this database didn't finish, so MetaRush doesn't work in it", msg)
+			return out
 		}
 	}
 	if v, err := db.AppliedVersion(ctx); err == nil {

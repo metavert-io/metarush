@@ -95,6 +95,16 @@ func OpenWith(ctx context.Context, cfg *config.Config, via string) (*App, error)
 	if err != nil {
 		return nil, err
 	}
+	// A database a restore still holds (D333) is no one's to work in: every
+	// way in refuses it — commands, workers, the assistant's connection — not
+	// only the dashboard's start, which brings the database up to date first.
+	if err := db.CheckNoUnfinishedRestore(ctx); err != nil {
+		var u *store.ErrRestoreUnfinished
+		if errors.As(err, &u) {
+			_ = db.Close(ctx)
+			return nil, UnfinishedRestore(err)
+		}
+	}
 	ms, err := NewMediaStore(cfg)
 	if err != nil {
 		_ = db.Close(ctx)
@@ -117,6 +127,22 @@ func OpenWith(ctx context.Context, cfg *config.Config, via string) (*App, error)
 	}
 	a.openLog()
 	return a, nil
+}
+
+// UnfinishedRestore is the refusal of a database a restore still holds, in
+// plain words (other errors are returned as they are).
+func UnfinishedRestore(err error) error {
+	var u *store.ErrRestoreUnfinished
+	if !errors.As(err, &u) {
+		return err
+	}
+	msg := strings.TrimSpace(err.Error())
+	msg = strings.ToUpper(msg[:1]) + msg[1:]
+	if !strings.ContainsAny(msg[len(msg)-1:], ".?!)") {
+		msg += "."
+	}
+	return apperr.New(apperr.Conflict, "%s", msg).
+		WithDetails(map[string]any{"reason": "restore_unfinished", "workspace": u.Lock.Workspace, "state": u.Lock.State})
 }
 
 // Close releases connections (after writing what the activity log still holds).

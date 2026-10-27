@@ -298,10 +298,9 @@ func watchForMove(ctx context.Context, a *app.App, frozen func(*store.MoveMarker
 		case <-t.C:
 		}
 		c, cancel := context.WithTimeout(ctx, 5*time.Second)
-		m, err := a.DB.ReadMoveMarker(c)
+		m, err := a.DB.MoveMarkerNow(c) // the DB's own look, about every second
 		cancel()
 		if err == nil && m.Frozen() {
-			a.SetMoveMarker(m)
 			frozen(m)
 			return
 		}

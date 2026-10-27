@@ -20,6 +20,7 @@ import (
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/dbmove"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/localdb"
 	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/models"
@@ -570,6 +571,9 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 		}
 		out.Problems = append(out.Problems, fmt.Sprintf("Your other computers (%s) couldn't reach the database on this computer, so they couldn't use the workspace any more. Move it here only if this computer will be the only one: say so, and check again.", joinAnd(names)))
 	}
+	if who := mediaMoveRunning(ctx, a); who != "" {
+		out.Problems = append(out.Problems, fmt.Sprintf("The media is being moved on %s: let that finish first, then move the database.", who))
+	}
 	if ov := databaseOverrides(a.Cfg, t.uri, t.name); len(ov) > 0 {
 		out.Problems = append(out.Problems, fmt.Sprintf("Settings in this computer's environment (%s) override MetaRush's own, so this computer couldn't switch to the new database. Remove them from your shell or from the .env file in MetaRush's folder first.", strings.Join(ov, ", ")))
 	}
@@ -997,10 +1001,16 @@ func copyError(err error, to DatabasePlace) error {
 		WithDetails(map[string]any{"problem": scrubAddresses(err.Error())}).WithCommand("metarush database abandon")
 }
 
-// waitQuiet waits until every computer running MetaRush paused for the move
-// and no work runs, then lets them settle.
+// BusyFresh is how recently a process must have listed its running work in
+// the marker for the move to wait for it (a process that died stops saying so).
+var BusyFresh = 15 * time.Second
+
+// waitQuiet waits until every computer running MetaRush paused for the move,
+// no work runs (job leases) and no change that was already running when the
+// move began still runs anywhere, then lets it all settle and looks again.
 func waitQuiet(ctx context.Context, a *app.App, move string, rec *dbMoveRun, say ProgressFunc) error {
 	deadline := time.Now().Add(QuietWait)
+	settled := false
 	for {
 		m, err := a.DB.ReadMoveMarker(ctx)
 		if err != nil {
@@ -1011,15 +1021,22 @@ func waitQuiet(ctx context.Context, a *app.App, move string, rec *dbMoveRun, say
 		}
 		waiting := notPaused(ctx, a, m)
 		busy := busyComputers(ctx, a)
-		rec.waiting(a, append(append([]string{}, waiting...), busy...))
-		if len(waiting) == 0 && len(busy) == 0 {
+		running := runningChanges(ctx, a, m)
+		rec.waiting(a, append(append(append([]string{}, waiting...), busy...), running...))
+		if len(waiting) == 0 && len(busy) == 0 && len(running) == 0 {
+			if settled {
+				return nil
+			}
+			// Quiet: let what was on its way land, then look once more.
+			settled = true
 			select {
 			case <-ctx.Done():
 				return copyError(ctx.Err(), DatabasePlace{})
 			case <-time.After(QuietGrace):
 			}
-			return nil
+			continue
 		}
+		settled = false
 		if time.Now().After(deadline) {
 			var parts []string
 			if len(waiting) > 0 {
@@ -1028,15 +1045,21 @@ func waitQuiet(ctx context.Context, a *app.App, move string, rec *dbMoveRun, say
 			if len(busy) > 0 {
 				parts = append(parts, fmt.Sprintf("work is still running on %s", joinAnd(busy)))
 			}
+			if len(running) > 0 {
+				parts = append(parts, fmt.Sprintf("a change started before the move is still running on %s", joinAnd(running)))
+			}
 			return apperr.New(apperr.Conflict, "Nothing was copied yet: %s.", strings.Join(parts, ", and ")).
-				WithHint("An older MetaRush doesn't pause by itself: update it, or quit MetaRush on that computer. Then run the move again to continue, or abandon it to let changes go on.").
-				WithDetails(map[string]any{"reason": "not_paused", "computers": waiting, "busy": busy}).WithCommand("metarush database abandon")
+				WithHint("An older MetaRush doesn't pause by itself: update it, or quit MetaRush on that computer. Let running work finish. Then run the move again to continue, or abandon it to let changes go on.").
+				WithDetails(map[string]any{"reason": "not_paused", "computers": waiting, "busy": busy, "changes": running}).WithCommand("metarush database abandon")
 		}
 		label := "Waiting for every computer to pause its changes"
-		if len(waiting) > 0 {
+		switch {
+		case len(waiting) > 0:
 			label = "Waiting for " + joinAnd(waiting) + " to pause its changes"
-		} else if len(busy) > 0 {
+		case len(busy) > 0:
 			label = "Waiting for the work running on " + joinAnd(busy) + " to stop"
+		case len(running) > 0:
+			label = "Waiting for a change started on " + joinAnd(running) + " to finish"
 		}
 		say(label, 0, 0)
 		select {
@@ -1045,6 +1068,36 @@ func waitQuiet(ctx context.Context, a *app.App, move string, rec *dbMoveRun, say
 		case <-time.After(time.Second):
 		}
 	}
+}
+
+// runningChanges names the computers with a change still running that began
+// before the freeze (listed in the marker by their processes, recently).
+func runningChanges(ctx context.Context, a *app.App, m *store.MoveMarker) []string {
+	if len(m.Busy) == 0 {
+		return nil
+	}
+	now, err := a.DB.ServerNow(ctx)
+	if err != nil {
+		now = time.Now().UTC()
+	}
+	names := map[string]string{}
+	for _, in := range installationsOf(ctx, a) {
+		names[in.ID] = firstNonEmpty(in.Name, in.Hostname, in.ID)
+	}
+	seen := map[string]bool{}
+	out := []string{}
+	for _, b := range m.Busy {
+		if len(b.Ops) == 0 || now.Sub(b.At) > BusyFresh {
+			continue
+		}
+		who := firstNonEmpty(names[b.Installation], b.Installation, "another computer")
+		if !seen[who] {
+			seen[who] = true
+			out = append(out, who)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // notPaused names the computers running MetaRush that didn't pause for the
@@ -1065,6 +1118,23 @@ func notPaused(ctx context.Context, a *app.App, m *store.MoveMarker) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// mediaMoveRunning names the computer moving the media now ("" none): a
+// move of the database doesn't start meanwhile.
+func mediaMoveRunning(ctx context.Context, a *app.App) string {
+	if MoveRunningHere(ctx, a) {
+		return a.Cfg.MachineName()
+	}
+	var js []models.Job
+	_ = a.DB.Find(ctx, store.CJobs, a.WorkspaceID(), bson.M{"type": jobs.TypeStorageMove, "state": models.JobRunning,
+		"lease.expiresAt": bson.M{"$gt": time.Now().UTC()}}, &js)
+	for _, j := range js {
+		if j.Lease != nil {
+			return firstNonEmpty(j.Lease.OwnerName, j.Lease.Owner, "another computer")
+		}
+	}
+	return ""
 }
 
 // busyComputers names the computers with work running (a live lease).
@@ -1109,17 +1179,12 @@ func recordMove(ctx context.Context, db *store.DB, a *app.App, op, summary strin
 
 // movedError is a change refused because the workspace moved.
 func movedError(m *store.MoveMarker) error {
-	return apperr.New(apperr.Moving, "The workspace moved to another database (%s): switch this computer too.", m.To.Words).
-		WithHint("Switch it at this computer with its own sign-in for the new database (Settings → Storage shows how). Changes made in the old database would be lost, so MetaRush refuses them there.").
-		WithDetails(map[string]any{"reason": "database_moved", "to": m.To.Words, "name": m.To.Name}).
-		WithCommand("metarush database switch --to address --name " + m.To.Name)
+	return (&store.ErrDatabaseMoving{Marker: *m}).AppError()
 }
 
 // movingError is a change refused while the workspace is being moved.
 func movingError(m *store.MoveMarker) error {
-	return apperr.New(apperr.Moving, "The workspace is being moved to another database; changes wait until it's done.").
-		WithHint(fmt.Sprintf("%s started moving it on %s. Reading and playing keep working.", firstNonEmpty(m.By, "A person"), firstNonEmpty(m.FromName, "another computer"))).
-		WithDetails(map[string]any{"reason": "database_moving", "to": m.To.Words}).WithCommand("metarush database move-status")
+	return (&store.ErrDatabaseMoving{Marker: *m}).AppError()
 }
 
 // FrozenError is the refusal of a change while a move keeps changes out of

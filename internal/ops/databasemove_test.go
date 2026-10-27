@@ -306,7 +306,9 @@ func TestDatabaseMoveBetweenTwoDatabases(t *testing.T) {
 		return nil
 	})
 
-	// The second computer, still on the old database: reads work, changes are refused.
+	// The second computer, still on the old database (once it looked at the
+	// marker again): reads work, changes are refused.
+	time.Sleep(store.MoveLookTrusted + 200*time.Millisecond)
 	if _, err := ops.CallTyped[ops.ProjectListOut](ctx, b, "project.list", ops.ProjectListIn{}, ops.Caller{Human: true}); err != nil {
 		t.Fatalf("reading on the second computer: %v", err)
 	}
@@ -385,7 +387,7 @@ func TestDatabaseMoveFreezesChanges(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	time.Sleep(app.MoveMarkerTTL + 100*time.Millisecond)
+	time.Sleep(store.MoveLookTrusted + 100*time.Millisecond)
 	for name, c := range map[string]*app.App{"this computer": a, "the laptop": b} {
 		_, err := ops.CallTyped[ops.ProjectOut](ctx, c, "project.create", ops.ProjectCreateIn{Name: "During"}, ops.Caller{Human: true})
 		code, reason := codeAndReason(err)
@@ -456,7 +458,7 @@ func TestDatabaseMoveResumesOrIsAbandoned(t *testing.T) {
 		if m == nil || m.State != store.MoveMoving {
 			t.Fatalf("after the stop: %+v", m)
 		}
-		time.Sleep(app.MoveMarkerTTL + 100*time.Millisecond)
+		time.Sleep(store.MoveLookTrusted + 100*time.Millisecond)
 		if _, err := ops.CallTyped[ops.ProjectOut](ctx, a, "project.create", ops.ProjectCreateIn{Name: "Waiting"}, ops.Caller{Human: true}); apperr.From(err).Code != apperr.Moving {
 			t.Fatalf("a change after the stop: %v", err)
 		}
@@ -639,7 +641,7 @@ func TestDatabaseMoveMarksBeforeItSwitches(t *testing.T) {
 	if cfg, _ := config.Load(a.Cfg.Home()); cfg.Database.Name != a.Cfg.Database.Name {
 		t.Fatal("this computer switched anyway")
 	}
-	time.Sleep(app.MoveMarkerTTL + 100*time.Millisecond)
+	time.Sleep(store.MoveLookTrusted + 100*time.Millisecond)
 	if _, err := ops.CallTyped[ops.ProjectOut](ctx, a, "project.create", ops.ProjectCreateIn{Name: "Lost"}, ops.Caller{Human: true}); apperr.From(err).Code != apperr.Moving {
 		t.Fatalf("a change on the old database: %v", err)
 	}
@@ -657,5 +659,168 @@ func TestDatabaseMoveMarksBeforeItSwitches(t *testing.T) {
 	}
 	if cfg, _ := config.Load(a.Cfg.Home()); cfg.Database.Name != dst.Name {
 		t.Fatal("not switched")
+	}
+}
+
+// freezeFor puts a "being moved" marker into the workspace's database, as a
+// move started on the studio does, and waits until every process trusts it.
+func freezeFor(t *testing.T, a *app.App) *store.MoveMarker {
+	t.Helper()
+	ctx := context.Background()
+	m := store.MoveMarker{Move: "mvtest" + strings.ToLower(strings.TrimPrefix(ids.New("t"), "t_")), Workspace: a.WorkspaceID(),
+		To: store.MoveTarget{Kind: "server", Words: "a MongoDB server on your network", Name: "studio", Reach: "every-computer"},
+		By: "Maya Okafor", From: a.Cfg.Installation.ID, FromName: "Studio Mac"}
+	if err := a.DB.StartMoveMarker(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(store.MoveLookTrusted + 200*time.Millisecond)
+	got, _ := a.DB.ReadMoveMarker(ctx)
+	return got
+}
+
+// While the workspace's database is frozen, every write a computer makes is
+// refused — through an operation or not (a background loop, a handler, the
+// activity log, its own installation's record) — plainly (E_MOVING); reads
+// work, the move's own marker takes writes, and abandoning lets writes in
+// again. The laptop opened MetaRush before the move began.
+func TestFrozenDatabaseRefusesEveryWrite(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a, b := w.a, w.b
+	ctx := context.Background()
+	m := freezeFor(t, a)
+	_, err := b.DB.C(store.CComments).InsertOne(ctx, bson.M{"_id": ids.New("cmt"), "workspaceId": b.WorkspaceID(), "text": "Sam: during"})
+	if e := apperr.From(err); e == nil || e.Code != apperr.Moving || !strings.Contains(e.Message, "being moved") {
+		t.Fatalf("a write that isn't an operation: %v", err)
+	}
+	if err := b.DB.Insert(ctx, store.CComments, bson.M{"_id": ids.New("cmt"), "workspaceId": b.WorkspaceID()}); apperr.From(err).Code != apperr.Moving {
+		t.Fatalf("a write through the store's own helper: %v", err)
+	}
+	before, _ := a.DB.C(store.CInstallations).CountDocuments(ctx, bson.M{"_id": b.Cfg.Installation.ID, "lastSeenAt": bson.M{"$gte": m.StartedAt}})
+	b.TouchInstallation(ctx)
+	b.Audit(ctx, "comment.add", "comment", "x", "", nil)
+	after, _ := a.DB.C(store.CInstallations).CountDocuments(ctx, bson.M{"_id": b.Cfg.Installation.ID, "lastSeenAt": bson.M{"$gte": m.StartedAt}})
+	if after != before {
+		t.Fatal("the laptop's own record changed during the freeze")
+	}
+	if n, _ := a.DB.C(store.CAudit).CountDocuments(ctx, bson.M{"at": bson.M{"$gte": m.StartedAt}}); n != 0 {
+		t.Fatalf("%d audit records went in during the freeze", n)
+	}
+	if _, err := ops.CallTyped[ops.ProjectListOut](ctx, b, "project.list", ops.ProjectListIn{}, ops.Caller{}); err != nil {
+		t.Fatalf("reading during the freeze: %v", err)
+	}
+	b.Log.Flush(ctx)
+	if n, _ := a.DB.C(store.CLogEntries).CountDocuments(ctx, bson.M{"at": bson.M{"$gte": m.StartedAt}}); n != 0 {
+		t.Fatalf("%d activity log entries went in during the freeze", n)
+	}
+	if _, err := ops.HoldForMove(ctx, b); err != nil {
+		t.Fatalf("the marker refused the laptop's pause: %v", err)
+	}
+	if ok, err := a.DB.SetMoveState(ctx, m.Move, store.MoveMoving, store.MoveAbandoned, "Maya Okafor"); err != nil || !ok {
+		t.Fatalf("abandon: %v", err)
+	}
+	time.Sleep(store.MoveLookTrusted + 200*time.Millisecond)
+	if err := b.DB.Insert(ctx, store.CComments, bson.M{"_id": ids.New("cmt"), "workspaceId": b.WorkspaceID(), "text": "after"}); err != nil {
+		t.Fatalf("a write after the move was abandoned: %v", err)
+	}
+}
+
+// A computer that opened MetaRush before the move (an AI app's connection,
+// say) and only reads afterwards writes nothing into the old database: its
+// activity log waits on that computer.
+func TestDatabaseMoveStaleReaderWritesNothing(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a, b := w.a, w.b
+	ctx := context.Background()
+	dst := moveDB(t)
+	if err := ops.SaveMoveAddress(a.Cfg, testutil.URI()); err != nil {
+		t.Fatal(err)
+	}
+	b.Actor.Via = "mcp"
+	target := ops.DatabaseTargetIn{To: ops.MoveToSaved, Name: dst.Name}
+	if _, err := ops.CallTyped[ops.DatabaseMoveOut](ctx, a, "database.move", ops.DatabaseMoveIn{DatabaseTargetIn: target}, ops.Caller{Human: true}); err != nil {
+		t.Fatal(err)
+	}
+	m, _ := a.DB.ReadMoveMarker(ctx)
+	for i := 0; i < 3; i++ {
+		if _, err := ops.CallTyped[ops.ProjectListOut](ctx, b, "project.list", ops.ProjectListIn{}, ops.Caller{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b.Log.Flush(ctx)
+	if n, _ := a.DB.C(store.CLogEntries).CountDocuments(ctx, bson.M{"at": bson.M{"$gte": m.StartedAt}}); n != 0 {
+		t.Fatalf("%d activity log entries went into the old database after it froze", n)
+	}
+}
+
+// A change that was already running when the move began finishes — its
+// writes go through the freeze — and the move waits for it before copying,
+// so what it wrote is in the new database; a write that isn't part of it is
+// refused meanwhile.
+func TestDatabaseMoveWaitsForAChangeStartedBefore(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a, b := w.a, w.b
+	ctx := context.Background()
+	dst := moveDB(t)
+	if err := ops.SaveMoveAddress(a.Cfg, testutil.URI()); err != nil {
+		t.Fatal(err)
+	}
+	running, done := b.DB.Admit(ctx, "comment.add") // the laptop is in the middle of a change
+	var wg sync.WaitGroup
+	var moveErr error
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, moveErr = ops.CallTyped[ops.DatabaseMoveOut](ctx, a, "database.move", ops.DatabaseMoveIn{DatabaseTargetIn: ops.DatabaseTargetIn{To: ops.MoveToSaved, Name: dst.Name}}, ops.Caller{Human: true})
+	}()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		m, _ := a.DB.ReadMoveMarker(ctx)
+		if m != nil && len(m.Busy) > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the laptop's running change isn't listed in the marker")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	time.Sleep(3 * time.Second)
+	if lock, _ := dst.ReadRestoreLock(ctx); lock != nil {
+		t.Fatal("the copy began while a change was still running")
+	}
+	cid := ids.New("cmt")
+	if _, err := b.DB.C(store.CComments).InsertOne(running, bson.M{"_id": cid, "workspaceId": b.WorkspaceID(), "text": "Lena: finished during the pause"}); err != nil {
+		t.Fatalf("the running change's write: %v", err)
+	}
+	if err := b.DB.Insert(ctx, store.CComments, bson.M{"_id": ids.New("cmt"), "workspaceId": b.WorkspaceID()}); apperr.From(err).Code != apperr.Moving {
+		t.Fatalf("a new write during the freeze: %v", err)
+	}
+	done()
+	wg.Wait()
+	if moveErr != nil {
+		t.Fatalf("move: %v", moveErr)
+	}
+	if n, _ := dst.C(store.CComments).CountDocuments(ctx, bson.M{"_id": cid}); n != 1 {
+		t.Fatal("what the running change wrote isn't in the new database")
+	}
+}
+
+// A move of the database doesn't start while the media is being moved.
+func TestDatabasePlanWaitsForAMediaMove(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a := w.a
+	ctx := context.Background()
+	if _, err := a.DB.C(store.CJobs).InsertOne(ctx, bson.M{"_id": ids.New("job"), "workspaceId": a.WorkspaceID(), "type": "storage_move", "state": models.JobRunning,
+		"lease": bson.M{"owner": "inst_other", "ownerName": "Edit laptop", "expiresAt": time.Now().UTC().Add(time.Minute)}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.SaveMoveAddress(a.Cfg, testutil.URI()); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := ops.CallTyped[ops.DatabasePlanOut](ctx, a, "database.plan", ops.DatabasePlanIn{DatabaseTargetIn: ops.DatabaseTargetIn{To: ops.MoveToSaved, Name: store.TestDBPrefix + "never-made"}}, ops.Caller{Human: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Ready || !strings.Contains(strings.Join(plan.Problems, " "), "The media is being moved on Edit laptop") {
+		t.Fatalf("plan during a media move: %+v", plan.Problems)
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	"github.com/metavert-io/metarush/internal/apperr"
 )
 
 // CDatabaseMove holds the marker a move of the database keeps in the
@@ -73,6 +75,16 @@ type MoveMarker struct {
 	// new database since.
 	Holding  map[string]time.Time `bson:"holding,omitempty"`
 	Switched map[string]time.Time `bson:"switched,omitempty"`
+	// Busy is work let through the freeze — changes already running when
+	// the move began — per process (guard.go): the move waits for it.
+	Busy map[string]MoveBusy `bson:"busy,omitempty"`
+}
+
+// MoveBusy is one process's work running through the freeze.
+type MoveBusy struct {
+	Installation string    `bson:"installation"`
+	Ops          []string  `bson:"ops"`
+	At           time.Time `bson:"at"`
 }
 
 // Frozen reports whether the marker keeps changes out of the database: a
@@ -185,6 +197,28 @@ func (e *ErrDatabaseMoving) Error() string {
 		return fmt.Sprintf("the workspace moved to another database, %s, so MetaRush doesn't change this one: switch this computer too", e.Marker.To.Words)
 	}
 	return "the workspace is being moved to another database, so MetaRush doesn't change this one until that is done"
+}
+
+// AppError says the refusal in plain words (apperr.Coded): every write a
+// frozen database refuses, wherever it came from, reads the same.
+func (e *ErrDatabaseMoving) AppError() *apperr.Error {
+	m := e.Marker
+	if m.State == MoveMoved {
+		return apperr.New(apperr.Moving, "The workspace moved to another database (%s): switch this computer too.", m.To.Words).
+			WithHint("Switch it at this computer with its own sign-in for the new database (Settings → Storage shows how). Changes made in the old database would be lost, so MetaRush refuses them there.").
+			WithDetails(map[string]any{"reason": "database_moved", "to": m.To.Words, "name": m.To.Name}).
+			WithCommand("metarush database switch --to address --name " + m.To.Name)
+	}
+	by, from := m.By, m.FromName
+	if by == "" {
+		by = "A person"
+	}
+	if from == "" {
+		from = "another computer"
+	}
+	return apperr.New(apperr.Moving, "The workspace is being moved to another database; changes wait until it's done.").
+		WithHint(fmt.Sprintf("%s started moving it on %s. Reading and playing keep working.", by, from)).
+		WithDetails(map[string]any{"reason": "database_moving", "to": m.To.Words}).WithCommand("metarush database move-status")
 }
 
 // CheckNotMoving refuses a database a move keeps changes out of.

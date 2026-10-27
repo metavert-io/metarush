@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/user"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/metavert-io/metarush/internal/apperr"
@@ -50,77 +49,38 @@ type App struct {
 	// write nothing; its Log has no database (entries wait in this
 	// computer's spool).
 	ReadOnly bool
-	// move caches the database's move marker for this App and its copies
-	// (D335): while a move keeps changes out of the database, this process
-	// writes no audit and its activity log waits in this computer's spool.
-	move *moveWatch
 }
 
-// moveWatch is the last look at the database's move marker.
-type moveWatch struct {
-	mu sync.Mutex
-	at time.Time
-	m  *store.MoveMarker
-}
-
-// MoveMarkerTTL is how long a look at the move marker is trusted before an
-// operation that changes something looks again.
-var MoveMarkerTTL = time.Second
-
-// MoveMarker reads the database's move marker (nil: no move holds it),
-// trusting a look at most MoveMarkerTTL old.
+// MoveMarker is the database's move marker (nil: no move holds it), from a
+// look at most store.MoveLookTrusted old (D335).
 func (a *App) MoveMarker(ctx context.Context) (*store.MoveMarker, error) {
 	if a.DB == nil {
 		return nil, nil
 	}
-	w := a.move
-	if w != nil {
-		w.mu.Lock()
-		if !w.at.IsZero() && time.Since(w.at) < MoveMarkerTTL {
-			m := w.m
-			w.mu.Unlock()
-			return m, nil
-		}
-		w.mu.Unlock()
-	}
-	m, err := a.DB.ReadMoveMarker(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if w != nil {
-		w.mu.Lock()
-		w.at, w.m = time.Now(), m
-		w.mu.Unlock()
-	}
-	return m, nil
+	return a.DB.MoveMarkerNow(ctx)
 }
 
 // SetMoveMarker records a marker this process just read or wrote.
 func (a *App) SetMoveMarker(m *store.MoveMarker) {
-	if w := a.move; w != nil {
-		w.mu.Lock()
-		w.at, w.m = time.Now(), m
-		w.mu.Unlock()
+	if a.DB != nil {
+		a.DB.SetMoveMarkerCache(m)
 	}
 }
 
-// Held reports whether the last look at the move marker said a move keeps
-// changes out of this database (no database read).
+// Held reports whether a move keeps changes out of this database now: this
+// process writes no audit, doesn't touch its installation and keeps its
+// activity log in the spool.
 func (a *App) Held() bool {
-	w := a.move
-	if w == nil {
+	if a.DB == nil {
 		return false
 	}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.m.Frozen()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return a.DB.FrozenNow(ctx)
 }
 
 // openLog starts the activity log and connects the queue and the tools to it.
 func (a *App) openLog() {
-	if a.move == nil {
-		a.move = &moveWatch{}
-	}
 	a.Log = logbook.Open(logbook.Options{Cfg: a.Cfg, DB: a.DB, Media: a.Media, Tools: a.Tools, Actor: a.Actor, Hold: a.Held})
 	a.Tools.OnRun = a.Log.ToolRun
 	if a.Queue != nil {
@@ -193,12 +153,11 @@ func OpenWith(ctx context.Context, cfg *config.Config, via string) (*App, error)
 		Queue: &jobs.Queue{DB: db, WorkspaceID: cfg.Workspace.ID},
 		Actor: models.Actor{UserID: cfg.User.ID, UserName: cfg.User.Name, InstallationID: cfg.Installation.ID, Via: via},
 	}
+	// A database a move keeps changes out of (D335) refuses this process's
+	// writes from the start and while it runs: the DB looks at the marker
+	// about every second.
+	db.WatchMoves(cfg.Installation.ID)
 	a.openLog()
-	// A database a move keeps changes out of (D335): this process holds
-	// from the start.
-	mctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	_, _ = a.MoveMarker(mctx)
-	cancel()
 	return a, nil
 }
 

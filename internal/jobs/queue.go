@@ -367,6 +367,9 @@ func (q *Queue) Fail(ctx context.Context, j *models.Job, owner string, cause err
 // dropped, the attempt does not count and the next worker starts it afresh.
 // It is never a failure.
 func (q *Queue) Release(ctx context.Context, j *models.Job, owner string) error {
+	// Handing a job back goes through a move's freeze: it puts the database
+	// at rest (the move waits for running work, D335).
+	ctx = store.WriteThroughFreeze(ctx)
 	now := time.Now().UTC()
 	res, err := q.DB.C(store.CJobs).UpdateOne(ctx,
 		bson.M{"_id": j.ID, "workspaceId": q.WorkspaceID, "lease.owner": owner, "state": models.JobRunning},

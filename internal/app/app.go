@@ -209,7 +209,9 @@ func NewMediaStoreFor(m config.Media) (media.Store, error) {
 
 // Audit appends an audit event. Failures are logged, never fatal.
 func (a *App) Audit(ctx context.Context, action, targetType, targetID, projectID string, details map[string]any) {
-	if a.ReadOnly || a.Held() {
+	// A change let through a move's freeze (it began before) keeps its
+	// history with it; anything else waits while the database is held.
+	if a.ReadOnly || (a.Held() && !store.WritesThrough(ctx)) {
 		return
 	}
 	ev := models.AuditEvent{ID: ids.New(ids.Audit), WorkspaceID: a.WorkspaceID(), At: time.Now().UTC(), Actor: a.Actor,

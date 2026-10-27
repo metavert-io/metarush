@@ -1077,7 +1077,17 @@ func waitQuiet(ctx context.Context, a *app.App, move string, rec *dbMoveRun, say
 		rec.waiting(a, append(append(append([]string{}, waiting...), busy...), running...))
 		if len(waiting) == 0 && len(busy) == 0 && len(running) == 0 {
 			if settled {
-				return nil
+				// The copy starts — only while no running change is listed,
+				// in one step: from now on none writes (store/guard.go).
+				ok, err := a.DB.MoveCopying(ctx, move, BusyFresh)
+				if err != nil {
+					return apperr.Wrap(apperr.Database, err, "MetaRush couldn't write the move's marker.")
+				}
+				if ok {
+					return nil
+				}
+				settled = false
+				continue
 			}
 			// Quiet: let what was on its way land, then look once more.
 			settled = true
@@ -1279,12 +1289,12 @@ var frozenExempt = map[string]bool{"database.plan": true, "database.move": true,
 // refuseWhileMoving is dispatch's check (D335): a change while a move keeps
 // changes out of the database is refused, plainly.
 func refuseWhileMoving(ctx context.Context, a *app.App, op *Op) error {
-	if !op.Mutating || frozenExempt[op.Name] || a.ReadOnly {
+	if !op.Mutating || frozenExempt[op.Name] || a.ReadOnly || a.DB == nil {
 		return nil
 	}
-	m, err := a.MoveMarker(ctx)
+	m, err := a.DB.MoveMarkerForChange(ctx)
 	if err != nil {
-		return nil // the change itself says the database didn't answer
+		return err // not read, and no recent look that showed no move: nothing changes
 	}
 	return FrozenError(m)
 }

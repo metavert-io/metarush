@@ -7,28 +7,38 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	"github.com/metavert-io/metarush/internal/apperr"
 )
 
 // The freeze, in the database itself (D335): a database a move keeps changes
 // out of refuses every write that goes through this DB — an operation's, a
 // background loop's, a handler's or the activity log's alike — except the
-// move's own marker, and except work a person started before the freeze
-// (WriteThroughFreeze: an operation that was already running, or a worker
-// handing its job back), which the move waits for. A DB that watches
-// (WatchMoves, every App opened by MetaRush) looks at the marker about every
-// MoveLookEvery and never trusts a look older than MoveLookTrusted: before a
-// write, an older one is looked at again (a computer waking from sleep).
+// move's own marker. A change that was already running when the move began
+// (Admit), or a worker handing its job back (WriteThroughFreeze), writes on
+// only while the move knows about it: listed in the marker (busy) before it
+// writes, and only until the move starts copying (MoveCopying sets that only
+// while nothing is listed) — never once the workspace moved, and never after
+// the change ended (work detached from it gets no pass). Every DB looks at the
+// marker before a write when its last look is older than MoveLookTrusted (a
+// computer waking from sleep); one that watches (WatchMoves, every App opened
+// by MetaRush) looks about every MoveLookEvery anyway. When the marker can't
+// be read, a write is refused unless the last look, recent, showed no move.
 
 // How often a watching DB looks at the move marker, and how old a look it
 // trusts.
 var (
 	MoveLookEvery   = 750 * time.Millisecond
 	MoveLookTrusted = time.Second
+	// MoveLookGuess is how recent a look that showed no move must be for a
+	// write to go on when the marker can't be read.
+	MoveLookGuess = 30 * time.Second
 )
 
 // freeze is a DB's last look at the marker and the work it lets through.
@@ -158,21 +168,37 @@ func (d *DB) FrozenNow(ctx context.Context) bool {
 
 type throughKey struct{}
 
-// WriteThroughFreeze lets a context's writes through a freeze: work that was
-// already running when the move began (Admit), or a worker handing its job
-// back — what the move waits for before it copies.
+// passage is a context's way through a freeze that begins while it runs. It
+// ends with its change (Admit's done): work detached from the change
+// (context.WithoutCancel keeps the value) gets no pass once it ended.
+type passage struct {
+	op    string
+	ended atomic.Bool
+}
+
+// WriteThroughFreeze lets a context's writes through a freeze while the
+// move knows about them (a worker handing its job back as the move begins):
+// listed in the marker first, and only until the move copies.
 func WriteThroughFreeze(ctx context.Context) context.Context {
-	return context.WithValue(ctx, throughKey{}, true)
+	return context.WithValue(ctx, throughKey{}, &passage{op: "handing back a job"})
 }
 
-func writesThrough(ctx context.Context) bool {
-	v, _ := ctx.Value(throughKey{}).(bool)
-	return v
+func passageOf(ctx context.Context) *passage {
+	p, _ := ctx.Value(throughKey{}).(*passage)
+	if p == nil || p.ended.Load() {
+		return nil
+	}
+	return p
 }
 
-// Admit lets an operation that passed the freeze check write through it,
-// and counts it as running (the marker lists it while the database is being
-// moved, and the move waits for it). done ends it.
+// WritesThrough reports whether a context belongs to a change that may write
+// through a freeze that began while it runs (it still runs).
+func WritesThrough(ctx context.Context) bool { return passageOf(ctx) != nil }
+
+// Admit lets an operation that passed the freeze check write through a
+// freeze that begins while it runs, the way guard says, and counts it as
+// running (the marker lists it while the database is being moved, and the
+// move waits for it). done ends it, and its pass.
 func (d *DB) Admit(ctx context.Context, op string) (context.Context, func()) {
 	f := d.fz()
 	if f == nil {
@@ -181,9 +207,11 @@ func (d *DB) Admit(ctx context.Context, op string) (context.Context, func()) {
 	f.mu.Lock()
 	f.inflight[op]++
 	f.mu.Unlock()
+	p := &passage{op: op}
 	var once sync.Once
-	return WriteThroughFreeze(ctx), func() {
+	return context.WithValue(ctx, throughKey{}, p), func() {
 		once.Do(func() {
+			p.ended.Store(true)
 			f.mu.Lock()
 			if f.inflight[op]--; f.inflight[op] <= 0 {
 				delete(f.inflight, op)
@@ -219,7 +247,7 @@ func (d *DB) publishBusy(ctx context.Context) {
 	case m == nil || m.State != MoveMoving || f.who == "":
 		return
 	case len(ops) > 0:
-		_, err := d.C(CDatabaseMove).UpdateOne(ctx, bson.M{"_id": moveMarkerID, "move": m.Move},
+		_, err := d.C(CDatabaseMove).UpdateOne(ctx, bson.M{"_id": moveMarkerID, "move": m.Move, "state": MoveMoving, "copying": bson.M{"$ne": true}},
 			bson.M{"$set": bson.M{"busy." + key + ".installation": f.who, "busy." + key + ".ops": ops},
 				"$currentDate": bson.M{"busy." + key + ".at": true}})
 		if err == nil {
@@ -237,33 +265,90 @@ func (d *DB) publishBusy(ctx context.Context) {
 	}
 }
 
-// guard refuses a write while a move keeps changes out of the database:
-// every collection but the marker's, unless the context writes through.
-func (d *DB) guard(ctx context.Context, coll string) error {
-	if coll == CDatabaseMove || writesThrough(ctx) {
-		return nil
+// MoveMarkerForChange is the marker a change goes by: looked at again when
+// the last look is too old. When it can't be read, the last look stands in
+// only when it is recent and showed no move; otherwise the change is refused
+// (an *apperr.Error, E_DATABASE): MetaRush never guesses during a move.
+func (d *DB) MoveMarkerForChange(ctx context.Context) (*MoveMarker, error) {
+	lctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	defer cancel()
+	m, err := d.MoveMarkerNow(lctx)
+	if err == nil {
+		return m, nil
 	}
 	f := d.fz()
-	if f == nil {
+	f.mu.Lock()
+	seen, at := f.m, f.at
+	f.mu.Unlock()
+	if !at.IsZero() && time.Since(at) <= MoveLookGuess && (seen == nil || seen.State == MoveAbandoned) {
+		return seen, nil
+	}
+	return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't check whether the workspace's database is being moved, so it changed nothing.").
+		WithHint("Try again in a moment.")
+}
+
+// guard refuses a write while a move keeps changes out of the database
+// (every collection but the marker's): see the top of this file.
+func (d *DB) guard(ctx context.Context, coll string) error {
+	if coll == CDatabaseMove {
 		return nil
 	}
-	f.mu.Lock()
-	watched := f.watched
-	f.mu.Unlock()
-	var m *MoveMarker
-	if watched {
-		lctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
-		m, _ = d.MoveMarkerNow(lctx)
-		cancel()
-		if m == nil {
-			m = d.MoveMarkerSeen()
-		}
-	} else {
-		m = d.MoveMarkerSeen()
+	if d.fz() == nil {
+		return nil
 	}
-	if m.Frozen() {
+	m, err := d.MoveMarkerForChange(ctx)
+	if err != nil {
+		return err
+	}
+	if !m.Frozen() {
+		return nil
+	}
+	if p := passageOf(ctx); p != nil && m.State == MoveMoving && !m.Copying {
+		return d.listPassage(ctx, m, p)
+	}
+	return &ErrDatabaseMoving{Marker: *m}
+}
+
+// listPassage lets a running change's write through a move that is still
+// waiting: its process is listed in the marker first (so the move waits for
+// it) — in one step that fails once the move copies, or the marker changed.
+func (d *DB) listPassage(ctx context.Context, m *MoveMarker, p *passage) error {
+	f := d.fz()
+	f.mu.Lock()
+	who, key := f.who, f.busyKey()
+	ops := []string{p.op}
+	for op := range f.inflight {
+		if op != p.op {
+			ops = append(ops, op)
+		}
+	}
+	f.mu.Unlock()
+	sort.Strings(ops)
+	if who == "" {
+		return &ErrDatabaseMoving{Marker: *m} // a connection of no computer: nothing to list
+	}
+	lctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	defer cancel()
+	res, err := d.C(CDatabaseMove).UpdateOne(lctx, bson.M{"_id": moveMarkerID, "move": m.Move, "state": MoveMoving, "copying": bson.M{"$ne": true}},
+		bson.M{"$set": bson.M{"busy." + key + ".installation": who, "busy." + key + ".ops": ops},
+			"$currentDate": bson.M{"busy." + key + ".at": true}})
+	if err != nil {
+		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't check whether the workspace's database is being moved, so it changed nothing.").
+			WithHint("Try again in a moment.")
+	}
+	if res.MatchedCount == 0 {
+		cur, err := d.lookAtMarker(lctx)
+		switch {
+		case err == nil && !cur.Frozen():
+			return nil // abandoned meanwhile: changes go on
+		case err == nil:
+			return &ErrDatabaseMoving{Marker: *cur}
+		}
 		return &ErrDatabaseMoving{Marker: *m}
 	}
+	f.mu.Lock()
+	f.published = true
+	f.mu.Unlock()
 	return nil
 }
 

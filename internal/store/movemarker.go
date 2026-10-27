@@ -81,6 +81,9 @@ type MoveMarker struct {
 	// Busy is work let through the freeze — changes already running when
 	// the move began — per process (guard.go): the move waits for it.
 	Busy map[string]MoveBusy `bson:"busy,omitempty"`
+	// Copying: the move stopped waiting and copies (MoveCopying). From then
+	// on no running change writes, listed or not.
+	Copying bool `bson:"copying,omitempty"`
 }
 
 // MoveBusy is one process's work running through the freeze.
@@ -175,6 +178,30 @@ func (d *DB) SetMoveState(ctx context.Context, move, from, to, by string) (bool,
 
 // MoveBeat says the move still runs (the marker's updatedAt): another
 // computer doesn't abandon a move that is running.
+// MoveCopying says the move stopped waiting and copies: set only while no
+// process listed running work within fresh (server time), in one step, so a
+// running change either lists itself first (and the move waits for it) or
+// finds the copy started and writes nothing (guard.go). False: some work is
+// listed.
+func (d *DB) MoveCopying(ctx context.Context, move string, fresh time.Duration) (bool, error) {
+	recent := bson.M{"$filter": bson.M{
+		"input": bson.M{"$objectToArray": bson.M{"$ifNull": bson.A{"$busy", bson.M{}}}},
+		"cond":  bson.M{"$gt": bson.A{"$$this.v.at", bson.M{"$subtract": bson.A{"$$NOW", fresh.Milliseconds()}}}},
+	}}
+	res, err := d.C(CDatabaseMove).UpdateOne(ctx, bson.M{"_id": moveMarkerID, "move": move, "state": MoveMoving,
+		"$expr": bson.M{"$eq": bson.A{bson.M{"$size": recent}, 0}}},
+		bson.M{"$set": bson.M{"copying": true}, "$currentDate": bson.M{"updatedAt": true}})
+	if err != nil {
+		return false, err
+	}
+	if res.MatchedCount == 1 {
+		if m, err := d.ReadMoveMarker(ctx); err == nil {
+			d.SetMoveMarkerCache(m)
+		}
+	}
+	return res.MatchedCount == 1, nil
+}
+
 func (d *DB) MoveBeat(ctx context.Context, move string) error {
 	_, err := d.C(CDatabaseMove).UpdateOne(ctx, bson.M{"_id": moveMarkerID, "move": move, "state": MoveMoving},
 		bson.M{"$currentDate": bson.M{"updatedAt": true}})

@@ -1003,3 +1003,107 @@ func TestDatabaseMoveForgetsAnAddressNoMoveNeeds(t *testing.T) {
 		t.Fatalf("abandoned: %v, kept %v", err, kept())
 	}
 }
+
+// A change that began before the move goes on writing only while the move
+// knows about it: it is listed in the marker before it writes, and its change
+// history goes in with it. Once the copy starts — a laptop that slept through
+// the wait wakes and writes again — and once the workspace moved, every write
+// of it is refused.
+func TestDatabaseMoveRunningChangeStopsAtTheCopy(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a, b := w.a, w.b
+	ctx := context.Background()
+	cctx, done := b.DB.Admit(ctx, "comment.add")
+	defer done()
+	m := freezeFor(t, a)
+	write := func(c context.Context, text string) error {
+		_, err := b.DB.C(store.CComments).InsertOne(c, bson.M{"_id": ids.New("cmt"), "workspaceId": b.WorkspaceID(), "text": text})
+		return err
+	}
+	if err := write(cctx, "Sam: before the copy"); err != nil {
+		t.Fatalf("a change that began before the move: %v", err)
+	}
+	b.Audit(cctx, "comment.add", "comment", "cmt_before", "", nil)
+	if n, _ := a.DB.C(store.CAudit).CountDocuments(ctx, bson.M{"action": "comment.add", "targetId": "cmt_before"}); n != 1 {
+		t.Fatalf("the change's history was dropped: %d entries", n)
+	}
+	if cur, _ := a.DB.ReadMoveMarker(ctx); cur == nil || len(cur.Busy) == 0 {
+		t.Fatalf("the move doesn't know about the change: %+v", cur)
+	}
+	// The laptop sleeps past the wait: what it listed goes stale, the copy starts.
+	if ok, err := a.DB.MoveCopying(ctx, m.Move, 0); err != nil || !ok {
+		t.Fatalf("the copy couldn't start: %v %v", ok, err)
+	}
+	if err := write(cctx, "Sam: after waking"); !refusedMoving(err) {
+		t.Fatalf("a write after the copy started: %v", err)
+	}
+	if ok, err := a.DB.SetMoveState(ctx, m.Move, store.MoveMoving, store.MoveMoved, ""); err != nil || !ok {
+		t.Fatalf("marking: %v %v", ok, err)
+	}
+	if err := write(cctx, "Sam: after the move"); !refusedMoving(err) {
+		t.Fatalf("a write after the workspace moved: %v", err)
+	}
+}
+
+// Work left running after its change ended (detached from it, as a
+// background export is) gets no pass through the freeze.
+func TestDatabaseMoveDetachedWorkGetsNoPass(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a, b := w.a, w.b
+	ctx := context.Background()
+	cctx, done := b.DB.Admit(ctx, "workspace.export")
+	detached := context.WithoutCancel(cctx)
+	done()
+	freezeFor(t, a)
+	_, err := b.DB.C(store.CComments).InsertOne(detached, bson.M{"_id": ids.New("cmt"), "workspaceId": b.WorkspaceID(), "text": "Sam: later"})
+	if !refusedMoving(err) {
+		t.Fatalf("detached work wrote during the move: %v", err)
+	}
+}
+
+// When the marker can't be read while a move is under way, nothing changes:
+// MetaRush refuses rather than guess.
+func TestDatabaseMoveUnreadableMarkerChangesNothing(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a, b := w.a, w.b
+	ctx := context.Background()
+	freezeFor(t, a)
+	if _, err := a.DB.C(store.CDatabaseMove).UpdateOne(ctx, bson.M{"_id": "move"}, bson.M{"$set": bson.M{"state": 5}}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(store.MoveLookTrusted + 200*time.Millisecond)
+	if _, err := ops.CallTyped[ops.ProjectOut](ctx, b, "project.create", ops.ProjectCreateIn{Name: "Unchecked"}, ops.Caller{Human: true}); err == nil {
+		t.Fatal("a change went in while the marker couldn't be read")
+	}
+	if n, _ := a.DB.C(store.CProjects).CountDocuments(ctx, bson.M{"name": "Unchecked"}); n != 0 {
+		t.Fatalf("the change is in the database: %d", n)
+	}
+}
+
+// A connection opened without a watcher (setup's, before the computer is
+// set up) still looks at the marker before it writes.
+func TestDatabaseMoveUnwatchedConnectionLooks(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a := w.a
+	ctx := context.Background()
+	c, err := store.Connect(ctx, testutil.URI(), a.DB.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close(ctx)
+	if _, err := c.C(store.CComments).InsertOne(ctx, bson.M{"_id": ids.New("cmt"), "workspaceId": a.WorkspaceID(), "text": "Lena: before"}); err != nil {
+		t.Fatal(err)
+	}
+	freezeFor(t, a)
+	_, err = c.C(store.CComments).InsertOne(ctx, bson.M{"_id": ids.New("cmt"), "workspaceId": a.WorkspaceID(), "text": "Lena: during"})
+	if !refusedMoving(err) {
+		t.Fatalf("an unwatched connection wrote during the move: %v", err)
+	}
+}
+
+// refusedMoving reports a write refused because the database is being moved
+// or moved.
+func refusedMoving(err error) bool {
+	e := apperr.From(err)
+	return e != nil && e.Code == apperr.Moving
+}

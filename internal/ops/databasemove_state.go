@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -156,27 +157,26 @@ type databaseSection struct {
 // previous one kept aside, and config.yaml's database section (the
 // background MetaRush starts again with it). It checks the switch the way
 // MetaRush loads its settings and puts everything back when it doesn't hold.
-// It returns how to put it back.
-func switchDatabase(ctx context.Context, a *app.App, uri, name string, local *config.LocalDatabase) (func(), error) {
+func switchDatabase(ctx context.Context, a *app.App, uri, name string, local *config.LocalDatabase) error {
 	home := a.Cfg.Home()
 	env := a.Cfg.SecretMode() == "env"
 	if ov := databaseOverrides(a.Cfg, uri, name); len(ov) > 0 {
-		return nil, apperr.New(apperr.Conflict, "Settings in this computer's environment (%s) override MetaRush's own, so this computer couldn't switch to the new database.", strings.Join(ov, ", ")).
+		return apperr.New(apperr.Conflict, "Settings in this computer's environment (%s) override MetaRush's own, so this computer couldn't switch to the new database.", strings.Join(ov, ", ")).
 			WithHint("Remove them from your shell or from the .env file in MetaRush's folder, then run it again: the copy stays as it is.")
 	}
 	oldNode, err := config.GetField(home, []string{"database"})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	oldURI := a.Cfg.Database.URI
 	rememberAddress(oldURI)
 	// The old address is kept aside, never thrown away.
 	if env {
 		if err := localdb.WriteSecretFile(filepath.Join(home, "database", "previous.secret"), "the earlier database address", oldURI, false); err != nil {
-			return nil, apperr.New(apperr.NotConfigured, "MetaRush couldn't keep the old database's address aside, so this computer didn't switch.").WithDetails(map[string]any{"problem": scrubAddresses(err.Error())})
+			return apperr.New(apperr.NotConfigured, "MetaRush couldn't keep the old database's address aside, so this computer didn't switch.").WithDetails(map[string]any{"problem": scrubAddresses(err.Error())})
 		}
 	} else if _, err := config.StoreSecret(home, "mongodb-uri-previous", oldURI); err != nil {
-		return nil, apperr.New(apperr.NotConfigured, "MetaRush couldn't keep the old database's address aside in the keychain, so this computer didn't switch.")
+		return apperr.New(apperr.NotConfigured, "MetaRush couldn't keep the old database's address aside in the keychain, so this computer didn't switch.")
 	}
 	ref := config.SecretRef("mongodb-uri")
 	if env {
@@ -199,17 +199,17 @@ func switchDatabase(ctx context.Context, a *app.App, uri, name string, local *co
 	}
 	if err != nil {
 		putBack()
-		return nil, apperr.New(apperr.NotConfigured, "MetaRush couldn't keep the new database's address, so this computer didn't switch.").WithDetails(map[string]any{"problem": scrubAddresses(err.Error())})
+		return apperr.New(apperr.NotConfigured, "MetaRush couldn't keep the new database's address, so this computer didn't switch.").WithDetails(map[string]any{"problem": scrubAddresses(err.Error())})
 	}
 	if err := config.SetField(home, []string{"database"}, databaseSection{URI: ref, Name: name, Local: local}); err != nil {
 		putBack()
-		return nil, apperr.New(apperr.NotConfigured, "MetaRush couldn't change its settings, so this computer didn't switch.").WithDetails(map[string]any{"problem": err.Error()})
+		return apperr.New(apperr.NotConfigured, "MetaRush couldn't change its settings, so this computer didn't switch.").WithDetails(map[string]any{"problem": err.Error()})
 	}
 	// Checked the way MetaRush loads its settings.
 	cfg, err := config.Load(home)
 	if err != nil || cfg.Database.URI != uri || cfg.Database.Name != name {
 		putBack()
-		return nil, apperr.New(apperr.NotConfigured, "With the new settings MetaRush wouldn't use the new database, so this computer kept the old one.").
+		return apperr.New(apperr.NotConfigured, "With the new settings MetaRush wouldn't use the new database, so this computer kept the old one.").
 			WithHint("Check that nothing in this computer's environment names another database, then run it again.")
 	}
 	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -221,10 +221,10 @@ func switchDatabase(ctx context.Context, a *app.App, uri, name string, local *co
 	}
 	if err != nil {
 		putBack()
-		return nil, apperr.New(apperr.Database, "With the new settings MetaRush couldn't open the new database, so this computer kept the old one.").
+		return apperr.New(apperr.Database, "With the new settings MetaRush couldn't open the new database, so this computer kept the old one.").
 			WithDetails(map[string]any{"problem": scrubAddresses(err.Error())})
 	}
-	return putBack, nil
+	return nil
 }
 
 /* ---------- a move's record on this computer ---------- */
@@ -443,10 +443,40 @@ func (m *dbMoveRun) finish(a *app.App, out *DatabaseMoveOut, err error) {
 	m.save(a, true)
 }
 
+// lockDBMove allows one move of the database at a time on this computer.
+func lockDBMove(a *app.App) (func(), error) {
+	if err := os.MkdirAll(dbMoveDir(a), 0o700); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(filepath.Join(dbMoveDir(a), "lock"), os.O_CREATE|os.O_RDONLY, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		_ = f.Close()
+		return nil, apperr.New(apperr.Conflict, "The database is already being moved from this computer.").WithHint("Settings → Storage shows how far it is.")
+	}
+	return func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN); _ = f.Close() }, nil
+}
+
 // daemonRunsHere reports whether MetaRush runs in the background on this computer.
 func daemonRunsHere(a *app.App) bool {
 	_, ok := service.ReadDaemon(a.Cfg.Home())
 	return ok
+}
+
+// DatabaseMoveRunsHere reports whether a move of the database runs on this
+// computer now (the dashboard starts no second one).
+func DatabaseMoveRunsHere(a *app.App) bool {
+	if moveRunsHere(a, "") {
+		return true
+	}
+	unlock, err := lockDBMove(a)
+	if err != nil {
+		return true
+	}
+	unlock()
+	return false
 }
 
 // moveRunsHere reports whether a move runs on this computer now (its

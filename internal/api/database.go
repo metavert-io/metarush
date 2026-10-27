@@ -95,6 +95,10 @@ func (s *Server) databaseMove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a := *s.appFor(r, "dashboard")
+	if ops.DatabaseMoveRunsHere(&a) {
+		writeErr(w, apperr.New(apperr.Conflict, "The database is already being moved from this computer.").WithHint("This page shows how far it is."))
+		return
+	}
 	logPath, err := ops.DatabaseMoveLog(&a, in.MoveID)
 	if err != nil {
 		writeErr(w, err)

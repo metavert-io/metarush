@@ -736,6 +736,11 @@ func DatabaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn) (*Databas
 		return nil, err
 	}
 	started := time.Now()
+	unlock, err := lockDBMove(a)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	rec := moveRecordFrom(ctx, a, in.DatabaseTargetIn)
 	out, err := databaseMove(ctx, a, in, rec, started)
 	rec.finish(a, out, err)
@@ -838,24 +843,31 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 	if err != nil {
 		return nil, copyError(err, t.place)
 	}
-	// 4. This computer switches (checked the way MetaRush loads its settings;
-	// put back when it doesn't work).
-	rec.phase(a, "switching", "Switching this computer to the new database")
-	switchedAt := time.Now().UTC()
-	undo, err := switchDatabase(ctx, a, t.uri, t.name, localOf(t))
-	if err != nil {
-		return nil, err
-	}
-	// 5. The old database says the workspace moved: from now on every
-	// computer still using it refuses changes there for good.
+	// 4. The old database says the workspace moved: from now on every
+	// computer still using it refuses changes there for good. This comes
+	// before this computer switches: a stop in between leaves this computer
+	// on the old database, told to switch — never on the new one while the
+	// old one could still be abandoned and changed (D335).
 	ok, err := a.DB.SetMoveState(ctx, moveID, store.MoveMoving, store.MoveMoved, "")
 	if err != nil || !ok {
-		undo()
 		if err == nil {
 			return nil, apperr.New(apperr.Conflict, "The move was abandoned while it copied, so this computer didn't switch.").
 				WithHint("The new database keeps its lock, so nothing uses that copy. Move again into a new, empty database when you want.")
 		}
-		return nil, apperr.Wrap(apperr.Database, err, "The copy is whole and checked, but MetaRush couldn't mark the old database as moved, so this computer didn't switch. Run the move again to finish it.")
+		return nil, apperr.Wrap(apperr.Database, err, "The copy is whole and checked, but MetaRush couldn't mark the old database as moved, so nothing switched. Run the move again to finish it.")
+	}
+	if cur, err := a.DB.ReadMoveMarker(ctx); err == nil {
+		a.SetMoveMarker(cur)
+	}
+	// 5. This computer switches (checked the way MetaRush loads its settings;
+	// put back when it doesn't work).
+	rec.phase(a, "switching", "Switching this computer to the new database")
+	switchedAt := time.Now().UTC()
+	if err := switchDatabase(ctx, a, t.uri, t.name, localOf(t)); err != nil {
+		e := apperr.From(err)
+		return nil, apperr.New(e.Code, "The copy is whole and checked and the workspace moved, but this computer couldn't switch to it: %s", lowerFirst(e.Message)).
+			WithHint(strings.TrimSpace(e.Hint+" Then switch this computer (Settings → Storage shows how): the new database's address is still kept here.")).
+			WithDetails(map[string]any{"reason": "not_switched", "problem": e.Details}).WithCommand("metarush database switch --to saved --name " + t.name)
 	}
 	_ = a.DB.MoveSwitched(ctx, moveID, a.Cfg.Installation.ID)
 	if cur, err := a.DB.ReadMoveMarker(ctx); err == nil {
@@ -1144,7 +1156,7 @@ func DatabaseSwitch(ctx context.Context, a *app.App, in *DatabaseSwitchIn) (*Dat
 			WithDetails(map[string]any{"reason": "not_the_copy"})
 	}
 	from := databasePlaceOf(a.Cfg.Database)
-	if _, err := switchDatabase(ctx, a, t.uri, t.name, nil); err != nil {
+	if err := switchDatabase(ctx, a, t.uri, t.name, nil); err != nil {
 		return nil, err
 	}
 	_ = a.DB.MoveSwitched(ctx, m.Move, a.Cfg.Installation.ID)

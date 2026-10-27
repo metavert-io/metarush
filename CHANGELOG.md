@@ -1,6 +1,18 @@
 # Changelog
 
 ## Unreleased
+- **Move the workspace's database, checked before anything switches**. Settings → Storage → **Move the database**
+  (owners) or `metarush database plan|move --to here|address` moves your projects, versions, transcripts and notes to
+  the database on this computer, or to MongoDB Atlas or your own server. The plan says what moves and how long it
+  takes, what each of your computers needs (its own sign-in for the new database) and what waits meanwhile, and checks
+  that the new database answers, is empty and takes writes. While it moves, changes pause on every computer — reading
+  and playing keep working and every page says so — then every record is copied, checked against the old database,
+  and this computer switches. The old database is kept, marked as moved: a computer still using it refuses changes
+  until it switches with its own sign-in (`metarush database switch`, or one form in the dashboard), so the two never
+  split; MetaRush never deletes it. A move that stops can continue or be abandoned. The new database's address is
+  typed once or read from standard input, kept in this computer's keychain, and never on a command line or in the
+  log. A person moves it, never Claude, Auto or another AI app, and clients' What may leave rules keep their words off
+  a database on the internet when they say so.
 - **Export a whole workspace, and restore it on another computer**. Settings → Storage → **Export the workspace**
   (owners) or `metarush workspace export --to <folder>` writes one archive of everything about the work — projects,
   versions, transcripts, comments, people and their consent records, Claude Code conversations and the activity log —

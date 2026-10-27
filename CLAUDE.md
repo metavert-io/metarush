@@ -1029,6 +1029,28 @@ Read `docs/architecture.md` before structural changes.
   same restore started again continues; keeps the workspace ID; never deletes. `workspace.export|exports`
   are OwnerOnly + HumanOnly + `archivePeopleOnly`; the CLI needs a person's terminal (`personAtTerminal`); dashboard
   archives go to `<home>/archives`. Browser run `scripts/workspace-export-e2e.sh` (ports 5670–5679).
+- **Moving the database** (D334–D338, `internal/dbmove`, `internal/ops/databasemove.go`, `databasemove_state.go`,
+  `internal/store/movemarker.go`, `internal/cli/database_move.go`, `internal/api/database.go`,
+  `web/src/screens/settings/DatabaseMove.tsx`, docs/database-move.md): `database.plan|move|switch|abandon|move.status`
+  (`metarush database plan|move|switch|abandon|move-status`; move/switch/abandon OwnerOnly + HumanOnly +
+  `databasePeopleOnly`, the CLI a person's terminal; plan owners, any surface). Targets `here` (item 8's server via
+  `localdb.Prepare`, `localdb.Secrets*`; refused while other computers use the workspace unless `onlyThisComputer`) or
+  `saved`: another MongoDB whose address is **never** an op input, argv or log — the CLI's `--to address|env:NAME`
+  and the dashboard's form keep it via `SaveMoveAddress` (keychain `database-move`, or `<home>/database/move.secret`),
+  `rememberAddress` redacts it. The plan checks What may leave first (`ops.LeaveDatabase`: storage, words, cloud per
+  `leave.DatabaseKept`), then the target (`dbmove.CheckTarget`: reads only, `connectionStatus` privileges). The move:
+  `StartMoveMarker` (`database_move` in the old database: moving → moved | abandoned, `Holding`, `Switched`) freezes
+  it — `dispatch` refuses mutating ops (`refuseWhileMoving`, `E_MOVING` reason database_moving|database_moved; the
+  move's own ops exempt), `app.Held` keeps audit/TouchInstallation out and the log in the spool
+  (`logbook.Options.Hold`), `Migrate` refuses, daemons `watchForMove` and restart into `serveHeld` (`api.NewHeld`,
+  `heldGuard`: reads only, no background work, `HoldForMove` acks), the terminal worker stops; `waitQuiet` waits for
+  every computer seen within `RunningWithin` to ack and no live leases. `dbmove.Copy` (the restore lock, kind `move`;
+  `wsarchive` `Spec.Make`/`EachDocWhere`/`Inserter`/`HashWhere`; resumes after the copied prefix; `LeftOut`; level
+  last; `ErrChanged`) → marker `moved` **before** `switchDatabase` (keychain/.env, previous kept aside, config.yaml's
+  `database` section, checked as loaded) → `recordMove` into the new database. No job (the old database is frozen):
+  progress is `<state>/database-move/<id>.json`; the dashboard starts `database move --dashboard-move <id>` with
+  `tools.Start` and a one-time grant like the media's move. Never deletes either database. Browser run
+  `scripts/database-move-e2e.sh` (ports 5690–5699).
 - **Testing and coverage** (D194, D195, docs/testing.md): five layers (static → Go tests on a real MongoDB → several
   machines in one process (`tests/e2e`) → browser runs with fakes → Mac-only and live services); `scripts/check.sh
   --quick|--full|--release` runs them; test databases are copies of a per-process template and stale ones are swept
@@ -1082,6 +1104,7 @@ scripts/ship-gate-e2e.sh                                  # the ship gate and pr
 scripts/windows-e2e.sh                                    # the dashboard as Windows 11 uses it: Windows file names, folders, downloads, line endings, Ctrl (D247; ports 5440–5449; Edge when installed)
 scripts/presenters-e2e.sh                                 # presenters with the fake D-ID and HeyGen: a test clip, approve, a clip, a stock clip, consent words, No presenters, retire (D273–D277; ports 5510–5519)
 scripts/workspace-export-e2e.sh                           # Settings → Storage → Export the workspace, then a CLI restore into a fresh home and the dashboard on the copy (D329–D333; ports 5670–5679)
+scripts/database-move-e2e.sh                              # Settings → Storage → Move the database with a second computer: the plan, changes refused while it moves, the switch on both (D334–D338; ports 5690–5699)
 scripts/components-e2e.sh                                 # only the required components, then Settings → Components and Getting started's Add it with a stand-in Homebrew (D324–D327; ports 5650–5659)
 scripts/resources-e2e.sh                                  # the Add box, Inbox clips dragged onto project cards, the Sources "…" menu, Delete…, a nested cut (D79–D84; ports 5660–5669)
 ```

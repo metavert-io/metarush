@@ -269,4 +269,5 @@ quality) are for the user in their own terminal; in the dashboard's Claude Code 
 project's narration spending limit would be exceeded: tell the user), `E_PROVIDER` (the voice service refused or failed),
 `E_CONSENT_REQUIRED` (a voice copy of someone else without their recorded consent: never work around it),
 `E_KEPT_HERE` (the client's Content Settings keep that on this computer — What may leave: say which rule and who set it,
-and never send it another way).
+and never send it another way), `E_MOVING` (the workspace's database is being moved, or moved to another one: changes
+wait — tell the user, don't retry in a loop; after a move a person switches this computer with its own sign-in).

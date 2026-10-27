@@ -86,8 +86,8 @@ func (m *moveTo) target(c *cobra.Command, a *app.App, switching bool) (ops.Datab
 		return in, err
 	}
 	switch {
-	case to == "here" && !switching:
-		in.To = ops.MoveToHere
+	case to == "here":
+		in.To = ops.MoveToHere // a switch takes it only on the computer that moved it there
 	case to == "address":
 		uri, err := readAddress(c, "The new database's address")
 		if err != nil {
@@ -267,7 +267,7 @@ func runDashboardDatabaseMove(c *cobra.Command, id string) error {
 func databaseSwitchCmd() *cobra.Command {
 	var to, name string
 	cmd := &cobra.Command{
-		Use:   "switch --to address|env:NAME|saved [--name <database>]",
+		Use:   "switch --to address|env:NAME|saved|here [--name <database>]",
 		Short: "Switch this computer to the database the workspace moved to, with this computer's own sign-in (owners, a person at this computer)",
 		Long: `After another computer moved the workspace's database, this computer refuses changes until it switches
 too. Give it this computer's own sign-in for the new database (a database user of its own: sign-ins are
@@ -303,7 +303,7 @@ switches; MetaRush running in the background starts again with it. Settings → 
 			})
 		},
 	}
-	cmd.Flags().StringVar(&to, "to", "", "where this computer's sign-in for the new database comes from: address (standard input), env:NAME or saved")
+	cmd.Flags().StringVar(&to, "to", "", "where this computer's sign-in for the new database comes from: address (standard input), env:NAME or saved; here when the workspace moved to the database on this very computer")
 	cmd.Flags().StringVar(&name, "name", "", "the new database's name (default: the one the move named)")
 	return cmd
 }

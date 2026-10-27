@@ -251,12 +251,50 @@ func TestDatabaseMoveToThisComputer(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(h, "database", "state.json")); err == nil {
 		t.Fatal("the plan set the database up")
 	}
-	before := dbHashBut(t, a.DB) // the plan is in its activity log
+	// A setting in this computer's environment that would keep it from
+	// switching stops the plan.
+	t.Setenv("METARUSH_MONGODB_URI", testutil.URI())
+	r = runCLIContext(t, cctx, h, "database", "plan", "--to", "here", "--name", name, "--json")
+	var blocked ops.DatabasePlanOut
+	decodeData(t, r, &blocked)
+	if blocked.Ready || !strings.Contains(strings.Join(blocked.Problems, " "), "METARUSH_MONGODB_URI") {
+		t.Fatalf("plan with an override: %+v", blocked)
+	}
+	t.Setenv("METARUSH_MONGODB_URI", "")
+	before := dbHashBut(t, a.DB) // the plans are in its activity log
 	r = runCLIContext(t, cctx, h, "database", "move", "--to", "here", "--name", name, "--yes", "--json")
 	var out ops.DatabaseMoveOut
 	decodeData(t, r, &out)
 	if !out.Verified || !out.Switched || out.To.Kind != "here" {
 		t.Fatalf("move: %+v", out)
+	}
+	// Had its switch not held, this computer would refuse changes on the old
+	// database and switch to its own by itself: put the old settings back.
+	moved, err := config.Load(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.SaveMoveAddress(moved, moved.Database.URI); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SetField(h, []string{"database"}, map[string]any{"uri": a.Cfg.Database.URI, "name": a.Cfg.Database.Name}); err != nil {
+		t.Fatal(err)
+	}
+	r = runCLIContext(t, cctx, h, "project", "create", "Lost", "--json")
+	if code, _ := errorCode(t, r); code != apperr.Moving {
+		t.Fatalf("a change before switching: %s", r.stdout)
+	}
+	r = runCLIContext(t, cctx, h, "database", "move-status", "--json")
+	var pending ops.DatabaseMoveStatusOut
+	decodeData(t, r, &pending)
+	if !pending.SwitchMeToo || !pending.SwitchHere || !strings.Contains(pending.Command, "--to here") {
+		t.Fatalf("status before switching: %+v", pending)
+	}
+	r = runCLIContext(t, cctx, h, "database", "switch", "--to", "here", "--json")
+	var sw ops.DatabaseSwitchOut
+	decodeData(t, r, &sw)
+	if !sw.Switched || sw.To.Kind != "here" {
+		t.Fatalf("switch: %+v", sw)
 	}
 	if dbHashBut(t, a.DB) != before {
 		t.Fatal("the old database changed")

@@ -17367,7 +17367,7 @@ summary: string
 export interface DatabasePlace {
 kind: ("here" | "atlas" | "server")
 /**
- * The database in words: the database on this computer, MongoDB Atlas (cluster0.example.mongodb.net), a MongoDB server on your network.
+ * The database in words: the database on this computer, MongoDB Atlas, a MongoDB server on your network.
  */
 words: string
 host?: string
@@ -17412,6 +17412,7 @@ movedAt?: string
 paused?: string[]
 switchMeToo: boolean
 canSwitch: boolean
+switchHere: boolean
 steps: string[]
 command?: string
 moving: boolean
@@ -17424,7 +17425,7 @@ summary: string
 export interface DatabasePlace1 {
 kind: ("here" | "atlas" | "server")
 /**
- * The database in words: the database on this computer, MongoDB Atlas (cluster0.example.mongodb.net), a MongoDB server on your network.
+ * The database in words: the database on this computer, MongoDB Atlas, a MongoDB server on your network.
  */
 words: string
 host?: string

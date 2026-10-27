@@ -612,3 +612,45 @@ func TestDatabaseMoveIsAnOwnersAndAPersons(t *testing.T) {
 		t.Fatal("the plan set up a database")
 	}
 }
+
+// The old database says the workspace moved before this computer switches:
+// a switch that doesn't hold leaves this computer on the old database,
+// refusing changes and told to switch — never on the new one while the old
+// one could still be abandoned. Switching then finishes it.
+func TestDatabaseMoveMarksBeforeItSwitches(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a := w.a
+	ctx := context.Background()
+	dst := moveDB(t)
+	if err := ops.SaveMoveAddress(a.Cfg, testutil.URI()); err != nil {
+		t.Fatal(err)
+	}
+	undo := ops.SetSwitchFails(apperr.New(apperr.NotConfigured, "The keychain didn't answer."))
+	_, err := ops.CallTyped[ops.DatabaseMoveOut](ctx, a, "database.move", ops.DatabaseMoveIn{DatabaseTargetIn: ops.DatabaseTargetIn{To: ops.MoveToSaved, Name: dst.Name}}, ops.Caller{Human: true})
+	undo()
+	if c, r := codeAndReason(err); c != apperr.NotConfigured || r != "not_switched" || !strings.Contains(apperr.From(err).Message, "the workspace moved") {
+		t.Fatalf("a switch that didn't hold: %v", err)
+	}
+	if cfg, _ := config.Load(a.Cfg.Home()); cfg.Database.Name != a.Cfg.Database.Name {
+		t.Fatal("this computer switched anyway")
+	}
+	time.Sleep(app.MoveMarkerTTL + 100*time.Millisecond)
+	if _, err := ops.CallTyped[ops.ProjectOut](ctx, a, "project.create", ops.ProjectCreateIn{Name: "Lost"}, ops.Caller{Human: true}); apperr.From(err).Code != apperr.Moving {
+		t.Fatalf("a change on the old database: %v", err)
+	}
+	if _, err := ops.CallTyped[ops.DatabaseAbandonOut](ctx, a, "database.abandon", ops.DatabaseAbandonIn{}, ops.Caller{Human: true}); apperr.From(err).Code != apperr.Conflict {
+		t.Fatalf("a moved workspace was abandoned: %v", err)
+	}
+	st, _ := ops.CallTyped[ops.DatabaseMoveStatusOut](ctx, a, "database.move.status", ops.DatabaseMoveStatusIn{}, ops.Caller{})
+	if st == nil || !st.SwitchMeToo || st.SwitchHere {
+		t.Fatalf("status: %+v", st)
+	}
+	// The address is still kept here: the switch finishes it.
+	sw, err := ops.CallTyped[ops.DatabaseSwitchOut](ctx, a, "database.switch", ops.DatabaseSwitchIn{}, ops.Caller{Human: true})
+	if err != nil || !sw.Switched {
+		t.Fatalf("switch: %+v %v", sw, err)
+	}
+	if cfg, _ := config.Load(a.Cfg.Home()); cfg.Database.Name != dst.Name {
+		t.Fatal("not switched")
+	}
+}

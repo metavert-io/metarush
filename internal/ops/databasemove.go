@@ -567,6 +567,9 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 		}
 		out.Problems = append(out.Problems, fmt.Sprintf("Your other computers (%s) couldn't reach the database on this computer, so they couldn't use the workspace any more. Move it here only if this computer will be the only one: say so, and check again.", joinAnd(names)))
 	}
+	if ov := databaseOverrides(a.Cfg, t.uri, t.name); len(ov) > 0 {
+		out.Problems = append(out.Problems, fmt.Sprintf("Settings in this computer's environment (%s) override MetaRush's own, so this computer couldn't switch to the new database. Remove them from your shell or from the .env file in MetaRush's folder first.", strings.Join(ov, ", ")))
+	}
 	if t.place.Kind == "server" && t.place.Words == "a MongoDB server on this computer" && others > 0 {
 		out.Notes = append(out.Notes, "The new database's address is on this computer: your other computers reach it only if the same address works on theirs (a tunnel, say).")
 	}
@@ -863,11 +866,19 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 	// put back when it doesn't work).
 	rec.phase(a, "switching", "Switching this computer to the new database")
 	switchedAt := time.Now().UTC()
-	if err := switchDatabase(ctx, a, t.uri, t.name, localOf(t)); err != nil {
+	switchNow := func() error {
+		if switchFails != nil { // tests: a switch that doesn't hold
+			if err := switchFails(); err != nil {
+				return err
+			}
+		}
+		return switchDatabase(ctx, a, t.uri, t.name, localOf(t))
+	}
+	if err := switchNow(); err != nil {
 		e := apperr.From(err)
 		return nil, apperr.New(e.Code, "The copy is whole and checked and the workspace moved, but this computer couldn't switch to it: %s", lowerFirst(e.Message)).
-			WithHint(strings.TrimSpace(e.Hint+" Then switch this computer (Settings → Storage shows how): the new database's address is still kept here.")).
-			WithDetails(map[string]any{"reason": "not_switched", "problem": e.Details}).WithCommand("metarush database switch --to saved --name " + t.name)
+			WithHint(strings.TrimSpace(e.Hint + " Then switch this computer (Settings → Storage shows how): the new database's address is still kept here.")).
+			WithDetails(map[string]any{"reason": "not_switched", "problem": e.Details}).WithCommand("metarush database switch --to " + map[bool]string{true: "here", false: "saved"}[t.local != nil] + " --name " + t.name)
 	}
 	_ = a.DB.MoveSwitched(ctx, moveID, a.Cfg.Installation.ID)
 	if cur, err := a.DB.ReadMoveMarker(ctx); err == nil {
@@ -907,6 +918,10 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 }
 
 var errAbandoned = errors.New("the move was abandoned")
+
+// switchFails, set by tests, makes a move's own switch fail after the old
+// database was marked moved.
+var switchFails func() error
 
 func copyLabel(p dbmove.CopyProgress) string {
 	if p.Phase == "checking" {
@@ -1131,7 +1146,10 @@ func DatabaseSwitch(ctx context.Context, a *app.App, in *DatabaseSwitchIn) (*Dat
 		}
 		return nil, apperr.New(apperr.Conflict, "%s", msg).WithCommand("metarush database move-status")
 	}
-	if m.To.Kind == MoveToHere {
+	// The database on the computer that moved it is reached by that computer
+	// only: it switches there (a move whose own switch didn't hold).
+	here := m.To.Kind == MoveToHere
+	if here && m.From != a.Cfg.Installation.ID {
 		return nil, apperr.New(apperr.Conflict, "The workspace moved to the database on %s, which only that computer reaches.", firstNonEmpty(m.To.Computer, "another computer")).
 			WithHint("This computer can't use it. To use the workspace here, export it on that computer and restore it here, or move it to a database every computer reaches.")
 	}
@@ -1139,7 +1157,11 @@ func DatabaseSwitch(ctx context.Context, a *app.App, in *DatabaseSwitchIn) (*Dat
 	if name == "" {
 		name = m.To.Name
 	}
-	t, err := openTarget(ctx, a, DatabaseTargetIn{To: MoveToSaved, Name: name}, false)
+	target := DatabaseTargetIn{To: MoveToSaved, Name: name}
+	if here {
+		target.To = MoveToHere
+	}
+	t, err := openTarget(ctx, a, target, here)
 	if err != nil {
 		return nil, err
 	}
@@ -1156,7 +1178,7 @@ func DatabaseSwitch(ctx context.Context, a *app.App, in *DatabaseSwitchIn) (*Dat
 			WithDetails(map[string]any{"reason": "not_the_copy"})
 	}
 	from := databasePlaceOf(a.Cfg.Database)
-	if err := switchDatabase(ctx, a, t.uri, t.name, nil); err != nil {
+	if err := switchDatabase(ctx, a, t.uri, t.name, localOf(t)); err != nil {
 		return nil, err
 	}
 	_ = a.DB.MoveSwitched(ctx, m.Move, a.Cfg.Installation.ID)

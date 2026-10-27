@@ -48,8 +48,9 @@ type DatabaseMoveStartOut struct {
 
 // DatabaseSwitchFormIn switches this computer with its own sign-in.
 type DatabaseSwitchFormIn struct {
-	// Address is sent once and never returned: kept on this computer.
-	Address string `json:"address" jsonschema:"maxLength=2048"`
+	// Address is sent once and never returned: kept on this computer
+	// (empty: the workspace moved to the database on this very computer).
+	Address string `json:"address,omitempty" jsonschema:"maxLength=2048"`
 	Name    string `json:"name,omitempty" jsonschema:"maxLength=63"`
 }
 
@@ -138,10 +139,12 @@ func (s *Server) databaseSwitch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a := *s.appFor(r, "dashboard")
-	if err := ops.SaveMoveAddress(a.Cfg, in.Address); err != nil {
-		in.Address = ""
-		writeErr(w, err)
-		return
+	if strings.TrimSpace(in.Address) != "" { // none: the database on this very computer
+		if err := ops.SaveMoveAddress(a.Cfg, in.Address); err != nil {
+			in.Address = ""
+			writeErr(w, err)
+			return
+		}
 	}
 	in.Address = ""
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)

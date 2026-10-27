@@ -669,6 +669,9 @@ type DatabaseMoveStatusOut struct {
 	// database; CanSwitch: the new one is a database other computers reach.
 	SwitchMeToo bool `json:"switchMeToo"`
 	CanSwitch   bool `json:"canSwitch"`
+	// SwitchHere: the workspace moved to the database on this very computer,
+	// whose own switch didn't hold: it switches without an address.
+	SwitchHere bool `json:"switchHere"`
 	// Steps say what to do on this computer, in words; the switch's command
 	// is in Command (Details).
 	Steps   []string `json:"steps"`
@@ -721,15 +724,21 @@ func DatabaseMoveStatus(ctx context.Context, a *app.App, _ *DatabaseMoveStatusIn
 	switch {
 	case m != nil && m.State == store.MoveMoved:
 		out.SwitchMeToo = true
-		out.CanSwitch = m.To.Kind != MoveToHere
-		if out.CanSwitch {
+		ownHere := m.To.Kind == MoveToHere && m.From == a.Cfg.Installation.ID
+		out.CanSwitch, out.SwitchHere = m.To.Kind != MoveToHere || ownHere, ownHere
+		switch {
+		case ownHere:
+			out.Command = "metarush database switch --to here --name " + m.To.Name
+			out.Steps = append(out.Steps, "The copy in the database on this computer is whole and checked, but this computer didn't switch to it: switch it now (in Settings → Storage → Move the database, or in a terminal on this computer).")
+			out.Summary = "The workspace moved to the database on this computer: switch this computer too. Until then it refuses changes here."
+		case out.CanSwitch:
 			out.Command = "metarush database switch --to address --name " + m.To.Name
 			out.Steps = append(out.Steps,
 				"Get this computer its own sign-in for the new database: a database user of its own (in Atlas: Database Access → Add New Database User), never another computer's.",
 				"Switch this computer with it: in Settings → Storage → Move the database, or in a terminal on this computer (Details shows the command, which reads the address from what you paste, never from the command line).",
 				"MetaRush running in the background here starts again by itself with the new database.")
 			out.Summary = fmt.Sprintf("The workspace moved to another database (%s): switch this computer too, with its own sign-in. Until then it refuses changes here.", m.To.Words)
-		} else {
+		default:
 			out.Steps = append(out.Steps, fmt.Sprintf("The new database is on %s, which only that computer reaches: this computer can't use the workspace any more. To use it here, export it there and restore it here.", firstNonEmpty(m.To.Computer, "another computer")))
 			out.Summary = fmt.Sprintf("The workspace moved to the database on %s, which only that computer reaches.", firstNonEmpty(m.To.Computer, "another computer"))
 		}

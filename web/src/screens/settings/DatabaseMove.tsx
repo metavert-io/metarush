@@ -483,7 +483,7 @@ function PlanView({ plan }: { plan: DatabasePlanOut }) {
       <p className="text-[12px] text-subtle">{plan.kept}</p>
       <Details compact>
         <div className="break-all">
-          From <span className="tc text-muted">{plan.from.words}</span>, database <span className="tc text-muted">{plan.from.name}</span>
+          From <span className="tc text-muted">{plan.from.host || plan.from.words}</span>, database <span className="tc text-muted">{plan.from.name}</span>
         </div>
         <div className="break-all">
           To <span className="tc text-muted">{plan.to.host || plan.to.words}</span>, database <span className="tc text-muted">{plan.to.name}</span>
@@ -513,12 +513,13 @@ function SwitchForm({ s, onDone }: { s: DatabaseMoveStatusOut; onDone: () => voi
   const [name, setName] = useState(s.toName ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  const here = !!s.switchHere; // the database on this very computer: no address
   const go = async () => {
-    if (!address.trim() || busy) return;
+    if ((!here && !address.trim()) || busy) return;
     setBusy(true);
     setError(null);
     try {
-      const out = await request<DatabaseSwitchOut>('POST', '/api/database/switch', { json: { address: address.trim(), name: name.trim() || undefined } satisfies DatabaseSwitchFormIn });
+      const out = await request<DatabaseSwitchOut>('POST', '/api/database/switch', { json: { address: here ? undefined : address.trim(), name: name.trim() || undefined } satisfies DatabaseSwitchFormIn });
       setAddress('');
       toast({ tone: 'success', title: out.summary });
       void qc.invalidateQueries();
@@ -540,17 +541,19 @@ function SwitchForm({ s, onDone }: { s: DatabaseMoveStatusOut; onDone: () => voi
       aria-label="Switch this computer to the new database"
       data-database-switch-form
     >
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <Field id={`${id}-addr`} label="This computer’s address for the new database" hint="With this computer’s own database user. Kept in its keychain; you won’t see it again.">
-          <AddressInput id={`${id}-addr`} value={address} onChange={setAddress} label="address" />
-        </Field>
-        <Field id={`${id}-name`} label="Database name">
-          <input id={`${id}-name`} className={inputCls} value={name} spellCheck={false} onChange={(e) => setName(e.target.value)} />
-        </Field>
-      </div>
+      {here ? null : (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Field id={`${id}-addr`} label="This computer’s address for the new database" hint="With this computer’s own database user. Kept in its keychain; you won’t see it again.">
+            <AddressInput id={`${id}-addr`} value={address} onChange={setAddress} label="address" />
+          </Field>
+          <Field id={`${id}-name`} label="Database name">
+            <input id={`${id}-name`} className={inputCls} value={name} spellCheck={false} onChange={(e) => setName(e.target.value)} />
+          </Field>
+        </div>
+      )}
       {error ? <ErrorPanel compact error={error} /> : null}
       <div className="flex justify-end">
-        <Button type="submit" variant="primary" icon={<ArrowsLeftRight size={15} />} loading={busy} disabled={!address.trim()} data-database-switch>
+        <Button type="submit" variant="primary" icon={<ArrowsLeftRight size={15} />} loading={busy} disabled={!here && !address.trim()} data-database-switch>
           Switch this computer
         </Button>
       </div>

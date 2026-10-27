@@ -3632,7 +3632,7 @@ summary: string
 export interface DatabasePlace {
 kind: ("here" | "atlas" | "server")
 /**
- * The database in words: the database on this computer, MongoDB Atlas (cluster0.example.mongodb.net), a MongoDB server on your network.
+ * The database in words: the database on this computer, MongoDB Atlas, a MongoDB server on your network.
  */
 words: string
 host?: string
@@ -3707,7 +3707,7 @@ summary: string
  * via the `definition` "DatabaseSwitchFormIn".
  */
 export interface DatabaseSwitchFormIn {
-address: string
+address?: string
 name?: string
 }
 /**

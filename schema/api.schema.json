@@ -2137,7 +2137,7 @@
         },
         "words": {
           "type": "string",
-          "description": "The database in words: the database on this computer, MongoDB Atlas (cluster0.example.mongodb.net), a MongoDB server on your network."
+          "description": "The database in words: the database on this computer, MongoDB Atlas, a MongoDB server on your network."
         },
         "host": {
           "type": "string"
@@ -2283,10 +2283,7 @@
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "address"
-      ]
+      "type": "object"
     },
     "Diff": {
       "properties": {

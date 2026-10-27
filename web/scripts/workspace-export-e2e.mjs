@@ -9,6 +9,8 @@
 //     D  phone, dark and light: the card without sideways scrolling
 //   MODE=copy (the copy restored from the archive in a fresh home):
 //     E  the dashboard opens on the copy: the workspace's name, its project, and the restore in the Log
+//     F  Settings → Storage says the copy's background deletions are paused; "This copy is now the workspace…" asks
+//        in a styled dialog, lifts the pause, and the card no longer says it
 // No native browser dialog may appear; what is shown reads plainly (web/scripts/plainwords.mjs).
 //
 //   MODE=export METARUSH_DASHBOARD=http://127.0.0.1:5670 METARUSH_MINT="bin/metarush --home <home> dashboard --print-link --no-open" \
@@ -242,6 +244,28 @@ try {
     }, 30_000);
     check('E the Log page says it in words', !!logText);
     await shot(page, 'E-copy-log');
+
+    // F — the copy deletes nothing by itself until a person adopts it.
+    await openCard(page);
+    const card = page.locator('[data-workspace-export]');
+    const paused = await waitFor(async () => ((await card.locator('[data-copy-paused]').count()) === 1 ? await card.locator('[data-copy-paused]').innerText() : null), 20_000);
+    check('F the copy says its background deletions are paused', !!paused && /background deletions are paused/.test(paused) && /Trash/.test(paused), paused ?? '');
+    await plainIn(page, '[data-copy-paused]', 'F the pause');
+    await shot(page, 'F-copy-paused');
+    await card.locator('[data-copy-adopt]').click();
+    const ask = page.getByRole('dialog');
+    await ask.waitFor({ timeout: 10_000 });
+    const askText = await ask.innerText();
+    check('F a styled confirm says what changes', /Is this copy now the workspace\?/.test(askText) && /original is retired/.test(askText), askText);
+    await shot(page, 'F-adopt-confirm');
+    await ask.getByRole('button', { name: 'This copy is now the workspace' }).click();
+    await ask.waitFor({ state: 'detached', timeout: 10_000 });
+    const gone = await waitFor(async () => (await card.locator('[data-copy-paused]').count()) === 0, 20_000);
+    check('F the pause is lifted and the card no longer says it', !!gone);
+    const after = await api(page, 'workspace.exports', {});
+    check('F the copy is the workspace now', after.ok && !after.data.paused, JSON.stringify(after).slice(0, 200));
+    const adopted = await api(page, 'log.list', {});
+    check('F the Log has it', adopted.ok && adopted.data.entries.some((e) => e.op?.name === 'workspace.adopt'), JSON.stringify(adopted.data?.entries?.slice(0, 3) ?? adopted).slice(0, 300));
   }
 } finally {
   await browser.close();

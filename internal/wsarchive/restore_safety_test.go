@@ -569,3 +569,45 @@ func TestRestoreMakesOnlyMetaRushsOwnIndexes(t *testing.T) {
 		})
 	}
 }
+
+// A copy never does by itself what acts outside the workspace beside an
+// original that may be doing it too: a Remotion project waiting to be brought
+// in (from GitHub, with the person's sign-in) is held like paid work. And the
+// copy starts with its background deletions paused — the Trash emptying on its
+// schedule, review links ending and their pages going, old activity being
+// cleared out — and the report says so; the original is untouched.
+func TestARestoredCopyHoldsOutsideWorkAndPausesDeletions(t *testing.T) {
+	ctx := context.Background()
+	src := testutil.DB(t)
+	st := fsStore(t)
+	s := seed(t, src, st)
+	if _, err := src.C(store.CJobs).InsertOne(ctx, bson.M{"_id": "job_rimport", "workspaceId": s.ws, "type": "remotion-import", "state": "queued",
+		"idempotencyKey": "ri1", "cancelRequested": false}); err != nil {
+		t.Fatal(err)
+	}
+	res := exportTo(t, src, st, s.ws, wsarchive.MediaReferenced, false)
+	dst := emptyDB(t)
+	rep, err := restoreInto(t, res.Path, dst, st, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var job bson.M
+	_ = dst.C(store.CJobs).FindOne(ctx, bson.M{"_id": "job_rimport"}).Decode(&job)
+	if job["state"] != "canceled" || job["held"] == nil {
+		t.Errorf("bringing in a Remotion project wasn't held: %v", job["state"])
+	}
+	paused := func(db *store.DB) bool {
+		var w bson.M
+		_ = db.C(store.CWorkspaces).FindOne(ctx, bson.M{"_id": s.ws}).Decode(&w)
+		return w["deletionsPaused"] != nil
+	}
+	if !paused(dst) {
+		t.Error("the copy's background deletions aren't paused")
+	}
+	if paused(src) {
+		t.Error("the original's were paused")
+	}
+	if notes := strings.Join(rep.Notes, " "); !strings.Contains(notes, "paused") || !strings.Contains(notes, "metarush workspace adopt") {
+		t.Errorf("the report doesn't say deletions are paused, and how to lift it: %v", rep.Notes)
+	}
+}

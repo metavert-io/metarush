@@ -188,7 +188,32 @@ var atTerminal = func() bool {
 }
 
 func workspaceArchiveCmds() []*cobra.Command {
-	return []*cobra.Command{workspaceExportCmd(), workspaceExportsCmd(), workspaceRestoreCmd()}
+	return []*cobra.Command{workspaceExportCmd(), workspaceExportsCmd(), workspaceRestoreCmd(), workspaceAdoptCmd()}
+}
+
+func workspaceAdoptCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "adopt",
+		Short: "Say this restored copy is now the workspace, so it deletes by itself again as set (owners, people only)",
+		Long: `A restored copy starts with its background deletions paused: the Trash doesn't empty on its schedule, review
+links don't end or lose their pages, old activity isn't cleared out — the original may still use the same footage
+and pages. Once the original is retired, or this copy has storage of its own, say the copy is now the workspace.
+
+  metarush workspace adopt`,
+		RunE: func(c *cobra.Command, _ []string) error {
+			if err := personAtTerminal(c, "adopts"); err != nil {
+				return err
+			}
+			a, err := openApp(c, "cli")
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+			return runOpWith(c, a, "workspace.adopt", ops.WorkspaceAdoptIn{}, ops.Caller{Human: true}, func(o any) {
+				fmt.Println(o.(*ops.WorkspaceAdoptOut).Summary)
+			})
+		},
+	}
 }
 
 func workspaceExportCmd() *cobra.Command {
@@ -260,6 +285,9 @@ func workspaceExportsCmd() *cobra.Command {
 			defer a.Close()
 			return runOpWith(c, a, "workspace.exports", ops.WorkspaceExportsIn{}, ops.Caller{Human: true}, func(o any) {
 				out := o.(*ops.WorkspaceExportsOut)
+				if out.Paused != nil {
+					fmt.Println("! " + out.PausedSays)
+				}
 				if len(out.Exports) == 0 {
 					fmt.Println("No exports were made on this computer yet.")
 				}

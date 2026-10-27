@@ -1277,6 +1277,9 @@ backup, to move to another computer or service, or to leave with everything you 
   workspace restore <archive>`): every file is checked first, the footage is copied in or looked for, the copy is
   checked against the archive and brought up to date, and nothing is ever deleted. Owners and people only, never
   Claude or another AI app.
+- **A copy deletes nothing by itself at first.** The Trash's schedule, review links ending and old activity being
+  cleared out wait while the original may still use the same footage; once it is retired (or the copy has storage of
+  its own), `metarush workspace adopt` or Settings → Storage → *This copy is now the workspace…* lifts that.
 
 ## Commands you'll use
 Every command takes `--json` and `--details`. Plain output speaks plain words (what happened to the video and what to
@@ -1545,6 +1548,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush storage status` | which storage this computer uses, and whether the workspace moved on (then: switch this computer too) |
 | `metarush workspace export --to <folder> [--media referenced\|included] [--tar] [--plan]` / `workspace exports` | one archive of the whole workspace, footage listed or copied in; `--plan` says what it would hold and writes nothing; it only reads the database (owners, in your own terminal; another database with `--db-uri-stdin`/`--db-uri-env`) / the exports made on this computer |
 | `metarush workspace restore <archive> [--plan]` / `metarush setup --restore <archive>` | restore an export into an empty database (every file checked first; the copy checked and brought up to date; nothing deleted) / set a new computer up from one |
+| `metarush workspace adopt` | say a restored copy is now the workspace, so it deletes by itself again as set (owners, in your own terminal) |
 | `metarush machine invite <name> --atlas` → on the new machine `metarush machine join <bundle>` | add a machine with its own storage key and database user |
 | `metarush machine list --keys` / `machine revoke <name> --atlas` | see machines and their keys; cut off a lost one |
 | `metarush machine rekey [--dry-run]` | a machine that shares the old storage key gets its own, in place (people only; the old key is deleted by you once no machine uses it) |

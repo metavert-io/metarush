@@ -1525,3 +1525,36 @@ func TestClearingOutAProjectBringsNoCommentBack(t *testing.T) {
 		t.Fatalf("left: %v", keys)
 	}
 }
+
+// A restored copy beside its original shares their review links' pages: while
+// its background deletions are paused, a look brings comments in but ends no
+// link and deletes none of its files, even one whose time is up. Once a person
+// says the copy is now the workspace, the link ends there as usual.
+func TestARestoredCopyLeavesTheLinksPagesAlone(t *testing.T) {
+	w := newWorld(t)
+	a := w.a
+	ctx := context.Background()
+	out := call[reviewlinks.ShareOut](t, a, "share.create", reviewlinks.ShareCreateIn{ProjectID: w.p.ID, Days: 1}, person)
+	before := w.bucket.Keys("team/review/")
+	if err := a.DB.Update(ctx, store.CReviewLinks, a.WorkspaceID(), out.Link.ID, bson.M{"$set": bson.M{"expiresAt": time.Now().UTC().Add(-time.Minute)}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID()}, bson.M{"$set": bson.M{"deletionsPaused": bson.M{"since": time.Now().UTC(), "why": "restored"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if s := call[reviewlinks.ShareSyncOut](t, a, "share.sync", reviewlinks.ShareSyncIn{}, ops.Caller{}); s.Ended != 0 {
+		t.Fatalf("a paused copy ended a link: %+v", s)
+	}
+	if keys := w.bucket.Keys("team/review/"); len(keys) != len(before) {
+		t.Fatalf("a paused copy deleted the link's files: %v, was %v", keys, before)
+	}
+	if _, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID()}, bson.M{"$unset": bson.M{"deletionsPaused": ""}}); err != nil {
+		t.Fatal(err)
+	}
+	if s := call[reviewlinks.ShareSyncOut](t, a, "share.sync", reviewlinks.ShareSyncIn{}, ops.Caller{}); s.Ended != 1 {
+		t.Fatalf("the adopted copy's link didn't end: %+v", s)
+	}
+	if keys := w.bucket.Keys("team/review/"); len(keys) != 0 {
+		t.Fatalf("left in the bucket: %v", keys)
+	}
+}

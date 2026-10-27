@@ -74,6 +74,19 @@ type Workspace struct {
 	// ReviewLinks is the owners' word on links for people outside the
 	// workspace (D314): nil means anyone may share, for up to 7 days.
 	ReviewLinks *ReviewLinkSettings `bson:"reviewLinks,omitempty" json:"reviewLinks,omitempty"`
+	// DeletionsPaused is set on a restored copy (D333): nothing deletes by
+	// itself there — the Trash on its schedule, review links ending and their
+	// pages going, old activity cleared out — while the original may still use
+	// the same storage. An owner lifts it (workspace.adopt).
+	DeletionsPaused *DeletionsPause `bson:"deletionsPaused,omitempty" json:"deletionsPaused,omitempty"`
+}
+
+// DeletionsPause is when a restored copy's background deletions were paused,
+// and from which archive.
+type DeletionsPause struct {
+	Since time.Time `bson:"since" json:"since"`
+	// ArchiveMadeAt is when the archive the copy was restored from was made.
+	ArchiveMadeAt time.Time `bson:"archiveMadeAt,omitempty" json:"archiveMadeAt,omitempty"`
 }
 
 // EstimateSettings is the owners' word on estimates of what outside AI

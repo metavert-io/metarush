@@ -13,7 +13,9 @@
   line. On the new computer, `metarush setup --restore <archive>` (or `metarush workspace restore <archive>` into an
   empty database) checks every file first, puts the footage in place, writes everything, checks the copy against the
   archive, brings it up to date for this MetaRush and joins it — nothing is ever deleted, and the workspace keeps its
-  identity. Exporting and restoring are a person's, never Claude's, Auto's or another AI app's.
+  identity. The copy deletes nothing by itself until an owner says it is now the workspace (`metarush workspace
+  adopt`, or Settings → Storage), and work that costs money or acts outside the workspace waits for a person.
+  Exporting and restoring are a person's, never Claude's, Auto's or another AI app's.
 - **Change a spoken word, in the speaker's own voice**. Right-click words in a clip's transcript and
   choose **Say it differently…** (or `metarush cut say make <project> --clip <c> --from <s> --to <s> --as "fifteen"`):
   the cut says the new words in that person's own voice copy — only with their recorded consent for new words with

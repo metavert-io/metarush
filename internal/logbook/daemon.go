@@ -89,7 +89,9 @@ func (l *Logger) retention(ctx context.Context, logf func(string, ...any)) {
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
-	if days := l.Settings().RetentionDays; days > 0 {
+	// A restored copy whose deletions are paused clears nothing out: the
+	// original may still use the same stored prompt texts.
+	if days := l.Settings().RetentionDays; days > 0 && !l.db.DeletionsPaused(ctx, l.ws) {
 		before := l.now().AddDate(0, 0, -days)
 		c, cancel := context.WithTimeout(ctx, time.Minute)
 		res, err := Purge(c, l, PurgeOptions{Before: before, InstallationID: l.inst})

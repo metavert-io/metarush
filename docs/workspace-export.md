@@ -184,8 +184,9 @@ history, and stays.
 
 **Computers, work and conversations.** The workspace's computers go in as history (names, systems, MetaRush versions);
 a computer that restores the archive joins as a new one. Work that was running when the archive was made, and work
-waiting that costs money or acts outside the workspace (AI services, the AI voice, abilities, downloads, pushes to a
-repository), is **held for a person** in the copy: stopped, never taken by any computer by itself, so a copy beside an
+waiting that costs money or acts outside the workspace (AI services, the AI voice, abilities, Claude Code's scene
+descriptions, downloads, pages and repositories fetched, a Remotion project brought in, a source's own steps, pushes to
+a repository), is **held for a person** in the copy: stopped, never taken by any computer by itself, so a copy beside an
 original that is still running never does the same work twice or pays for it twice. The restore lists it; start each
 piece again (Retry, or `metarush job retry <job>`) once you're sure the original isn't doing it. Other waiting work
 waits as before. Work asked for on one computer, Recipes' runs (each goes on only on the computer that started it) and
@@ -218,8 +219,8 @@ anything; restore into a new database name, or empty that one yourself). It:
 8. brings the copy up to date with this MetaRush's migrations, and checks that every record of the archive is still
    there, by ID (migrations change records and may add the workspace's own, never take one away), and that nothing
    in the database belongs to another workspace;
-9. marks the restore finished and writes it into the copy's activity log and change history, and says what happened
-   in plain words.
+9. pauses the copy's background deletions (below), marks the restore finished and writes it into the copy's activity
+   log and change history, and says what happened in plain words.
 
 If it stops while the records go in, the database holds part of the copy and its marker stays: MetaRush says so,
 and you restore again into a new, empty database (it never deletes anything; empty that one yourself if you want it
@@ -262,15 +263,29 @@ was copied into. A copy *as a new workspace* (a new ID beside the old one) isn't
 
 **After a restore.** People with a password set it again (the archive carries none): an owner sends them a link in
 Settings → People. Keys for AI services and storage are per computer and never in an archive: set them up on the new
-computer. A copy that uses the same storage as the original shares it: anything either one deletes (emptying the
-Trash, clearing out an archived project) is gone for both — for a trial copy, include the footage and restore it into
-other storage.
+computer.
+
+**A copy deletes nothing by itself at first.** A restored copy starts with its background deletions paused: the Trash
+doesn't empty on its schedule, review links whose time is up (or that a client's rules or a withdrawn consent no longer
+allow) don't end and keep their pages, and old activity isn't cleared out — the original may still use the same
+footage and pages. Comments on review links still come in. The restore, setup and Settings → Storage say so. Once the
+original is retired, or the copy has storage of its own, an owner says the copy is now the workspace, in person:
+
+```bash
+metarush workspace adopt
+```
+
+or Settings → Storage → **This copy is now the workspace…**. What a person deletes is never held back: a copy that uses
+the same storage as the original shares it, so anything a person deletes in either one (emptying the Trash, clearing
+out an archived project, ending a review link) is gone for both — for a trial copy, include the footage and restore it
+into other storage.
 
 ## For developers
 
 The work is `internal/wsarchive`, a library: `Export`, `MakePlan`, `Restore`, `Open`/`Verify`, the read-only reads of
 a source database (`ReadLevel`, `ListCollections`, `ListIndexes`), the copy engine (`EachDoc`, `LineWriter`,
-`InsertLines`, `Spec.Make`, `HashCollection`) and the classification (`Catalogue`, kept whole by
+`InsertLines`, `Spec.Make`, `HashCollection`; a restore makes MetaRush's own indexes instead, `store.DB.MakeForRestore`) and the classification (`Catalogue`, kept whole by
 `TestEveryCollectionIsClassified`). Copying one database into another and checking the copy before anything switches
-uses the same pieces. The operations are `workspace.export` and `workspace.exports` (`internal/ops/workspacearchive.go`);
+uses the same pieces. The operations are `workspace.export`, `workspace.exports` and `workspace.adopt`
+(`internal/ops/workspacearchive.go`);
 the commands are in `internal/cli/workspace_archive.go` and `metarush setup --restore`.

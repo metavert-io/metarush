@@ -77,6 +77,21 @@ type WorkspaceExportsOut struct {
 	Holds  string `json:"holds"`
 	// Restore says how the archive is restored (a terminal or setup step).
 	Restore string `json:"restore"`
+	// Paused: this workspace is a restored copy whose background deletions
+	// are paused until an owner adopts it (workspace.adopt); PausedSays says
+	// so in plain words.
+	Paused     *models.DeletionsPause `json:"paused,omitempty"`
+	PausedSays string                 `json:"pausedSays,omitempty"`
+}
+
+// WorkspaceAdoptIn lifts a restored copy's pause on background deletions.
+type WorkspaceAdoptIn struct{}
+
+// WorkspaceAdoptOut says what changed.
+type WorkspaceAdoptOut struct {
+	// Was: the deletions were paused (false: nothing to lift).
+	Was     bool   `json:"was"`
+	Summary string `json:"summary"`
 }
 
 // ExportRecord is one export made on this computer, as it goes.
@@ -140,7 +155,27 @@ func init() {
 			if err := archivePeopleOnly(a); err != nil {
 				return nil, err
 			}
-			return &WorkspaceExportsOut{Exports: listExports(a), Folder: ArchivesFolder(a), Holds: ArchiveHolds, Restore: RestoreWords}, nil
+			out := &WorkspaceExportsOut{Exports: listExports(a), Folder: ArchivesFolder(a), Holds: ArchiveHolds, Restore: RestoreWords}
+			if ws, err := wsarchive.FindWorkspace(ctx, a.DB, a.WorkspaceID()); err == nil && ws != nil && ws.DeletionsPaused != nil {
+				out.Paused, out.PausedSays = ws.DeletionsPaused, wsarchive.PausedWords
+			}
+			return out, nil
+		})
+	Def("workspace.adopt", "Say this restored copy is now the workspace: it deletes by itself again as set (the Trash on its schedule, review links ending, old activity cleared out), once the original is retired or the copy has storage of its own (owners, people only)",
+		Flags{Mutating: true, HumanOnly: true, OwnerOnly: true}, func(ctx context.Context, a *app.App, _ *WorkspaceAdoptIn) (*WorkspaceAdoptOut, error) {
+			if err := archivePeopleOnly(a); err != nil {
+				return nil, err
+			}
+			res, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID(), "deletionsPaused": bson.M{"$exists": true}},
+				bson.M{"$unset": bson.M{"deletionsPaused": ""}})
+			if err != nil {
+				return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't change the workspace.")
+			}
+			if res.ModifiedCount == 0 {
+				return &WorkspaceAdoptOut{Summary: "This workspace deletes by itself as set already: nothing was paused."}, nil
+			}
+			a.Audit(ctx, "workspace.adopt", "workspace", a.WorkspaceID(), "", nil)
+			return &WorkspaceAdoptOut{Was: true, Summary: "This copy is now the workspace: it deletes by itself again as set (the Trash on its schedule, review links ending, old activity cleared out)."}, nil
 		})
 }
 

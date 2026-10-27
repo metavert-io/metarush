@@ -123,3 +123,25 @@ func (d *DB) MakeForRestore(ctx context.Context, versions []int) error {
 	}
 	return nil
 }
+
+// DeletionsPaused reports whether a workspace's background deletions are
+// paused (a restored copy until an owner adopts it: models.DeletionsPause).
+// When the workspace can't be read, they count as paused: nothing is deleted
+// on a guess.
+func (d *DB) DeletionsPaused(ctx context.Context, workspace string) bool {
+	var w struct {
+		Paused bson.Raw `bson:"deletionsPaused"`
+	}
+	err := d.C(CWorkspaces).FindOne(ctx, bson.M{"_id": workspace}, options.FindOne().SetProjection(bson.M{"deletionsPaused": 1})).Decode(&w)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return false
+	}
+	return err != nil || len(w.Paused) > 0
+}
+
+// PauseDeletions pauses a restored copy's background deletions.
+func (d *DB) PauseDeletions(ctx context.Context, workspace string, archiveMadeAt time.Time) error {
+	_, err := d.C(CWorkspaces).UpdateOne(ctx, bson.M{"_id": workspace},
+		bson.M{"$set": bson.M{"deletionsPaused": bson.M{"since": time.Now().UTC(), "archiveMadeAt": archiveMadeAt}}})
+	return err
+}

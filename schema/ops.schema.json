@@ -17217,6 +17217,23 @@
         "summary"
       ]
     },
+    "DeletionsPause": {
+      "properties": {
+        "since": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "archiveMadeAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "since"
+      ]
+    },
     "DeliverCaptionsFile": {
       "properties": {
         "video": {
@@ -70024,6 +70041,9 @@
         },
         "reviewLinks": {
           "$ref": "#/$defs/ReviewLinkSettings"
+        },
+        "deletionsPaused": {
+          "$ref": "#/$defs/DeletionsPause"
         }
       },
       "additionalProperties": false,
@@ -70035,6 +70055,27 @@
         "createdAt",
         "createdBy",
         "mediaStore"
+      ]
+    },
+    "WorkspaceAdoptIn": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "WorkspaceAdoptOut": {
+      "properties": {
+        "was": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "was",
+        "summary"
       ]
     },
     "WorkspaceExportIn": {
@@ -70116,6 +70157,12 @@
           "type": "string"
         },
         "restore": {
+          "type": "string"
+        },
+        "paused": {
+          "$ref": "#/$defs/DeletionsPause"
+        },
+        "pausedSays": {
           "type": "string"
         }
       },
@@ -79783,6 +79830,23 @@
       ],
       "description": "Show this installation's battery state and heavy-job battery policy"
     },
+    "workspace.adopt": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/WorkspaceAdoptIn"
+        },
+        "output": {
+          "$ref": "#/$defs/WorkspaceAdoptOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Say this restored copy is now the workspace: it deletes by itself again as set (the Trash on its schedule, review links ending, old activity cleared out), once the original is retired or the copy has storage of its own (owners, people only)"
+    },
     "workspace.export": {
       "properties": {
         "input": {
@@ -80403,6 +80467,7 @@
     "worker.configure",
     "worker.list",
     "worker.settings",
+    "workspace.adopt",
     "workspace.export",
     "workspace.exports",
     "workspace.show"

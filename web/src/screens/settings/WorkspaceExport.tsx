@@ -16,7 +16,9 @@ import { Badge, Button, CopyBlock, Details, ErrorPanel, Segmented, Skeleton, The
  * folder on the computer it runs on, in the background; the list follows it
  * (workspace.exports). A restore is never done here: it is a terminal step
  * (metarush workspace restore) or part of setting up a new computer
- * (metarush setup --restore), and the card says so.
+ * (metarush setup --restore), and the card says so. A restored copy says
+ * here that its background deletions are paused, with the button that says
+ * it is now the workspace (workspace.adopt).
  */
 
 type Media = 'referenced' | 'included';
@@ -35,6 +37,7 @@ export function WorkspaceExport() {
   });
   const planner = useOpMutation('workspace.export');
   const start = useOpMutation('workspace.export', { invalidate: ['workspace.exports'] });
+  const adopting = useOpMutation('workspace.adopt', { invalidate: ['workspace.exports'] });
   const dialog = useDialog();
   const toast = useToast();
   const running = exports.data?.exports.some((e) => e.state === 'running') ?? false;
@@ -74,6 +77,32 @@ export function WorkspaceExport() {
     );
   };
 
+  // A restored copy deletes nothing by itself until a person says it is now
+  // the workspace (workspace.adopt).
+  const adopt = async () => {
+    const ok = await dialog.confirm({
+      title: 'Is this copy now the workspace?',
+      body: (
+        <div className="space-y-2">
+          <p>Say so once the original is retired, or once this copy has storage of its own.</p>
+          <p>
+            From then on it deletes by itself as set: the Trash empties on its schedule, review links whose time is up end and their pages go, and old activity is cleared
+            out — in storage the original may still use.
+          </p>
+        </div>
+      ),
+      confirmLabel: 'This copy is now the workspace',
+    });
+    if (!ok) return;
+    adopting.mutate(
+      {},
+      {
+        onSuccess: (o) => toast({ tone: 'success', title: o.summary }),
+        onError: (e) => toast({ tone: 'error', title: 'Couldn’t change it', body: [e.message, e.hint].filter(Boolean).join(' ') }),
+      },
+    );
+  };
+
   return (
     <section id="export" className="panel scroll-mt-28 p-5" aria-labelledby="export-h" data-workspace-export>
       <h2 id="export-h" className="mb-1 flex items-center gap-2 text-[15px] font-semibold">
@@ -87,6 +116,14 @@ export function WorkspaceExport() {
           'An export holds everything about the work in this workspace, people and their consent records included. Passwords, keys and each computer’s own settings are never in it.'}
       </p>
       {exports.error ? <ErrorPanel compact error={exports.error} onRetry={() => void exports.refetch()} /> : null}
+      {exports.data?.paused ? (
+        <div className="mb-4 space-y-2 rounded-[10px] px-3 py-2.5 text-[12.5px] leading-relaxed hairline" data-copy-paused>
+          <p className="max-w-[78ch] text-fg">{exports.data.pausedSays}</p>
+          <Button variant="secondary" onClick={() => void adopt()} loading={adopting.isPending} data-copy-adopt>
+            This copy is now the workspace…
+          </Button>
+        </div>
+      ) : null}
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">

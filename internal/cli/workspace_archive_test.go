@@ -241,6 +241,20 @@ func TestSetupRestoresAnExport(t *testing.T) {
 	if again.code == 0 {
 		t.Fatalf("setup on a set-up computer restored: %s", again.stdout)
 	}
+	// The copy deletes nothing by itself until its owner, at the terminal,
+	// says it is now the workspace.
+	if !res.Restored.DeletionsPaused || !dst.DeletionsPaused(ctx, a.WorkspaceID()) {
+		t.Fatalf("the copy's deletions aren't paused: %+v", res.Restored)
+	}
+	if ex := runCLI(t, h, "workspace", "exports"); !strings.Contains(ex.stdout, "background deletions are paused") {
+		t.Errorf("the exports don't say the deletions are paused: %s", ex.stdout)
+	}
+	if ad := runCLI(t, h, "workspace", "adopt"); ad.code != 0 || !strings.Contains(ad.stdout, "now the workspace") {
+		t.Fatalf("adopt: %s %s", ad.stdout, ad.stderr)
+	}
+	if dst.DeletionsPaused(ctx, a.WorkspaceID()) {
+		t.Error("still paused after adopt")
+	}
 }
 
 // The interview offers a restore (Enter: a new workspace); a restore named is

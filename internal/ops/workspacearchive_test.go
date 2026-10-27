@@ -228,3 +228,42 @@ func TestWorkspaceExportKeepsPublishingSignInsOut(t *testing.T) {
 		t.Fatalf("a publishing secret is in the archive: %s", b)
 	}
 }
+
+// A restored copy deletes nothing by itself: the Trash doesn't empty on its
+// schedule while its deletions are paused. Only an owner, a person, lifts the
+// pause ("this copy is now the workspace"); then the Trash empties as set.
+func TestARestoredCopyDeletesNothingByItselfUntilAdopted(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	ws := a.WorkspaceID()
+	if _, err := a.DB.C(store.CWorkspaces).InsertOne(ctx, bson.M{"_id": ws, "workspaceId": ws, "name": "FernBrook Studio",
+		"deletionsPaused": bson.M{"since": time.Now().UTC(), "why": "restored"}}); err != nil {
+		t.Fatal(err)
+	}
+	old := clip(t, a, "Old take")
+	do[ops.LibraryActionOut](t, a, "asset.trash", ops.LibraryActionIn{AssetIDs: []string{old.ID}})
+	if err := a.DB.Update(ctx, store.CAssets, ws, old.ID, bson.M{"$set": bson.M{"trash.at": time.Now().UTC().Add(-40 * 24 * time.Hour)}}); err != nil {
+		t.Fatal(err)
+	}
+	do[ops.TrashSettingsOut](t, a, "trash.configure", ops.TrashConfigureIn{EmptyAfterDays: 30})
+	if n, err := ops.EmptyExpiredTrash(ctx, a, time.Now().UTC()); err != nil || n != 0 {
+		t.Fatalf("a paused copy emptied its Trash: %d %v", n, err)
+	}
+	if ex := do[ops.WorkspaceExportsOut](t, a, "workspace.exports", ops.WorkspaceExportsIn{}); !strings.Contains(archiveText(ex), "paused") {
+		t.Errorf("Settings doesn't say deletions are paused: %s", archiveText(ex))
+	}
+	if err := doErr(a, "workspace.adopt", map[string]any{}, ops.Caller{}); code(err) != apperr.HumanOnly {
+		t.Fatalf("a script lifted the pause: %v", err)
+	}
+	if err := doErr(a, "workspace.adopt", map[string]any{}, person); err != nil {
+		t.Fatalf("an owner lifting the pause: %v", err)
+	}
+	if n, err := ops.EmptyExpiredTrash(ctx, a, time.Now().UTC()); err != nil || n != 1 {
+		t.Fatalf("the adopted copy's Trash: %d %v", n, err)
+	}
+	if n, _ := a.DB.C(store.CAudit).CountDocuments(ctx, bson.M{"action": "workspace.adopt"}); n != 1 {
+		t.Errorf("lifting the pause wasn't recorded: %d", n)
+	}
+}
+
+func archiveText(v any) string { b, _ := json.Marshal(v); return string(b) }

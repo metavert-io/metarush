@@ -122,7 +122,7 @@ func readSeat(b []byte, seat int, l *models.ReviewLink, duration float64, now ti
 }
 
 // syncNow brings in one link's comments, or every live link's, and ends
-// links whose time is up.
+// links whose time is up (not in a restored copy whose deletions are paused).
 func syncNow(ctx context.Context, a *app.App, id string) (*ShareSyncOut, error) {
 	// A look someone asked for finishes even if they stop waiting (a page
 	// reloaded): what came in is counted and told.
@@ -142,6 +142,9 @@ func syncNow(ctx context.Context, a *app.App, id string) (*ShareSyncOut, error) 
 		return nil, err
 	}
 	names := projectNames(ctx, a, ls)
+	// A restored copy whose deletions are paused shares its links' pages with
+	// the original: it brings comments in, and ends nothing, deletes nothing.
+	paused := a.DB.DeletionsPaused(ctx, a.WorkspaceID())
 	// What was made with consents that were withdrawn: asked at every look,
 	// so a link the withdrawal itself didn't end ends here.
 	gone, err := withdrawn(ctx, a)
@@ -151,6 +154,9 @@ func syncNow(ctx context.Context, a *app.App, id string) (*ShareSyncOut, error) 
 	for i := range ls {
 		l := &ls[i]
 		if l.Store != a.Media.Locator() {
+			if paused {
+				continue
+			}
 			// Kept in another storage: the computers that use it clean up;
 			// here a link whose time is up is only marked as ended.
 			if l.State == models.ReviewLinkLive && !now.Before(l.ExpiresAt) {
@@ -160,6 +166,16 @@ func syncNow(ctx context.Context, a *app.App, id string) (*ShareSyncOut, error) 
 			continue
 		}
 		switch {
+		case paused && l.State == models.ReviewLinkLive:
+			out.Links++
+			got, _, err := syncLink(ctx, a, l, false)
+			if err != nil {
+				out.Lines = append(out.Lines, fmt.Sprintf("The comments on the review link to version %d of “%s” couldn't be read: %v.", l.RevisionNumber, names[l.ProjectID], err))
+				continue
+			}
+			add(out, got, l, names[l.ProjectID])
+		case paused:
+			// Ended: its files stay until the copy is adopted.
 		case l.State == models.ReviewLinkLive && !now.Before(l.ExpiresAt):
 			// Its time is up: the last comments come in, then it goes.
 			changed, st, err := endLink(ctx, a, l, models.ReviewLinkExpired, nil, "")

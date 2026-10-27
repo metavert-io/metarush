@@ -3975,6 +3975,13 @@ input: WorkerSettingsIn
 output: WorkerSettingsOut
 }
 /**
+ * Say this restored copy is now the workspace: it deletes by itself again as set (the Trash on its schedule, review links ending, old activity cleared out), once the original is retired or the copy has storage of its own (owners, people only)
+ */
+"workspace.adopt": {
+input: WorkspaceAdoptIn
+output: WorkspaceAdoptOut
+}
+/**
  * Export the whole workspace into one archive — projects, versions, transcripts, people and consent records, conversations, the log, and the footage when included — for a backup or a move (owners, people only; --plan first)
  */
 "workspace.export": {
@@ -35843,6 +35850,21 @@ export interface WorkerSettingsIn {
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WorkspaceAdoptIn".
+ */
+export interface WorkspaceAdoptIn {
+
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WorkspaceAdoptOut".
+ */
+export interface WorkspaceAdoptOut {
+was: boolean
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "WorkspaceExportIn".
  */
 export interface WorkspaceExportIn {
@@ -36022,6 +36044,16 @@ exports: ExportRecord[]
 folder: string
 holds: string
 restore: string
+paused?: DeletionsPause
+pausedSays?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DeletionsPause".
+ */
+export interface DeletionsPause {
+since: string
+archiveMadeAt?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -36066,6 +36098,7 @@ reviewFollow?: ReviewFollowSettings
 estimates?: EstimateSettings
 shipGate?: ShipGateSettings
 reviewLinks?: ReviewLinkSettings
+deletionsPaused?: DeletionsPause
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

@@ -77,8 +77,11 @@ type RestoreReport struct {
 	// that was waiting, when the archive was made.
 	Held  int64    `json:"held"`
 	Notes []string `json:"notes,omitempty"`
+	// DeletionsPaused: the copy starts with its background deletions paused
+	// (PausedWords) until an owner adopts it.
+	DeletionsPaused bool `json:"deletionsPaused,omitempty"`
 	// Verified: every checksum matched, every collection holds exactly what
-	// the archive does (and, after the migrations, at least as much), and
+	// the archive does (and, after the migrations, every record of it), and
 	// the media is in the storage (included) or was looked for (referenced).
 	Verified bool `json:"verified"`
 }
@@ -117,6 +120,10 @@ type ComputerWork struct {
 	Triggers      int64 `json:"triggers"`
 	Conversations int64 `json:"conversations"`
 }
+
+// PausedWords say that a restored copy deletes nothing by itself, and how a
+// person lifts that.
+const PausedWords = "The copy's background deletions are paused: emptying the Trash on its schedule, ending review links and deleting their pages, and clearing out old activity wait, since the original may still use the same footage and pages. Once the original is retired, or this copy has storage of its own, say the copy is now the workspace: metarush workspace adopt (or Settings → Storage)."
 
 // ErrNotEmpty refuses a database that already holds something.
 func ErrNotEmpty(db *store.DB, colls []string) error {
@@ -503,10 +510,12 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 				plural(int64(rep.Media.Missing), "file", "files"), isAre(rep.Media.Missing)))
 		}
 		if o.Store.Locator() == m.Media.Store {
-			rep.Notes = append(rep.Notes, "The copy uses the same storage as the original: anything either one deletes (emptying the Trash, clearing out a project) is gone for both.")
+			rep.Notes = append(rep.Notes, "The copy uses the same storage as the original: anything a person deletes in either one (emptying the Trash, clearing out a project) is gone for both.")
 		}
 	}
 	if o.Plan {
+		rep.DeletionsPaused = true
+		rep.Notes = append(rep.Notes, PausedWords)
 		for _, c := range m.Collections {
 			rep.Collections = append(rep.Collections, RestoredCollection{Name: c.Name, Count: c.Count})
 		}
@@ -802,6 +811,13 @@ func finishRestore(ctx context.Context, o RestoreOptions, a *Opened, rep *Restor
 		rep.Notes = append(rep.Notes, fmt.Sprintf("%s held here for a person (it was running when the archive was made, or it costs money or acts outside the workspace): start each again (Retry) once you're sure the original isn't doing it.",
 			plural(n, "piece of work is", "pieces of work are")))
 	}
+	// Nothing deletes by itself in the copy until a person says it is now
+	// the workspace: the original may still use the same storage and pages.
+	if err := o.DB.PauseDeletions(ctx, m.Workspace.ID, m.MadeAt); err != nil {
+		return nil, partial(err, "MetaRush couldn't pause the copy's background deletions.")
+	}
+	rep.DeletionsPaused = true
+	rep.Notes = append(rep.Notes, PausedWords)
 	if err := o.DB.SetRestoreLock(ctx, a.ID, m.Workspace.ID, m.Workspace.Name, store.RestoreDone); err != nil {
 		return nil, apperr.Wrap(apperr.Database, err, "The copy is whole, but MetaRush couldn't mark the restore finished. Run the same restore again to finish it.")
 	}

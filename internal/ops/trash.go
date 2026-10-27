@@ -305,11 +305,17 @@ func init() {
 
 // EmptyExpiredTrash deletes, for good, the clips that have been in the
 // Trash longer than "Empty the Trash after N days" allows, when a person
-// turned it on; clips a cut uses stay. Each clip is claimed first, so two
+// turned it on (never in a restored copy whose deletions are paused); clips a
+// cut uses stay. Each clip is claimed first, so two
 // machines never delete the same one. It returns how many went.
 func EmptyExpiredTrash(ctx context.Context, a *app.App, now time.Time) (int, error) {
 	days := trashDays(ctx, a)
 	if days <= 0 {
+		return 0, nil
+	}
+	// A restored copy deletes nothing by itself until an owner adopts it: its
+	// original may still use the same footage.
+	if a.DB.DeletionsPaused(ctx, a.WorkspaceID()) {
 		return 0, nil
 	}
 	cutoff := now.Add(-time.Duration(days) * 24 * time.Hour)

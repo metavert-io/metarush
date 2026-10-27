@@ -428,6 +428,14 @@ func TestRoundTripReferenced(t *testing.T) {
 		t.Fatalf("report: %+v", rep)
 	}
 	ctx := context.Background()
+	// Its pause on deleting by itself aside (an owner lifts it), the copy holds
+	// exactly what the archive does.
+	if !rep.DeletionsPaused || !dst.DeletionsPaused(ctx, s.ws) {
+		t.Fatal("the copy's background deletions aren't paused")
+	}
+	if _, err := dst.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": s.ws}, bson.M{"$unset": bson.M{"deletionsPaused": ""}}); err != nil {
+		t.Fatal(err)
+	}
 	for _, c := range m.Collections {
 		d, err := wsarchive.HashCollection(ctx, dst, c.Name, s.ws)
 		if err != nil || d.SHA256 != c.SHA256 || d.Count != c.Count {

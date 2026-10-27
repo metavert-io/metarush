@@ -7,7 +7,8 @@ name: browser
 #
 # Mac-only (not here): every run that needs tests/fixtures/gen (made with macOS `say`: cards, generate,
 # library, people, resources, sound, sources, storage, transcript, voiceover, voiceover-live, and acceptance)
-# and remote (its spoofing check sends from fe80::1%lo0; lo0 is macOS's loopback). docs/testing.md lists why.
+# remote (its spoofing check sends from fe80::1%lo0; lo0 is macOS's loopback) and presenters (a presenter reads
+# only sound MetaRush has listened to, which needs a recognizer on the computer). docs/testing.md lists why.
 on:
   schedule:
     - cron: "23 4 * * *" # nightly, 04:23 UTC
@@ -30,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [about, accounts, components, content, keep, playback, presenters, recipes, recorder, remotion, review-desk]
+        suite: [about, abilities, accounts, catalogue, components, content, keep, playback, recipes, recorder, remotion, review-desk, windows]
     steps:
       - name: chosen?
         id: chosen

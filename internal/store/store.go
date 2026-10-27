@@ -277,6 +277,24 @@ func (d *DB) Update(ctx context.Context, coll, workspaceID, id string, update bs
 	return nil
 }
 
+// UpdatePipeline is Update with an aggregation pipeline: one atomic write that
+// can compute a field from its old value (an array with one value taken out and
+// another put in, say), where two separate updates would let another write land
+// in between. A $set stage that touches updatedAt is stamped like Update's.
+func (d *DB) UpdatePipeline(ctx context.Context, coll, workspaceID, id string, stages []bson.M) error {
+	for _, st := range stages {
+		stamp(ctx, coll, st)
+	}
+	res, err := d.C(coll).UpdateOne(ctx, bson.M{"_id": id, "workspaceId": workspaceID}, stages)
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 type changerKey struct{}
 
 // WithChanger says a person's request is changing things (D183): updates of

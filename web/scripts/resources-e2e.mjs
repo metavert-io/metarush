@@ -22,6 +22,7 @@
 // Seed: the projects "Test project" (a cut with a nested cut from "Brand" and a
 // corner logo, a linked folder), "fernbrook" (empty) and "Brand", footage in the
 // Inbox, and the brand kit (see docs/resources.md, "Trying it").
+// scripts/resources-e2e.sh makes the seed and runs this script; by hand:
 //   METARUSH_YTDLP=<fake yt-dlp> bin/metarush --home <test home> serve
 //   METARUSH_DASHBOARD=http://127.0.0.1:<port> METARUSH_MINT="bin/metarush --home <test home> dashboard --print-link" \
 //   DROP_FILE=<a small unique .mp4> SHOTS_DIR=<dir> node web/scripts/resources-e2e.mjs
@@ -114,6 +115,31 @@ async function newPage(browser, { theme = 'dark', phone = false, tall = false } 
 
 const projectId = async (page, name) => (await api(page, 'project.list', {})).projects.find((p) => p.name === name)?.id;
 
+// Home with the project cards and the Inbox both on screen, for drags from one to the other (the mouse can't drag to
+// a place outside the window). Home's right column — versions awaiting review, recipes and starter recipes, what's in
+// progress — loads after the cards and the Inbox and grows with the workspace, pushing the Inbox below any fixed
+// window: wait until the page stops moving, then make the window as tall as the page. The upload tray (section A's
+// drop, shown again for a few minutes after it finished) sits over the first Inbox clip until it folds: clear it.
+async function homeOnOneScreen(page) {
+  await page.locator('[data-drop-project]').first().waitFor();
+  await page.locator('#inbox [role="listitem"]').first().waitFor();
+  let last = '';
+  for (let still = 0, i = 0; still < 3 && i < 40; i++) {
+    const now = JSON.stringify([await page.evaluate(() => document.documentElement.scrollHeight), await page.locator('#inbox [role="listitem"]').first().boundingBox()]);
+    still = now === last ? still + 1 : 0;
+    last = now;
+    await sleep(400);
+  }
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  await page.setViewportSize({ width: 1440, height: Math.max(900, Math.ceil(height)) });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const tray = page.locator('section[aria-label="Uploads"]');
+  if (await tray.count()) {
+    await tray.getByRole('button', { name: 'Clear' }).click().catch(() => {});
+    await tray.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
+  }
+}
+
 const browser = await chromium.launch();
 try {
   const page = await newPage(browser);
@@ -173,15 +199,13 @@ try {
   await shot(page, 'A-sources-compact-desktop-dark');
 
   /* ---------- B: safe drags onto projects ---------- */
-  // A tall window, so the project cards and the Inbox are both on screen.
   const home = await newPage(browser, { tall: true });
   await home.goto(`${base}/`);
   {
   const page = home;
+  await homeOnOneScreen(page);
   const cards = page.locator('[data-drop-project]');
-  await cards.first().waitFor();
   const inboxItems = page.locator('#inbox [role="listitem"]');
-  await inboxItems.first().waitFor();
   const inboxBefore = await inboxItems.count();
   const cardA = page.locator(`[data-drop-project="${test}"]`);
   const cardB = page.locator(`[data-drop-project="${fernbrook}"]`);
@@ -250,7 +274,7 @@ try {
 
   // Several selected clips go to one project together.
   await page.reload();
-  await page.locator('#inbox [role="listitem"]').first().waitFor();
+  await homeOnOneScreen(page);
   const boxes = page.locator('#inbox [role="checkbox"]');
   const n = await boxes.count();
   if (n >= 2) {
@@ -301,12 +325,19 @@ try {
   await mp.waitFor();
   await mp.fill('fernbrook');
   await mp.press('Enter');
-  const movedBroll = await waitFor(async () => (await api(page, 'project.show', { id: fernbrook })).assets.some((x) => x.id === broll.id), 8000);
+  // Moved means in fernbrook and gone from Test project: asset.move adds it to one, then takes it out of the other, so
+  // a link back to Test project made as soon as fernbrook has it can land in between and be taken out again.
+  const movedBroll = await waitFor(
+    async () => (await api(page, 'project.show', { id: fernbrook })).assets.some((x) => x.id === broll.id) && !(await api(page, 'project.show', { id: test })).assets.some((x) => x.id === broll.id),
+    8000,
+  );
   check('C: Move to another project… (keyboard) moves it', !!movedBroll);
   // D: greyed out while another project has it (it is in fernbrook now; add it back here too).
   await api(page, 'asset.link', { assetId: broll.id, projectId: test });
   await page.reload();
   await page.locator('[role="listitem"]').first().waitFor();
+  // Its name now (MetaRush may have named it after its first look meanwhile).
+  broll.title = (await api(page, 'project.show', { id: test })).assets.find((x) => x.id === broll.id)?.title ?? broll.title;
   await menuFor(broll.title).click();
   const del = page.getByRole('menuitem', { name: 'Delete…' });
   check('D: Delete… is greyed out while another project has it', (await del.getAttribute('aria-disabled')) === 'true' && ((await del.getAttribute('title')) ?? '').includes('Also in fernbrook'), await del.getAttribute('title'));

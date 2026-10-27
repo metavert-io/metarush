@@ -1,36 +1,86 @@
 {
   "note": "Go test coverage per package (go test -coverpkg=./internal/... ./..., blocks merged; the lowest of the runs it was recorded from): scripts/coverage.sh fails when a package listed here drops more than 1 point; --update-baseline rewrites it.",
-  "measured": "2026-10-24",
+  "measured": "2026-10-27",
   "total": {
-    "statements": 126008,
-    "covered": 88834,
-    "percent": 70.5
+    "statements": 176119,
+    "covered": 128041,
+    "percent": 72.7
   },
   "packages": {
-    "internal/activity": {
-      "statements": 1153,
-      "covered": 1115,
-      "percent": 96.7
+    "internal/abilities": {
+      "statements": 3636,
+      "covered": 2900,
+      "percent": 79.8
     },
-    "internal/api": {
-      "statements": 1924,
-      "covered": 1531,
+    "internal/activity": {
+      "statements": 1166,
+      "covered": 1121,
+      "percent": 96.1
+    },
+    "internal/aiservices": {
+      "statements": 607,
+      "covered": 488,
+      "percent": 80.4
+    },
+    "internal/aiservices/aiconformance": {
+      "statements": 319,
+      "covered": 243,
+      "percent": 76.2
+    },
+    "internal/aiservices/did": {
+      "statements": 417,
+      "covered": 318,
+      "percent": 76.3
+    },
+    "internal/aiservices/elevenlabs": {
+      "statements": 427,
+      "covered": 329,
+      "percent": 77
+    },
+    "internal/aiservices/google": {
+      "statements": 348,
+      "covered": 277,
       "percent": 79.6
     },
+    "internal/aiservices/heygen": {
+      "statements": 304,
+      "covered": 227,
+      "percent": 74.7
+    },
+    "internal/aiservices/local": {
+      "statements": 321,
+      "covered": 247,
+      "percent": 76.9
+    },
+    "internal/aiservices/syncso": {
+      "statements": 168,
+      "covered": 128,
+      "percent": 76.2
+    },
+    "internal/aiwork": {
+      "statements": 3448,
+      "covered": 2662,
+      "percent": 77.2
+    },
+    "internal/api": {
+      "statements": 2142,
+      "covered": 1726,
+      "percent": 80.6
+    },
     "internal/assistant": {
-      "statements": 8844,
-      "covered": 6110,
-      "percent": 69.1
+      "statements": 10520,
+      "covered": 7304,
+      "percent": 69.4
     },
     "internal/assistant/fakeclaude": {
-      "statements": 286,
-      "covered": 50,
-      "percent": 17.5
+      "statements": 291,
+      "covered": 55,
+      "percent": 18.9
     },
     "internal/auth": {
       "statements": 818,
-      "covered": 531,
-      "percent": 64.9
+      "covered": 532,
+      "percent": 65
     },
     "internal/browserext": {
       "statements": 302,
@@ -47,50 +97,65 @@
       "covered": 367,
       "percent": 87.2
     },
+    "internal/catalog": {
+      "statements": 990,
+      "covered": 920,
+      "percent": 92.9
+    },
     "internal/catchup": {
-      "statements": 253,
-      "covered": 177,
-      "percent": 70
+      "statements": 259,
+      "covered": 181,
+      "percent": 69.9
     },
     "internal/cli": {
-      "statements": 16874,
-      "covered": 6561,
-      "percent": 38.9
+      "statements": 22037,
+      "covered": 8977,
+      "percent": 40.7
+    },
+    "internal/components": {
+      "statements": 1066,
+      "covered": 872,
+      "percent": 81.8
     },
     "internal/config": {
-      "statements": 779,
-      "covered": 654,
-      "percent": 84
+      "statements": 821,
+      "covered": 689,
+      "percent": 83.9
     },
     "internal/content": {
-      "statements": 589,
-      "covered": 445,
-      "percent": 75.6
+      "statements": 638,
+      "covered": 489,
+      "percent": 76.6
     },
     "internal/conversation": {
-      "statements": 3088,
-      "covered": 2298,
-      "percent": 74.4
+      "statements": 3286,
+      "covered": 2470,
+      "percent": 75.2
     },
     "internal/costs": {
-      "statements": 111,
-      "covered": 105,
-      "percent": 94.6
+      "statements": 114,
+      "covered": 108,
+      "percent": 94.7
     },
     "internal/cutsheet": {
-      "statements": 6136,
-      "covered": 4984,
-      "percent": 81.2
+      "statements": 6255,
+      "covered": 5098,
+      "percent": 81.5
     },
     "internal/derive": {
       "statements": 380,
       "covered": 263,
       "percent": 69.2
     },
+    "internal/drive": {
+      "statements": 332,
+      "covered": 272,
+      "percent": 81.9
+    },
     "internal/editspec": {
-      "statements": 8183,
-      "covered": 7105,
-      "percent": 86.8
+      "statements": 9251,
+      "covered": 8053,
+      "percent": 87.1
     },
     "internal/editspec/specgen": {
       "statements": 726,
@@ -103,64 +168,84 @@
       "percent": 90.5
     },
     "internal/faceid": {
-      "statements": 261,
-      "covered": 231,
-      "percent": 88.5
+      "statements": 263,
+      "covered": 233,
+      "percent": 88.6
     },
     "internal/faces": {
       "statements": 1646,
-      "covered": 1436,
-      "percent": 87.2
+      "covered": 1438,
+      "percent": 87.4
     },
-    "internal/fixes": {
-      "statements": 2604,
-      "covered": 2266,
-      "percent": 87
-    },
-    "internal/generate": {
-      "statements": 2015,
-      "covered": 1727,
-      "percent": 85.7
-    },
-    "internal/improve": {
-      "statements": 704,
-      "covered": 566,
-      "percent": 80.4
-    },
-    "internal/ingest": {
-      "statements": 802,
-      "covered": 750,
+    "internal/firstrun": {
+      "statements": 168,
+      "covered": 157,
       "percent": 93.5
     },
+    "internal/fixes": {
+      "statements": 2614,
+      "covered": 2280,
+      "percent": 87.2
+    },
+    "internal/generate": {
+      "statements": 2299,
+      "covered": 1991,
+      "percent": 86.6
+    },
+    "internal/improve": {
+      "statements": 711,
+      "covered": 570,
+      "percent": 80.2
+    },
+    "internal/ingest": {
+      "statements": 809,
+      "covered": 754,
+      "percent": 93.2
+    },
     "internal/intake": {
-      "statements": 725,
-      "covered": 699,
-      "percent": 96.4
+      "statements": 849,
+      "covered": 823,
+      "percent": 96.9
     },
     "internal/interchange": {
-      "statements": 1089,
-      "covered": 912,
-      "percent": 83.7
+      "statements": 3373,
+      "covered": 2818,
+      "percent": 83.5
     },
     "internal/jobs": {
-      "statements": 351,
-      "covered": 274,
+      "statements": 360,
+      "covered": 282,
+      "percent": 78.3
+    },
+    "internal/leave": {
+      "statements": 983,
+      "covered": 768,
       "percent": 78.1
     },
     "internal/linkimport": {
-      "statements": 1159,
-      "covered": 861,
+      "statements": 1162,
+      "covered": 868,
+      "percent": 74.7
+    },
+    "internal/localdb": {
+      "statements": 836,
+      "covered": 621,
       "percent": 74.3
     },
+    "internal/localmodels": {
+      "statements": 234,
+      "covered": 162,
+      "percent": 69.2
+    },
     "internal/logbook": {
-      "statements": 2645,
-      "covered": 2053,
-      "percent": 77.6
+      "statements": 2666,
+      "covered": 2066,
+      "percent": 77.5
     },
     "internal/logbook/logops": {
       "statements": 252,
-      "covered": 166,
-      "percent": 65.9
+      "covered": 170,
+      "percent": 67.5
     },
     "internal/machines": {
       "statements": 962,
@@ -168,24 +253,29 @@
       "percent": 76.9
     },
     "internal/mcp": {
-      "statements": 261,
-      "covered": 219,
-      "percent": 83.9
+      "statements": 711,
+      "covered": 627,
+      "percent": 88.2
+    },
+    "internal/measures": {
+      "statements": 150,
+      "covered": 143,
+      "percent": 95.3
     },
     "internal/media": {
-      "statements": 903,
-      "covered": 683,
-      "percent": 75.6
+      "statements": 983,
+      "covered": 760,
+      "percent": 77.3
     },
     "internal/models": {
-      "statements": 392,
-      "covered": 271,
-      "percent": 69.1
+      "statements": 555,
+      "covered": 417,
+      "percent": 75.1
     },
     "internal/motion": {
-      "statements": 977,
-      "covered": 659,
-      "percent": 67.5
+      "statements": 1024,
+      "covered": 701,
+      "percent": 68.5
     },
     "internal/names": {
       "statements": 192,
@@ -194,8 +284,8 @@
     },
     "internal/notify": {
       "statements": 506,
-      "covered": 341,
-      "percent": 67.4
+      "covered": 364,
+      "percent": 71.9
     },
     "internal/onnx": {
       "statements": 190,
@@ -203,9 +293,9 @@
       "percent": 76.3
     },
     "internal/ops": {
-      "statements": 14810,
-      "covered": 10566,
-      "percent": 71.3
+      "statements": 20975,
+      "covered": 15896,
+      "percent": 75.8
     },
     "internal/plainwords": {
       "statements": 121,
@@ -219,28 +309,43 @@
     },
     "internal/probe": {
       "statements": 123,
-      "covered": 93,
-      "percent": 75.6
+      "covered": 98,
+      "percent": 79.7
     },
     "internal/projectlinks": {
       "statements": 127,
-      "covered": 87,
-      "percent": 68.5
+      "covered": 90,
+      "percent": 70.9
     },
     "internal/providers": {
-      "statements": 891,
-      "covered": 726,
-      "percent": 81.5
+      "statements": 1193,
+      "covered": 993,
+      "percent": 83.2
+    },
+    "internal/publish": {
+      "statements": 451,
+      "covered": 378,
+      "percent": 83.8
     },
     "internal/qa": {
-      "statements": 2583,
-      "covered": 2108,
-      "percent": 81.6
+      "statements": 3372,
+      "covered": 2732,
+      "percent": 81
+    },
+    "internal/receipt": {
+      "statements": 847,
+      "covered": 714,
+      "percent": 84.3
     },
     "internal/recipes": {
-      "statements": 3473,
-      "covered": 2603,
-      "percent": 74.9
+      "statements": 9233,
+      "covered": 7379,
+      "percent": 79.9
+    },
+    "internal/recorder": {
+      "statements": 858,
+      "covered": 672,
+      "percent": 78.3
     },
     "internal/remote": {
       "statements": 383,
@@ -248,29 +353,39 @@
       "percent": 88
     },
     "internal/remotion": {
-      "statements": 7935,
-      "covered": 2839,
-      "percent": 35.8
+      "statements": 8139,
+      "covered": 3013,
+      "percent": 37
     },
     "internal/renderer": {
-      "statements": 606,
-      "covered": 499,
-      "percent": 82.3
+      "statements": 654,
+      "covered": 547,
+      "percent": 83.6
     },
     "internal/resources": {
-      "statements": 3125,
-      "covered": 2550,
-      "percent": 81.6
+      "statements": 3533,
+      "covered": 2910,
+      "percent": 82.4
+    },
+    "internal/reviewlinks": {
+      "statements": 1274,
+      "covered": 1019,
+      "percent": 80
+    },
+    "internal/sandbox": {
+      "statements": 944,
+      "covered": 703,
+      "percent": 74.5
     },
     "internal/secretpath": {
-      "statements": 259,
-      "covered": 232,
-      "percent": 89.6
+      "statements": 287,
+      "covered": 262,
+      "percent": 91.3
     },
     "internal/service": {
-      "statements": 271,
-      "covered": 206,
-      "percent": 76
+      "statements": 312,
+      "covered": 255,
+      "percent": 81.7
     },
     "internal/sessions": {
       "statements": 100,
@@ -278,54 +393,99 @@
       "percent": 79
     },
     "internal/skillsinstall": {
-      "statements": 144,
-      "covered": 115,
-      "percent": 79.9
+      "statements": 323,
+      "covered": 259,
+      "percent": 80.2
     },
     "internal/sound": {
-      "statements": 3745,
-      "covered": 2824,
-      "percent": 75.4
+      "statements": 3822,
+      "covered": 2891,
+      "percent": 75.6
     },
     "internal/sources": {
       "statements": 373,
-      "covered": 330,
-      "percent": 88.5
+      "covered": 331,
+      "percent": 88.7
     },
     "internal/speakers": {
-      "statements": 2099,
-      "covered": 1595,
-      "percent": 76
+      "statements": 2103,
+      "covered": 1612,
+      "percent": 76.7
+    },
+    "internal/spoken": {
+      "statements": 1018,
+      "covered": 735,
+      "percent": 72.2
     },
     "internal/storagemove": {
       "statements": 500,
-      "covered": 438,
-      "percent": 87.6
+      "covered": 435,
+      "percent": 87
     },
     "internal/store": {
-      "statements": 470,
-      "covered": 389,
-      "percent": 82.8
+      "statements": 504,
+      "covered": 413,
+      "percent": 81.9
     },
     "internal/testutil": {
       "statements": 212,
       "covered": 170,
       "percent": 80.2
     },
+    "internal/testutil/fakeai": {
+      "statements": 420,
+      "covered": 356,
+      "percent": 84.8
+    },
+    "internal/testutil/fakebucket": {
+      "statements": 203,
+      "covered": 162,
+      "percent": 79.8
+    },
+    "internal/testutil/fakedid": {
+      "statements": 473,
+      "covered": 372,
+      "percent": 78.6
+    },
     "internal/testutil/fakeeleven": {
-      "statements": 287,
-      "covered": 235,
-      "percent": 81.9
+      "statements": 560,
+      "covered": 456,
+      "percent": 81.4
+    },
+    "internal/testutil/fakeheygen": {
+      "statements": 244,
+      "covered": 208,
+      "percent": 85.2
+    },
+    "internal/testutil/fakerclone": {
+      "statements": 222,
+      "covered": 166,
+      "percent": 74.8
+    },
+    "internal/testutil/fakesync": {
+      "statements": 150,
+      "covered": 123,
+      "percent": 82
     },
     "internal/testutil/faketailscale": {
       "statements": 124,
       "covered": 90,
       "percent": 72.6
     },
+    "internal/testutil/fakevertex": {
+      "statements": 158,
+      "covered": 133,
+      "percent": 84.2
+    },
     "internal/testutil/fakevideogen": {
-      "statements": 407,
-      "covered": 314,
-      "percent": 77.1
+      "statements": 606,
+      "covered": 484,
+      "percent": 79.9
+    },
+    "internal/testutil/fakeyoutube": {
+      "statements": 164,
+      "covered": 131,
+      "percent": 79.9
     },
     "internal/testutil/fakeytdlp": {
       "statements": 222,
@@ -338,9 +498,9 @@
       "percent": 91.4
     },
     "internal/textalign": {
-      "statements": 247,
-      "covered": 224,
-      "percent": 90.7
+      "statements": 263,
+      "covered": 239,
+      "percent": 90.9
     },
     "internal/todos": {
       "statements": 304,
@@ -348,19 +508,19 @@
       "percent": 85.2
     },
     "internal/tools": {
-      "statements": 297,
-      "covered": 251,
-      "percent": 84.5
+      "statements": 474,
+      "covered": 398,
+      "percent": 84
     },
     "internal/transcribe": {
-      "statements": 1076,
-      "covered": 874,
-      "percent": 81.2
+      "statements": 1307,
+      "covered": 1092,
+      "percent": 83.6
     },
     "internal/transcripts": {
-      "statements": 1638,
-      "covered": 1326,
-      "percent": 81
+      "statements": 1864,
+      "covered": 1532,
+      "percent": 82.2
     },
     "internal/uploads": {
       "statements": 216,
@@ -373,34 +533,34 @@
       "percent": 97.1
     },
     "internal/videogen": {
-      "statements": 730,
-      "covered": 579,
-      "percent": 79.3
+      "statements": 986,
+      "covered": 778,
+      "percent": 78.9
     },
     "internal/vision": {
-      "statements": 178,
-      "covered": 115,
-      "percent": 64.6
+      "statements": 180,
+      "covered": 120,
+      "percent": 66.7
     },
     "internal/visual": {
       "statements": 1130,
-      "covered": 981,
-      "percent": 86.8
+      "covered": 985,
+      "percent": 87.2
     },
     "internal/voice": {
       "statements": 703,
-      "covered": 633,
-      "percent": 90
+      "covered": 635,
+      "percent": 90.3
     },
     "internal/voiceover": {
-      "statements": 2646,
-      "covered": 1996,
-      "percent": 75.4
+      "statements": 2661,
+      "covered": 2013,
+      "percent": 75.6
     },
     "internal/worker": {
-      "statements": 1492,
-      "covered": 1191,
-      "percent": 79.8
+      "statements": 1648,
+      "covered": 1339,
+      "percent": 81.3
     }
   }
 }

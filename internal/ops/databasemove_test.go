@@ -503,7 +503,7 @@ func TestDatabaseMoveKeepsClientsRules(t *testing.T) {
 	if _, err := ops.CallTyped[leave.LeaveOut](ctx, a, "content.leave.set", leave.LeaveSetIn{ProjectID: w.project, Keep: map[string][]string{"storage": {"words"}}}, ops.Caller{Human: true}); err != nil {
 		t.Fatal(err)
 	}
-	if err := ops.SaveMoveAddress(a.Cfg, "mongodb+srv://maya:not-a-real-password@cluster0.example.mongodb.net/"); err != nil { // secret-scan: allow (a made-up address)
+	if err := ops.SaveMoveAddress(a.Cfg, "mongodb+srv://cluster0.example.mongodb.net/"); err != nil {
 		t.Fatal(err)
 	}
 	target := ops.DatabaseTargetIn{To: ops.MoveToSaved, Name: "studio"}

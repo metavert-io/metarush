@@ -142,7 +142,15 @@ echo "== a run that an unset variable stops (set -u)"
 "$WORK/run.sh" unset > "$WORK/unset.out" 2>&1; code=$?
 base="$(field base "$WORK/unset.out")"; state="$(field state "$WORK/unset.out")"
 check "it failed, though bash $(bash -c 'echo $BASH_VERSION') may report 0 into its exit handler" '[ "$code" != 0 ] && grep -q "unbound variable" "$WORK/unset.out" && grep -q "own cleanup ran (1)" "$WORK/unset.out"'
-check "and said why" 'grep -q "ended without reaching an exit" "$WORK/unset.out"'
+# What this bash tells an EXIT trap after such a stop: macOS's 3.2 says 0 (the library then says
+# why), bash 4 and later say 1 themselves (Linux), and bash's own "unbound variable" line is why.
+printf '#!/usr/bin/env bash\nset -euo pipefail\ntrap '\''echo "$?"'\'' EXIT\necho "$NOT_SET_ANYWHERE"\n' > "$WORK/probe.sh"
+chmod +x "$WORK/probe.sh"
+if [ "$("$WORK/probe.sh" 2>/dev/null)" = 0 ]; then
+  check "and said why (this bash reports 0 to the exit handler)" 'grep -q "ended without reaching an exit" "$WORK/unset.out"'
+else
+  check "and said why (this bash reports the stop itself)" 'grep -q "unbound variable" "$WORK/unset.out" && ! grep -q "own cleanup ran (0)" "$WORK/unset.out"'
+fi
 check "everything it started was stopped" 'eventually 60 all_stopped "$WORK/unset.out"'
 check "its folder is kept for a look, and its record says it failed" '[ -d "$base" ] && grep -q "^failed " "$state/result"'
 

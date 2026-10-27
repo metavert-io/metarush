@@ -19,6 +19,7 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/leave"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
@@ -1107,3 +1108,46 @@ func refusedMoving(err error) bool {
 	e := apperr.From(err)
 	return e != nil && e.Code == apperr.Moving
 }
+
+// A worker whose clock is two minutes slow, moving the media, still counts
+// as moving it: a lease ends by the database server's time, whoever wrote it,
+// and its heartbeats keep it so.
+func TestDatabasePlanSeesASlowWorkersMediaMove(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a, b := w.a, w.b
+	ctx := context.Background()
+	old := jobs.Clock
+	jobs.Clock = func() time.Time { return old().Add(-2 * time.Minute) }
+	defer func() { jobs.Clock = old }()
+	wk := jobs.Worker{ID: b.Cfg.Installation.ID, Name: "Edit laptop", JobTypes: []string{jobs.TypeStorageMove}}
+	j, err := b.Queue.Start(ctx, jobs.EnqueueOptions{Type: jobs.TypeStorageMove, Installation: b.Cfg.Installation.ID}, wk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := func() string {
+		t.Helper()
+		if err := ops.SaveMoveAddress(a.Cfg, testutil.URI()); err != nil {
+			t.Fatal(err)
+		}
+		p, err := ops.CallTyped[ops.DatabasePlanOut](ctx, a, "database.plan", ops.DatabasePlanIn{DatabaseTargetIn: ops.DatabaseTargetIn{To: ops.MoveToSaved, Name: store.TestDBPrefix + "never-made"}}, ops.Caller{Human: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Join(p.Problems, " ")
+	}
+	if p := plan(); !strings.Contains(p, "The media is being moved on Edit laptop") {
+		t.Fatalf("a slow worker's media move: %s", p)
+	}
+	if _, err := b.Queue.Heartbeat(ctx, j, wk.ID, models.Progress{Message: "copying"}); err != nil {
+		t.Fatal(err)
+	}
+	if p := plan(); !strings.Contains(p, "The media is being moved on Edit laptop") {
+		t.Fatalf("after a heartbeat: %s", p)
+	}
+	// Another worker can't take the job over while its lease runs.
+	other := jobs.Worker{ID: a.Cfg.Installation.ID, Name: "Studio Mac", JobTypes: []string{jobs.TypeStorageMove}}
+	if got, err := a.Queue.LeaseByID(ctx, other, j.ID); err != nil || (got != nil && got.ID != "") {
+		t.Fatalf("taken over from a live lease: %+v %v", got, err)
+	}
+}
+

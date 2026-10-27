@@ -621,7 +621,7 @@ func moveTime(mv *DashboardMove) time.Time {
 // runningMoveJob is this machine's storage_move job that is running, if any.
 func runningMoveJob(ctx context.Context, a *app.App) *models.Job {
 	js, err := a.Queue.List(ctx, bson.M{"type": jobs.TypeStorageMove, "state": models.JobRunning, "installation": a.Cfg.Installation.ID,
-		"lease.expiresAt": bson.M{"$gte": time.Now().UTC()}}, 1)
+		"$expr": bson.M{"$gte": bson.A{"$lease.expiresAt", "$$NOW"}}}, 1) // the server's time, as leases are written
 	if err != nil || len(js) == 0 {
 		return nil
 	}

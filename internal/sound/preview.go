@@ -3,7 +3,6 @@ package sound
 import (
 	"context"
 	"strings"
-	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -74,6 +73,6 @@ func StudioReady(a *app.App) bool {
 // starts a second setup beside it.
 func SetupRunning(ctx context.Context, a *app.App) bool {
 	n, err := a.DB.C(store.CJobs).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "type": jobs.TypeVoiceover, "state": models.JobRunning,
-		"payload.action": ActionSetup, "lease.owner": a.Cfg.Installation.ID, "lease.expiresAt": bson.M{"$gt": time.Now().UTC()}})
+		"payload.action": ActionSetup, "lease.owner": a.Cfg.Installation.ID, "$expr": bson.M{"$gt": bson.A{"$lease.expiresAt", "$$NOW"}}})
 	return err == nil && n > 0
 }

@@ -1,0 +1,154 @@
+package ops_test
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+
+	"github.com/metavert-io/metarush/internal/app"
+	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/ops"
+	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/testutil/testapp"
+)
+
+type appCopy = app.App
+
+func archiveJSON(v any) json.RawMessage {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func exportCodeOf(err error) string {
+	c, _ := exportCode(err)
+	return c
+}
+
+func exportCode(err error) (code, reason string) {
+	ae := apperr.From(err)
+	if ae == nil {
+		return "", ""
+	}
+	if d, ok := ae.Details.(map[string]any); ok {
+		reason, _ = d["reason"].(string)
+	}
+	return ae.Code, reason
+}
+
+// Exporting the workspace is an owner's and a person's, every time: a member,
+// a call that isn't a person's, the dashboard's Claude, Auto, an AI app and
+// a review-desk draft are all refused. From the dashboard an owner's export
+// goes into MetaRush's own archives folder (never a path the browser names),
+// runs in the background, is listed with how far it is, and is recorded.
+func TestWorkspaceExportIsAnOwnersAndAPersons(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	ws := a.WorkspaceID()
+	if _, err := a.DB.C(store.CWorkspaces).InsertOne(ctx, bson.M{"_id": ws, "workspaceId": ws, "name": "FernBrook Studio",
+		"mediaStore": bson.M{"provider": a.Media.Name(), "locator": a.Media.Locator()}}); err != nil {
+		t.Fatal(err)
+	}
+	in := ops.WorkspaceExportIn{To: filepath.Join(t.TempDir(), "archive")}
+	// Not a person.
+	if _, err := ops.CallTyped[ops.WorkspaceExportOut](ctx, a, "workspace.export", in, ops.Caller{}); exportCodeOf(err) != apperr.HumanOnly {
+		t.Fatalf("not a person: %v", err)
+	}
+	// A member, over the dashboard.
+	member := ops.OverHTTP(ctx, func() bool { return false })
+	for _, name := range []string{"workspace.export", "workspace.exports"} {
+		var input any = in
+		if name == "workspace.exports" {
+			input = ops.WorkspaceExportsIn{}
+		}
+		_, err := ops.Call(member, a, name, archiveJSON(input), ops.Caller{Human: true, Remote: true})
+		if c, r := exportCode(err); c != apperr.Unauthorized || r != "owner_only" {
+			t.Fatalf("a member's %s: %v", name, err)
+		}
+	}
+	// Claude in the dashboard, Auto, an AI app, a propose-only app.
+	for what, change := range map[string]func(b *appCopy){
+		"the dashboard's Claude": func(b *appCopy) { b.Actor.Via = models.ViaAssistant },
+		"Auto":                   func(b *appCopy) { b.Actor.Via = "assistant-auto" },
+		"an AI app":              func(b *appCopy) { b.Actor.Agent = "codex" },
+		"a propose-only app":     func(b *appCopy) { b.ProposeOnly = true },
+	} {
+		b := *a
+		change(&b)
+		if _, err := ops.CallTyped[ops.WorkspaceExportOut](ctx, &b, "workspace.export", in, ops.Caller{Human: true}); err == nil {
+			t.Fatalf("%s exported the workspace", what)
+		}
+		if _, err := ops.CallTyped[ops.WorkspaceExportsOut](ctx, &b, "workspace.exports", ops.WorkspaceExportsIn{}, ops.Caller{Human: true}); err == nil {
+			t.Fatalf("%s listed the exports", what)
+		}
+	}
+	// The review desk keeps no draft of it.
+	b := *a
+	b.ProposeOnly = true
+	_, err := ops.CallTyped[ops.DraftView](ctx, &b, "draft.save", ops.DraftSaveIn{Op: "workspace.export", Input: archiveJSON(in)}, ops.Caller{})
+	if c, _ := exportCode(err); c != apperr.HumanOnly {
+		t.Fatalf("a draft of an export: %v", err)
+	}
+	// An owner in the dashboard: a path from the browser is refused; the
+	// plan and the export go into the archives folder.
+	owner := ops.OverHTTP(ctx, func() bool { return true })
+	dash := ops.Caller{Human: true, Remote: true}
+	if _, err := ops.Call(owner, a, "workspace.export", archiveJSON(in), dash); exportCodeOf(err) != apperr.InvalidInput {
+		t.Fatalf("a path from the browser: %v", err)
+	}
+	plan, err := ops.Call(owner, a, "workspace.export", archiveJSON(ops.WorkspaceExportIn{Plan: true}), dash)
+	if err != nil || plan.(*ops.WorkspaceExportOut).Plan == nil || !strings.Contains(plan.(*ops.WorkspaceExportOut).Plan.Path, ops.ArchivesFolder(a)) {
+		t.Fatalf("plan: %+v %v", plan, err)
+	}
+	if entries, _ := os.ReadDir(ops.ArchivesFolder(a)); len(entries) != 0 {
+		t.Fatalf("the plan wrote: %v", entries)
+	}
+	got, err := ops.Call(owner, a, "workspace.export", archiveJSON(ops.WorkspaceExportIn{Background: true}), dash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := got.(*ops.WorkspaceExportOut).Export
+	if started == nil || filepath.Dir(started.Path) != ops.ArchivesFolder(a) || !strings.HasSuffix(started.Name, ".tar") {
+		t.Fatalf("started: %+v", started)
+	}
+	var rec ops.ExportRecord
+	for deadline := time.Now().Add(2 * time.Minute); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		list, err := ops.Call(owner, a, "workspace.exports", archiveJSON(ops.WorkspaceExportsIn{}), dash)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := list.(*ops.WorkspaceExportsOut)
+		if len(out.Exports) == 1 && out.Exports[0].State != "running" {
+			rec = out.Exports[0]
+			if out.Restore == "" || out.Holds == "" {
+				t.Errorf("the words: %+v", out)
+			}
+			break
+		}
+	}
+	if rec.State != "done" || rec.Documents < 1 || !strings.HasPrefix(rec.Says, "The archive is ready") {
+		t.Fatalf("export: %+v", rec)
+	}
+	if info, err := os.Stat(rec.Path); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("archive: %v %v", info, err)
+	}
+	if info, _ := os.Stat(ops.ArchivesFolder(a)); info.Mode().Perm() != 0o700 {
+		t.Errorf("archives folder: %v", info.Mode().Perm())
+	}
+	a.Log.Flush(ctx)
+	if n, _ := a.DB.C(store.CAudit).CountDocuments(ctx, bson.M{"workspaceId": ws, "action": "workspace.export"}); n != 1 {
+		t.Errorf("the export in the change history: %d", n)
+	}
+	if n, _ := a.DB.C(store.CLogEntries).CountDocuments(ctx, bson.M{"workspaceId": ws, "op.name": "workspace.export"}); n < 2 {
+		t.Errorf("the exports in the activity log: %d", n)
+	}
+}

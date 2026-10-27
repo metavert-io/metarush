@@ -226,15 +226,19 @@ func workspaceExport(ctx context.Context, a *app.App, in *WorkspaceExportIn) (*W
 	now := time.Now().UTC()
 	rec := &ExportRecord{ID: ids.New("exp"), State: "running", Path: abs, Name: filepath.Base(abs), Media: media, Tar: tar, Workspace: a.WorkspaceID(),
 		By: a.Actor.UserName, StartedAt: now, UpdatedAt: now, PID: os.Getpid(), Says: "Starting the export."}
+	busy := apperr.New(apperr.Conflict, "An export is being made already on this computer.").WithHint("Wait for it to finish.")
+	for _, r := range listExports(a) { // another MetaRush on this computer making one
+		if r.State == "running" {
+			return nil, busy
+		}
+	}
 	exporting.Lock()
 	if exporting.running == nil {
 		exporting.running = map[string]bool{}
 	}
-	for _, r := range listExports(a) {
-		if r.State == "running" {
-			exporting.Unlock()
-			return nil, apperr.New(apperr.Conflict, "An export is being made already on this computer.").WithHint("Wait for it to finish.")
-		}
+	if len(exporting.running) > 0 {
+		exporting.Unlock()
+		return nil, busy
 	}
 	exporting.running[rec.ID] = true
 	exporting.Unlock()

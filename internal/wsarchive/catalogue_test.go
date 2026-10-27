@@ -109,4 +109,13 @@ func TestEveryCollectionIsClassified(t *testing.T) {
 	if got := len(wsarchive.Classify()); got != len(wsarchive.Catalogue) {
 		t.Fatalf("Classify lists %d of %d", got, len(wsarchive.Catalogue))
 	}
+	doc, err := os.ReadFile(filepath.Join("..", "..", "docs", "workspace-export.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range wsarchive.Classify() {
+		if !strings.Contains(string(doc), "| `"+c.Name+"` |") {
+			t.Errorf("docs/workspace-export.md's table doesn't say what an export does with %s", c.Name)
+		}
+	}
 }

@@ -174,12 +174,17 @@ func (s *storageFlags) media() (config.Media, string, error) {
 // address of another database may come on standard input, so a terminal on
 // standard input or standard error is enough.
 func personAtTerminal(c *cobra.Command, what string) error {
-	atTerminal := term.IsTerminal(int(os.Stdin.Fd())) || term.IsTerminal(int(os.Stderr.Fd()))
-	if agentAtTheKeys(c) || !atTerminal {
+	if agentAtTheKeys(c) || !atTerminal() {
 		return failErr(c, apperr.New(apperr.HumanOnly, "Only a person %s a workspace, at their own terminal: Claude, Auto and AI apps never do.", what).
 			WithHint("Run the command yourself in a terminal (the dashboard's Settings → Storage has Export too)."))
 	}
 	return nil
+}
+
+// atTerminal: standard input or standard error is a terminal (a variable so
+// tests can play a person at one).
+var atTerminal = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) || term.IsTerminal(int(os.Stderr.Fd()))
 }
 
 func workspaceArchiveCmds() []*cobra.Command {

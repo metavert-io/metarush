@@ -663,8 +663,10 @@ type DatabaseMoveStatusOut struct {
 	From      string     `json:"from,omitempty"`
 	StartedAt *time.Time `json:"startedAt,omitempty"`
 	MovedAt   *time.Time `json:"movedAt,omitempty"`
-	// Paused names the computers that paused for the move.
-	Paused []string `json:"paused,omitempty"`
+	// Paused names the computers that paused for the move; Running says the
+	// move itself still runs (on whichever computer started it).
+	Paused  []string `json:"paused,omitempty"`
+	Running bool     `json:"running"`
 	// SwitchMeToo: the workspace moved and this computer still uses the old
 	// database; CanSwitch: the new one is a database other computers reach.
 	SwitchMeToo bool `json:"switchMeToo"`
@@ -695,6 +697,7 @@ func DatabaseMoveStatus(ctx context.Context, a *app.App, _ *DatabaseMoveStatusIn
 		started := m.StartedAt
 		out.StartedAt, out.MovedAt = &started, m.MovedAt
 		out.Paused = pausedNames(ctx, a, m)
+		out.Running = moveAlive(m)
 	}
 	for _, r := range dbMoves(a) {
 		if r.State == DBMovePlanned {

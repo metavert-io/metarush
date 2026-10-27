@@ -154,6 +154,14 @@ func (d *DB) SetMoveState(ctx context.Context, move, from, to, by string) (bool,
 	return res.ModifiedCount == 1, nil
 }
 
+// MoveBeat says the move still runs (the marker's updatedAt): another
+// computer doesn't abandon a move that is running.
+func (d *DB) MoveBeat(ctx context.Context, move string) error {
+	_, err := d.C(CDatabaseMove).UpdateOne(ctx, bson.M{"_id": moveMarkerID, "move": move, "state": MoveMoving},
+		bson.M{"$set": bson.M{"updatedAt": time.Now().UTC()}})
+	return err
+}
+
 // MoveHolding records that a computer's MetaRush paused its changes for the
 // move (written only into the marker, which no move copies).
 func (d *DB) MoveHolding(ctx context.Context, move, installation string) error {

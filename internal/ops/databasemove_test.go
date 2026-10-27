@@ -397,8 +397,13 @@ func TestDatabaseMoveFreezesChanges(t *testing.T) {
 		}
 	}
 	st, err := ops.CallTyped[ops.DatabaseMoveStatusOut](ctx, b, "database.move.status", ops.DatabaseMoveStatusIn{}, ops.Caller{})
-	if err != nil || st.State != store.MoveMoving || !st.Frozen || st.SwitchMeToo {
+	if err != nil || st.State != store.MoveMoving || !st.Frozen || st.SwitchMeToo || !st.Running {
 		t.Fatalf("status during the move: %+v %v", st, err)
+	}
+	// Another computer doesn't abandon a move that runs.
+	_, err = ops.CallTyped[ops.DatabaseAbandonOut](ctx, b, "database.abandon", ops.DatabaseAbandonIn{}, ops.Caller{Human: true})
+	if c, r := codeAndReason(err); c != apperr.Conflict || r != "move_running" {
+		t.Fatalf("abandoned a running move from the laptop: %v", err)
 	}
 	// The laptop's MetaRush pauses (what its daemon does when it holds).
 	if _, err := ops.HoldForMove(ctx, b); err != nil {

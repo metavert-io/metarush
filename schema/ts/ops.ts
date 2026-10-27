@@ -17410,6 +17410,7 @@ from?: string
 startedAt?: string
 movedAt?: string
 paused?: string[]
+running: boolean
 switchMeToo: boolean
 canSwitch: boolean
 switchHere: boolean

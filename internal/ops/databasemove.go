@@ -821,6 +821,23 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 		a.SetMoveMarker(cur)
 		marker = cur
 	}
+	// The marker says the move runs while it does (no other computer
+	// abandons a running move).
+	beatCtx, stopBeat := context.WithCancel(context.WithoutCancel(ctx))
+	defer stopBeat()
+	_ = a.DB.MoveBeat(beatCtx, moveID)
+	go func() {
+		tk := time.NewTicker(moveBeatEvery)
+		defer tk.Stop()
+		for {
+			select {
+			case <-beatCtx.Done():
+				return
+			case <-tk.C:
+				_ = a.DB.MoveBeat(beatCtx, moveID)
+			}
+		}
+	}()
 	// 2. Every computer running MetaRush pauses; work that runs stops.
 	rec.phase(a, "pausing", "Waiting for every computer to pause its changes")
 	if err := waitQuiet(ctx, a, moveID, rec, say); err != nil {
@@ -918,6 +935,18 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 }
 
 var errAbandoned = errors.New("the move was abandoned")
+
+// A running move says so in its marker every moveBeatEvery; one that said so
+// within MoveAliveFor runs (another computer doesn't abandon it).
+var (
+	moveBeatEvery = 10 * time.Second
+	MoveAliveFor  = 45 * time.Second
+)
+
+// moveAlive reports whether a move's marker says it still runs.
+func moveAlive(m *store.MoveMarker) bool {
+	return m != nil && m.State == store.MoveMoving && time.Since(m.UpdatedAt) < MoveAliveFor
+}
 
 // switchFails, set by tests, makes a move's own switch fail after the old
 // database was marked moved.
@@ -1221,6 +1250,11 @@ func DatabaseAbandon(ctx context.Context, a *app.App, _ *DatabaseAbandonIn) (*Da
 	}
 	if moveRunsHere(a, m.Move) {
 		return nil, apperr.New(apperr.Conflict, "The move is still running on this computer.").WithHint("Stop it first (Ctrl-C in its terminal), or wait for it to finish.")
+	}
+	if m.From != a.Cfg.Installation.ID && moveAlive(m) {
+		return nil, apperr.New(apperr.Conflict, "The move is still running on %s.", firstNonEmpty(m.FromName, "another computer")).
+			WithHint("Stop it there first, or wait for it to finish; once it has stopped it can be abandoned from any computer.").
+			WithDetails(map[string]any{"reason": "move_running"})
 	}
 	ok, err := a.DB.SetMoveState(ctx, m.Move, store.MoveMoving, store.MoveAbandoned, firstNonEmpty(a.Actor.UserName, "a person"))
 	if err != nil {

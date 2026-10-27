@@ -200,9 +200,11 @@ function MoveState({ s, here, onContinue, onChanged }: { s: DatabaseMoveStatusOu
                 Continue the move
               </Button>
             ) : null}
-            <Button variant="secondary" size="sm" onClick={() => void doAbandon()} loading={abandon.isPending} data-database-abandon>
-              Abandon the move
-            </Button>
+            {!s.running || (run && (run.state === 'failed' || run.state === 'stopped')) ? (
+              <Button variant="secondary" size="sm" onClick={() => void doAbandon()} loading={abandon.isPending} data-database-abandon>
+                Abandon the move
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}

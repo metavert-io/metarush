@@ -17533,6 +17533,9 @@
           },
           "type": "array"
         },
+        "running": {
+          "type": "boolean"
+        },
         "switchMeToo": {
           "type": "boolean"
         },
@@ -17567,6 +17570,7 @@
         "this",
         "state",
         "frozen",
+        "running",
         "switchMeToo",
         "canSwitch",
         "switchHere",

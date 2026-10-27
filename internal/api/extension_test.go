@@ -19,6 +19,7 @@ import (
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/uploads"
 )
 
 const extOrigin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
@@ -229,6 +230,14 @@ func TestExtensionTokenScope(t *testing.T) {
 			t.Fatalf("the uploaded clip never arrived: %v", err)
 		}
 		time.Sleep(200 * time.Millisecond)
+	}
+	// …and for the upload to say so: its received part is gone and its record
+	// written, so nothing of it is still being written when the test ends.
+	for rec, _ := d.srv.uploads.st.Get(u.ID); rec.State != uploads.StateDone; rec, _ = d.srv.uploads.st.Get(u.ID) {
+		if rec.State == uploads.StateFailed || time.Now().After(deadline) {
+			t.Fatalf("the upload: %+v", rec)
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	s := as.Source
 	if s.Platform != "youtube" || s.URL != "https://www.youtube.com/watch?v=aqz-KE-bpKQ" || s.Handle != "@BlenderOfficial" || s.Method != models.SourceRecording ||

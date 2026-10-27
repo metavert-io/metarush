@@ -817,7 +817,11 @@ except Exception as e:
 
 // TestOpenNetwork: an open network is any public host, still through
 // MetaRush: not this computer's other ports (the database, the dashboard),
-// and nothing listens (review 7).
+// and nothing listens where anyone could reach it (review 7). On a Mac the
+// profile refuses listening outright. On Linux the program has a network of
+// its own (bubblewrap's --unshare-all) with nothing in it but its own
+// loopback: it may listen there, and the test then knocks from this
+// computer to prove nobody outside can reach what it opened.
 func TestOpenNetwork(t *testing.T) {
 	ts := tools.New(config.Tools{})
 	iso := Here(ts)
@@ -862,28 +866,92 @@ func TestOpenNetwork(t *testing.T) {
 		r.Self, _ = os.Executable()
 	}
 	port := local.Addr().(*net.TCPAddr).Port
-	tool, argv, err := r.Command(iso.Kind, py, []string{"-c", `import socket, sys, urllib.request
+	// A program that manages to listen writes its port in its room, answers
+	// whoever connects with a word of its own, and waits until this computer
+	// has knocked (or 30 s).
+	portFile, knocked := filepath.Join(root, "listening-port"), filepath.Join(root, "knocked")
+	tool, argv, err := r.Command(iso.Kind, py, []string{"-c", `import os, socket, sys, time, urllib.request
 print("public:", urllib.request.urlopen("https://anything.example.test/echo", timeout=20).status)
 try:
     socket.create_connection(("127.0.0.1", int(sys.argv[1])), timeout=3); print("LOCAL-REACHED")
 except Exception as e:
     print("local refused")
 try:
-    s = socket.socket(); s.bind(("0.0.0.0", 0)); s.listen(1); print("LISTENING")
+    s = socket.socket(); s.bind(("0.0.0.0", 0)); s.listen(1)
 except Exception as e:
-    print("listen refused")
-`, strconv.Itoa(port)})
+    print("listen refused"); sys.exit(0)
+print("LISTENING", flush=True)
+open(sys.argv[2] + ".part", "w").write(str(s.getsockname()[1])); os.rename(sys.argv[2] + ".part", sys.argv[2])
+s.settimeout(0.2)
+end = time.time() + 30
+while time.time() < end and not os.path.exists(sys.argv[3]):
+    try:
+        c, _ = s.accept(); c.sendall(b"SANDBOXED-LISTENER\n"); c.close(); print("ACCEPTED", flush=True)
+    except socket.timeout:
+        pass
+`, strconv.Itoa(port), portFile, knocked})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// From this computer, outside the sandbox: knock on the port it listens on.
+	ctx, stop := context.WithCancel(context.Background())
+	type knock struct {
+		tried   bool
+		reached string
+	}
+	knockDone := make(chan knock, 1)
+	go func() {
+		var k knock
+		defer func() { knockDone <- k }()
+		var lport string
+		for lport == "" {
+			if b, err := os.ReadFile(portFile); err == nil {
+				lport = strings.TrimSpace(string(b))
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(50 * time.Millisecond):
+			}
+		}
+		k.tried = true
+		for _, host := range []string{"127.0.0.1", "localhost"} {
+			c, err := net.DialTimeout("tcp", net.JoinHostPort(host, lport), 2*time.Second)
+			if err != nil {
+				continue
+			}
+			_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+			b, _ := io.ReadAll(io.LimitReader(c, 64))
+			_ = c.Close()
+			if strings.Contains(string(b), "SANDBOXED-LISTENER") {
+				k.reached = host
+			}
+		}
+		_ = os.WriteFile(knocked, nil, 0o600)
+	}()
 	env := append(BaseEnv(nil, filepath.Join(root, "home"), filepath.Join(root, "tmp")), ProxyEnv(p.URL(), ca, preload, pyDir)...)
 	res, err := ts.Run(context.Background(), tools.Spec{Tool: tool, Args: argv, Dir: root, CleanEnv: true, Env: env, Contained: true})
+	stop()
+	k := <-knockDone
 	out := ""
 	if res != nil {
 		out = string(res.Stdout) + string(res.Stderr)
 	}
-	if err != nil || !strings.Contains(out, "public: 200") || strings.Contains(out, "LOCAL-REACHED") || strings.Contains(out, "LISTENING") {
+	if err != nil || !strings.Contains(out, "public: 200") || strings.Contains(out, "LOCAL-REACHED") {
 		t.Fatalf("%v\n%s", err, out)
+	}
+	switch {
+	case !strings.Contains(out, "LISTENING"):
+		if !strings.Contains(out, "listen refused") {
+			t.Fatalf("it neither listened nor was refused:\n%s", out)
+		}
+	case iso.Kind != Linux:
+		t.Fatalf("a program listened in the %s sandbox:\n%s", iso.Kind, out)
+	case !k.tried:
+		t.Fatalf("it listened, and this computer never knocked:\n%s", out)
+	case k.reached != "" || strings.Contains(out, "ACCEPTED"):
+		t.Fatalf("a program listening in its sandbox was reached from this computer (%s):\n%s", k.reached, out)
 	}
 }
 

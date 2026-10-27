@@ -239,10 +239,17 @@ func TestDetection(t *testing.T) {
 	if !e.Ready(ctx, "ffmpeg") {
 		t.Fatal("ffmpeg and ffprobe aren't found")
 	}
-	st := e.StateOf(ctx, ffmpeg)
-	if st.Status != StatusReady || st.Command != "metarush components add ffmpeg" {
-		t.Fatalf("state: %+v", st)
+	// What it says next depends on the system, not on the computer the test
+	// runs on: a Mac without Homebrew downloads it, Linux leaves it to a person.
+	e.GOOS, e.GOARCH = "darwin", "arm64"
+	if st := e.StateOf(ctx, ffmpeg); st.Status != StatusReady || st.How != HowDownload || st.Command != "metarush components add ffmpeg" {
+		t.Fatalf("state on a Mac: %+v", st)
 	}
+	e.GOOS, e.GOARCH = "linux", "amd64"
+	if st := e.StateOf(ctx, ffmpeg); st.Status != StatusReady || st.How != HowYourself || !strings.HasPrefix(st.Command, "sudo apt install ffmpeg") {
+		t.Fatalf("state on Linux: %+v", st)
+	}
+	e.GOOS, e.GOARCH = "", ""
 	program(t, bin, "node", "v16.20.0")
 	e.Tools.Rescan(e.Cfg.Tools)
 	node, _ := Get("node")

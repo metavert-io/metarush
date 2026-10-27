@@ -229,7 +229,7 @@ killed when it ends or runs out of time (`tools.Spec.Contained`). The environmen
 |---|---|
 | off | nothing, not even this computer's loopback |
 | MetaRush's network (`proxy`) | only MetaRush's proxy for this run, which forwards HTTP and HTTPS to the hosts the ability declared |
-| open | any public host over HTTP(S), still through the run's proxy, never this computer or a local network, never listening, no keys; a separate approval only an owner gives |
+| open | any public host over HTTP(S), still through the run's proxy, never this computer or a local network, never listening where anyone can reach it (Linux: only inside its own network, see below), no keys; a separate approval only an owner gives |
 | one local service | MetaRush's network, plus plain HTTP to the one port of this computer's loopback an owner agreed to, through the same proxy; nothing else on this computer |
 
 A client's What may leave rules refuse a run's hosts, request by request, never its one local service: what
@@ -279,8 +279,10 @@ the manifest names; expect HTTP/1.1 from the proxy (it speaks HTTP/2 to the host
 
 ### Linux (bubblewrap)
 
-**Not yet measured on Linux.** The `sandbox-linux` job in `.github/workflows/ci.yml` runs the package there; until it
-has, everything below is the design and what Ubuntu is known to do, not a measurement.
+**Measured on GitHub's Ubuntu 24.04 runner** (27 Oct 2026; kernel 6.17, bubblewrap 0.9.0) by the `sandbox-linux` job in
+`.github/workflows/ci.yml`: as the runner comes, bubblewrap can't make a sandbox (below); with MetaRush's AppArmor
+profile it can; with the limit lifted every test in `internal/sandbox` passes. Other distributions are the design and
+what they are known to do, not a measurement.
 
 How it works: bubblewrap with every namespace its own (`--unshare-all`), only the system's folders mounted read-only,
 the program's installation read-only, the room read-write, a fresh `/dev`, `/proc` and `/tmp`, and nothing of the
@@ -289,7 +291,9 @@ proxy also listens on a socket file in the room, and MetaRush's own binary runs 
 (`metarush sandbox-forward`, handled before anything else starts): it listens on `127.0.0.1:<the proxy's port>`
 inside the sandbox's own network, passes each connection to that socket, then runs the program. So the program sees the
 same proxy address as on a Mac and has no other way out. An open network goes the same way (the proxy then takes any
-public host); bubblewrap never shares the computer's network with an ability.
+public host); bubblewrap never shares the computer's network with an ability. Unlike a Mac's sandbox, which refuses
+listening outright, a program in bubblewrap can listen: only inside its own network, which holds nothing but its own
+loopback, so nothing on the computer or beyond can connect to it (`TestOpenNetwork` knocks from outside to check).
 
 **Finding: Ubuntu's AppArmor limits user namespaces.** Since Ubuntu 23.10 (and in 24.04 LTS, which GitHub's
 `ubuntu-latest` runners use) `kernel.apparmor_restrict_unprivileged_userns=1`: a program may make a user namespace
@@ -320,8 +324,8 @@ it. Details carry what bubblewrap said and the fix:
 - or lift the limit for every program: `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` (and a line
   in `/etc/sysctl.d/` to keep it). This is wider than needed.
 
-Remotion refreshes say the same through the same helper. Whether the profile alone is enough on GitHub's runners is
-one of the things the CI job records.
+Remotion refreshes say the same through the same helper. On GitHub's Ubuntu 24.04 runner the profile alone is enough
+for bubblewrap to run (the CI job's second step); the tests themselves run with the limit lifted.
 
 ### Tests
 

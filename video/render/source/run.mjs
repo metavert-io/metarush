@@ -296,7 +296,7 @@ const main = async () => {
     if (l.type === 'error') log(`[browser ${l.type}] ${String(l.text).slice(0, 500)}`);
   };
   process.chdir(envDir); // Remotion finds its browser next to the nearest package.json
-  const chromiumOptions = { gl: process.env.METARUSH_REMOTION_GL || 'angle', enableMultiProcessOnLinux: true };
+  const chromiumOptions = { gl: process.env.METARUSH_REMOTION_GL || (process.platform === 'linux' ? 'swangle' : 'angle'), enableMultiProcessOnLinux: true };
   const browser = await renderer.openBrowser('chrome', { chromiumOptions, logLevel: 'warn' });
   if (!chromeWasJailed()) {
     await browser.close({ silent: true }).catch(() => {});

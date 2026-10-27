@@ -24,7 +24,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
 export PATH="${METARUSH_TOOLCHAIN_PATH:+$METARUSH_TOOLCHAIN_PATH:}$PATH:/opt/homebrew/bin:/usr/local/bin"   # Go and Node: PATH, else Homebrew
 PORT="${METARUSH_REMOTION_E2E_PORT:-5315}"
-H="${METARUSH_REMOTION_E2E_HOME:-$(mktemp -d -t remotion-e2e)/home}"; DB="metarush-test-remotion$(date +%s)"
+H="${METARUSH_REMOTION_E2E_HOME:-$(mktemp -d "${TMPDIR:-/tmp}/remotion-e2e-XXXXXX")/home}"; DB="metarush-test-remotion$(date +%s)"
 URI="$(scripts/dev-mongo.sh start)"
 SRV=""
 cleanup() {

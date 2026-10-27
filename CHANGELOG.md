@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- **Videos render on Linux computers without a graphics card**. Review copies there are encoded in software and
+  drawn with Chrome's software renderer; they used to fail on Linux machines without an NVIDIA GPU (macOS is
+  unchanged).
 - **Move the workspace's database, checked before anything switches**. Settings → Storage → **Move the database**
   (owners) or `metarush database plan|move --to here|address` moves your projects, versions, transcripts and notes to
   the database on this computer, or to MongoDB Atlas or your own server. The plan says what moves and how long it

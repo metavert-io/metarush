@@ -7,7 +7,8 @@ name: browser
 #
 # Mac-only (not here): every run that needs tests/fixtures/gen (made with macOS `say`: cards, generate,
 # library, people, resources, sound, sources, storage, transcript, voiceover, voiceover-live, and acceptance)
-# and remote (its spoofing check sends from fe80::1%lo0; lo0 is macOS's loopback). docs/testing.md lists why.
+# remote (its spoofing check sends from fe80::1%lo0; lo0 is macOS's loopback) and presenters (a presenter reads
+# only sound MetaRush has listened to, which needs a recognizer on the computer). docs/testing.md lists why.
 on:
   schedule:
     - cron: "23 4 * * *" # nightly, 04:23 UTC
@@ -30,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [about, accounts, components, content, keep, playback, presenters, recipes, recorder, remotion, review-desk]
+        suite: [about, abilities, accounts, catalogue, components, content, keep, playback, recipes, recorder, remotion, review-desk, windows]
     steps:
       - name: chosen?
         id: chosen
@@ -47,29 +48,44 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.chosen.outputs.run
         with: { node-version: 22 }
-      - name: ffmpeg, and where the run keeps its files
+      # Ubuntu's mirror is sometimes very slow (scripts/ci-apt.sh): the package files an earlier run kept.
+      - id: apt-cache
+        if: steps.chosen.outputs.run
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with: { path: ~/apt-debs, key: apt-debs-, restore-keys: apt-debs- }
+      - name: ffmpeg, bubblewrap, and where the run keeps its files
         if: steps.chosen.outputs.run
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg
-          mkdir -p "$RUNNER_TEMP/e2e" "$RUNNER_TEMP/e2e-runs"
-          echo "TMPDIR=$RUNNER_TEMP/e2e/" >> "$GITHUB_ENV"
+          scripts/ci-apt.sh install ffmpeg bubblewrap
+          # A Remotion refresh runs in bubblewrap (D174); Ubuntu's AppArmor stops unprivileged user namespaces
+          # unless this is off, and MetaRush then refuses to plan one (remotion-e2e's refresh steps).
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          # The runs' temp folder outside the home folder (RUNNER_TEMP is inside the runner's home): an ability's
+          # sandbox hides the home and refuses a room inside it, as on any computer.
+          mkdir -p /tmp/e2e "$RUNNER_TEMP/e2e-runs"
+          echo "TMPDIR=/tmp/e2e/" >> "$GITHUB_ENV"
           echo "METARUSH_E2E_RUNS=$RUNNER_TEMP/e2e-runs" >> "$GITHUB_ENV"
           echo "COVERAGE=1" >> "$GITHUB_ENV"
       - name: MongoDB as a one-member replica set (the dashboard's live updates need one)
         if: steps.chosen.outputs.run
-        run: |
-          docker run -d --name mongo -p 27018:27017 mongo:8.0 --replSet rs0 --bind_ip_all
-          for _ in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.runCommand({ping:1}).ok' 2>/dev/null | grep -q 1 && break; sleep 1; done
-          docker exec mongo mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
-          for _ in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -q true && break; sleep 1; done
+        run: scripts/ci-mongo.sh start
       - name: packages and Chromium
         if: steps.chosen.outputs.run
         run: |
           npm ci
           npx playwright install --with-deps chromium
+      - id: apt
+        if: steps.chosen.outputs.run
+        run: scripts/ci-apt.sh keep
+      - if: steps.chosen.outputs.run && steps.apt.outputs.key != steps.apt-cache.outputs.cache-matched-key
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with: { path: ~/apt-debs, key: "${{ steps.apt.outputs.key }}" }
       - name: scripts/${{ matrix.suite }}-e2e.sh
         if: steps.chosen.outputs.run
         run: scripts/${{ matrix.suite }}-e2e.sh
+      - name: what became of MongoDB (after a failure)
+        if: failure() && steps.chosen.outputs.run
+        run: scripts/ci-mongo.sh report
       - name: coverage (Go, from every program the run started)
         if: always() && steps.chosen.outputs.run
         run: scripts/coverage.sh --no-check || true
@@ -99,7 +115,7 @@ jobs:
         with:
           name: browser-${{ matrix.suite }}
           path: |
-            ${{ runner.temp }}/e2e
+            /tmp/e2e
             ${{ runner.temp }}/e2e-runs
             .agent-home
             tests/out

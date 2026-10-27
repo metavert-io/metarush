@@ -52,19 +52,25 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with: { go-version: "1.27" }
+      # Ubuntu's mirror is sometimes very slow (scripts/ci-apt.sh): the package files an earlier run kept.
+      - id: apt-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with: { path: ~/apt-debs, key: apt-debs-, restore-keys: apt-debs- }
       # bubblewrap: the abilities' sandbox on Linux (D232). Ubuntu's AppArmor blocks the user
       # namespaces it needs unless the limit is lifted (docs/abilities.md, Linux).
-      - run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg bubblewrap
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
-      # Like the dev database (scripts/dev-mongo.sh): the dashboard's live updates are
-      # change streams, which a standalone server doesn't have.
-      - name: MongoDB as a one-member replica set
+      - name: ffmpeg and bubblewrap
         run: |
-          docker run -d --name mongo -p 27018:27017 mongo:8.0 --replSet rs0 --bind_ip_all
-          for _ in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.runCommand({ping:1}).ok' 2>/dev/null | grep -q 1 && break; sleep 1; done
-          docker exec mongo mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
-          for _ in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -q true && break; sleep 1; done
+          scripts/ci-apt.sh install ffmpeg bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - id: apt
+        run: scripts/ci-apt.sh keep
+      - if: steps.apt.outputs.key != steps.apt-cache.outputs.cache-matched-key
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with: { path: ~/apt-debs, key: "${{ steps.apt.outputs.key }}" }
+      # Like the dev database (scripts/dev-mongo.sh): a replica set, as the dashboard's live updates
+      # are change streams, with the dev one's settings for many test databases at once.
+      - name: MongoDB as a one-member replica set
+        run: scripts/ci-mongo.sh start
       - name: test (with coverage)
         env:
           METARUSH_TEST_MONGODB_URI: mongodb://127.0.0.1:27018/?directConnection=true
@@ -72,6 +78,9 @@ jobs:
         # 45 minutes: under load internal/ops has come close to 30 on a Mac (Oct 2026).
         run: |
           go test -timeout 45m -coverpkg=./internal/... -coverprofile=go-unit.raw.cov $(scripts/ci-go-packages.sh ${{ matrix.group }})
+      - name: what became of MongoDB (after a failure)
+        if: failure()
+        run: scripts/ci-mongo.sh report
       - name: coverage profile (each block once)
         if: always()
         run: |

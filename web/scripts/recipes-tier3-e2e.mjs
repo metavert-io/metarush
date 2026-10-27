@@ -229,7 +229,10 @@ try {
   const v = Number(new URL(page.url()).searchParams.get('version'));
   const after = await api(page, 'recipe.show', { recipe: RECIPE, version: String(v) });
   check('S: Save as a draft opens the draft; runs keep making the current version', after.version.state === 'draft' && after.recipe.current === before.recipe.current && /Suggested from runs/.test(after.version.note ?? ''), `version ${v} ${after.version.state}, current ${after.recipe.current}`);
-  check('S: the draft’s banner offers Make current… (a person’s)', (await page.locator(`[data-version-banner] [data-make-current="${v}"]`).count()) === 1);
+  // The banner comes with the draft's page, a moment after its address (a slower computer takes longer).
+  const makeCurrent = page.locator(`[data-version-banner] [data-make-current="${v}"]`);
+  await makeCurrent.first().waitFor({ timeout: 20_000 }).catch(() => {});
+  check('S: the draft’s banner offers Make current… (a person’s)', (await makeCurrent.count()) === 1);
   await shot(page, 'S-draft-desktop-dark');
 
   /* ---------- T: planning by itself (D218) ---------- */

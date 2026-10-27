@@ -31,7 +31,6 @@ cleanup() {
   fi
   [ -n "$SRV" ] && kill "$SRV" 2>/dev/null || true
   go run ./scripts/droptestdb "$URI" "$DB" || true
-  rm -rf "$BASE"
 }
 trap cleanup EXIT
 . scripts/lib/e2e.sh && e2e_run "$DB" "$BASE"  # D194: stops what the run started, drops its database, removes its folder when it passes

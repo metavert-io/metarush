@@ -128,7 +128,12 @@ const main = async () => {
   // Hardware encoders cannot honor CRF. With an explicit --crf, Remotion falls
   // back to software (x264) even when --hwaccel if-possible is set; without one
   // we give VideoToolbox a bitrate scaled to the frame size instead.
-  const useHw = hwaccel === 'if-possible' && !crfGiven;
+  // Hardware means VideoToolbox, on macOS. On Linux Remotion's "if-possible"
+  // picks NVENC without checking for an NVIDIA GPU, and FFmpeg then quits
+  // ("Cannot load libcuda.so.1"), so Linux encodes in software unless
+  // METARUSH_REMOTION_HWACCEL=1 says this host has one.
+  const hwHere = process.platform === 'darwin' || process.env.METARUSH_REMOTION_HWACCEL === '1';
+  const useHw = hwaccel === 'if-possible' && !crfGiven && hwHere;
   const bitrate = useHw
     ? `${Math.max(4, Math.round((plan.width * plan.height * scale * scale * plan.fps * 0.18) / 1e6))}M`
     : null;

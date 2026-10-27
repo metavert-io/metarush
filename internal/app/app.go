@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"os"
 	"os/user"
 	"strings"
@@ -155,8 +156,12 @@ func OpenWith(ctx context.Context, cfg *config.Config, via string) (*App, error)
 	}
 	// A database a move keeps changes out of (D335) refuses this process's
 	// writes from the start and while it runs: the DB looks at the marker
-	// about every second.
+	// about every second. Before its first change, this process records the
+	// MetaRush it runs on its computer's record, whichever process it is (a
+	// command, an AI app's connection, the daemon): a move asks every
+	// computer's record whether it knows about moves.
 	db.WatchMoves(cfg.Installation.ID)
+	db.OnFirstWrite(a.sayBuild)
 	a.openLog()
 	return a, nil
 }
@@ -235,6 +240,17 @@ func (a *App) TouchInstallation(ctx context.Context) {
 	_ = a.DB.Update(ctx, store.CInstallations, a.WorkspaceID(), a.Cfg.Installation.ID, map[string]any{"$set": map[string]any{
 		"version": b.Version, "commit": b.Commit, "built": b.Date, "knowsMoves": MovesMark(b.Version, b.Commit)},
 		"$currentDate": map[string]any{"lastSeenAt": true}})
+}
+
+// sayBuild records this build on the installation's record, once per
+// connection (OnFirstWrite; a record made later is setup's to fill).
+func (a *App) sayBuild(ctx context.Context) {
+	if a.ReadOnly {
+		return
+	}
+	b := version.Current()
+	_, _ = a.DB.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": a.Cfg.Installation.ID, "workspaceId": a.WorkspaceID()},
+		bson.M{"$set": bson.M{"version": b.Version, "commit": b.Commit, "built": b.Date, "knowsMoves": MovesMark(b.Version, b.Commit)}})
 }
 
 // MovesMark is what a MetaRush that knows about moving the database records

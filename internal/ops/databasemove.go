@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
@@ -135,6 +136,40 @@ type DatabaseComputer struct {
 // in its record (app.MovesMark), which covers builds from source of an older
 // release number.
 const FirstMoveVersion = "0.15.0"
+
+// olderBuildLogged is the version of a MetaRush that doesn't know about
+// moves which wrote to the activity log from a computer after the build its
+// record names did ("" for none). An older MetaRush used only from a command
+// line (or an AI app's connection) never rewrites the record, but logs what
+// it does with its version. Entries are ordered by their own time, the
+// computer's own clock for both; a computer whose record's build never wrote
+// an entry tells nothing here.
+func olderBuildLogged(ctx context.Context, a *app.App, in models.Installation) string {
+	var newest struct {
+		At time.Time `bson:"at"`
+	}
+	opts := options.FindOne().SetSort(bson.D{{Key: "at", Value: -1}}).SetProjection(bson.M{"at": 1})
+	if err := a.DB.C(store.CLogEntries).FindOne(ctx, bson.M{"workspaceId": a.WorkspaceID(), "installationId": in.ID, "version": in.Version}, opts).Decode(&newest); err != nil {
+		return ""
+	}
+	var after []struct {
+		Version string `bson:"version"`
+	}
+	cur, err := a.DB.C(store.CLogEntries).Find(ctx, bson.M{"workspaceId": a.WorkspaceID(), "installationId": in.ID, "at": bson.M{"$gt": newest.At},
+		"version": bson.M{"$nin": bson.A{in.Version, ""}}}, options.Find().SetSort(bson.D{{Key: "at", Value: -1}}).SetLimit(200).SetProjection(bson.M{"version": 1}))
+	if err != nil {
+		return ""
+	}
+	if err := cur.All(ctx, &after); err != nil {
+		return ""
+	}
+	for _, e := range after {
+		if n, ok := version.Compare(e.Version, FirstMoveVersion); !ok || n < 0 {
+			return e.Version
+		}
+	}
+	return ""
+}
 
 // knowsMoves says whether a computer's record shows a MetaRush that knows
 // about moving the database, and if not, why in plain words.
@@ -756,6 +791,9 @@ func workspaceComputers(ctx context.Context, a *app.App) []DatabaseComputer {
 			seenThis, c.Version = true, version.Current().Version
 		} else if knows, why := knowsMoves(in, c.Name); !knows {
 			c.Older, c.why = true, why
+		} else if v := olderBuildLogged(ctx, a, in); v != "" {
+			c.Older, c.Version = true, v
+			c.why = fmt.Sprintf("%s ran MetaRush %s after a newer one (its activity log says so), and that one doesn't know about moving the database: started after the move, it would go on changing the old database. Remove it there, or update it, and open MetaRush once; or remove that computer from the workspace (metarush machine revoke %q), first.", c.Name, v, c.Name)
 		}
 		out = append(out, c)
 	}

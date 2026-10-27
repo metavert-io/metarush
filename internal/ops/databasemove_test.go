@@ -1151,3 +1151,65 @@ func TestDatabasePlanSeesASlowWorkersMediaMove(t *testing.T) {
 	}
 }
 
+// An older MetaRush used on a computer only from its command line (or an AI
+// app's connection) never rewrites that computer's record, so the record
+// still says the newer one: the plan also reads the activity log, and names
+// the computer when a build that doesn't know about moves wrote there after
+// the newer one did. A newer MetaRush records its build before its first
+// change, daemon or not.
+func TestDatabasePlanNamesAnOlderBuildSeenInTheLog(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a, b := w.a, w.b
+	ctx := context.Background()
+	cur := version.Current()
+	now := time.Now().UTC()
+	logged := func(v string, at time.Time) {
+		t.Helper()
+		if _, err := a.DB.C(store.CLogEntries).InsertOne(ctx, bson.M{"_id": ids.New("log"), "workspaceId": a.WorkspaceID(),
+			"installationId": b.Cfg.Installation.ID, "machine": "Edit laptop", "version": v, "at": at, "summary": "Sam renamed a clip"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	plan := func() string {
+		t.Helper()
+		if err := ops.SaveMoveAddress(a.Cfg, testutil.URI()); err != nil {
+			t.Fatal(err)
+		}
+		p, err := ops.CallTyped[ops.DatabasePlanOut](ctx, a, "database.plan", ops.DatabasePlanIn{DatabaseTargetIn: ops.DatabaseTargetIn{To: ops.MoveToSaved, Name: store.TestDBPrefix + "never-made"}}, ops.Caller{Human: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Join(p.Problems, " ")
+	}
+	logged("0.12.0", now.Add(-time.Hour)) // before the update: fine
+	logged(cur.Version, now.Add(-10*time.Minute))
+	if p := plan(); strings.Contains(p, "Edit laptop") {
+		t.Fatalf("an older build seen only before the newer one is named: %s", p)
+	}
+	logged("0.13.0", now.Add(-time.Minute))
+	if p := plan(); !strings.Contains(p, "Edit laptop") || !strings.Contains(p, "0.13.0") {
+		t.Fatalf("an older build seen after the newer one isn't named: %s", p)
+	}
+
+	// A newer MetaRush opened without its daemon records its build before
+	// its first change.
+	if _, err := a.DB.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": b.Cfg.Installation.ID},
+		bson.M{"$set": bson.M{"version": "0.13.0", "commit": "abc1234"}, "$unset": bson.M{"knowsMoves": ""}}); err != nil {
+		t.Fatal(err)
+	}
+	c, err := app.OpenWith(ctx, b.Cfg, "cli")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if _, err := c.DB.C(store.CComments).InsertOne(ctx, bson.M{"_id": ids.New("cmt"), "workspaceId": c.WorkspaceID(), "text": "Sam: from the terminal"}); err != nil {
+		t.Fatal(err)
+	}
+	var in models.Installation
+	if err := a.DB.C(store.CInstallations).FindOne(ctx, bson.M{"_id": b.Cfg.Installation.ID}).Decode(&in); err != nil {
+		t.Fatal(err)
+	}
+	if in.Version != cur.Version || in.KnowsMoves != app.MovesMark(cur.Version, cur.Commit) {
+		t.Fatalf("the terminal's MetaRush didn't record its build: %q %q", in.Version, in.KnowsMoves)
+	}
+}

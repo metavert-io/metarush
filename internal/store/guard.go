@@ -301,6 +301,7 @@ func (d *DB) guard(ctx context.Context, coll string) error {
 		return err
 	}
 	if !m.Frozen() {
+		d.sayFirst(ctx)
 		return nil
 	}
 	if p := passageOf(ctx); p != nil && m.State == MoveMoving && !m.Copying {

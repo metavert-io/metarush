@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -169,6 +170,22 @@ type DB struct {
 	// it (guard.go).
 	freeze *freeze
 	fzOnce sync.Once
+	// firstWrite runs once, before this connection's first write
+	// (OnFirstWrite); said is whether it ran.
+	firstWrite func(context.Context)
+	said       atomic.Bool
+}
+
+// OnFirstWrite runs fn once, before this connection's first write that goes
+// in (MetaRush records the build each process runs, D335).
+func (d *DB) OnFirstWrite(fn func(context.Context)) { d.firstWrite = fn }
+
+// sayFirst runs the first-write hook once (a write it makes doesn't run it
+// again).
+func (d *DB) sayFirst(ctx context.Context) {
+	if d.firstWrite != nil && d.said.CompareAndSwap(false, true) {
+		d.firstWrite(context.WithoutCancel(ctx))
+	}
 }
 
 // Connect opens a MongoDB connection and pings it.

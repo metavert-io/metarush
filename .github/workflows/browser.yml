@@ -60,8 +60,10 @@ jobs:
           # A Remotion refresh runs in bubblewrap (D174); Ubuntu's AppArmor stops unprivileged user namespaces
           # unless this is off, and MetaRush then refuses to plan one (remotion-e2e's refresh steps).
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
-          mkdir -p "$RUNNER_TEMP/e2e" "$RUNNER_TEMP/e2e-runs"
-          echo "TMPDIR=$RUNNER_TEMP/e2e/" >> "$GITHUB_ENV"
+          # The runs' temp folder outside the home folder (RUNNER_TEMP is inside /home/runner): an ability's
+          # sandbox hides the home and refuses a room inside it, as on any computer.
+          mkdir -p /tmp/e2e "$RUNNER_TEMP/e2e-runs"
+          echo "TMPDIR=/tmp/e2e/" >> "$GITHUB_ENV"
           echo "METARUSH_E2E_RUNS=$RUNNER_TEMP/e2e-runs" >> "$GITHUB_ENV"
           echo "COVERAGE=1" >> "$GITHUB_ENV"
       - name: MongoDB as a one-member replica set (the dashboard's live updates need one)
@@ -113,7 +115,7 @@ jobs:
         with:
           name: browser-${{ matrix.suite }}
           path: |
-            ${{ runner.temp }}/e2e
+            /tmp/e2e
             ${{ runner.temp }}/e2e-runs
             .agent-home
             tests/out

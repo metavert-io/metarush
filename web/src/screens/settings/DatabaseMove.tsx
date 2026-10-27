@@ -402,7 +402,7 @@ function MoveForm({ initial, onClose, onStarted }: { initial: DatabaseMoveForm; 
           <Field
             id={`${id}-addr`}
             label="Address"
-            hint="With a database user of this computer’s own (in Atlas: Connect → Drivers). Kept in this computer’s keychain; you won’t see it again, here or anywhere in MetaRush. Leave it empty to use the one you gave before."
+            hint="With a database user of this computer’s own (in Atlas: Connect → Drivers). Kept in this computer’s keychain while a move needs it; you won’t see it again, here or anywhere in MetaRush. Leave it empty to use the one this computer still keeps."
           >
             <AddressInput id={`${id}-addr`} value={address} onChange={(v) => setAddress(v)} label="address" />
           </Field>

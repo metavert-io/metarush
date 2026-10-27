@@ -99,6 +99,32 @@ func forgetMoveAddress(cfg *config.Config) {
 	_ = config.DeleteSecret(cfg.Home(), moveAddressName)
 }
 
+// ForgotAddressWords says this computer no longer keeps the new database's
+// address (forgetUnneededAddress).
+const ForgotAddressWords = "This computer no longer keeps the new database's address: give it again when you plan the move next."
+
+// forgetUnneededAddress forgets the new database's address once no move
+// needs it — after a plan that can't go ahead, a move refused or failed
+// before anything paused, an abandoned move — and says whether it did. A
+// move that stopped part-way keeps it (moving again continues with it), and
+// so does one that moved (this computer switches with it); so does the
+// sign-in MetaRush made for the database on this computer, which is this
+// computer's own.
+func forgetUnneededAddress(ctx context.Context, a *app.App) bool {
+	uri, err := LoadMoveAddress(a.Cfg)
+	if err != nil || uri == "" {
+		return false
+	}
+	if m, err := a.DB.ReadMoveMarker(ctx); err != nil || (m != nil && m.State != store.MoveAbandoned) {
+		return false
+	}
+	if st, ok := localdb.New(a.Cfg.Home(), 0, a.Tools).ReadState(); ok && localdb.New(a.Cfg.Home(), st.Port, a.Tools).Ours(uri, localdb.User) {
+		return false
+	}
+	forgetMoveAddress(a.Cfg)
+	return true
+}
+
 // checkAddress refuses what isn't a MongoDB address (without repeating it).
 func checkAddress(uri string) error {
 	u, err := url.Parse(uri)

@@ -490,7 +490,14 @@ func DatabasePlan(ctx context.Context, a *app.App, in *DatabasePlanIn) (*Databas
 		return nil, err
 	}
 	defer t.close()
-	return planMove(ctx, a, t)
+	out, err := planMove(ctx, a, t)
+	if err != nil || out.Ready || out.Nothing {
+		return out, err
+	}
+	if forgetUnneededAddress(ctx, a) {
+		out.Notes = append(out.Notes, ForgotAddressWords)
+	}
+	return out, nil
 }
 
 // RunningWithin is how recently MetaRush must have run on a computer for a
@@ -787,6 +794,12 @@ func DatabaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn) (*Databas
 	defer unlock()
 	rec := moveRecordFrom(ctx, a, in.DatabaseTargetIn)
 	out, err := databaseMove(ctx, a, in, rec, started)
+	if err != nil && forgetUnneededAddress(context.WithoutCancel(ctx), a) {
+		if e := apperr.From(err); e != nil {
+			e.Hint = strings.TrimSpace(e.Hint + " " + ForgotAddressWords)
+			err = e
+		}
+	}
 	rec.finish(a, out, err)
 	return out, err
 }
@@ -1402,8 +1415,9 @@ func DatabaseAbandon(ctx context.Context, a *app.App, _ *DatabaseAbandonIn) (*Da
 	cur, _ := a.DB.ReadMoveMarker(ctx)
 	a.SetMoveMarker(cur)
 	a.Audit(ctx, "database.abandon", "workspace", a.WorkspaceID(), "", map[string]any{"to": m.To.Words, "startedBy": m.By, "startedOn": m.FromName})
+	forgetUnneededAddress(ctx, a)
 	return &DatabaseAbandonOut{Abandoned: true, To: m.To.Words,
-		Summary: "Abandoned the move to " + m.To.Words + ": changes go on in this database on every computer. The copy keeps its lock, so nothing uses it; nothing was deleted."}, nil
+		Summary: "Abandoned the move to " + m.To.Words + ": changes go on in this database on every computer. The copy keeps its lock, so nothing uses it; nothing was deleted, and this computer no longer keeps the new database's address."}, nil
 }
 
 // scrubAddresses takes database addresses (and their sign-ins) out of text.

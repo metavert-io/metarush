@@ -531,6 +531,10 @@ func TestDatabaseMoveKeepsClientsRules(t *testing.T) {
 	if !strings.Contains(plan.KeptHere[0], "The workspace's database holds the transcripts") {
 		t.Fatalf("the plan doesn't say what the database holds: %q", plan.KeptHere[0])
 	}
+	// The plan can't go ahead, so it forgot the address: given again.
+	if err := ops.SaveMoveAddress(a.Cfg, "mongodb+srv://cluster0.example.mongodb.net/"); err != nil {
+		t.Fatal(err)
+	}
 	_, err = ops.CallTyped[ops.DatabaseMoveOut](ctx, a, "database.move", ops.DatabaseMoveIn{DatabaseTargetIn: target}, ops.Caller{Human: true})
 	if apperr.From(err).Code != apperr.KeptHere || refusals() != 1 {
 		t.Fatalf("move: %v (refusals %d)", err, refusals())
@@ -934,5 +938,68 @@ func TestDatabasePlanNamesComputersThatDontKnowAboutMoves(t *testing.T) {
 	}
 	if !strings.Contains(problems, "metarush machine revoke") {
 		t.Errorf("the plan doesn't say how to remove a computer:\n%s", problems)
+	}
+}
+
+// The new database's address stays on this computer only while a move needs
+// it: a plan that can go ahead keeps it for the move, and a move that stopped
+// part-way keeps it to continue; a plan that can't go ahead, a move refused
+// before anything paused, and an abandoned move forget it (and say so).
+func TestDatabaseMoveForgetsAnAddressNoMoveNeeds(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a := w.a
+	ctx := context.Background()
+	kept := func() bool {
+		u, _ := ops.LoadMoveAddress(a.Cfg)
+		return u != ""
+	}
+	save := func() {
+		t.Helper()
+		if err := ops.SaveMoveAddress(a.Cfg, testutil.URI()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dst := moveDB(t)
+	target := ops.DatabaseTargetIn{To: ops.MoveToSaved, Name: dst.Name}
+	plan := func() *ops.DatabasePlanOut {
+		t.Helper()
+		p, err := ops.CallTyped[ops.DatabasePlanOut](ctx, a, "database.plan", ops.DatabasePlanIn{DatabaseTargetIn: target}, ops.Caller{Human: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	save()
+	if p := plan(); !p.Ready || !kept() {
+		t.Fatalf("a plan that can go ahead: ready %v, kept %v (%v)", p.Ready, kept(), p.Problems)
+	}
+	old := models.Installation{ID: ids.New(ids.Installation), WorkspaceID: a.WorkspaceID(), Name: "Old iMac", Version: "0.13.0", CreatedAt: time.Now().UTC()}
+	if _, err := a.DB.C(store.CInstallations).InsertOne(ctx, old); err != nil {
+		t.Fatal(err)
+	}
+	if p := plan(); p.Ready || kept() || !strings.Contains(strings.Join(p.Notes, " "), "give it again") {
+		t.Fatalf("a plan that can't go ahead: ready %v, kept %v, notes %v", p.Ready, kept(), p.Notes)
+	}
+	save()
+	if _, err := ops.CallTyped[ops.DatabaseMoveOut](ctx, a, "database.move", ops.DatabaseMoveIn{DatabaseTargetIn: target}, ops.Caller{Human: true}); err == nil || kept() {
+		t.Fatalf("a move refused before anything paused: %v, kept %v", err, kept())
+	}
+	if _, err := a.DB.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": old.ID}, bson.M{"$set": bson.M{"state": models.InstallationRevoked}}); err != nil {
+		t.Fatal(err)
+	}
+	save()
+	cctx, cancel := context.WithCancel(ctx)
+	cctx = ops.WithProgress(cctx, func(label string, done, total int64) {
+		if strings.HasPrefix(label, "Copying") {
+			cancel()
+		}
+	})
+	_, err := ops.CallTyped[ops.DatabaseMoveOut](cctx, a, "database.move", ops.DatabaseMoveIn{DatabaseTargetIn: target}, ops.Caller{Human: true})
+	cancel()
+	if apperr.From(err).Code != apperr.Canceled || !kept() {
+		t.Fatalf("a move that stopped part-way: %v, kept %v", err, kept())
+	}
+	if _, err := ops.CallTyped[ops.DatabaseAbandonOut](ctx, a, "database.abandon", ops.DatabaseAbandonIn{}, ops.Caller{Human: true}); err != nil || kept() {
+		t.Fatalf("abandoned: %v, kept %v", err, kept())
 	}
 }

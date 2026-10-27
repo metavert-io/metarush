@@ -27,7 +27,10 @@ shell's history) and never writes it to its settings file, the activity log, an 
 - in the dashboard (Settings → Storage → Move the database) it is typed once into a password field.
 
 It is kept in this computer's keychain for the move (or, for a MetaRush that keeps its keys in files, a private file in
-its `database` folder), so `--to saved` uses it again: to continue a move, or after a plan. Once the computer switches it
+its `database` folder), so `--to saved` uses it again: to continue a move, or after a plan. It is kept only while a move
+needs it: a plan that can't go ahead, a move refused before anything paused and an abandoned move forget it (a move
+that stopped part-way keeps it to continue; the sign-in MetaRush made for the database on this computer is that
+computer's own and stays). Once the computer switches it
 moves to where MetaRush keeps the database's address (`mongodb-uri` in the keychain, or the home's `.env`), and the old
 address is kept aside (`mongodb-uri-previous`, or `database/previous.secret`).
 

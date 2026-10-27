@@ -22,7 +22,8 @@ import (
 // address is never taken on the command line, where it would stay in the
 // shell's history: --to address reads it from standard input (or asks for it,
 // hidden, at a terminal), --to env:NAME from an environment variable, and
-// --to saved uses the one an earlier plan kept in this computer's keychain.
+// --to saved uses the one an earlier plan kept in this computer's keychain
+// (kept only while a move needs it).
 // Moving, switching and abandoning are a person's, at their own terminal (or
 // in the dashboard), never Claude Code's or an AI app's.
 
@@ -124,8 +125,8 @@ func databasePlanCmd() *cobra.Command {
 		Long: `Plans a move of the workspace's database to another one: the database on this computer (--to here,
 set up the way setup does it), or another MongoDB such as MongoDB Atlas or your own server. Its address
 is never typed on the command line: --to address reads it from standard input (or asks for it at a
-terminal), --to env:NAME reads an environment variable; it is kept in this computer's keychain for the
-move (--to saved uses it again). The plan says how much moves, how long it takes, which computers use
+terminal), --to env:NAME reads an environment variable; it is kept in this computer's keychain while
+a move needs it (--to saved uses it again), and forgotten after a plan that can't go ahead. The plan says how much moves, how long it takes, which computers use
 the workspace and what each needs (its own sign-in for the new database), what waits meanwhile, and
 whether the new database answers, holds nothing and takes writes. It changes nothing.`,
 		Example: `  metarush database plan --to here

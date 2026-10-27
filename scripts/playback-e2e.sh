@@ -40,7 +40,10 @@ cleanup() {
 trap cleanup EXIT
 . scripts/lib/e2e.sh && e2e_run "$DB" "$(dirname "$H")"  # D194: stops what the run started, drops its database, removes its folder when it passes
 MR() { ./bin/metarush --home "$H" "$@"; }
-J() { python3 -I -c "import json,sys;d=json.load(sys.stdin);print($1)"; }
+J() { python3 -I -c "import json,sys
+d=json.load(sys.stdin)
+try: print($1)
+except (KeyError,IndexError,TypeError): sys.exit('unexpected answer: '+json.dumps(d)[:3000])"; }
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 if [ "${SKIP_BUILD:-}" != "1" ]; then
   step "build the dashboard and the binary"

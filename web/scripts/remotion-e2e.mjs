@@ -328,6 +328,12 @@ try {
       return src && src.headNumber === 3 && src.headState === 'waiting' ? src : null;
     }, 'the version that makes its words settings', 600_000);
     check('Make its words settings: version 3 waits for a person', !!v3);
+    // Its question opens when the version's check ends (D172), which can come after the version
+    // shows as waiting: a slower computer (a CI runner drawing in software) takes longer.
+    await waitFor(async () => {
+      const t = await api(page, 'todos.list', { kind: 'remotion_approval' });
+      return (t.todos ?? []).find((x) => x.context?.remotion?.number === 3) ?? null;
+    }, 'the question about version 3', 600_000);
     await page.goto(`${base}/todos?kind=approval`);
     const todo = page.locator('[data-todo-kind="remotion_approval"]').filter({ hasText: 'version 3' }).first();
     await todo.waitFor({ timeout: 20_000 });
@@ -512,7 +518,15 @@ try {
     await panel.locator('[data-refresh-key="elevenlabs"]').check();
     await panel.getByLabel('Another place it may write').fill('src/generated/');
     await panel.getByLabel('Another place it may write').press('Enter');
-    await waitFor(async () => !(await panel.locator('[data-refresh-start]').isDisabled()), 'the plan to be ready', 30_000);
+    // The plan (commands, keys, outputs, hosts) is made on the server; a slower computer (a CI runner) takes longer.
+    // A computer that can't keep a refresh apart (no sandbox) says so in the panel; stop there with its words.
+    await waitFor(async () => {
+      if (!(await panel.locator('[data-refresh-start]').isDisabled())) return true;
+      const problems = panel.locator('[data-refresh-problems]');
+      const said = (await problems.count()) ? (await problems.innerText()).replace(/\s+/g, ' ') : '';
+      if (/keep a refresh away|bubblewrap|sandbox/i.test(said)) throw new Error(`the plan can't start on this computer: ${said}`);
+      return false;
+    }, 'the plan to be ready', 180_000);
     const text = (await panel.textContent()) ?? '';
     check('…the plan says the steps, the key under its name and where it may write', /npm run make-data/.test(text) && /ELEVENLABS_API_KEY/.test(text) && /src\/generated\//.test(text));
     check('…how it is kept apart, and that only a person starts it', /sandbox|bubblewrap/.test(text) && /Only a person starts one/.test(text));

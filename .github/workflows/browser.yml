@@ -47,10 +47,13 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.chosen.outputs.run
         with: { node-version: 22 }
-      - name: ffmpeg, and where the run keeps its files
+      - name: ffmpeg, bubblewrap, and where the run keeps its files
         if: steps.chosen.outputs.run
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg
+          sudo apt-get update && sudo apt-get install -y ffmpeg bubblewrap
+          # A Remotion refresh runs in bubblewrap (D174); Ubuntu's AppArmor stops unprivileged user namespaces
+          # unless this is off, and MetaRush then refuses to plan one (remotion-e2e's refresh steps).
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           mkdir -p "$RUNNER_TEMP/e2e" "$RUNNER_TEMP/e2e-runs"
           echo "TMPDIR=$RUNNER_TEMP/e2e/" >> "$GITHUB_ENV"
           echo "METARUSH_E2E_RUNS=$RUNNER_TEMP/e2e-runs" >> "$GITHUB_ENV"

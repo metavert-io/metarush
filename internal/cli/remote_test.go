@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/metavert-io/metarush/internal/localdb"
 	"github.com/metavert-io/metarush/internal/plainwords"
 	"github.com/metavert-io/metarush/internal/testutil/fakerclone"
 	"github.com/metavert-io/metarush/internal/testutil/faketailscale"
@@ -15,6 +16,9 @@ import (
 func TestMain(m *testing.M) {
 	faketailscale.MaybeRun() // this binary doubles as the fake `tailscale`
 	fakerclone.MaybeRun()    // … and the fake `rclone` (D220)
+	// Not Linux: no test depends on the kernel of the computer it runs on (CI's
+	// Linux kernel may be one MongoDB 8 refuses, D339); onKernel plays one.
+	localdb.ReadKernel = func() localdb.Kernel { return localdb.Kernel{} }
 	os.Exit(m.Run())
 }
 

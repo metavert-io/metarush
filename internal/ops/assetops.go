@@ -244,14 +244,18 @@ func init() {
 		if err := carryAsset(ctx, a, as, fromID, to.ID); err != nil { // What may leave (D289)
 			return nil, err
 		}
+		// One write: the footage joins the new project and leaves the old one
+		// together, keeping the order of its other projects, so a change made at
+		// the same moment (linking it to the old project again, say) lands before
+		// or after the move, never between its halves.
 		now := time.Now().UTC()
-		if err := a.DB.Update(ctx, store.CAssets, a.WorkspaceID(), as.ID, bson.M{"$addToSet": bson.M{"projectIds": to.ID}, "$set": bson.M{"updatedAt": now}}); err != nil {
+		rest := bson.M{"$filter": bson.M{"input": bson.M{"$ifNull": bson.A{"$projectIds", bson.A{}}}, "cond": bson.M{"$ne": bson.A{"$$this", fromID}}}}
+		moved := bson.M{"$let": bson.M{"vars": bson.M{"rest": rest},
+			"in": bson.M{"$cond": bson.A{bson.M{"$in": bson.A{to.ID, "$$rest"}}, "$$rest", bson.M{"$concatArrays": bson.A{"$$rest", bson.A{to.ID}}}}}}}
+		if err := a.DB.UpdatePipeline(ctx, store.CAssets, a.WorkspaceID(), as.ID, []bson.M{{"$set": bson.M{"projectIds": moved, "updatedAt": now}}}); err != nil {
 			return nil, err
 		}
 		if from != nil {
-			if err := a.DB.Update(ctx, store.CAssets, a.WorkspaceID(), as.ID, bson.M{"$pull": bson.M{"projectIds": from.ID}}); err != nil {
-				return nil, err
-			}
 			refreshProjectCounts(ctx, a, from.ID)
 		}
 		refreshProjectCounts(ctx, a, to.ID)

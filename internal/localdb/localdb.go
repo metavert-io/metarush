@@ -153,6 +153,17 @@ func (s *Server) KernelNote() string {
 	return why + " " + todo
 }
 
+// CantStart says why the database set up here can't start on this
+// computer's Linux kernel, and what to do ("" when it can, or when nothing is
+// set up).
+func (s *Server) CantStart() string {
+	st, ok := s.ReadState()
+	if k := s.kernel(); ok && KernelRefuses(st.Version, k) {
+		return cantStart(st.Version, k).Words()
+	}
+	return ""
+}
+
 func (s *Server) target() string {
 	if s.TargetName != "" {
 		return s.TargetName

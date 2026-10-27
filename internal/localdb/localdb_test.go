@@ -193,7 +193,9 @@ func sha(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:
 func testServer(t *testing.T, home string, pin Pin) *Server {
 	t.Helper()
 	s := New(home, 0, tools.New(config.Tools{}))
-	s.Pin, s.TargetName = &pin, "test/target"
+	// Not Linux: tests never depend on the kernel of the computer they run on
+	// (CI's Linux kernel may be one MongoDB 8 refuses); kernel_test.go plays them.
+	s.Pin, s.TargetName, s.Kernel = &pin, "test/target", &Kernel{}
 	return s
 }
 

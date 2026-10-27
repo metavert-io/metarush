@@ -275,3 +275,53 @@ func TestUpgradeWaitsForTheKernel(t *testing.T) {
 		t.Errorf("status after the kernel update: %+v", st)
 	}
 }
+
+// An Ubuntu kernel that carries the fix but still calls itself 7.0.0 stops
+// MongoDB 8.0.34, not a MongoDB that reads Ubuntu's signature (8.0.35 on):
+// the upgrade within the series needs no old server (it can't start), takes
+// the new one, and puts the old one back if the new one doesn't start.
+func TestAnUpgradeWithinTheSeriesNeedsNoOldServer(t *testing.T) {
+	arch := fakeArchive(t, "8.0.35")
+	f := filepath.Join(t.TempDir(), "mongodb.tgz")
+	if err := os.WriteFile(f, arch, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(EnvArchive, f)
+	s := testServer(t, t.TempDir(), Pin{Version: "8.0.35", Archives: map[string]Archive{"test/target": {URL: "http://127.0.0.1:1/never.tgz", SHA256: sha(arch)}}})
+	s.Kernel = &ubuntuFixed
+	s.Port = freePort(t)
+	if err := s.writeState(State{Version: "8.0.34", FeatureVersion: "8.0", Port: s.Port, Initiated: true}); err != nil {
+		t.Fatal(err)
+	}
+	step, err := s.PlanUpgrade()
+	if err != nil || step.SeriesChange || step.To != "8.0.35" {
+		t.Fatalf("the plan: %+v %v", step, err)
+	}
+	_, err = s.Upgrade(context.Background(), "", nil)
+	// The stand-in server stops at once, so the upgrade fails — past the old
+	// server, which was never started (it would have said ErrKernel).
+	if err == nil || errors.Is(err, ErrKernel) {
+		t.Fatalf("the upgrade: %v", err)
+	}
+	if !fileExists(filepath.Join(s.versionDir("8.0.35"), "bin", "mongod")) {
+		t.Error("the new version wasn't unpacked")
+	}
+	if st, _ := s.ReadState(); st.Version != "8.0.34" {
+		t.Errorf("after a failed upgrade the state says %s", st.Version)
+	}
+	// Across a series the data has to be checked by the old server first: refused.
+	next := fakeArchive(t, "8.3.14") // reads Ubuntu's signature too
+	if err := os.WriteFile(f, next, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.Pin = &Pin{Version: "8.3.14", Archives: map[string]Archive{"test/target": {URL: "http://127.0.0.1:1/never.tgz", SHA256: sha(next)}}}
+	if step, err := s.PlanUpgrade(); err != nil || !step.SeriesChange {
+		t.Fatalf("the plan across a series: %+v %v", step, err)
+	}
+	if _, err := s.Upgrade(context.Background(), "", nil); !errors.Is(err, ErrKernel) {
+		t.Errorf("an upgrade across a series with an old server that can't start: %v", err)
+	}
+	if st, _ := s.ReadState(); st.Version != "8.0.34" {
+		t.Errorf("the state says %s", st.Version)
+	}
+}

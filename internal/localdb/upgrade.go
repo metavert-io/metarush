@@ -85,6 +85,11 @@ func (s *Server) Upgrade(ctx context.Context, adminURI string, progress func(don
 	if err != nil {
 		return step, err
 	}
+	// The version set up here can't start on this kernel (D339): moving to
+	// another release series needs it to check the data first.
+	if k := s.kernel(); step.SeriesChange && !step.Finish && KernelRefuses(step.From, k) {
+		return step, cantStart(step.From, k)
+	}
 	if !step.Finish {
 		if err := s.Install(ctx, progress); err != nil {
 			return step, err
@@ -102,14 +107,9 @@ func (s *Server) Upgrade(ctx context.Context, adminURI string, progress func(don
 		return step, s.finishFeatureVersionLocked(ctx, adminURI)
 	}
 	st, _ := s.ReadState()
-	if k := s.kernel(); KernelRefuses(step.From, k) {
-		// The version set up here can't start on this kernel (D339). Within
-		// its release series the new one starts on the same data as it is;
-		// moving to another series needs the old server to check the data first.
-		if step.SeriesChange {
-			return step, cantStart(step.From, k)
-		}
-	} else {
+	if !KernelRefuses(step.From, s.kernel()) {
+		// (A version this kernel won't start is skipped: within its release
+		// series the new one starts on the same data as it is.)
 		if err := s.startLocked(ctx, st); err != nil {
 			return step, err
 		}

@@ -135,6 +135,11 @@ func CheckEmpty(ctx context.Context, db *store.DB) error {
 	return nil
 }
 
+// Holds lists what a database holds — its collections but a test
+// database's own marker and a restore's (or a move's) lock: empty means a
+// copy may go into it.
+func Holds(ctx context.Context, db *store.DB) ([]string, error) { return holds(ctx, db) }
+
 // holds lists a database's collections but the test marker and the restore marker.
 func holds(ctx context.Context, db *store.DB) ([]string, error) {
 	colls, err := ListCollections(ctx, db)

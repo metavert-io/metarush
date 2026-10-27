@@ -118,6 +118,7 @@ var purgeCatalogue = map[string]purgeEntry{
 	store.CFaces:                  {Purge: "kept (footage's faces)", Media: mediaNone},
 	store.CTestRun:                {Purge: "kept", Media: mediaNone},
 	store.CRestoreLock:            {Purge: "kept (a restore's marker)", Media: mediaNone},
+	store.CDatabaseMove:           {Purge: "kept (a move's marker)", Media: mediaNone},
 	"catch_ups":                   {Purge: "kept", Media: mediaNone},
 	"sound_cache":                 {Purge: "kept (clearer voices are footage's)", Media: mediaScan},
 }

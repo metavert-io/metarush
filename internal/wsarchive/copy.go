@@ -43,7 +43,17 @@ const (
 // order, reading in batches (the _id index gives the order, so the server
 // never sorts in memory).
 func EachDoc(ctx context.Context, db *store.DB, coll, ws string, fn func(bson.Raw) error) error {
-	cur, err := db.C(coll).Find(ctx, workspaceFilter(ws), options.Find().SetSort(bson.D{{Key: "_id", Value: 1}}).
+	return EachDocWhere(ctx, db, coll, workspaceFilter(ws), fn)
+}
+
+// EachDocWhere calls fn for every document matching filter, in _id order:
+// with an empty filter, every document of the collection (a move of the
+// whole database, D334).
+func EachDocWhere(ctx context.Context, db *store.DB, coll string, filter bson.M, fn func(bson.Raw) error) error {
+	if filter == nil {
+		filter = bson.M{}
+	}
+	cur, err := db.C(coll).Find(ctx, filter, options.Find().SetSort(bson.D{{Key: "_id", Value: 1}}).
 		SetHint(bson.D{{Key: "_id", Value: 1}}).SetBatchSize(FindBatch))
 	if err != nil {
 		return err
@@ -124,58 +134,88 @@ type Digest struct {
 // HashCollection reads a workspace's documents in a collection and digests
 // them as lines (what an export writes, what a copy must hold).
 func HashCollection(ctx context.Context, db *store.DB, coll, ws string) (Digest, error) {
+	return HashWhere(ctx, db, coll, workspaceFilter(ws))
+}
+
+// HashWhere digests the documents matching filter (empty: all of them) as lines.
+func HashWhere(ctx context.Context, db *store.DB, coll string, filter bson.M) (Digest, error) {
 	lw := NewLineWriter(io.Discard)
-	if err := EachDoc(ctx, db, coll, ws, lw.Write); err != nil {
+	if err := EachDocWhere(ctx, db, coll, filter, lw.Write); err != nil {
 		return Digest{}, err
 	}
 	sum, err := lw.Close()
 	return Digest{Count: lw.Count, Bytes: lw.Bytes, SHA256: sum}, err
 }
 
+// Inserter puts documents into a collection in ordered batches of at most
+// InsertBatch documents or InsertBatchBytes (what InsertLines and a move of
+// the database share). Ordered: when a batch stops, the documents before the
+// one that failed are in, so the collection holds a prefix of what was given.
+type Inserter struct {
+	ctx   context.Context
+	db    *store.DB
+	coll  string
+	batch []any
+	size  int
+	// Count is how many documents went in.
+	Count int64
+}
+
+// NewInserter inserts into coll.
+func NewInserter(ctx context.Context, db *store.DB, coll string) *Inserter {
+	return &Inserter{ctx: ctx, db: db, coll: coll}
+}
+
+// Add queues one document (a copy of it: cursors reuse their buffers),
+// inserting a batch once it is full.
+func (in *Inserter) Add(doc bson.Raw) error {
+	in.batch = append(in.batch, bson.Raw(append([]byte(nil), doc...)))
+	in.size += len(doc)
+	if len(in.batch) >= InsertBatch || in.size >= InsertBatchBytes {
+		return in.Flush()
+	}
+	return nil
+}
+
+// Flush inserts what is queued.
+func (in *Inserter) Flush() error {
+	if len(in.batch) == 0 {
+		return nil
+	}
+	res, err := in.db.C(in.coll).InsertMany(in.ctx, in.batch, options.InsertMany().SetOrdered(true))
+	if res != nil {
+		in.Count += int64(len(res.InsertedIDs))
+	}
+	in.batch, in.size = in.batch[:0], 0
+	return err
+}
+
 // InsertLines streams documents from lines into a collection, in batches.
 // It returns how many it inserted.
 func InsertLines(ctx context.Context, db *store.DB, coll string, r io.Reader) (int64, error) {
 	br := bufio.NewReaderSize(r, 1<<20)
-	var (
-		batch []any
-		size  int
-		total int64
-	)
-	flush := func() error {
-		if len(batch) == 0 {
-			return nil
-		}
-		res, err := db.C(coll).InsertMany(ctx, batch, options.InsertMany().SetOrdered(true))
-		if res != nil {
-			total += int64(len(res.InsertedIDs))
-		}
-		batch, size = batch[:0], 0
-		return err
-	}
+	in := NewInserter(ctx, db, coll)
 	for lineNo := 1; ; lineNo++ {
 		line, err := readLine(br)
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return total, fmt.Errorf("%s line %d: %w", coll, lineNo, err)
+			return in.Count, fmt.Errorf("%s line %d: %w", coll, lineNo, err)
 		}
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
 		doc, err := FromLine(line)
 		if err != nil {
-			return total, fmt.Errorf("%s line %d: %w", coll, lineNo, err)
+			return in.Count, fmt.Errorf("%s line %d: %w", coll, lineNo, err)
 		}
-		batch = append(batch, doc)
-		size += len(doc)
-		if len(batch) >= InsertBatch || size >= InsertBatchBytes {
-			if err := flush(); err != nil {
-				return total, err
-			}
+		if err := in.Add(doc); err != nil {
+			return in.Count, err
 		}
 	}
-	return total, flush()
+	err := in.Flush()
+	return in.Count, err
 }
 
 // readLine reads one line, refusing one longer than MaxLine.
@@ -256,6 +296,23 @@ func (s Spec) Make(ctx context.Context, db *store.DB) error {
 	if err := db.DB.RunCommand(ctx, cmd).Err(); err != nil {
 		return fmt.Errorf("%s: %w", s.Name, err)
 	}
+	if len(s.Indexes) == 0 {
+		return nil
+	}
+	ixs := make(bson.A, 0, len(s.Indexes))
+	for _, ix := range s.Indexes {
+		ixs = append(ixs, withoutNS(ix))
+	}
+	if err := db.DB.RunCommand(ctx, bson.D{{Key: "createIndexes", Value: s.Name}, {Key: "indexes", Value: ixs}}).Err(); err != nil {
+		return fmt.Errorf("%s indexes: %w", s.Name, err)
+	}
+	return nil
+}
+
+// EnsureIndexes makes the collection's indexes where they are missing (the
+// same specs again are accepted as they are): a move continued after it
+// stopped between making a collection and its indexes.
+func (s Spec) EnsureIndexes(ctx context.Context, db *store.DB) error {
 	if len(s.Indexes) == 0 {
 		return nil
 	}

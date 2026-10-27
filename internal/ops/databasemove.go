@@ -311,14 +311,26 @@ func openTarget(ctx context.Context, a *app.App, in DatabaseTargetIn, setUp bool
 		return nil, invalid("A test database's name is only for a database on this computer.")
 	}
 	t.fingerprint = fingerprintOf(t.place.Kind, hostsOf(uri), name)
+	return t, nil
+}
+
+// connect signs in to the new database (once): false when it doesn't answer
+// or doesn't take the sign-in (a plan says so plainly; a move refuses).
+func (t *dbTarget) connect(ctx context.Context) bool {
+	if t.db != nil {
+		return true
+	}
+	if t.uri == "" {
+		return false
+	}
 	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	db, err := store.Connect(cctx, uri, name)
+	db, err := store.Connect(cctx, t.uri, t.name)
 	if err != nil {
-		return t, nil // a plan says it plainly; a move refuses
+		return false
 	}
 	t.db = db
-	return t, nil
+	return true
 }
 
 // openHere is the database on this computer: looked at for a plan, set up
@@ -477,8 +489,25 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 	out.Collections, out.Documents, out.Bytes = survey.Collections, survey.Documents, survey.Bytes
 	out.Problems = append(out.Problems, survey.Problems...)
 	out.Counts = headlineCounts(survey.Collections)
+	// Clients' What may leave rules (D337), before anything else is asked of
+	// the new database: one elsewhere on the internet is cloud storage for
+	// their words.
+	kept := false
+	if LeaveDatabase != nil {
+		if err := LeaveDatabase(ctx, a, config.Database{URI: t.uri, Name: t.name, Local: localOf(t)}, true); err != nil {
+			e := apperr.From(err)
+			if e.Code != apperr.KeptHere {
+				return nil, err
+			}
+			kept = true
+			out.KeptHere = append(out.KeptHere, e.Message)
+			out.Problems = append(out.Problems, e.Message)
+		}
+	}
 	// The new database.
 	switch {
+	case kept:
+		out.Target = dbmove.Target{Problem: "Not looked at: a client's rules keep their words from it."}
 	case t.local != nil && !t.ready:
 		out.Target = dbmove.Target{Empty: true, Writable: true}
 		if !t.local.Available() {
@@ -489,7 +518,7 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 		if w := t.local.PlaceWarning(); w != "" {
 			out.Notes = append(out.Notes, w)
 		}
-	case t.db == nil:
+	case !t.connect(ctx):
 		out.Target = dbmove.Target{Problem: "MetaRush couldn't reach the new database, or it didn't take the sign-in."}
 		out.Problems = append(out.Problems, out.Target.Problem+" Check the address (and that this computer may reach it), then check again.")
 	default:
@@ -540,18 +569,6 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 	}
 	if t.place.Kind == "server" && strings.Contains(t.place.Words, "on this computer") && others > 0 {
 		out.Notes = append(out.Notes, "The new database's address is on this computer: your other computers reach it only if the same address works on theirs (a tunnel, say).")
-	}
-	// Clients' What may leave rules (D337): a database elsewhere on the
-	// internet is cloud storage for their words.
-	if LeaveDatabase != nil {
-		if err := LeaveDatabase(ctx, a, config.Database{URI: t.uri, Name: t.name, Local: localOf(t)}, true); err != nil {
-			e := apperr.From(err)
-			if e.Code != apperr.KeptHere {
-				return nil, err
-			}
-			out.KeptHere = append(out.KeptHere, e.Message)
-			out.Problems = append(out.Problems, e.Message)
-		}
 	}
 	// How long it takes, and what waits meanwhile.
 	out.Seconds = estimateSeconds(out.Bytes, len(out.Collections), t)
@@ -734,6 +751,37 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 	if marker != nil && marker.State == store.MoveMoved {
 		return nil, movedError(marker)
 	}
+	resume := marker != nil && marker.State == store.MoveMoving
+	// The plan first, nothing set up: a move that can't go ahead stops here.
+	pre, err := openTarget(ctx, a, in.DatabaseTargetIn, false)
+	if err != nil {
+		return nil, err
+	}
+	if resume && !markerMatches(marker, pre, a) {
+		pre.close()
+		return nil, apperr.New(apperr.Conflict, "A move to %s started on %s and waits to be continued or abandoned.", marker.To.Words, firstNonEmpty(marker.FromName, "another computer")).
+			WithHint("Continue that one (run it again with the same database on that computer), or abandon it first.").
+			WithDetails(map[string]any{"reason": "move_waiting"}).WithCommand("metarush database abandon")
+	}
+	plan, err := planMove(ctx, a, pre)
+	pre.close()
+	if err != nil {
+		return nil, err
+	}
+	if plan.Nothing {
+		return nil, apperr.New(apperr.Conflict, "%s", plan.Summary)
+	}
+	if len(plan.KeptHere) > 0 && LeaveDatabase != nil {
+		// What may leave refuses it (D337): said and recorded, before anything
+		// is set up or frozen.
+		if err := LeaveDatabase(ctx, a, config.Database{URI: pre.uri, Name: pre.name, Local: localOf(pre)}, false); err != nil {
+			return nil, err
+		}
+	}
+	if !plan.Ready {
+		return nil, apperr.New(apperr.Conflict, "Nothing was moved: %s", lowerFirst(plan.Problems[0])).
+			WithDetails(map[string]any{"reason": "not_ready", "problems": plan.Problems})
+	}
 	rec.phase(a, "setting-up", "Getting the new database ready")
 	say("Getting the new database ready", 0, 0)
 	t, err := openTarget(ctx, a, in.DatabaseTargetIn, true)
@@ -741,38 +789,9 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 		return nil, err
 	}
 	defer t.close()
-	if t.db == nil {
+	if !t.connect(ctx) {
 		return nil, apperr.New(apperr.Database, "MetaRush couldn't reach the new database, or it didn't take the sign-in. Nothing was moved.").
 			WithHint("Check its address (and that this computer may reach it), then plan again.")
-	}
-	resume := marker != nil && marker.State == store.MoveMoving
-	if resume && !markerMatches(marker, t, a) {
-		return nil, apperr.New(apperr.Conflict, "A move to %s started on %s and waits to be continued or abandoned.", marker.To.Words, firstNonEmpty(marker.FromName, "another computer")).
-			WithHint("Continue that one (run it again with the same database on that computer), or abandon it first.").
-			WithDetails(map[string]any{"reason": "move_waiting"}).WithCommand("metarush database abandon")
-	}
-	if !resume {
-		// What may leave, before anything is frozen: a refusal is recorded.
-		if LeaveDatabase != nil {
-			if err := LeaveDatabase(ctx, a, config.Database{URI: t.uri, Name: t.name, Local: localOf(t)}, false); err != nil {
-				return nil, err
-			}
-		}
-	}
-	plan, err := planMove(ctx, a, t)
-	if err != nil {
-		return nil, err
-	}
-	if plan.Nothing {
-		return nil, apperr.New(apperr.Conflict, "%s", plan.Summary)
-	}
-	if !plan.Ready {
-		e := apperr.New(apperr.Conflict, "Nothing was moved: %s", lowerFirst(plan.Problems[0])).
-			WithDetails(map[string]any{"reason": "not_ready", "problems": plan.Problems})
-		if len(plan.KeptHere) > 0 && plan.KeptHere[0] == plan.Problems[0] {
-			e.Code = apperr.KeptHere
-		}
-		return nil, e
 	}
 	moveID := newMoveID()
 	if resume {
@@ -1112,7 +1131,7 @@ func DatabaseSwitch(ctx context.Context, a *app.App, in *DatabaseSwitchIn) (*Dat
 		return nil, err
 	}
 	defer t.close()
-	if t.db == nil {
+	if !t.connect(ctx) {
 		return nil, apperr.New(apperr.Database, "MetaRush couldn't reach the new database with this computer's sign-in.").
 			WithHint("Check the address and this computer's own database user, then switch again.")
 	}

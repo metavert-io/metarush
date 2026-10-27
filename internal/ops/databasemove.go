@@ -775,7 +775,7 @@ func workspaceComputers(ctx context.Context, a *app.App) []DatabaseComputer {
 
 // QuietWait is how long a move waits for the workspace's computers to pause
 // and for running work to stop; QuietGrace how long it lets the last of them
-// settle (longer than MetaRush trusts a look at the marker, app.MoveMarkerTTL).
+// settle (longer than MetaRush trusts a look at the marker, store.MoveLookTrusted).
 var (
 	QuietWait  = 150 * time.Second
 	QuietGrace = 2 * time.Second

@@ -1219,8 +1219,10 @@ server.
   abandoned.
 - **The old database is kept**, marked as moved, so a computer still using it refuses changes until it switches with
   its own sign-in (`metarush database switch`, or one form in the dashboard). MetaRush never deletes it.
-- Owners, and people only; clients' What may leave rules keep their words off a database on the internet when they say
-  so.
+- Owners, and people only; clients' What may leave rules keep their words, voices and faces (the database holds the
+  voice and face prints MetaRush knows people by) off a database on the internet when they say so.
+- The plan names any computer whose MetaRush doesn't know about moves yet, even one that's off: update it or remove it
+  first, so it can't go on changing the old database later.
 
 ### Plays through a database hiccup
 The dashboard remembers where each clip's and render's files are, so when the database briefly stops answering (an

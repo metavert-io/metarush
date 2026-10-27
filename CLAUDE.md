@@ -1037,24 +1037,33 @@ Read `docs/architecture.md` before structural changes.
   are OwnerOnly + HumanOnly + `archivePeopleOnly`; the CLI needs a person's terminal (`personAtTerminal`); dashboard
   archives go to `<home>/archives`. Browser run `scripts/workspace-export-e2e.sh` (ports 5670–5679).
 - **Moving the database** (D334–D338, `internal/dbmove`, `internal/ops/databasemove.go`, `databasemove_state.go`,
-  `internal/store/movemarker.go`, `internal/cli/database_move.go`, `internal/api/database.go`,
+  `internal/store/movemarker.go`, `internal/store/guard.go`, `internal/cli/database_move.go`, `internal/api/database.go`,
   `web/src/screens/settings/DatabaseMove.tsx`, docs/database-move.md): `database.plan|move|switch|abandon|move.status`
   (`metarush database plan|move|switch|abandon|move-status`; move/switch/abandon OwnerOnly + HumanOnly +
   `databasePeopleOnly`, the CLI a person's terminal; plan owners, any surface). Targets `here` (item 8's server via
   `localdb.Prepare`, `localdb.Secrets*`; refused while other computers use the workspace unless `onlyThisComputer`) or
   `saved`: another MongoDB whose address is **never** an op input, argv or log — the CLI's `--to address|env:NAME`
   and the dashboard's form keep it via `SaveMoveAddress` (keychain `database-move`, or `<home>/database/move.secret`),
-  `rememberAddress` redacts it. The plan checks What may leave first (`ops.LeaveDatabase`: storage, words, cloud per
-  `leave.DatabaseKept`), then the target (`dbmove.CheckTarget`: reads only, `connectionStatus` privileges). The move:
+  `rememberAddress` redacts it; `forgetUnneededAddress` drops it after a plan that isn't ready, a refused move or an
+  abandon (kept while a stopped move or a switch needs it, and for our own local sign-in). The plan checks What may
+  leave first (`ops.LeaveDatabase`: storage, words + voices + faces — the database holds the voice/face prints —
+  cloud per `leave.DatabaseKept`; a restore asks `leave.ArchiveDatabaseCheck` via `RestoreOptions.MayHold` before any
+  record), names every non-revoked computer whose record doesn't show a build that knows moves (`knowsMoves` ==
+  `app.MovesMark(version, commit)`, or version ≥ `ops.FirstMoveVersion`; invited/unknown count), then the target (`dbmove.CheckTarget`: reads only, `connectionStatus` privileges). The move:
   `StartMoveMarker` (`database_move` in the old database: moving → moved | abandoned, `Holding`, `Switched`) freezes
-  it — `dispatch` refuses mutating ops (`refuseWhileMoving`, `E_MOVING` reason database_moving|database_moved; the
-  move's own ops exempt), `app.Held` keeps audit/TouchInstallation out and the log in the spool
+  it — `store.DB.C` returns a `Coll` whose every write refuses while frozen (`guard.go`: marker watched by
+  `WatchMoves` from `OpenWith`, trusted `MoveLookTrusted`; only the marker and `WriteThroughFreeze` pass), `dispatch`
+  refuses mutating ops up front (`refuseWhileMoving`, `E_MOVING` reason database_moving|database_moved; the move's own
+  ops exempt) and `Admit`s the rest (counted, published in the marker's `busy`; the move waits for them), every
+  time compared across computers is the server's (`$currentDate`, `$$NOW`: `MoveAlive`, `SeenWithin`,
+  `LiveLease`), `app.Held` keeps audit/TouchInstallation out and the log in the spool
   (`logbook.Options.Hold`), `Migrate` refuses, daemons `watchForMove` and restart into `serveHeld` (`api.NewHeld`,
   `heldGuard`: reads only, no background work, `HoldForMove` acks), the terminal worker stops; `waitQuiet` waits for
   every computer seen within `RunningWithin` to ack and no live leases. `dbmove.Copy` (the restore lock, kind `move`;
   `MakeForRestore` before the first record — never the source's index list, `IndexesNotMade` says it; `wsarchive`
-  `EachDocWhere`/`Inserter`/`HashWhere`, never the archive scrub; resumes after the copied prefix; `LeftOut`; level
-  last; `ErrChanged`) → marker `moved` **before** `switchDatabase` (keychain/.env, previous kept aside, config.yaml's
+  `EachDocWhere`/`Inserter`/`HashWhere`, never the archive scrub; resumes after the copied prefix; TTL collections
+  upserted by `_id` without records ending within 15 min, no `collMod`; `LeftOut`; level last; `ErrChanged`) →
+  `dbmove.Recheck` under the freeze (late collections, source hashes again) → marker `moved` **before** `switchDatabase` (keychain/.env, previous kept aside, config.yaml's
   `database` section, checked as loaded) → `recordMove` into the new database. No job (the old database is frozen):
   progress is `<state>/database-move/<id>.json`; the dashboard starts `database move --dashboard-move <id>` with
   `tools.Start` and a one-time grant like the media's move. Never deletes either database. Browser run

@@ -26806,6 +26806,9 @@
         "built": {
           "type": "string"
         },
+        "knowsMoves": {
+          "type": "string"
+        },
         "state": {
           "type": "string",
           "enum": [
@@ -34229,6 +34232,12 @@
           "type": "integer"
         },
         "verified": {
+          "type": "boolean"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "timeLimited": {
           "type": "boolean"
         }
       },

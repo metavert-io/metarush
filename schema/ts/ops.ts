@@ -17395,6 +17395,8 @@ carried: boolean
 why?: string
 copied?: number
 verified?: boolean
+sha256?: string
+timeLimited?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -36482,6 +36484,7 @@ createdAt: string
 lastSeenAt: string
 commit?: string
 built?: string
+knowsMoves?: string
 state?: ("invited" | "active" | "revoked")
 storageKeyId?: string
 storageKey?: StorageKeyRef

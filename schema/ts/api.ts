@@ -3652,6 +3652,8 @@ carried: boolean
 why?: string
 copied?: number
 verified?: boolean
+sha256?: string
+timeLimited?: boolean
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema

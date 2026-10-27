@@ -4109,6 +4109,12 @@
         },
         "verified": {
           "type": "boolean"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "timeLimited": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,

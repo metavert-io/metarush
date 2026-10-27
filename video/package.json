@@ -36,7 +36,7 @@
     "remotion": "4.0.536",
     "shiki": "4.5.0",
     "typescript": "5.9.3",
-    "zod": "4.5.4"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@remotion/player": "4.0.536",

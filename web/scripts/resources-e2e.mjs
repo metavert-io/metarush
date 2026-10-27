@@ -116,7 +116,7 @@ async function newPage(browser, { theme = 'dark', phone = false, tall = false } 
 const projectId = async (page, name) => (await api(page, 'project.list', {})).projects.find((p) => p.name === name)?.id;
 
 // Home with the project cards and the Inbox both on screen, for drags from one to the other (the mouse can't drag to
-// a place outside the window). Home's right column — versions awaiting review, recipes and starter recipes, what's in
+// a place outside the window). Home's right column — versions awaiting review, things to start from, what's in
 // progress — loads after the cards and the Inbox and grows with the workspace, pushing the Inbox below any fixed
 // window: wait until the page stops moving, then make the window as tall as the page. The upload tray (section A's
 // drop, shown again for a few minutes after it finished) sits over the first Inbox clip until it folds: clear it.

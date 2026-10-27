@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -239,5 +240,49 @@ func TestSetupRestoresAnExport(t *testing.T) {
 	again := runCLI(t, h, "setup", "--yes", "--json", "--service=false", "--restore", to)
 	if again.code == 0 {
 		t.Fatalf("setup on a set-up computer restored: %s", again.stdout)
+	}
+}
+
+// The interview offers a restore (Enter: a new workspace); a restore named is
+// a person's at a terminal and keeps the workspace's own name and ID.
+func TestSetupInterviewOffersARestore(t *testing.T) {
+	setupEnv(t)
+	run := func(answers string, args ...string) (*setupOpts, error) {
+		t.Helper()
+		cmd := setupCommand()
+		if err := cmd.ParseFlags(args); err != nil {
+			t.Fatal(err)
+		}
+		o := &setupOpts{}
+		_ = cmd.ParseFlags(args)
+		o.init.restore, _ = cmd.Flags().GetString("restore")
+		old := stdin
+		stdin = bufio.NewReader(strings.NewReader(answers))
+		defer func() { stdin = old }()
+		s := &setupRun{c: cmd, o: o, h: filepath.Join(t.TempDir(), "home"), prompt: answers != ""}
+		return o, s.chooseRestore()
+	}
+	if o, err := run("\n"); err != nil || o.init.restore != "" {
+		t.Fatalf("Enter: a new workspace: %+v %v", o.init, err)
+	}
+	archive := filepath.Join(t.TempDir(), "studio.tar")
+	_ = os.WriteFile(archive, []byte("x"), 0o600)
+	old := atTerminal
+	atTerminal = func() bool { return false }
+	if _, err := run("", "--restore", archive); err == nil {
+		t.Fatal("a restore without a person at a terminal")
+	}
+	atTerminal = func() bool { return true }
+	defer func() { atTerminal = old }()
+	t.Setenv("CLAUDECODE", "")
+	t.Setenv("METARUSH_AGENT", "")
+	if o, err := run(archive + "\n"); err != nil || o.init.restore != archive {
+		t.Fatalf("an archive typed in the interview: %+v %v", o.init, err)
+	}
+	if _, err := run("", "--restore", archive, "--workspace-name", "Other"); err == nil {
+		t.Fatal("a restore with another workspace name")
+	}
+	if _, err := run("", "--restore", filepath.Join(t.TempDir(), "missing.tar")); err == nil {
+		t.Fatal("a restore of nothing")
 	}
 }

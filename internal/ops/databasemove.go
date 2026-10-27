@@ -138,8 +138,8 @@ type DatabasePlanOut struct {
 	// Collections are every kind of record the old database holds, with
 	// counts and sizes, and whether it moves.
 	Collections []dbmove.MoveCollection `json:"collections"`
-	Documents   int64               `json:"documents"`
-	Bytes       int64               `json:"bytes"`
+	Documents   int64                   `json:"documents"`
+	Bytes       int64                   `json:"bytes"`
 	// Counts are the headline counts ("4 projects, 120 clips…").
 	Counts []DatabaseCount `json:"counts"`
 	// Seconds is about how long it takes; Takes says it ("about 3 minutes").
@@ -165,12 +165,12 @@ type DatabasePlanOut struct {
 
 // DatabaseMoveOut is what a move did.
 type DatabaseMoveOut struct {
-	From        DatabasePlace       `json:"from"`
-	To          DatabasePlace       `json:"to"`
+	From        DatabasePlace           `json:"from"`
+	To          DatabasePlace           `json:"to"`
 	Collections []dbmove.MoveCollection `json:"collections"`
-	Documents   int64               `json:"documents"`
-	Resumed     bool                `json:"resumed"`
-	Verified    bool                `json:"verified"`
+	Documents   int64                   `json:"documents"`
+	Resumed     bool                    `json:"resumed"`
+	Verified    bool                    `json:"verified"`
 	// Switched: this computer uses the new database now; Marked: the old one
 	// says the workspace moved.
 	Switched bool `json:"switched"`

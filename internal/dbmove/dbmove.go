@@ -290,7 +290,7 @@ type Options struct {
 // Result is what a copy did.
 type Result struct {
 	Collections []MoveCollection `json:"collections"`
-	Documents   int64        `json:"documents"`
+	Documents   int64            `json:"documents"`
 	// Resumed: the copy continued one that had stopped.
 	Resumed bool `json:"resumed"`
 	// Verified: every collection's documents are the same on both sides.

@@ -19,7 +19,8 @@ const CRestoreLock = "restore_lock"
 
 // A restore's states.
 const (
-	RestoreCopying   = "copying"   // the footage and the records are going in
+	RestoreCopying   = "copying"   // the records are going in
+	RestoreFootage   = "footage"   // every record is in and checked; the archive's footage is being copied into the storage
 	RestoreMigrating = "migrating" // every record is in and checked; the copy is being brought up to date
 	RestoreDone      = "done"      // the copy is whole, checked and up to date
 	RestoreAbandoned = "abandoned" // it stopped before writing any record of the copy
@@ -42,7 +43,7 @@ type RestoreLock struct {
 
 // Unfinished reports whether the restore it marks still holds the database.
 func (l *RestoreLock) Unfinished() bool {
-	return l != nil && (l.State == RestoreCopying || l.State == RestoreMigrating)
+	return l != nil && (l.State == RestoreCopying || l.State == RestoreFootage || l.State == RestoreMigrating)
 }
 
 // ReadRestoreLock reads a database's restore marker (nil when there is none).
@@ -71,6 +72,9 @@ func (d *DB) SetRestoreLock(ctx context.Context, archive, workspace, name, state
 type ErrRestoreUnfinished struct{ Lock RestoreLock }
 
 func (e *ErrRestoreUnfinished) Error() string {
+	if e.Lock.State == RestoreFootage {
+		return fmt.Sprintf("this database holds a restore of the workspace “%s” that stopped while its footage was copied: run the same restore again to continue it", e.Lock.Name)
+	}
 	if e.Lock.State == RestoreMigrating {
 		return fmt.Sprintf("this database holds a restore of the workspace “%s” that stopped while it was being brought up to date: run the same restore again to finish it", e.Lock.Name)
 	}

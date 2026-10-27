@@ -494,7 +494,7 @@ computer's own. On a new computer, metarush setup --restore <archive> does it as
 			defer t.close()
 			archive, _ := filepath.Abs(expandHome(args[0]))
 			rep, err := wsarchive.Restore(ctx, wsarchive.RestoreOptions{Archive: archive, DB: t.db, Store: t.store, StoreWords: t.storeWords,
-				StateDir: t.stateDir, ScratchDir: t.scratchDir, Plan: plan, Progress: restoreProgress(c)})
+				StateDir: t.stateDir, ScratchDir: t.scratchDir, Plan: plan, Progress: restoreProgress(c), MayStore: restoreMayStore(t.media, t.actor)})
 			if err != nil {
 				return failErr(c, err)
 			}
@@ -528,6 +528,7 @@ type restoreTarget struct {
 	store                media.Store
 	storeWords           string
 	stateDir, scratchDir string
+	media                config.Media
 	actor                models.Actor
 	machine              string
 	home                 bool // this computer's own database
@@ -614,8 +615,21 @@ func openRestoreTarget(ctx context.Context, c *cobra.Command, src *dbSource, st 
 		t.close()
 		return nil, failErr(c, apperr.Wrap(apperr.Storage, err, "MetaRush can't use that storage."))
 	}
-	t.storeWords = ops.StorageWords(m)
+	t.storeWords, t.media = ops.StorageWords(m), m
 	return t, nil
+}
+
+// restoreMayStore is What may leave for a restore's footage: the restored
+// workspace's own rules (its records are in by then), against the storage
+// the copy uses; a refusal is recorded in the copy (D333).
+func restoreMayStore(m config.Media, actor models.Actor) func(ctx context.Context, db *store.DB, ws string) error {
+	return func(ctx context.Context, db *store.DB, ws string) error {
+		if ops.LeaveStorage == nil {
+			return nil
+		}
+		a := &app.App{Cfg: &config.Config{Workspace: config.Ref{ID: ws}}, DB: db, Actor: actor}
+		return ops.LeaveStorage(ctx, a, m)
+	}
 }
 
 // restoreProgress prints how far a restore is (on standard error, at a terminal).

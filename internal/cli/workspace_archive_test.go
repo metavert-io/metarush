@@ -306,3 +306,44 @@ func TestSetupRefusesAHalfRestoredDatabase(t *testing.T) {
 		t.Fatal("setup wrote into it")
 	}
 }
+
+// A client whose footage stays off cloud storage keeps it off there through
+// a restore too: copying an archive's footage into storage a sync service
+// uploads is refused, naming the rule, and the refusal is recorded.
+func TestRestoreKeepsAClientsFootageOffCloudStorage(t *testing.T) {
+	a := archiveWorkspace(t)
+	asPerson(t)
+	ctx := context.Background()
+	ws, prj := a.WorkspaceID(), ids.New(ids.Project)
+	for coll, doc := range map[string]bson.M{
+		store.CProjects:        {"_id": prj, "workspaceId": ws, "name": "Client work", "archived": false, "content": bson.M{"uses": "own", "since": time.Now()}},
+		store.CContentSettings: {"_id": ids.New(ids.ContentSettings), "workspaceId": ws, "projectId": prj, "leave": bson.M{"places": bson.M{"storage": bson.M{"keep": bson.A{"footage"}}}, "note": "the client's contract"}},
+	} {
+		if _, err := a.DB.C(coll).InsertOne(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	to := filepath.Join(t.TempDir(), "studio.tar")
+	decodeData(t, runCLI(t, a.Cfg.Home(), "workspace", "export", "--to", to, "--tar", "--media", "included", "--json"), &ops.WorkspaceExportOut{})
+	user := setupEnv(t)
+	synced := filepath.Join(user, "Dropbox", "media")
+	if err := os.MkdirAll(synced, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	dst := archiveEmptyDB(t)
+	t.Setenv("ARCHIVE_TEST_DB_URI", testutil.URI())
+	r := runCLI(t, filepath.Join(t.TempDir(), "bare"), "workspace", "restore", to, "--db-uri-env", "ARCHIVE_TEST_DB_URI", "--db-name", dst.Name,
+		"--storage", "folder", "--media-root", synced, "--json")
+	if c, m := errorCode(t, r); c != "E_KEPT_HERE" || !strings.Contains(m, "Client work") {
+		t.Fatalf("footage into a synced folder: %s %s", c, m)
+	}
+	if n, _ := dst.C(store.CAudit).CountDocuments(ctx, bson.M{"action": "leave.refused"}); n != 1 {
+		t.Errorf("the refusal wasn't recorded: %d", n)
+	}
+	_ = filepath.WalkDir(synced, func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			t.Errorf("footage went into the synced folder: %s", p)
+		}
+		return nil
+	})
+}

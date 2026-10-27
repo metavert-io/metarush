@@ -144,6 +144,7 @@ on someone's computer (a clip's original path, shortened to `~`) is history, and
 | `remotion_versions` | as it is | Remotion projects' versions and who approved them |
 | `renders` | changed | renders and where their files are kept; one being made is held with its work |
 | `restore_lock` | left out | the marker a restore keeps in the database it writes into: that copy's own state |
+| `database_move` | left out | the marker a move of the database leaves in the database it moved from: that database's own state |
 | `resources` | as it is | pictures, logos, fonts, PDFs, repositories and web pages, with where each came from |
 | `review_links` | as it is | links sent to outside reviewers, as the record of what was shared |
 | `schema_migrations` | in the manifest | the database's migration level: written in manifest.json and set from it by the restore, which then brings the copy up to date |

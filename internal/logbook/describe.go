@@ -329,6 +329,9 @@ var opBase = map[string]string{
 	"export.timeline": "export version {r} of {p} as a timeline for another editing app",
 	"storage.plan":    "check what moving the media to another storage would copy", "storage.migrate": "move the media to another storage",
 	"storage.status": "look at which storage this computer uses",
+	"database.plan":  "check what moving the workspace's database would do", "database.move": "move the workspace's database",
+	"database.switch": "switch this computer to the workspace's new database", "database.abandon": "abandon a move of the database",
+	"database.move.status": "look at whether the workspace's database is moving",
 	// Screen recordings made in the dashboard (D258–D260).
 	"recording.list": "list screen recordings", "recording.show": "look at a screen recording",
 	"recording.finish": "add a screen recording to the Library", "recording.link": "link a screen recording into {p}",

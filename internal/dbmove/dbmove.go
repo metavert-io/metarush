@@ -49,7 +49,7 @@ func Carried(name string) bool {
 
 // Collection is one collection of a move: what the old database holds of it
 // and, once moved, what the copy holds.
-type Collection struct {
+type MoveCollection struct {
 	Name  string `json:"name"`
 	Count int64  `json:"count"`
 	// Bytes is about how much it holds (as stored, before compression).
@@ -64,7 +64,7 @@ type Collection struct {
 
 // Survey is what a database holds, for a move's plan.
 type Survey struct {
-	Collections []Collection `json:"collections"`
+	Collections []MoveCollection `json:"collections"`
 	// Documents and Bytes are what moves.
 	Documents int64 `json:"documents"`
 	Bytes     int64 `json:"bytes"`
@@ -83,9 +83,9 @@ func SurveySource(ctx context.Context, db *store.DB, workspace string) (*Survey,
 	if err != nil {
 		return nil, err
 	}
-	s := &Survey{Collections: []Collection{}}
+	s := &Survey{Collections: []MoveCollection{}}
 	for _, info := range infos {
-		c := Collection{Name: info.Name, Carried: Carried(info.Name)}
+		c := MoveCollection{Name: info.Name, Carried: Carried(info.Name)}
 		if !c.Carried {
 			c.Why = LeftOut[info.Name]
 		}
@@ -153,7 +153,7 @@ func toInt(v any) int64 {
 }
 
 // Target is what the new database is like, checked without writing to it.
-type Target struct {
+type TargetCheck struct {
 	// Reached: MetaRush signed in and the database answered.
 	Reached bool `json:"reached"`
 	// Empty: it holds nothing (a copy may go in); Holds lists what it holds.
@@ -175,8 +175,8 @@ type Target struct {
 // CheckTarget looks at the new database without writing anything: whether
 // it answers, holds nothing (or this move's own unfinished copy) and lets
 // this sign-in write.
-func CheckTarget(ctx context.Context, db *store.DB, move string) Target {
-	t := Target{}
+func CheckTarget(ctx context.Context, db *store.DB, move string) TargetCheck {
+	t := TargetCheck{}
 	ver, _, err := db.ServerInfo(ctx)
 	if err != nil {
 		t.Problem = "MetaRush couldn't reach the new database, or it didn't take the sign-in."
@@ -263,7 +263,7 @@ func CanWrite(ctx context.Context, db *store.DB) bool {
 }
 
 // Progress is how far a copy is.
-type Progress struct {
+type CopyProgress struct {
 	Phase string `json:"phase" jsonschema:"enum=copying,enum=checking"`
 	// Collection is the one being copied or checked.
 	Collection      string `json:"collection,omitempty"`
@@ -284,12 +284,12 @@ type Options struct {
 	// Stop is asked between collections and batches: an error stops the copy
 	// (a person abandoned the move). The copy keeps its lock.
 	Stop     func(ctx context.Context) error
-	Progress func(Progress)
+	Progress func(CopyProgress)
 }
 
 // Result is what a copy did.
 type Result struct {
-	Collections []Collection `json:"collections"`
+	Collections []MoveCollection `json:"collections"`
 	Documents   int64        `json:"documents"`
 	// Resumed: the copy continued one that had stopped.
 	Resumed bool `json:"resumed"`
@@ -324,7 +324,7 @@ func (p *Partial) Unwrap() error { return p.Err }
 // marks the copy whole. It only reads the old database.
 func Copy(ctx context.Context, o Options) (*Result, error) {
 	started := time.Now()
-	res := &Result{Collections: []Collection{}}
+	res := &Result{Collections: []MoveCollection{}}
 	lock, err := o.To.ReadRestoreLock(ctx)
 	if err != nil {
 		return nil, err
@@ -376,7 +376,7 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 		n, _ := Size(ctx, o.From, info.Name)
 		total += n
 	}
-	p := Progress{Phase: "copying", Collections: len(order), Documents: total}
+	p := CopyProgress{Phase: "copying", Collections: len(order), Documents: total}
 	progress := func() {
 		if o.Progress != nil {
 			o.Progress(p)
@@ -414,7 +414,7 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 			return nil, &Partial{Collection: info.Name, Err: err}
 		}
 		p.DocumentsDone += src.Count
-		c := Collection{Name: info.Name, Carried: true, Count: src.Count, Bytes: src.Bytes, Copied: dst.Count, Verified: src == dst}
+		c := MoveCollection{Name: info.Name, Carried: true, Count: src.Count, Bytes: src.Bytes, Copied: dst.Count, Verified: src == dst}
 		res.Collections = append(res.Collections, c)
 		res.Documents += dst.Count
 		if src != dst {
@@ -436,7 +436,7 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 // one made it and streams its documents in, in _id order — or, when this
 // move already made it, continues after the documents that are there (an
 // ordered copy leaves a prefix of the stream; the check afterwards proves it).
-func copyCollection(ctx context.Context, o Options, info wsarchive.CollectionInfo, p *Progress, progress func(), stop func() error) error {
+func copyCollection(ctx context.Context, o Options, info wsarchive.CollectionInfo, p *CopyProgress, progress func(), stop func() error) error {
 	spec, err := wsarchive.ReadSpec(ctx, o.From, info)
 	if err != nil {
 		return err

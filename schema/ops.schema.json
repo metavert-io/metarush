@@ -14856,6 +14856,41 @@
         "provider"
       ]
     },
+    "CopyProgress": {
+      "properties": {
+        "phase": {
+          "type": "string",
+          "enum": [
+            "copying",
+            "checking"
+          ]
+        },
+        "collection": {
+          "type": "string"
+        },
+        "collections": {
+          "type": "integer"
+        },
+        "collectionsDone": {
+          "type": "integer"
+        },
+        "documents": {
+          "type": "integer"
+        },
+        "documentsDone": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "phase",
+        "collections",
+        "collectionsDone",
+        "documents",
+        "documentsDone"
+      ]
+    },
     "CopyView": {
       "properties": {
         "recording": {
@@ -17214,6 +17249,534 @@
       "type": "object",
       "required": [
         "uses",
+        "summary"
+      ]
+    },
+    "DatabaseAbandonIn": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DatabaseAbandonOut": {
+      "properties": {
+        "abandoned": {
+          "type": "boolean"
+        },
+        "to": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "abandoned",
+        "summary"
+      ]
+    },
+    "DatabaseComputer": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "this": {
+          "type": "boolean"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string"
+        },
+        "older": {
+          "type": "boolean"
+        },
+        "needs": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "this",
+        "running",
+        "older",
+        "needs"
+      ]
+    },
+    "DatabaseCount": {
+      "properties": {
+        "what": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "what",
+        "count"
+      ]
+    },
+    "DatabaseMoveIn": {
+      "properties": {
+        "to": {
+          "type": "string",
+          "enum": [
+            "here",
+            "saved"
+          ],
+          "description": "here: the database on this computer (set up the way setup does it); saved: another MongoDB (Atlas or your own server) whose address this computer keeps for the move (given once to the plan in a terminal or in Settings → Storage; never on a command line)"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 63,
+          "description": "The new database's name (default metarush)."
+        },
+        "onlyThisComputer": {
+          "type": "boolean",
+          "description": "The database on this computer is reached by this computer only: say this computer will be the only one using the workspace."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "to"
+      ]
+    },
+    "DatabaseMoveOut": {
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/DatabasePlace"
+        },
+        "to": {
+          "$ref": "#/$defs/DatabasePlace"
+        },
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/MoveCollection"
+          },
+          "type": "array"
+        },
+        "documents": {
+          "type": "integer"
+        },
+        "resumed": {
+          "type": "boolean"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "switched": {
+          "type": "boolean"
+        },
+        "marked": {
+          "type": "boolean"
+        },
+        "restarted": {
+          "type": "boolean"
+        },
+        "others": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "seconds": {
+          "type": "number"
+        },
+        "kept": {
+          "type": "string"
+        },
+        "next": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "collections",
+        "documents",
+        "resumed",
+        "verified",
+        "switched",
+        "marked",
+        "restarted",
+        "others",
+        "seconds",
+        "kept",
+        "next",
+        "summary"
+      ]
+    },
+    "DatabaseMoveRunView": {
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "running",
+            "done",
+            "failed",
+            "stopped"
+          ]
+        },
+        "phase": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string",
+          "description": "The new database, in words."
+        },
+        "says": {
+          "type": "string"
+        },
+        "progress": {
+          "$ref": "#/$defs/CopyProgress"
+        },
+        "waiting": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "started": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "next": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "state",
+        "to",
+        "progress",
+        "summary"
+      ]
+    },
+    "DatabaseMoveStatusIn": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DatabaseMoveStatusOut": {
+      "properties": {
+        "this": {
+          "$ref": "#/$defs/DatabasePlace",
+          "description": "The database this computer uses."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "",
+            "moving",
+            "moved",
+            "abandoned"
+          ]
+        },
+        "frozen": {
+          "type": "boolean"
+        },
+        "to": {
+          "type": "string"
+        },
+        "toName": {
+          "type": "string"
+        },
+        "by": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "movedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "paused": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "switchMeToo": {
+          "type": "boolean"
+        },
+        "canSwitch": {
+          "type": "boolean"
+        },
+        "steps": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "command": {
+          "type": "string"
+        },
+        "moving": {
+          "type": "boolean"
+        },
+        "run": {
+          "$ref": "#/$defs/DatabaseMoveRunView"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "this",
+        "state",
+        "frozen",
+        "switchMeToo",
+        "canSwitch",
+        "steps",
+        "moving",
+        "summary"
+      ]
+    },
+    "DatabasePlace": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "here",
+            "atlas",
+            "server"
+          ]
+        },
+        "words": {
+          "type": "string",
+          "description": "The database in words: the database on this computer, MongoDB Atlas (cluster0.example.mongodb.net), a MongoDB server on your network."
+        },
+        "host": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "reach": {
+          "type": "string",
+          "enum": [
+            "this-computer",
+            "every-computer"
+          ]
+        },
+        "cloud": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind",
+        "words",
+        "name",
+        "reach",
+        "cloud"
+      ]
+    },
+    "DatabasePlanIn": {
+      "properties": {
+        "to": {
+          "type": "string",
+          "enum": [
+            "here",
+            "saved"
+          ],
+          "description": "here: the database on this computer (set up the way setup does it); saved: another MongoDB (Atlas or your own server) whose address this computer keeps for the move (given once to the plan in a terminal or in Settings → Storage; never on a command line)"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 63,
+          "description": "The new database's name (default metarush)."
+        },
+        "onlyThisComputer": {
+          "type": "boolean",
+          "description": "The database on this computer is reached by this computer only: say this computer will be the only one using the workspace."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "to"
+      ]
+    },
+    "DatabasePlanOut": {
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/DatabasePlace"
+        },
+        "to": {
+          "$ref": "#/$defs/DatabasePlace"
+        },
+        "nothing": {
+          "type": "boolean"
+        },
+        "resume": {
+          "type": "boolean"
+        },
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/MoveCollection"
+          },
+          "type": "array"
+        },
+        "documents": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "counts": {
+          "items": {
+            "$ref": "#/$defs/DatabaseCount"
+          },
+          "type": "array"
+        },
+        "seconds": {
+          "type": "integer"
+        },
+        "takes": {
+          "type": "string"
+        },
+        "computers": {
+          "items": {
+            "$ref": "#/$defs/DatabaseComputer"
+          },
+          "type": "array"
+        },
+        "frozen": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "target": {
+          "$ref": "#/$defs/TargetCheck"
+        },
+        "keptHere": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kept": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "nothing",
+        "resume",
+        "collections",
+        "documents",
+        "bytes",
+        "counts",
+        "seconds",
+        "takes",
+        "computers",
+        "frozen",
+        "target",
+        "keptHere",
+        "problems",
+        "ready",
+        "notes",
+        "kept",
+        "summary"
+      ]
+    },
+    "DatabaseSwitchIn": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 63
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DatabaseSwitchOut": {
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/DatabasePlace"
+        },
+        "to": {
+          "$ref": "#/$defs/DatabasePlace"
+        },
+        "switched": {
+          "type": "boolean"
+        },
+        "next": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "switched",
+        "next",
         "summary"
       ]
     },
@@ -33581,6 +34144,39 @@
       "required": [
         "change",
         "summary"
+      ]
+    },
+    "MoveCollection": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "carried": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        },
+        "copied": {
+          "type": "integer"
+        },
+        "verified": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "count",
+        "bytes",
+        "carried"
       ]
     },
     "MusicAddIn": {
@@ -64531,6 +65127,46 @@
         "takes"
       ]
     },
+    "TargetCheck": {
+      "properties": {
+        "reached": {
+          "type": "boolean"
+        },
+        "empty": {
+          "type": "boolean"
+        },
+        "holds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "resume": {
+          "type": "boolean"
+        },
+        "copied": {
+          "type": "boolean"
+        },
+        "writable": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string"
+        },
+        "problem": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "reached",
+        "empty",
+        "resume",
+        "copied",
+        "writable"
+      ]
+    },
     "TemplateRow": {
       "properties": {
         "id": {
@@ -73510,6 +74146,91 @@
       ],
       "description": "List the cuts that play this project's cut inside them (nested cuts)"
     },
+    "database.abandon": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/DatabaseAbandonIn"
+        },
+        "output": {
+          "$ref": "#/$defs/DatabaseAbandonOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Abandon a move of the database that stopped: changes go on in the old database, and the copy keeps its lock so nothing uses it (owners, people only)"
+    },
+    "database.move": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/DatabaseMoveIn"
+        },
+        "output": {
+          "$ref": "#/$defs/DatabaseMoveOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Move the workspace's database to another one: changes pause on every computer, everything is copied and checked, this computer switches, and the old database is kept, marked as moved, never deleted (owners, people only; plan first)"
+    },
+    "database.move.status": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/DatabaseMoveStatusIn"
+        },
+        "output": {
+          "$ref": "#/$defs/DatabaseMoveStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Say which database this computer uses and whether the workspace is being moved to another one or moved (then switch this computer too), and how the last move started on this computer is going"
+    },
+    "database.plan": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/DatabasePlanIn"
+        },
+        "output": {
+          "$ref": "#/$defs/DatabasePlanOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Check what moving the workspace's database would do — to the database on this computer, or to another MongoDB (Atlas or your own server) whose address this computer keeps for the move: what moves, how long it takes, what each computer needs, what waits meanwhile, and whether the new database is empty, reachable and writable; nothing is changed (owners)"
+    },
+    "database.switch": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/DatabaseSwitchIn"
+        },
+        "output": {
+          "$ref": "#/$defs/DatabaseSwitchOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Switch this computer to the database the workspace moved to, with this computer's own sign-in for it (owners, people only, at this computer)"
+    },
     "deliver.captions": {
       "properties": {
         "input": {
@@ -80034,6 +80755,11 @@
     "cut.update",
     "cut.useFixed",
     "cut.where",
+    "database.abandon",
+    "database.move",
+    "database.move.status",
+    "database.plan",
+    "database.switch",
     "deliver.captions",
     "deliver.export",
     "delivery.gate",

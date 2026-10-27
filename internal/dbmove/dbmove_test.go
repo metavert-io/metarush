@@ -111,7 +111,7 @@ func TestCopyIsWholeAndChecked(t *testing.T) {
 	before := dbHash(t, src)
 	var phases []string
 	res, err := Copy(ctx, Options{From: src, To: dst, Workspace: ws, WorkspaceName: "FernBrook Studio", Move: "mv1",
-		Progress: func(p Progress) {
+		Progress: func(p CopyProgress) {
 			if len(phases) == 0 || phases[len(phases)-1] != p.Phase {
 				phases = append(phases, p.Phase)
 			}
@@ -173,7 +173,7 @@ func TestCopyContinuesAfterAStop(t *testing.T) {
 	stopNow := false
 	stopped := errors.New("stopped by the test")
 	_, err := Copy(ctx, Options{From: src, To: dst, Workspace: ws, Move: "mv1",
-		Progress: func(p Progress) {
+		Progress: func(p CopyProgress) {
 			if p.Collection == store.CProjects && p.DocumentsDone > 0 {
 				if n, _ := dst.C(store.CProjects).CountDocuments(ctx, bson.M{}); n >= 500 {
 					stopNow = true
@@ -230,7 +230,7 @@ func TestCopyNoticesAChangedDatabase(t *testing.T) {
 	ctx := context.Background()
 	wrote := false
 	_, err := Copy(ctx, Options{From: src, To: dst, Workspace: ws, Move: "mv1",
-		Progress: func(p Progress) {
+		Progress: func(p CopyProgress) {
 			if p.Phase == "copying" && p.Collection == "studio_notes" && !wrote {
 				wrote = true // a computer that didn't pause changes a project already copied
 				_, _ = src.C(store.CProjects).UpdateOne(ctx, bson.M{"_id": "prj_00003"}, bson.M{"$set": bson.M{"name": "Renamed by Lena"}})
@@ -277,7 +277,7 @@ func TestSurvey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	by := map[string]Collection{}
+	by := map[string]MoveCollection{}
 	for _, c := range s.Collections {
 		by[c.Name] = c
 	}

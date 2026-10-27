@@ -46,6 +46,11 @@ storageMovePlanOut: StorageMovePlanOut
 storageMoveStartIn: StorageMoveStartIn
 storageMoveStartOut: StorageMoveStartOut
 storageChooseOut: StorageChooseOut
+databaseMovePlanIn: DatabaseMovePlanIn
+databaseMovePlanOut: DatabaseMovePlanOut
+databaseMoveStartIn: DatabaseMoveStartIn
+databaseMoveStartOut: DatabaseMoveStartOut
+databaseSwitchFormIn: DatabaseSwitchFormIn
 recordingCreateIn: RecordingCreateIn
 recordingClockIn: RecordingClockIn
 recordingPieceOut: RecordingPieceOut
@@ -3566,6 +3571,144 @@ summary: string
 export interface StorageChooseOut {
 canceled: boolean
 path?: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DatabaseMovePlanIn".
+ */
+export interface DatabaseMovePlanIn {
+form: DatabaseMoveForm
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DatabaseMoveForm".
+ */
+export interface DatabaseMoveForm {
+to: ("here" | "elsewhere")
+/**
+ * Sent once, never returned: kept in this computer's keychain.
+ */
+address?: string
+name?: string
+onlyThisComputer?: boolean
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DatabaseMovePlanOut".
+ */
+export interface DatabaseMovePlanOut {
+moveId: string
+plan: DatabasePlanOut
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DatabasePlanOut".
+ */
+export interface DatabasePlanOut {
+from: DatabasePlace
+to: DatabasePlace
+nothing: boolean
+resume: boolean
+collections: MoveCollection[]
+documents: number
+bytes: number
+counts: DatabaseCount[]
+seconds: number
+takes: string
+computers: DatabaseComputer[]
+frozen: string[]
+target: TargetCheck
+keptHere: string[]
+problems: string[]
+ready: boolean
+notes: string[]
+kept: string
+summary: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DatabasePlace".
+ */
+export interface DatabasePlace {
+kind: ("here" | "atlas" | "server")
+/**
+ * The database in words: the database on this computer, MongoDB Atlas (cluster0.example.mongodb.net), a MongoDB server on your network.
+ */
+words: string
+host?: string
+name: string
+reach: ("this-computer" | "every-computer")
+cloud: boolean
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "MoveCollection".
+ */
+export interface MoveCollection {
+name: string
+count: number
+bytes: number
+carried: boolean
+why?: string
+copied?: number
+verified?: boolean
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DatabaseCount".
+ */
+export interface DatabaseCount {
+what: string
+count: number
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DatabaseComputer".
+ */
+export interface DatabaseComputer {
+name: string
+this: boolean
+running: boolean
+version?: string
+older: boolean
+needs: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "TargetCheck".
+ */
+export interface TargetCheck {
+reached: boolean
+empty: boolean
+holds?: string[]
+resume: boolean
+copied: boolean
+writable: boolean
+version?: string
+problem?: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DatabaseMoveStartIn".
+ */
+export interface DatabaseMoveStartIn {
+moveId: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DatabaseMoveStartOut".
+ */
+export interface DatabaseMoveStartOut {
+started: boolean
+summary: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DatabaseSwitchFormIn".
+ */
+export interface DatabaseSwitchFormIn {
+address: string
+name?: string
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema

@@ -261,7 +261,7 @@ type DatabaseMoveRun struct {
 	// Phase: setting-up, pausing, copying, switching; Says what it does now.
 	Phase    string          `json:"phase,omitempty"`
 	Says     string          `json:"says,omitempty"`
-	Progress dbmove.Progress `json:"progress"`
+	Progress dbmove.CopyProgress `json:"progress"`
 	// Waiting names the computers it waits for to pause.
 	Waiting []string `json:"waiting,omitempty"`
 	Summary string   `json:"summary,omitempty"`
@@ -390,7 +390,7 @@ func (m *dbMoveRun) started(a *app.App, move string, to DatabasePlace) {
 	m.save(a, true)
 }
 
-func (m *dbMoveRun) progress(a *app.App, p dbmove.Progress) {
+func (m *dbMoveRun) progress(a *app.App, p dbmove.CopyProgress) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	newPhase := m.r.Progress.Phase != p.Phase
@@ -599,7 +599,7 @@ type DatabaseMoveRunView struct {
 	Phase    string          `json:"phase,omitempty"`
 	To       string          `json:"to" jsonschema:"description=The new database\\, in words."`
 	Says     string          `json:"says,omitempty"`
-	Progress dbmove.Progress `json:"progress"`
+	Progress dbmove.CopyProgress `json:"progress"`
 	Waiting  []string        `json:"waiting,omitempty"`
 	Started  *time.Time      `json:"started,omitempty"`
 	Finished *time.Time      `json:"finished,omitempty"`

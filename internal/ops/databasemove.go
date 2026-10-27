@@ -137,7 +137,7 @@ type DatabasePlanOut struct {
 	Resume bool `json:"resume"`
 	// Collections are every kind of record the old database holds, with
 	// counts and sizes, and whether it moves.
-	Collections []dbmove.Collection `json:"collections"`
+	Collections []dbmove.MoveCollection `json:"collections"`
 	Documents   int64               `json:"documents"`
 	Bytes       int64               `json:"bytes"`
 	// Counts are the headline counts ("4 projects, 120 clips…").
@@ -150,7 +150,7 @@ type DatabasePlanOut struct {
 	// Frozen says what waits during the move.
 	Frozen []string `json:"frozen"`
 	// Target is the new database checked (reached, empty, writable).
-	Target dbmove.Target `json:"target"`
+	Target dbmove.TargetCheck `json:"target"`
 	// KeptHere are clients' What may leave rules that keep their things
 	// from the new database.
 	KeptHere []string `json:"keptHere"`
@@ -167,7 +167,7 @@ type DatabasePlanOut struct {
 type DatabaseMoveOut struct {
 	From        DatabasePlace       `json:"from"`
 	To          DatabasePlace       `json:"to"`
-	Collections []dbmove.Collection `json:"collections"`
+	Collections []dbmove.MoveCollection `json:"collections"`
 	Documents   int64               `json:"documents"`
 	Resumed     bool                `json:"resumed"`
 	Verified    bool                `json:"verified"`
@@ -462,7 +462,7 @@ func DatabasePlan(ctx context.Context, a *app.App, in *DatabasePlanIn) (*Databas
 var RunningWithin = 130 * time.Second
 
 func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, error) {
-	out := &DatabasePlanOut{From: databasePlaceOf(a.Cfg.Database), To: t.place, Collections: []dbmove.Collection{}, Counts: []DatabaseCount{},
+	out := &DatabasePlanOut{From: databasePlaceOf(a.Cfg.Database), To: t.place, Collections: []dbmove.MoveCollection{}, Counts: []DatabaseCount{},
 		Computers: []DatabaseComputer{}, Frozen: []string{}, KeptHere: []string{}, Problems: []string{}, Notes: []string{}}
 	out.Kept = keptWords(out.From)
 	if sameDatabase(a, t) {
@@ -507,9 +507,9 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 	// The new database.
 	switch {
 	case kept:
-		out.Target = dbmove.Target{Problem: "Not looked at: a client's rules keep their words from it."}
+		out.Target = dbmove.TargetCheck{Problem: "Not looked at: a client's rules keep their words from it."}
 	case t.local != nil && !t.ready:
-		out.Target = dbmove.Target{Empty: true, Writable: true}
+		out.Target = dbmove.TargetCheck{Empty: true, Writable: true}
 		if !t.local.Available() {
 			out.Problems = append(out.Problems, "MongoDB makes no server for this computer, so MetaRush can't keep the database here.")
 		} else if _, have := t.local.ReadState(); !have {
@@ -519,7 +519,7 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 			out.Notes = append(out.Notes, w)
 		}
 	case !t.connect(ctx):
-		out.Target = dbmove.Target{Problem: "MetaRush couldn't reach the new database, or it didn't take the sign-in."}
+		out.Target = dbmove.TargetCheck{Problem: "MetaRush couldn't reach the new database, or it didn't take the sign-in."}
 		out.Problems = append(out.Problems, out.Target.Problem+" Check the address (and that this computer may reach it), then check again.")
 	default:
 		move := ""
@@ -632,7 +632,7 @@ func keptWords(from DatabasePlace) string {
 }
 
 // headlineCounts picks what people count in a workspace.
-func headlineCounts(cs []dbmove.Collection) []DatabaseCount {
+func headlineCounts(cs []dbmove.MoveCollection) []DatabaseCount {
 	words := []struct{ coll, what string }{
 		{store.CProjects, "projects"}, {store.CAssets, "clips"}, {store.CRevisions, "versions"}, {store.CUsers, "people"},
 		{store.CComments, "comments"}, {store.CSegments, "transcript lines"}, {store.CLogEntries, "activity log entries"},
@@ -830,7 +830,7 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 			}
 			return nil
 		},
-		Progress: func(p dbmove.Progress) {
+		Progress: func(p dbmove.CopyProgress) {
 			rec.progress(a, p)
 			say(copyLabel(p), p.DocumentsDone, p.Documents)
 		}})
@@ -895,7 +895,7 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 
 var errAbandoned = errors.New("the move was abandoned")
 
-func copyLabel(p dbmove.Progress) string {
+func copyLabel(p dbmove.CopyProgress) string {
 	if p.Phase == "checking" {
 		return "Checking the copy"
 	}

@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+- **Waiting in a terminal never hangs on a missing component**. `metarush ingest --wait` (and every other command that
+  waits for work) used to wait forever, saying nothing, when the work needed a component no computer had — a
+  transcript on a computer without transcription, say. Now it finishes the rest (preview copies and the like), then
+  says what waits and what adds it: "Transcripts wait for Transcription on this computer: add it in Settings →
+  Components." The work stays queued and is done once the component is added, or by another computer that has it.
 - **Videos render on Linux computers without a graphics card**. Review copies there are encoded in software and
   drawn with Chrome's software renderer; they used to fail on Linux machines without an NVIDIA GPU (macOS is
   unchanged).

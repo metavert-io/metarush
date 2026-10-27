@@ -229,7 +229,10 @@ metarush components --json             # the same for scripts (ComponentsOut)
   is never set up by itself, and the features that need it say so with the one step: "Rendering needs the Remotion
   renderer (about 400 MB). Add it in Settings → Components." A waiting job says the same ("Making transcripts needs
   the transcriber and its speech models…"), and so do link imports, PDF pages, D2 diagrams and footage that couldn't
-  be added.
+  be added. A command that waits (`metarush ingest --wait`, `job wait`, …) doesn't wait for work no computer can do:
+  it finishes the rest, then says what waits ("Transcripts wait for Transcription on this computer: add it in
+  Settings → Components") and ends like any command missing a program (exit 6; `--details` shows the command that
+  adds it). The work stays queued and is done once the component is added, or by another computer that has it.
 - **People only, owners only**: adding or removing is never done by Auto, Claude (in the dashboard or in a
   terminal), an MCP client or an AI app's draft; `metarush components add` runs only in your own terminal. In the
   dashboard, Add it shows the size, the time and, for the renderer, Remotion's licence first, then adds in the

@@ -28,7 +28,10 @@
   It keeps them to the end: a try that fails and will be retried goes back in the queue for a short wait
   (`jobs.RetryBackoff`: 10 s, then twice as long) and the terminal takes it again when the wait is over; the wait
   (`waitJobsOpt`) starts the terminal's worker again if it stops while a job it waits for still needs running, and
-  ends with a plain error, never an endless wait, when it can't.
+  ends with a plain error, never an endless wait, when it can't. A job no computer can run (this one lacks the
+  component that brings it, and no other computer running MetaRush takes it) isn't waited for: the wait finishes the
+  rest and ends with what waits and the component that adds it (`waitingErr`, `E_TOOL_MISSING`, exit 6; the command
+  that adds it in `details.command`, each waiting job in `details.waiting`).
   The record a job works on is saved before the job is queued (`render.submit` saves the render with the job ID it
   chose, then queues the job), so the fastest worker always finds it; a job that still finds nothing goes back in
   the queue for a moment, a few times, saying why (`Queue.Postpone`: the attempt not counted), then fails plainly.

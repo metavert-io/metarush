@@ -40,7 +40,9 @@ Read `docs/architecture.md` before structural changes.
   heavy jobs defer on low battery (threshold, override) — never silently. A stopping worker releases its job (attempt
   not counted, never failed); a terminal's `--wait` runs only the jobs it waits for (`LeaseAmong`) and keeps them
   to the end: retries are taken in the terminal, and `waitJobsOpt` restarts a stopped terminal worker or fails
-  plainly, never waits forever (D177).
+  plainly, never waits forever (D177); a job no computer can run (this one lacks its component, no other running
+  MetaRush takes it) isn't waited for: the rest finishes, then `waitingErr` says what waits and the component that
+  adds it (`E_TOOL_MISSING`, exit 6, `details.waiting`/`components`/`command`; D340).
 - **Claude Code does the editorial reasoning and visual review** (reads contact sheets/frames the CLI extracts); no
   extra AI API calls. Local transcription: Parakeet v2 via sherpa-onnx (English), whisper.cpp fallback.
 - **The dashboard assistant runs the user's local Claude Code read-only**: a long-lived process per conversation, resumed

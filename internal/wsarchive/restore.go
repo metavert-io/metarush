@@ -220,6 +220,49 @@ func capitalize(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
+// notOptions are collection options an export never writes: a view, a time
+// series, a clustered or encrypted collection.
+var notOptions = map[string]bool{"viewOn": true, "pipeline": true, "timeseries": true, "clusteredIndex": true, "encryptedFields": true}
+
+// CheckCollections refuses an archive that names a collection an export
+// never holds (one the catalogue leaves out — passwords, sign-in links —
+// or doesn't know), names one twice, or makes one as something other than a
+// plain collection. An archive is restored only as an export makes it,
+// whatever its checksums say (D333).
+func CheckCollections(m *Manifest) error {
+	refuse := func(name, why string) error {
+		return apperr.New(apperr.Integrity, "The archive holds %s, which an export never writes, so nothing was restored.", why).
+			WithHint("Restore only archives MetaRush made, as they were made.").WithDetails(map[string]any{"reason": "not_an_export", "collection": name})
+	}
+	seen := map[string]bool{}
+	for _, c := range m.Collections {
+		e, ok := Catalogue[c.Name]
+		switch {
+		case !ok:
+			return refuse(c.Name, "records of a kind MetaRush doesn't know")
+		case !e.Exported():
+			return refuse(c.Name, "records of a kind an export leaves out ("+e.Why+")")
+		case seen[c.Name]:
+			return refuse(c.Name, "the same kind of records twice")
+		case c.Type != "" && c.Type != "collection":
+			return refuse(c.Name, "records kept as something other than a collection")
+		}
+		seen[c.Name] = true
+		opts, err := fromEJSON(c.Options)
+		if err != nil {
+			return refuse(c.Name, "settings for a collection it can't read")
+		}
+		if elems, _ := opts.Elements(); len(elems) > 0 {
+			for _, el := range elems {
+				if notOptions[el.Key()] || strings.HasPrefix(el.Key(), "$") {
+					return refuse(c.Name, "a collection made as a view or another special kind")
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // Mismatch is a file whose bytes aren't what the manifest says.
 type Mismatch struct {
 	Path   string `json:"path"`
@@ -338,6 +381,9 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 	defer a.Close()
 	m := a.Manifest
 	if err := CheckReadable("The archive", m.Level); err != nil {
+		return nil, err
+	}
+	if err := CheckCollections(m); err != nil {
 		return nil, err
 	}
 	o.progress(ArchiveProgress{Phase: "checking"})

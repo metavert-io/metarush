@@ -156,3 +156,75 @@ func errorsAs(err error, ae **apperr.Error) bool {
 	}
 	return false
 }
+
+// addCollection adds a collection's file to an archive folder, with its
+// manifest entry and matching checksums (an archive made up by hand).
+func addCollection(t *testing.T, dir, name, lines string, options any) {
+	t.Helper()
+	rel := "collections/" + name + ".jsonl"
+	if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(rel)), []byte(lines), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256([]byte(lines))
+	mp := filepath.Join(dir, wsarchive.ManifestName)
+	var m map[string]any
+	mb, _ := os.ReadFile(mp)
+	if err := json.Unmarshal(mb, &m); err != nil {
+		t.Fatal(err)
+	}
+	entry := map[string]any{"name": name, "how": "as-is", "file": rel, "count": bytes.Count([]byte(lines), []byte("\n")), "bytes": len(lines), "sha256": hex.EncodeToString(sum[:]), "type": "collection"}
+	if options != nil {
+		entry["options"] = options
+	}
+	m["collections"] = append(m["collections"].([]any), entry)
+	m["files"] = append(m["files"].([]any), map[string]any{"path": rel, "bytes": len(lines), "sha256": hex.EncodeToString(sum[:])})
+	out, _ := json.MarshalIndent(m, "", "  ")
+	if err := os.WriteFile(mp, out, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// An archive is restored only as an export makes it: a collection an export
+// never holds (password hashes, say) or one made as a view is refused before
+// anything is written, whatever its checksums say.
+func TestRestoreRefusesCollectionsAnExportNeverHolds(t *testing.T) {
+	for _, tc := range []struct {
+		what, name, lines string
+		options           any
+	}{
+		{"passwords", store.CUserCredentials, `{"_id":"usr_x","hash":"$argon2id$v=19$m=1,t=1,p=1$c2FsdA$aGFzaA"}` + "\n", nil},
+		{"a collection MetaRush doesn't know", "notes_from_elsewhere", `{"_id":"n1"}` + "\n", nil},
+		{"a view", store.CPeople + "_view", "", map[string]any{"viewOn": "users", "pipeline": []any{}}},
+	} {
+		t.Run(tc.what, func(t *testing.T) {
+			_, res, _ := restoreSeed(t)
+			addCollection(t, res.Path, tc.name, tc.lines, tc.options)
+			dst := emptyDB(t)
+			_, err := restoreInto(t, res.Path, dst, fsStore(t), false)
+			if code(err) != apperr.Integrity {
+				t.Fatalf("restored: %v", err)
+			}
+			if names, _ := wsarchive.ListCollections(context.Background(), dst); len(names) != 1 {
+				t.Fatalf("something was written: %v", names)
+			}
+		})
+	}
+	// A view's options on a collection an export does hold are refused too.
+	_, res, _ := restoreSeed(t)
+	mp := filepath.Join(res.Path, wsarchive.ManifestName)
+	var m map[string]any
+	mb, _ := os.ReadFile(mp)
+	if err := json.Unmarshal(mb, &m); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range m["collections"].([]any) {
+		if c.(map[string]any)["name"] == store.CComments {
+			c.(map[string]any)["options"] = map[string]any{"viewOn": "users", "pipeline": []any{}}
+		}
+	}
+	mb, _ = json.Marshal(m)
+	_ = os.WriteFile(mp, mb, 0o600)
+	if _, err := restoreInto(t, res.Path, emptyDB(t), fsStore(t), false); code(err) != apperr.Integrity {
+		t.Fatalf("a view's options: %v", err)
+	}
+}

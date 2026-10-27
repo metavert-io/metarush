@@ -7,7 +7,8 @@
 # both themes. The command line then agrees, refuses Claude Code, plans and restores the archive into a fresh home
 # with `metarush setup --restore` (a person at a terminal: script(1), the way remote-e2e.sh plays one) and an empty
 # database, and the browser (MODE=copy) opens the dashboard on the restored copy on 5671: the workspace, its
-# project, the restore in the Log.
+# project, the restore in the Log, and the copy's paused background deletions, lifted with "This copy is now the
+# workspace…".
 #
 #   scripts/workspace-export-e2e.sh                  # needs scripts/dev-mongo.sh running and python3
 #   KEEP=1 SKIP_BUILD=1 scripts/workspace-export-e2e.sh

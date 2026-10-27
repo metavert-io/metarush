@@ -35,7 +35,7 @@ var ownerOnlyOps = []string{
 	"publish.setup",
 	"delivery.gate.set", "content.gate.set",
 	"share.settings.set",
-	"workspace.export", "workspace.exports",
+	"workspace.export", "workspace.exports", "workspace.adopt",
 	"database.plan", "database.move", "database.switch", "database.abandon",
 }
 

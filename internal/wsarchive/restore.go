@@ -1,12 +1,15 @@
 package wsarchive
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -74,8 +77,11 @@ type RestoreReport struct {
 	// that was waiting, when the archive was made.
 	Held  int64    `json:"held"`
 	Notes []string `json:"notes,omitempty"`
+	// DeletionsPaused: the copy starts with its background deletions paused
+	// (PausedWords) until an owner adopts it.
+	DeletionsPaused bool `json:"deletionsPaused,omitempty"`
 	// Verified: every checksum matched, every collection holds exactly what
-	// the archive does (and, after the migrations, at least as much), and
+	// the archive does (and, after the migrations, every record of it), and
 	// the media is in the storage (included) or was looked for (referenced).
 	Verified bool `json:"verified"`
 }
@@ -114,6 +120,15 @@ type ComputerWork struct {
 	Triggers      int64 `json:"triggers"`
 	Conversations int64 `json:"conversations"`
 }
+
+// PausedWords say that a restored copy deletes nothing by itself, and how a
+// person lifts that (a terminal's words); PausedHere says it in the dashboard,
+// whose button lifts it.
+const (
+	pausedWhat  = "background deletions are paused: emptying the Trash on its schedule, ending review links and deleting their pages, and clearing out old activity wait, since the original may still use the same footage and pages."
+	PausedWords = "The copy's " + pausedWhat + " Once the original is retired, or this copy has storage of its own, say the copy is now the workspace: metarush workspace adopt (or Settings → Storage)."
+	PausedHere  = "This copy's " + pausedWhat + " Once the original is retired, or this copy has storage of its own, say this copy is now the workspace."
+)
 
 // ErrNotEmpty refuses a database that already holds something.
 func ErrNotEmpty(db *store.DB, colls []string) error {
@@ -235,14 +250,15 @@ func capitalize(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-// notOptions are collection options an export never writes: a view, a time
-// series, a clustered or encrypted collection.
+// notOptions are collection options that make a collection something else
+// than a collection: a view, a time series, a clustered or encrypted one. Any
+// other option is refused too (CheckCollections).
 var notOptions = map[string]bool{"viewOn": true, "pipeline": true, "timeseries": true, "clusteredIndex": true, "encryptedFields": true}
 
 // CheckCollections refuses an archive that names a collection an export
 // never holds (one the catalogue leaves out — passwords, sign-in links —
 // or doesn't know), names one twice, or makes one as something other than a
-// plain collection. An archive is restored only as an export makes it,
+// plain collection, or with any setting (MetaRush sets none). An archive is restored only as an export makes it,
 // whatever its checksums say (D333).
 func CheckCollections(m *Manifest) error {
 	refuse := func(name, why string) error {
@@ -273,6 +289,14 @@ func CheckCollections(m *Manifest) error {
 					return refuse(c.Name, "a collection made as a view or another special kind")
 				}
 			}
+			// MetaRush makes every collection plain: capped (old records
+			// pushed out), a validator, a collation or any other setting
+			// isn't one of its own.
+			keys := make([]string, 0, len(elems))
+			for _, el := range elems {
+				keys = append(keys, el.Key())
+			}
+			return refuse(c.Name, "a collection made with settings MetaRush never uses ("+strings.Join(keys, ", ")+")")
 		}
 	}
 	return nil
@@ -446,11 +470,15 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 	}
 	switch resume {
 	case store.RestoreMigrating:
-		verifiedFromManifest(rep, m)
+		if err := recheck(ctx, o, a, rep, true); err != nil {
+			return nil, err
+		}
 		rep.Notes = append(rep.Notes, "This restore had stopped while the copy was brought up to date; it finished that now.")
 		return finishRestore(ctx, o, a, rep)
 	case store.RestoreFootage:
-		verifiedFromManifest(rep, m)
+		if err := recheck(ctx, o, a, rep, false); err != nil {
+			return nil, err
+		}
 		rep.Notes = append(rep.Notes, "This restore had stopped while its footage was copied; it went on from where it stopped.")
 		return footageThenFinish(ctx, o, a, rep, mo)
 	}
@@ -492,10 +520,12 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 				plural(int64(rep.Media.Missing), "file", "files"), isAre(rep.Media.Missing)))
 		}
 		if o.Store.Locator() == m.Media.Store {
-			rep.Notes = append(rep.Notes, "The copy uses the same storage as the original: anything either one deletes (emptying the Trash, clearing out a project) is gone for both.")
+			rep.Notes = append(rep.Notes, "The copy uses the same storage as the original: anything a person deletes in either one (emptying the Trash, clearing out a project) is gone for both.")
 		}
 	}
 	if o.Plan {
+		rep.DeletionsPaused = true
+		rep.Notes = append(rep.Notes, PausedWords)
 		for _, c := range m.Collections {
 			rep.Collections = append(rep.Collections, RestoredCollection{Name: c.Name, Count: c.Count})
 		}
@@ -512,6 +542,19 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 	} else if len(others) > 0 {
 		_ = o.DB.SetRestoreLock(ctx, a.ID, m.Workspace.ID, m.Workspace.Name, store.RestoreAbandoned) // nothing of the copy is in it
 		return nil, ErrNotEmpty(o.DB, others)
+	}
+	// MetaRush's own indexes, as its migrations make them at the archive's
+	// level, before the records (a unique index refuses a duplicate as it
+	// comes in). The archive's list only says where it differs.
+	versions := make([]int, 0, len(m.Level.Applied))
+	for _, ap := range m.Level.Applied {
+		versions = append(versions, ap.Version)
+	}
+	if err := o.DB.MakeForRestore(ctx, versions); err != nil {
+		return nil, partial(err, "MetaRush couldn't make the copy's indexes.")
+	}
+	if note := indexDifferences(ctx, o.DB, m); note != "" {
+		rep.Notes = append(rep.Notes, note)
 	}
 	// The records, each collection checked against the archive as soon as it
 	// is in.
@@ -556,11 +599,146 @@ func footageOptions(o RestoreOptions, m *Manifest) (storagemove.Options, error) 
 	return mo, nil
 }
 
-// verifiedFromManifest lists the collections a resumed restore had checked.
-func verifiedFromManifest(rep *RestoreReport, m *Manifest) {
+// recheck is how a restore that continues checks the copy first. Before the
+// copy was brought up to date, its records must still be exactly the
+// archive's: every collection's count and checksum, as when they went in, and
+// nothing in a collection the archive hasn't. Once migrations ran, which
+// change records and may add some of the workspace's own (a project's Content
+// Settings), every record of the archive must still be there, by ID, and
+// nothing anywhere may belong to another workspace or to none.
+func recheck(ctx context.Context, o RestoreOptions, a *Opened, rep *RestoreReport, migrating bool) error {
+	m := a.Manifest
+	o.progress(ArchiveProgress{Phase: "checking"})
+	if migrating {
+		if err := allTheArchives(ctx, o, a); err != nil {
+			return err
+		}
+		for _, c := range m.Collections {
+			rep.Collections = append(rep.Collections, RestoredCollection{Name: c.Name, Count: c.Count, Verified: true})
+		}
+		return nil
+	}
+	inArchive := map[string]bool{}
 	for _, c := range m.Collections {
+		inArchive[c.Name] = true
+	}
+	colls, err := ListCollections(ctx, o.DB)
+	if err != nil {
+		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't look into the database.")
+	}
+	for _, c := range colls {
+		if inArchive[c.Name] || notTheCopys(o.DB, c.Name) {
+			continue
+		}
+		if n, err := o.DB.C(c.Name).CountDocuments(ctx, bson.M{}); err != nil {
+			return partial(err, "MetaRush couldn't count %s in the copy.", c.Name)
+		} else if n > 0 {
+			return partial(nil, "While the restore waited, records came into %s, which the archive hasn't, so it doesn't go on.", c.Name)
+		}
+	}
+	for i, c := range m.Collections {
+		o.progress(ArchiveProgress{Phase: "checking", Collection: c.Name, Collections: len(m.Collections), CollectionsDone: i})
+		n, err := o.DB.C(c.Name).CountDocuments(ctx, bson.M{})
+		if err != nil {
+			return partial(err, "MetaRush couldn't count the copy of %s.", c.Name)
+		}
+		d, err := HashCollection(ctx, o.DB, c.Name, m.Workspace.ID)
+		if err != nil {
+			return partial(err, "MetaRush couldn't read the copy of %s back.", c.Name)
+		}
+		if n != c.Count || d.Count != c.Count || d.SHA256 != c.SHA256 {
+			return partial(nil, "While the restore waited, the copy of %s changed (%d records; the archive has %d), so it doesn't go on.", c.Name, n, c.Count)
+		}
 		rep.Collections = append(rep.Collections, RestoredCollection{Name: c.Name, Count: c.Count, Verified: true})
 	}
+	return nil
+}
+
+// notTheCopys are the collections a restore's checks pass over: its marker,
+// the migration level and a test database's marker.
+func notTheCopys(db *store.DB, name string) bool {
+	return name == store.CRestoreLock || name == store.CMigrations || name == store.CTestRun && strings.HasPrefix(db.Name, store.TestDBPrefix)
+}
+
+// allTheArchives checks, once migrations ran on the copy, that every record of
+// the archive is still there (by ID) and that nothing in the database belongs
+// to another workspace or to none.
+func allTheArchives(ctx context.Context, o RestoreOptions, a *Opened) error {
+	m := a.Manifest
+	colls, err := ListCollections(ctx, o.DB)
+	if err != nil {
+		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't look into the database.")
+	}
+	for _, c := range colls {
+		if notTheCopys(o.DB, c.Name) {
+			continue
+		}
+		if n, err := o.DB.C(c.Name).CountDocuments(ctx, bson.M{"workspaceId": bson.M{"$ne": m.Workspace.ID}}); err != nil {
+			return partial(err, "MetaRush couldn't count %s in the copy.", c.Name)
+		} else if n > 0 {
+			return partial(nil, "The copy's %s holds %s that aren't the workspace's, so the restore doesn't go on.", c.Name, plural(n, "record", "records"))
+		}
+	}
+	for _, c := range m.Collections {
+		ok, err := hasRecords(ctx, o.DB, a.Dir, c, m.Workspace.ID)
+		if err != nil {
+			return partial(err, "MetaRush couldn't read the copy of %s back.", c.Name)
+		}
+		if !ok {
+			return partial(nil, "The copy of %s is missing records the archive has, so the restore doesn't go on.", c.Name)
+		}
+	}
+	return nil
+}
+
+// hasRecords reports whether a collection of the copy holds every record of
+// the archive's file for it, by ID (both in _id order; the copy may hold
+// more, which migrations added).
+func hasRecords(ctx context.Context, db *store.DB, dir string, c CollectionFile, ws string) (bool, error) {
+	f, err := os.Open(filepath.Join(dir, filepath.FromSlash(c.File)))
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	br := bufio.NewReaderSize(f, 1<<20)
+	next := func() (bson.RawValue, bool, error) {
+		for {
+			line, err := readLine(br)
+			if errors.Is(err, io.EOF) {
+				return bson.RawValue{}, false, nil
+			}
+			if err != nil {
+				return bson.RawValue{}, false, err
+			}
+			if len(bytes.TrimSpace(line)) == 0 {
+				continue
+			}
+			doc, err := FromLine(line)
+			if err != nil {
+				return bson.RawValue{}, false, err
+			}
+			id, err := doc.LookupErr("_id")
+			return id, true, err
+		}
+	}
+	want, more, err := next()
+	if err != nil {
+		return false, err
+	}
+	err = EachDoc(ctx, db, c.Name, ws, func(doc bson.Raw) error {
+		if !more {
+			return nil
+		}
+		if got, gerr := doc.LookupErr("_id"); gerr == nil && got.Type == want.Type && bytes.Equal(got.Value, want.Value) {
+			want, more, err = next()
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return !more, nil
 }
 
 // footageThenFinish copies an archive's footage into the storage — once What
@@ -619,16 +797,14 @@ func finishRestore(ctx context.Context, o RestoreOptions, a *Opened, rep *Restor
 			WithHint("Run the same restore again: every record is in and checked, and it finishes bringing the copy up to date.")
 	}
 	rep.Migrated = append(rep.Migrated, applied...)
-	// The counts again: migrations only add.
-	for i, c := range m.Collections {
-		n, err := o.DB.C(c.Name).CountDocuments(ctx, workspaceFilter(m.Workspace.ID))
-		if err != nil {
-			return nil, partial(err, "MetaRush couldn't count the copy of %s.", c.Name)
-		}
-		if n < c.Count {
+	// Again once it is up to date: every record of the archive still there,
+	// by ID (migrations change records and may add the workspace's own, never
+	// take one away), and nothing of another workspace.
+	if err := allTheArchives(ctx, o, a); err != nil {
+		for i := range rep.Collections {
 			rep.Collections[i].Verified = false
-			return nil, partial(nil, "After bringing it up to date, the copy of %s holds fewer records than the archive (%d of %d).", c.Name, n, c.Count)
 		}
+		return nil, err
 	}
 	// The copy's footage is in this storage when it was included.
 	if m.Media.Mode == MediaIncluded {
@@ -645,6 +821,13 @@ func finishRestore(ctx context.Context, o RestoreOptions, a *Opened, rep *Restor
 		rep.Notes = append(rep.Notes, fmt.Sprintf("%s held here for a person (it was running when the archive was made, or it costs money or acts outside the workspace): start each again (Retry) once you're sure the original isn't doing it.",
 			plural(n, "piece of work is", "pieces of work are")))
 	}
+	// Nothing deletes by itself in the copy until a person says it is now
+	// the workspace: the original may still use the same storage and pages.
+	if err := o.DB.PauseDeletions(ctx, m.Workspace.ID, m.MadeAt); err != nil {
+		return nil, partial(err, "MetaRush couldn't pause the copy's background deletions.")
+	}
+	rep.DeletionsPaused = true
+	rep.Notes = append(rep.Notes, PausedWords)
 	if err := o.DB.SetRestoreLock(ctx, a.ID, m.Workspace.ID, m.Workspace.Name, store.RestoreDone); err != nil {
 		return nil, apperr.Wrap(apperr.Database, err, "The copy is whole, but MetaRush couldn't mark the restore finished. Run the same restore again to finish it.")
 	}
@@ -669,23 +852,10 @@ func migrationName(v int) string {
 	return fmt.Sprint(v)
 }
 
-// restoreCollection makes one collection and streams its documents in.
+// restoreCollection streams one collection's documents in (MetaRush's
+// migrations made the collection and its indexes; one they don't make is
+// made by its first record).
 func restoreCollection(ctx context.Context, db *store.DB, dir string, c CollectionFile) error {
-	spec := Spec{Name: c.Name, Type: c.Type}
-	var err error
-	if spec.Options, err = fromEJSON(c.Options); err != nil {
-		return apperr.Wrap(apperr.Integrity, err, "How %s is kept can't be read from the archive.", c.Name)
-	}
-	for _, ix := range c.Indexes {
-		raw, err := fromEJSON(ix)
-		if err != nil {
-			return apperr.Wrap(apperr.Integrity, err, "An index of %s can't be read from the archive.", c.Name)
-		}
-		spec.Indexes = append(spec.Indexes, raw)
-	}
-	if err := spec.Make(ctx, db); err != nil {
-		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't make %s in the copy.", c.Name)
-	}
 	f, err := os.Open(filepath.Join(dir, filepath.FromSlash(c.File)))
 	if err != nil {
 		return err
@@ -699,6 +869,76 @@ func restoreCollection(ctx context.Context, db *store.DB, dir string, c Collecti
 		return apperr.New(apperr.Integrity, "The archive's %s holds %d records, not the %d its manifest says.", c.Name, n, c.Count)
 	}
 	return nil
+}
+
+// indexDifferences says, in plain words, which indexes the archive lists that
+// MetaRush didn't make in the copy (they were left out: an archive's list
+// never makes one).
+func indexDifferences(ctx context.Context, db *store.DB, m *Manifest) string {
+	var left []string
+	for _, c := range m.Collections {
+		have := map[string]bool{}
+		if ixs, err := ListIndexes(ctx, db, c.Name); err == nil {
+			for _, ix := range ixs {
+				have[indexShape(ix)] = true
+			}
+		}
+		for _, raw := range c.Indexes {
+			ix, err := fromEJSON(raw)
+			if err != nil || len(ix) == 0 {
+				continue
+			}
+			if name, _ := ix.Lookup("name").StringValueOK(); name == "_id_" || have[indexShape(ix)] {
+				continue
+			}
+			left = append(left, c.Name+" "+indexWords(ix))
+		}
+	}
+	if len(left) == 0 {
+		return ""
+	}
+	sort.Strings(left)
+	shown := left
+	if len(shown) > 10 {
+		shown = append(shown[:10:10], fmt.Sprintf("%d more", len(left)-10))
+	}
+	were := "they were"
+	if len(left) == 1 {
+		were = "it was"
+	}
+	return fmt.Sprintf("The archive lists %s MetaRush doesn't make, so %s left out (the copy has MetaRush's own): %s.",
+		plural(int64(len(left)), "index", "indexes"), were, strings.Join(shown, "; "))
+}
+
+// indexShape is what an index does — its keys, in order, and how it treats
+// records — whatever its name or version.
+func indexShape(ix bson.Raw) string {
+	var d bson.D
+	for _, k := range []string{"key", "unique", "sparse", "expireAfterSeconds", "partialFilterExpression", "collation", "hidden",
+		"weights", "default_language", "language_override", "2dsphereIndexVersion", "bits", "min", "max", "wildcardProjection"} {
+		if v, err := ix.LookupErr(k); err == nil {
+			d = append(d, bson.E{Key: k, Value: v})
+		}
+	}
+	b, _ := bson.MarshalExtJSON(d, false, false)
+	return string(b)
+}
+
+// indexWords names an index for people: its name, and what it does that
+// matters (deleting records after a time, refusing duplicates).
+func indexWords(ix bson.Raw) string {
+	name, _ := ix.Lookup("name").StringValueOK()
+	var what []string
+	if _, err := ix.LookupErr("expireAfterSeconds"); err == nil {
+		what = append(what, "which deletes records after a time")
+	}
+	if u, ok := ix.Lookup("unique").BooleanOK(); ok && u {
+		what = append(what, "which refuses duplicates")
+	}
+	if len(what) == 0 {
+		return name
+	}
+	return name + ", " + strings.Join(what, " and ")
 }
 
 // elsewhere lists what stays tied to each computer in the copy.

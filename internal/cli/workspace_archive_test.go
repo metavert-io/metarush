@@ -241,6 +241,20 @@ func TestSetupRestoresAnExport(t *testing.T) {
 	if again.code == 0 {
 		t.Fatalf("setup on a set-up computer restored: %s", again.stdout)
 	}
+	// The copy deletes nothing by itself until its owner, at the terminal,
+	// says it is now the workspace.
+	if !res.Restored.DeletionsPaused || !dst.DeletionsPaused(ctx, a.WorkspaceID()) {
+		t.Fatalf("the copy's deletions aren't paused: %+v", res.Restored)
+	}
+	if ex := runCLI(t, h, "workspace", "exports"); !strings.Contains(ex.stdout, "background deletions are paused") {
+		t.Errorf("the exports don't say the deletions are paused: %s", ex.stdout)
+	}
+	if ad := runCLI(t, h, "workspace", "adopt"); ad.code != 0 || !strings.Contains(ad.stdout, "now the workspace") {
+		t.Fatalf("adopt: %s %s", ad.stdout, ad.stderr)
+	}
+	if dst.DeletionsPaused(ctx, a.WorkspaceID()) {
+		t.Error("still paused after adopt")
+	}
 }
 
 // The interview offers a restore (Enter: a new workspace); a restore named is
@@ -346,4 +360,30 @@ func TestRestoreKeepsAClientsFootageOffCloudStorage(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+// A database a restore still holds is no one's to work in, whatever the way
+// in: a command that writes (making a project), the checkup and the
+// assistant's connection all refuse it, and nothing is written.
+func TestEveryWayInRefusesAHalfRestoredDatabase(t *testing.T) {
+	a := archiveWorkspace(t)
+	ctx := context.Background()
+	if err := a.DB.SetRestoreLock(ctx, "abc", a.WorkspaceID(), "FernBrook Studio", store.RestoreFootage); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := a.DB.C(store.CProjects).CountDocuments(ctx, bson.M{})
+	r := runCLI(t, a.Cfg.Home(), "project", "create", "Autumn launch", "--json")
+	if c, m := errorCode(t, r); c != "E_CONFLICT" || !strings.Contains(m, "run the same restore again") {
+		t.Fatalf("making a project in a half-restored database: %s %s", c, m)
+	}
+	if after, _ := a.DB.C(store.CProjects).CountDocuments(ctx, bson.M{}); after != before {
+		t.Fatal("a project was made in a half-restored database")
+	}
+	if _, err := app.OpenWith(ctx, a.Cfg, "worker"); err == nil || !strings.Contains(err.Error(), "restore") {
+		t.Fatalf("opened a half-restored database: %v", err)
+	}
+	r = runCLI(t, a.Cfg.Home(), "doctor", "--json")
+	if !strings.Contains(r.stdout, "run the same restore again") {
+		t.Fatalf("the checkup doesn't say a restore holds the database: %s", r.stdout)
+	}
 }

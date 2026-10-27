@@ -15,7 +15,7 @@ A folder (or, with `--tar`, one `.tar` file of the same folder):
 
 | File | What it holds |
 |---|---|
-| `manifest.json` | the archive's format, the MetaRush that made it, when, on which computer and for whom; the workspace's ID and name; **the database's migration level** (every migration it had applied); for each collection its count, how it was made (options and indexes) and the SHA-256 of its file; what was left out and why; notes |
+| `manifest.json` | the archive's format, the MetaRush that made it, when, on which computer and for whom; the workspace's ID and name; **the database's migration level** (every migration it had applied); for each collection its count, how it was made (options and indexes, which a restore only compares with MetaRush's own) and the SHA-256 of its file; what was left out and why; notes |
 | `collections/<name>.jsonl` | one file per collection: every document of the workspace in canonical MongoDB Extended JSON v2, one per line, in `_id` order — exact to the byte (numbers, dates and binary data keep their types) |
 | `media.jsonl` | every file of the workspace's footage, renders, pictures and long log texts, by key and size (and SHA-256) |
 | `media/` | with included footage only: each of those files, stored by its content address and checked as it was copied |
@@ -85,11 +85,29 @@ Documents that belong to no workspace, or to another workspace in the same datab
 manifest's notes.
 
 Always left out: passwords, sign-in links and any other credential; each computer's own state (its live record, what
-it set up for abilities, its caches and scratch files, which live in its own folder anyway); test markers. Every text
-in every record is also checked for anything that looks like a key, a password or a token (an address with a password,
-a private key, a cloud or API key, a bearer token, a signed address) and for this computer's own secrets; what is
-found is replaced with `[redacted]`, and the manifest counts the records and names the places. Where a file came from
-on someone's computer (a clip's original path, shortened to `~`) is history, and stays.
+it set up for abilities, its caches and scratch files, which live in its own folder anyway); test markers.
+
+Every text in every record is also checked, and what is found is replaced with `[redacted]` (the manifest counts the
+records and names the places). Exactly these are looked for:
+
+- a private key, the whole block;
+- keys in the shapes MetaRush knows: AWS access keys, storage keys (`tid_…`, `tsec_…`), `sk_…` and `sk-…` API keys,
+  GitHub and Slack tokens, Google API keys (`AIza…`), ElevenLabs keys written as `xi-api-key: …`;
+- a password in any address (`scheme://name:password@host`, whatever the scheme);
+- a signature, key or token in an address's query: `X-Goog-Signature`, `X-Goog-Credential`, `X-Amz-Signature`,
+  `X-Amz-Credential`, `X-Amz-Security-Token`, `api_key`, `apikey`, `api-key`, `key`, `token`, `access_token`, `sig`,
+  `signature`;
+- signed sign-in tokens (JWTs), Google client secrets (`GOCSPX-…`) and Google refresh tokens (`1//0…`);
+- every secret this computer keeps for the installation: the database's password, the storage's secret key, providers'
+  keys, the keys the workspace's abilities read, the publishing client's secret and the workspace's people's publishing
+  sign-ins, the key that signs its confirm links, any key MetaRush read while running, and secret-named values and
+  addresses' passwords in its secrets file and its environment. A value of 16 characters or more is taken
+  out wherever it appears; a shorter one only where it stands as a word of its own (a short password that is also part
+  of a file name or a command stays in those); one shorter than 8 characters is not looked for.
+
+People's own words around them stay, and so do identifiers (a record's ID, any field named `…Id`, and any field a
+unique index covers). Where a file came from on someone's computer (a clip's original path, shortened to `~`) is
+history, and stays.
 
 | Collection | Goes in | Why |
 |---|---|---|
@@ -167,8 +185,9 @@ on someone's computer (a clip's original path, shortened to `~`) is history, and
 
 **Computers, work and conversations.** The workspace's computers go in as history (names, systems, MetaRush versions);
 a computer that restores the archive joins as a new one. Work that was running when the archive was made, and work
-waiting that costs money or acts outside the workspace (AI services, the AI voice, abilities, downloads, pushes to a
-repository), is **held for a person** in the copy: stopped, never taken by any computer by itself, so a copy beside an
+waiting that costs money or acts outside the workspace (AI services, the AI voice, abilities, Claude Code's scene
+descriptions, downloads, pages and repositories fetched, a Remotion project brought in, a source's own steps, pushes to
+a repository), is **held for a person** in the copy: stopped, never taken by any computer by itself, so a copy beside an
 original that is still running never does the same work twice or pays for it twice. The restore lists it; start each
 piece again (Retry, or `metarush job retry <job>`) once you're sure the original isn't doing it. Other waiting work
 waits as before. Work asked for on one computer, Recipes' runs (each goes on only on the computer that started it) and
@@ -184,24 +203,34 @@ anything; restore into a new database name, or empty that one yourself). It:
 
 1. checks every file of the archive against the manifest's SHA-256 — and, with included footage, every file of it;
    one changed byte anywhere and nothing is written. An archive naming a kind of record an export never writes
-   (passwords, say, or one MetaRush doesn't know) or a collection made as a view is refused the same way;
-2. puts its marker in the database: until the copy is whole, checked and up to date, MetaRush doesn't bring that
-   database up to date, set a computer up with it or start its background service there;
+   (passwords, say, or one MetaRush doesn't know), or a collection made as a view or with any setting (capped, a
+   validator, a collation: MetaRush sets none), is refused the same way;
+2. puts its marker in the database: until the copy is whole, checked and up to date, MetaRush doesn't work in that
+   database at all — no command, background service, worker or assistant connection opens it, no computer is set up
+   with it, it isn't brought up to date and it can't be exported; the checkup (`metarush doctor`) says so;
 3. looks for referenced footage in the storage, and names what isn't there;
 4. looks at the database again — anything written into it meanwhile and the restore stops, merging nothing;
-5. makes each collection as it was made (its options, then all its indexes) and streams its records in, checking
-   each collection against the archive (count and SHA-256) as soon as it is in;
+5. makes MetaRush's own indexes, exactly as its migrations make them at the archive's level — never the archive's
+   list of indexes (one could delete records after a time); any index the archive lists that MetaRush doesn't make
+   is named in the report — then streams each collection's records in, checking each against the archive (count and
+   SHA-256) as soon as it is in;
 6. with included footage, asks each client's rules (What may leave) whether their footage may go into that storage,
    then copies it in by content address, each file checked on the way in;
 7. sets the migration level the archive was made at, last of the copy's records;
-8. brings the copy up to date with this MetaRush's migrations, and checks that no collection lost a record;
-9. marks the restore finished and writes it into the copy's activity log and change history, and says what happened
-   in plain words.
+8. brings the copy up to date with this MetaRush's migrations, and checks that every record of the archive is still
+   there, by ID (migrations change records and may add the workspace's own, never take one away), and that nothing
+   in the database belongs to another workspace;
+9. pauses the copy's background deletions (below), marks the restore finished and writes it into the copy's activity
+   log and change history, and says what happened in plain words.
 
 If it stops while the records go in, the database holds part of the copy and its marker stays: MetaRush says so,
 and you restore again into a new, empty database (it never deletes anything; empty that one yourself if you want it
 back). If it stops while copying the footage or bringing the copy up to date, running the same restore again goes on
-from there.
+from there — after checking the copy against the archive once more. Stopped while copying the footage: every
+collection's count and SHA-256 must be exactly the archive's, with nothing in a collection the archive hasn't.
+Stopped while bringing the copy up to date (migrations change records, and may add the workspace's own): every
+record of the archive must still be there, by ID, and nothing may belong to another workspace. Anything else and it
+stops, the marker staying.
 
 **Clients' rules.** An export writes only to this computer (or a drive attached to it): never into a folder a cloud
 service syncs, a code repository or a project folder, so making one sends nothing of a client's anywhere. The archive
@@ -235,15 +264,29 @@ was copied into. A copy *as a new workspace* (a new ID beside the old one) isn't
 
 **After a restore.** People with a password set it again (the archive carries none): an owner sends them a link in
 Settings → People. Keys for AI services and storage are per computer and never in an archive: set them up on the new
-computer. A copy that uses the same storage as the original shares it: anything either one deletes (emptying the
-Trash, clearing out an archived project) is gone for both — for a trial copy, include the footage and restore it into
-other storage.
+computer.
+
+**A copy deletes nothing by itself at first.** A restored copy starts with its background deletions paused: the Trash
+doesn't empty on its schedule, review links whose time is up (or that a client's rules or a withdrawn consent no longer
+allow) don't end and keep their pages, and old activity isn't cleared out — the original may still use the same
+footage and pages. Comments on review links still come in. The restore, setup and Settings → Storage say so. Once the
+original is retired, or the copy has storage of its own, an owner says the copy is now the workspace, in person:
+
+```bash
+metarush workspace adopt
+```
+
+or Settings → Storage → **This copy is now the workspace…**. What a person deletes is never held back: a copy that uses
+the same storage as the original shares it, so anything a person deletes in either one (emptying the Trash, clearing
+out an archived project, ending a review link) is gone for both — for a trial copy, include the footage and restore it
+into other storage.
 
 ## For developers
 
 The work is `internal/wsarchive`, a library: `Export`, `MakePlan`, `Restore`, `Open`/`Verify`, the read-only reads of
 a source database (`ReadLevel`, `ListCollections`, `ListIndexes`), the copy engine (`EachDoc`, `LineWriter`,
-`InsertLines`, `Spec.Make`, `HashCollection`) and the classification (`Catalogue`, kept whole by
+`InsertLines`, `Spec.Make`, `HashCollection`; a restore makes MetaRush's own indexes instead, `store.DB.MakeForRestore`) and the classification (`Catalogue`, kept whole by
 `TestEveryCollectionIsClassified`). Copying one database into another and checking the copy before anything switches
-uses the same pieces. The operations are `workspace.export` and `workspace.exports` (`internal/ops/workspacearchive.go`);
+uses the same pieces. The operations are `workspace.export`, `workspace.exports` and `workspace.adopt`
+(`internal/ops/workspacearchive.go`);
 the commands are in `internal/cli/workspace_archive.go` and `metarush setup --restore`.

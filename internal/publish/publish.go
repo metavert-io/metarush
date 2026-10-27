@@ -16,6 +16,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -296,4 +297,51 @@ func plural(n int, one, many string) string {
 		return fmt.Sprintf("%d %s", n, one)
 	}
 	return fmt.Sprintf("%d %s", n, many)
+}
+
+// Secrets are the publishing secrets this computer keeps for an installation:
+// each platform client's secret and the refresh tokens of the sign-ins of the
+// people named (and the owner's), wherever the installation keeps them. In the
+// secrets file every publishing entry counts, whoever's it is. The activity
+// log hides them (a secret source) and an archive of the workspace takes them
+// out.
+func Secrets(cfg *config.Config, people ...string) []string {
+	if cfg == nil {
+		return nil
+	}
+	var out []string
+	add := func(s string) {
+		var x struct{ Secret, Refresh string }
+		if s == "" || json.Unmarshal([]byte(s), &x) != nil {
+			return
+		}
+		for _, v := range []string{x.Secret, x.Refresh} {
+			if v = strings.TrimSpace(v); v != "" {
+				out = append(out, v)
+			}
+		}
+	}
+	for _, p := range []string{YouTube} {
+		add(readSecret(cfg, clientSecretName(p)))
+		for _, person := range append([]string{"owner"}, people...) {
+			if person != "" {
+				add(readSecret(cfg, personSecretName(p, person)))
+			}
+		}
+	}
+	if cfg.SecretMode() == "env" && cfg.Home() != "" {
+		if b, err := os.ReadFile(config.DotEnvPath(cfg.Home())); err == nil {
+			for _, l := range strings.Split(string(b), "\n") {
+				k, v, ok := strings.Cut(strings.TrimPrefix(strings.TrimSpace(l), "export "), "=")
+				if ok && strings.HasPrefix(strings.TrimSpace(k), "METARUSH_PUBLISH_") {
+					add(strings.Trim(strings.TrimSpace(v), `"'`))
+				}
+			}
+		}
+	}
+	return out
+}
+
+func init() {
+	logbook.AddSecretSource(func(cfg *config.Config) []string { return Secrets(cfg) })
 }

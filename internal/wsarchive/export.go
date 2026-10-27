@@ -88,6 +88,20 @@ func (o *ExportOptions) progress(p ArchiveProgress) {
 	}
 }
 
+// checkWhole refuses a database a restore still holds: only part of a
+// workspace is in it.
+func checkWhole(ctx context.Context, db *store.DB) error {
+	l, err := db.ReadRestoreLock(ctx)
+	if err != nil {
+		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't read the database.")
+	}
+	if l.Unfinished() {
+		return apperr.New(apperr.Conflict, "This database holds a restore of the workspace “%s” that didn't finish, so there is no whole workspace in it to export.", l.Name).
+			WithHint("Run the same restore again to finish it first.").WithDetails(map[string]any{"reason": "restore_unfinished", "state": l.State})
+	}
+	return nil
+}
+
 // CheckDestination refuses a place an archive must never be written: a
 // folder a cloud service syncs or a code repository (an archive holds
 // people, consent records and transcripts), or a path that is already there.
@@ -161,6 +175,9 @@ func Export(ctx context.Context, o ExportOptions) (*Result, error) {
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't read the database's migration level.")
 	}
 	if err := CheckReadable("This database", level); err != nil {
+		return nil, err
+	}
+	if err := checkWhole(ctx, o.DB); err != nil {
 		return nil, err
 	}
 	ws, err := FindWorkspace(ctx, o.DB, o.Workspace)
@@ -595,6 +612,9 @@ func MakePlan(ctx context.Context, o ExportOptions) (*ExportPlan, error) {
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't read the database's migration level.")
 	}
 	if err := CheckReadable("This database", level); err != nil {
+		return nil, err
+	}
+	if err := checkWhole(ctx, o.DB); err != nil {
 		return nil, err
 	}
 	ws, err := FindWorkspace(ctx, o.DB, o.Workspace)

@@ -14,7 +14,9 @@ var secretShapes = []struct {
 	re   *regexp.Regexp
 	what string
 }{
-	{regexp.MustCompile(`-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----`), "a private key"},
+	// The whole block (its newlines real or written as \n in JSON); a block
+	// cut short, to the end of the text.
+	{regexp.MustCompile(`-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|\z)`), "a private key"},
 	{regexp.MustCompile(`\b(?:AKIA|ASIA|A3T[A-Z0-9])[A-Z0-9]{16}\b`), "an AWS key"},
 	{regexp.MustCompile(`\bt(?:id|sec)_[A-Za-z0-9_+/=-]{16,}`), "a storage key"},
 	{regexp.MustCompile(`\bsk_(?:live_|test_)?[A-Za-z0-9]{24,}\b`), "an API key"},

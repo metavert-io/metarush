@@ -36,10 +36,14 @@ const HeldMessage = "Held for a person: it was running, or it costs money or act
 
 // paidWork are kinds of work that spend money or act outside the workspace
 // (AI services, the AI voice, abilities, Claude Code's scene descriptions,
-// pushes to repositories, a source's own steps, downloads): never run by a
-// copy by itself, beside an original that may be running them too.
+// pushes to repositories, a source's own steps, downloads, a Remotion project
+// brought in from GitHub with the person's sign-in): never run by a copy by
+// itself, beside an original that may be running them too. Every kind pinned
+// to the computer that asked is one of these but two that only work inside
+// the workspace's own storage: a linked folder's file uploaded (it waits for
+// its computer) and a storage move (only the process that asked runs it).
 var paidWork = map[string]bool{"generate": true, "voiceover": true, "ability-run": true, "describe": true,
-	"remotion-refresh": true, "remotion-push": true, "fetch": true, "import": true}
+	"remotion-refresh": true, "remotion-push": true, "remotion-import": true, "fetch": true, "import": true}
 
 // holdJob holds work for a person in a copy: what was running (the computer
 // running it isn't in the archive, and the original may still finish it) and

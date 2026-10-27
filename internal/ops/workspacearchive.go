@@ -19,6 +19,7 @@ import (
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/publish"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/version"
 	"github.com/metavert-io/metarush/internal/wsarchive"
@@ -76,6 +77,21 @@ type WorkspaceExportsOut struct {
 	Holds  string `json:"holds"`
 	// Restore says how the archive is restored (a terminal or setup step).
 	Restore string `json:"restore"`
+	// Paused: this workspace is a restored copy whose background deletions
+	// are paused until an owner adopts it (workspace.adopt); PausedSays says
+	// so in plain words.
+	Paused     *models.DeletionsPause `json:"paused,omitempty"`
+	PausedSays string                 `json:"pausedSays,omitempty"`
+}
+
+// WorkspaceAdoptIn lifts a restored copy's pause on background deletions.
+type WorkspaceAdoptIn struct{}
+
+// WorkspaceAdoptOut says what changed.
+type WorkspaceAdoptOut struct {
+	// Was: the deletions were paused (false: nothing to lift).
+	Was     bool   `json:"was"`
+	Summary string `json:"summary"`
 }
 
 // ExportRecord is one export made on this computer, as it goes.
@@ -139,7 +155,27 @@ func init() {
 			if err := archivePeopleOnly(a); err != nil {
 				return nil, err
 			}
-			return &WorkspaceExportsOut{Exports: listExports(a), Folder: ArchivesFolder(a), Holds: ArchiveHolds, Restore: RestoreWords}, nil
+			out := &WorkspaceExportsOut{Exports: listExports(a), Folder: ArchivesFolder(a), Holds: ArchiveHolds, Restore: RestoreWords}
+			if ws, err := wsarchive.FindWorkspace(ctx, a.DB, a.WorkspaceID()); err == nil && ws != nil && ws.DeletionsPaused != nil {
+				out.Paused, out.PausedSays = ws.DeletionsPaused, wsarchive.PausedHere
+			}
+			return out, nil
+		})
+	Def("workspace.adopt", "Say this restored copy is now the workspace: it deletes by itself again as set (the Trash on its schedule, review links ending, old activity cleared out), once the original is retired or the copy has storage of its own (owners, people only)",
+		Flags{Mutating: true, HumanOnly: true, OwnerOnly: true}, func(ctx context.Context, a *app.App, _ *WorkspaceAdoptIn) (*WorkspaceAdoptOut, error) {
+			if err := archivePeopleOnly(a); err != nil {
+				return nil, err
+			}
+			res, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID(), "deletionsPaused": bson.M{"$exists": true}},
+				bson.M{"$unset": bson.M{"deletionsPaused": ""}})
+			if err != nil {
+				return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't change the workspace.")
+			}
+			if res.ModifiedCount == 0 {
+				return &WorkspaceAdoptOut{Summary: "This workspace deletes by itself as set already: nothing was paused."}, nil
+			}
+			a.Audit(ctx, "workspace.adopt", "workspace", a.WorkspaceID(), "", nil)
+			return &WorkspaceAdoptOut{Was: true, Summary: "This copy is now the workspace: it deletes by itself again as set (the Trash on its schedule, review links ending, old activity cleared out)."}, nil
 		})
 }
 
@@ -294,10 +330,12 @@ func workspaceExport(ctx context.Context, a *app.App, in *WorkspaceExportIn) (*W
 func exportOptions(ctx context.Context, a *app.App, to string, tar bool, media string) wsarchive.ExportOptions {
 	// Every key this computer holds stays out: the configured ones, the
 	// providers' and the abilities' (by the names the workspace's abilities
-	// read them under), and any this process has read; the CLI adds another
+	// read them under), the publishing client's and people's sign-ins, and any
+	// this process has read; the CLI adds another
 	// database's address and its storage's key.
 	extra, _ := ctx.Value(exportSecretsKey{}).([]string)
 	extra = append(extra, logbook.KnownSecrets(a.Cfg, abilityKeyNames(ctx, a)...)...)
+	extra = append(extra, publish.Secrets(a.Cfg, workspacePeople(ctx, a)...)...)
 	b := version.Current()
 	machine := ""
 	if a.Cfg != nil {
@@ -334,6 +372,19 @@ func abilityKeyNames(ctx context.Context, a *app.App) []string {
 		return nil
 	}
 	return names
+}
+
+// workspacePeople are the IDs of the workspace's people (whose publishing
+// sign-ins this computer may keep).
+func workspacePeople(ctx context.Context, a *app.App) []string {
+	if a.DB == nil {
+		return nil
+	}
+	var ids []string
+	if err := a.DB.C(store.CUsers).Distinct(ctx, "_id", bson.M{"workspaceId": a.WorkspaceID()}).Decode(&ids); err != nil {
+		return nil
+	}
+	return ids
 }
 
 // freeName is a new archive's name in the exports folder: the workspace's

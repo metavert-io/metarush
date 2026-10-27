@@ -653,14 +653,7 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 }
 
 // unfinishedRestore says plainly that a database holds part of a restore.
-func unfinishedRestore(err error) error {
-	var u *store.ErrRestoreUnfinished
-	if !errors.As(err, &u) {
-		return err
-	}
-	return apperr.New(apperr.Conflict, "%s.", sentence(err.Error())).
-		WithDetails(map[string]any{"reason": "restore_unfinished", "workspace": u.Lock.Workspace, "state": u.Lock.State})
-}
+func unfinishedRestore(err error) error { return app.UnfinishedRestore(err) }
 
 // restoredPerson is who this computer works as in a restored workspace: the
 // person with the email given, else its only owner, else (before anyone had

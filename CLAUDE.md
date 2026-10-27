@@ -1017,16 +1017,23 @@ Read `docs/architecture.md` before structural changes.
   `media/` (a folder store filled by `storagemove`). Every collection is in `wsarchive.Catalogue` (as-is / transformed
   / left-out / in-manifest with a why; `TestEveryCollectionIsClassified` and the docs table keep it whole — **add new
   collections there**); unknown ones are named, credentials and computers' own state left out; strings are scrubbed only of
-  secretpath's narrow credential shapes, sign-in tokens and `logbook.KnownSecrets` (≥ 8 characters), never `_id`,
-  `…Id` fields or unique-index fields (byte-exact unless changed; the manifest counts them); running and paid
-  waiting work is held for a person (`holdJob`). Export only reads (`app.App.ReadOnly`; the CLI's log entry waits
+  secretpath's narrow credential shapes, the archive's own (any address's password, signing/key query parts, JWTs,
+  Google client secrets and refresh tokens), `logbook.KnownSecrets` and `publish.Secrets` (≥ 8 characters; under 16
+  only as a word of their own), never `_id`, `…Id` fields or unique-index fields (byte-exact unless changed; the
+  manifest counts them) — **docs/workspace-export.md lists exactly what is looked for: keep it in step**; running and
+  paid or outside waiting work is held for a person (`holdJob`, `paidWork`: add new pinned kinds that act outside). Export only reads (`app.App.ReadOnly`; the CLI's log entry waits
   in the spool; `ReadLevel`, refuses `newer_database`); another database's address only via `--db-uri-stdin|-env`.
   Restore (not an op; `metarush workspace restore`, `setup --restore`) only into an empty database and only
-  collections the catalogue exports (`CheckCollections`): verify every checksum, the `restore_lock` marker
-  (`store.CheckNoUnfinishedRestore`: Migrate, init and the daemon refuse a database it holds), referenced media looked
-  for, emptiness again, collections with options and indexes each checked by hash as it goes in, included media after
-  What may leave (`MayStore` → `ops.LeaveStorage`), the level last, `MigrateRestoring`, counts, `RecordRestore`; the
-  same restore started again continues; keeps the workspace ID; never deletes. `workspace.export|exports`
+  plain collections the catalogue exports (`CheckCollections`: any collection option is refused): verify every
+  checksum, the `restore_lock` marker (`store.CheckNoUnfinishedRestore`: `app.OpenWith` — every command, worker,
+  MCP — Migrate, init, the daemon and export refuse a database it holds; doctor names it), referenced media looked for,
+  emptiness again, MetaRush's own indexes from its migrations at the archive's level (`store.DB.MakeForRestore`; the
+  archive's index list only reported), each collection checked by hash as it goes in, included media after What may
+  leave (`MayStore` → `ops.LeaveStorage`), the level last, `MigrateRestoring`, every archive record still there by
+  ID, background deletions paused (`workspaces.deletionsPaused`, `store.DB.DeletionsPaused`: the Trash schedule,
+  review links' endings and file deletion, log retention check it — **a new automatic deletion must too**; lifted by
+  `workspace.adopt`), `RecordRestore`; the same restore started again re-checks the copy (exact hashes before
+  migrations, IDs after) and continues; keeps the workspace ID; never deletes. `workspace.export|exports|adopt`
   are OwnerOnly + HumanOnly + `archivePeopleOnly`; the CLI needs a person's terminal (`personAtTerminal`); dashboard
   archives go to `<home>/archives`. Browser run `scripts/workspace-export-e2e.sh` (ports 5670–5679).
 - **Moving the database** (D334–D338, `internal/dbmove`, `internal/ops/databasemove.go`, `databasemove_state.go`,

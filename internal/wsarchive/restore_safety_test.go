@@ -1,6 +1,7 @@
 package wsarchive_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/media"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/wsarchive"
@@ -226,5 +228,71 @@ func TestRestoreRefusesCollectionsAnExportNeverHolds(t *testing.T) {
 	_ = os.WriteFile(mp, mb, 0o600)
 	if _, err := restoreInto(t, res.Path, emptyDB(t), fsStore(t), false); code(err) != apperr.Integrity {
 		t.Fatalf("a view's options: %v", err)
+	}
+}
+
+// tarNames lists the files a tar holds.
+func tarNames(t *testing.T, path string) []string {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	tr := tar.NewReader(f)
+	var out []string
+	for {
+		h, err := tr.Next()
+		if err != nil {
+			break
+		}
+		out = append(out, h.Name)
+	}
+	return out
+}
+
+// A stopped export's leftovers never end up in another archive: an export
+// with other options starts its folder afresh, and a single file holds only
+// what the manifest lists.
+func TestExportStartsAfreshAfterAStoppedOneWithOtherOptions(t *testing.T) {
+	src := testutil.DB(t)
+	st := fsStore(t)
+	s := seed(t, src, st)
+	for _, tarred := range []bool{true, false} {
+		to := filepath.Join(t.TempDir(), "archive")
+		dest := to
+		if tarred {
+			dest = wsarchive.TarPath(to)
+		}
+		// What a stopped `--media included` export of the same archive left.
+		left := filepath.Join(dest+".partial", wsarchive.MediaDir, filepath.FromSlash(media.ObjectKey(s.ws, s.objects[0])))
+		if err := os.MkdirAll(filepath.Dir(left), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(left, fixture(t, "beach.jpg"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_ = os.WriteFile(filepath.Join(dest+".partial", "stray.txt"), []byte("left behind"), 0o600)
+		res, err := wsarchive.Export(context.Background(), wsarchive.ExportOptions{DB: src, Workspace: s.ws, To: to, Tar: tarred, Media: wsarchive.MediaReferenced, Store: st})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		if tarred {
+			names = tarNames(t, res.Path)
+		} else {
+			_ = filepath.WalkDir(res.Path, func(p string, d os.DirEntry, err error) error {
+				if err == nil && !d.IsDir() {
+					rel, _ := filepath.Rel(res.Path, p)
+					names = append(names, filepath.ToSlash(rel))
+				}
+				return nil
+			})
+		}
+		for _, n := range names {
+			if strings.HasPrefix(n, wsarchive.MediaDir+"/") || n == "stray.txt" {
+				t.Errorf("tar %v: a referenced archive holds %s", tarred, n)
+			}
+		}
 	}
 }

@@ -5,38 +5,28 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 )
 
-// packTar writes an archive folder as one tar file (0600): manifest.json
-// first, then media.jsonl, the collections and the media. It returns the
-// file's size. The file appears at dest only once it is complete.
-func packTar(dir, dest string, progress func(done, all int64)) (int64, error) {
-	var files []string
+// packTar writes the listed files of an archive folder as one tar file
+// (0600): manifest.json first, then media.jsonl, the collections and the
+// media. It returns the file's size. The file appears at dest only once it
+// is complete.
+func packTar(dir, dest string, listed []string, progress func(done, all int64)) (int64, error) {
+	files := append([]string(nil), listed...)
 	var total int64
-	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+	for _, rel := range files {
+		st, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(rel)))
 		if err != nil {
-			return err
+			return 0, err
 		}
-		if d.IsDir() {
-			return nil
+		if !st.Mode().IsRegular() {
+			return 0, fmt.Errorf("%s isn't a plain file", rel)
 		}
-		if !d.Type().IsRegular() {
-			return fmt.Errorf("%s isn't a plain file", p)
-		}
-		rel, _ := filepath.Rel(dir, p)
-		files = append(files, filepath.ToSlash(rel))
-		if info, err := d.Info(); err == nil {
-			total += info.Size()
-		}
-		return nil
-	})
-	if err != nil {
-		return 0, err
+		total += st.Size()
 	}
 	rank := func(p string) int {
 		switch {

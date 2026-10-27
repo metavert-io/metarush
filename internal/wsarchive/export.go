@@ -2,6 +2,7 @@ package wsarchive
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -174,10 +175,17 @@ func Export(ctx context.Context, o ExportOptions) (*Result, error) {
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't list the database's collections.")
 	}
 	work := dest + ".partial"
+	marker := partialMarker{Workspace: ws.ID, Media: o.Media, Store: o.Store.Locator()}
 	if _, err := os.Lstat(work); err == nil {
-		// A stopped export of the same archive: its documents are written
-		// again; an included copy of the media continues from its journal.
-		if err := os.RemoveAll(filepath.Join(work, CollectionsDir)); err != nil {
+		// What a stopped export of this archive left: with the same options
+		// its documents are written again and an included copy of the media
+		// continues from its journal; with other options (or none recorded)
+		// the folder, this export's own, starts afresh.
+		if !sameMarker(work, marker) {
+			if err := os.RemoveAll(work); err != nil {
+				return nil, err
+			}
+		} else if err := os.RemoveAll(filepath.Join(work, CollectionsDir)); err != nil {
 			return nil, err
 		}
 	}
@@ -185,6 +193,9 @@ func Export(ctx context.Context, o ExportOptions) (*Result, error) {
 		return nil, err
 	}
 	if err := os.Chmod(work, 0o700); err != nil {
+		return nil, err
+	}
+	if err := writeMarker(work, marker); err != nil {
 		return nil, err
 	}
 	m := &Manifest{Format: Format, MadeAt: at, MadeBy: o.MadeBy, Workspace: ArchiveWorkspace{ID: ws.ID, Name: ws.Name},
@@ -280,13 +291,21 @@ func Export(ctx context.Context, o ExportOptions) (*Result, error) {
 	if err := writeManifest(work, m); err != nil {
 		return nil, err
 	}
+	// The archive is exactly what the manifest lists: anything else in the
+	// folder it was made in (this export's own notes) stays out.
+	listed := listedFiles(m, entries)
+	if !o.Tar {
+		if err := pruneUnlisted(work, listed); err != nil {
+			return nil, err
+		}
+	}
 	if err := privateTree(work); err != nil {
 		return nil, err
 	}
 	res := &Result{Path: dest, Tar: o.Tar, Manifest: m}
 	if o.Tar {
 		o.progress(ArchiveProgress{Phase: "packing"})
-		n, err := packTar(work, dest, func(done, all int64) {
+		n, err := packTar(work, dest, listed, func(done, all int64) {
 			o.progress(ArchiveProgress{Phase: "packing", Bytes: all, BytesDone: done})
 		})
 		if err != nil {
@@ -433,6 +452,82 @@ func firstKey(keys []string, want string) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// partialMarker records what a folder an export is being made in is for.
+type partialMarker struct {
+	Workspace string `json:"workspace"`
+	Media     string `json:"media"`
+	Store     string `json:"store"`
+}
+
+const markerName = ".export.json"
+
+func writeMarker(work string, m partialMarker) error {
+	b, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	return writePrivate(filepath.Join(work, markerName), b)
+}
+
+func sameMarker(work string, want partialMarker) bool {
+	b, err := os.ReadFile(filepath.Join(work, markerName))
+	if err != nil {
+		return false
+	}
+	var got partialMarker
+	return json.Unmarshal(b, &got) == nil && got == want
+}
+
+// listedFiles are the files an archive holds: the manifest, the files it
+// lists and, with included media, each media file of the index.
+func listedFiles(m *Manifest, entries []MediaEntry) []string {
+	out := []string{ManifestName}
+	for _, f := range m.Files {
+		out = append(out, f.Path)
+	}
+	if m.Media.Mode == MediaIncluded {
+		for _, e := range entries {
+			out = append(out, MediaDir+"/"+e.Key)
+		}
+	}
+	return out
+}
+
+// pruneUnlisted removes every file of an export's own folder that the
+// archive doesn't list (its notes, what an earlier attempt left), and the
+// folders left empty.
+func pruneUnlisted(work string, listed []string) error {
+	keep := make(map[string]bool, len(listed))
+	for _, p := range listed {
+		keep[p] = true
+	}
+	var dirs []string
+	err := filepath.WalkDir(work, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(work, p)
+		rel = filepath.ToSlash(rel)
+		if d.IsDir() {
+			if rel != "." {
+				dirs = append(dirs, p)
+			}
+			return nil
+		}
+		if !keep[rel] {
+			return os.Remove(p)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for i := len(dirs) - 1; i >= 0; i-- {
+		_ = os.Remove(dirs[i]) // only when empty
+	}
+	return nil
 }
 
 // treeBytes is the size of every file under a folder.

@@ -61,8 +61,9 @@ And what sets MetaRush apart:
   a [Remotion license](#remotion-license)).
 
 ## Install Guide
-About five minutes on a Mac or Linux computer; MetaRush itself needs no accounts or keys. You'll need FFmpeg and
-Node.js 22 or newer (Homebrew installs them for you).
+About five minutes on a Mac or Linux computer; MetaRush itself needs no accounts or keys. `metarush setup` offers
+what its features use (FFmpeg, Node.js, the Remotion renderer, transcription on this computer) as components,
+the big ones ticked for you.
 
 ### Remotion license
 ⚠️ MetaRush is MIT-licensed, but it renders with **Remotion, which is not**. It applies once the Remotion renderer is
@@ -72,32 +73,20 @@ Each organization that installs MetaRush is responsible for its own license. Det
 and https://www.remotion.dev/docs/license.
 
 ### 1. Get MetaRush
-**With Homebrew** (macOS and Linux; it also installs FFmpeg and Node.js):
-```bash
-brew tap metavert-io/metarush                         # add MetaRush's tap
-brew install --cask metavert-io/metarush/metarush     # MetaRush, FFmpeg and Node.js
-```
-
-**From a release archive** (macOS and Linux, arm64 and x86-64): each [release](https://github.com/metavert-io/metarush/releases)
-has `metarush_<version>_<os>_<arch>.tar.gz` with `checksums.txt`. Put `metarush` on your PATH and install FFmpeg and
-Node.js 22+ yourself (for example `brew install ffmpeg node`):
-```bash
-gh release download <tag> -R metavert-io/metarush -p 'metarush_*_darwin_arm64.tar.gz' -p checksums.txt   # a release's tag; darwin or linux, arm64 or amd64
-shasum -a 256 -c checksums.txt --ignore-missing                                                         # check the download: must say OK
-tar -xzf metarush_*_darwin_arm64.tar.gz                                                                # unpack it
-mkdir -p ~/.local/bin && install -m 755 metarush_*_darwin_arm64/metarush ~/.local/bin/metarush        # put metarush on your PATH
-```
-Until releases are signed, macOS blocks a `metarush` downloaded with a browser the first time;
-`xattr -d com.apple.quarantine metarush` clears it (Homebrew does this for you).
-
-**From source** (for working on MetaRush itself):
+**From source**: the way to get MetaRush until its first release. You need Git, Go 1.27 or newer and Node.js 22 or
+newer (on a Mac: `brew install go node`):
 ```bash
 git clone https://github.com/metavert-io/metarush.git && cd metarush   # get the code
-./bootstrap.sh                                                          # tools, transcription models, dashboard build, binary; prints the Remotion license notice
+./bootstrap.sh                                                          # checks the tools, builds the dashboard and the metarush program; asks before installing anything
 export PATH="$PWD/bin:$PATH"                                            # use the metarush you just built
 ```
-`scripts/deploy.sh` installs a checkout on this machine or another one, stamped with its version (`0.2.0` at a
-release tag, `0.2.0-dev.3` after it).
+`bootstrap.sh` is the developers' path and also sets up what a development checkout uses; `--no-models --no-mongo`
+leaves out the transcription models and the database, which `metarush setup` offers in the next step anyway.
+`scripts/deploy.sh` installs a checkout on this computer or another one, stamped with its version.
+
+**With Homebrew, or a release archive: with the first release.** Releases will come as a Homebrew cask
+(`brew install --cask metavert-io/metarush/metarush`, which also installs FFmpeg and Node.js) and as signed archives
+for macOS and Linux (arm64 and x86-64) with checksums. This section will say how once they're out.
 
 ### 2. Set it up
 ```bash
@@ -154,8 +143,8 @@ metarush machine join <bundle>                        # on the Mac: join the wor
 metarush service install --worker-only                # on the Mac: renders and background jobs, no dashboard, restarted if it stops
 metarush worker list                                  # from any computer: studio-mac is online and takes renders
 ```
-**Keep it up to date** with `brew upgrade --cask metarush && metarush migrate && metarush service restart` on the Mac,
-or, from a checkout, `scripts/deploy.sh --host studio-mac --worker-only`. Settings → General on any computer lists
+**Keep it up to date** from a checkout with `git pull && scripts/deploy.sh --host studio-mac --worker-only`, or,
+once releases are out, with `brew upgrade --cask metarush && metarush migrate && metarush service restart` on the Mac. Settings → General on any computer lists
 the Mac with the version it runs and says when it is older. When something is off: `metarush service logs -n 200`,
 `metarush doctor`, `metarush renderer status`. More: [deployment](docs/deployment.md),
 [add a machine](docs/runbook-add-machine.md).

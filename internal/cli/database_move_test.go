@@ -12,6 +12,7 @@ import (
 	"github.com/zalando/go-keyring"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
+	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/ids"
@@ -22,6 +23,7 @@ import (
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/tools"
+	"github.com/metavert-io/metarush/internal/version"
 )
 
 // dbHashBut is the server's hash of a database's collections but the move's
@@ -91,10 +93,11 @@ func TestDatabaseMoveAtATerminal(t *testing.T) {
 	ctx := context.Background()
 	h := a.Cfg.Home()
 	hb := laptopHome(t, a.Cfg)
-	now := time.Now().UTC()
+	now, cur := time.Now().UTC(), version.Current()
 	for _, in := range []models.Installation{
 		{ID: a.Cfg.Installation.ID, WorkspaceID: a.WorkspaceID(), Name: "Studio Mac", CreatedAt: now},
-		{ID: ids.New(ids.Installation), WorkspaceID: a.WorkspaceID(), Name: "Edit laptop", CreatedAt: now},
+		{ID: ids.New(ids.Installation), WorkspaceID: a.WorkspaceID(), Name: "Edit laptop", CreatedAt: now,
+			Version: cur.Version, Commit: cur.Commit, KnowsMoves: app.MovesMark(cur.Version, cur.Commit)},
 	} {
 		if _, err := a.DB.C(store.CInstallations).InsertOne(ctx, in); err != nil {
 			t.Fatal(err)

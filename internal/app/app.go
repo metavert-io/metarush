@@ -231,8 +231,15 @@ func (a *App) TouchInstallation(ctx context.Context) {
 	// lastSeenAt is the database server's time: other computers compare it
 	// with theirs (a move waits for every computer running now, D335).
 	_ = a.DB.Update(ctx, store.CInstallations, a.WorkspaceID(), a.Cfg.Installation.ID, map[string]any{"$set": map[string]any{
-		"version": b.Version, "commit": b.Commit, "built": b.Date}, "$currentDate": map[string]any{"lastSeenAt": true}})
+		"version": b.Version, "commit": b.Commit, "built": b.Date, "knowsMoves": MovesMark(b.Version, b.Commit)},
+		"$currentDate": map[string]any{"lastSeenAt": true}})
 }
+
+// MovesMark is what a MetaRush that knows about moving the database records
+// as its installation's knowsMoves: its build. An older build started there
+// later rewrites the version and commit but not this, so it no longer
+// matches (D334).
+func MovesMark(v, commit string) string { return v + " " + commit }
 
 // Hostname returns a friendly machine name.
 func Hostname() string {

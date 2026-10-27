@@ -116,10 +116,42 @@ type DatabaseComputer struct {
 	// Running: MetaRush ran there in the last few minutes (it pauses by itself).
 	Running bool   `json:"running"`
 	Version string `json:"version,omitempty"`
-	// Older: it runs an older MetaRush than this one, which may not pause by itself.
+	// Older: it runs a MetaRush that doesn't know about moving the database
+	// (older than the first that does, or one that hasn't said which it
+	// runs, or invited and not joined yet): started after the move, it would
+	// go on changing the old database, so the move waits until it's updated
+	// or removed from the workspace.
 	Older bool `json:"older"`
 	// Needs says what it needs to use the new database.
 	Needs string `json:"needs"`
+
+	why string // the problem it is for the move, in plain words ("" for none)
+}
+
+// FirstMoveVersion is the first MetaRush release that knows about moving the
+// database (D334). A computer whose record says an older one, or none, could
+// go on changing the old database after a move: the plan names it, and the
+// move waits until it's updated or removed. A build that knows also says so
+// in its record (app.MovesMark), which covers builds from source of an older
+// release number.
+const FirstMoveVersion = "0.15.0"
+
+// knowsMoves says whether a computer's record shows a MetaRush that knows
+// about moving the database, and if not, why in plain words.
+func knowsMoves(in models.Installation, name string) (bool, string) {
+	revoke := fmt.Sprintf("metarush machine revoke %q", name)
+	switch {
+	case in.State == models.InstallationInvited:
+		return false, fmt.Sprintf("%s was invited but hasn't joined yet, and could join with a MetaRush that doesn't know about moving the database. Take the invitation back first (%s) and invite it again after the move, or let it join with this MetaRush now.", name, revoke)
+	case in.KnowsMoves != "" && in.KnowsMoves == app.MovesMark(in.Version, in.Commit):
+		return true, ""
+	case in.Version == "":
+		return false, fmt.Sprintf("MetaRush can't tell which MetaRush %s runs. One that doesn't know about moving the database would go on changing the old database when it starts. Update MetaRush there and open it once (it then says which it runs), or remove that computer from the workspace (%s), first.", name, revoke)
+	}
+	if n, ok := version.Compare(in.Version, FirstMoveVersion); ok && n >= 0 {
+		return true, ""
+	}
+	return false, fmt.Sprintf("%s runs MetaRush %s, which doesn't know about moving the database: started after the move, even if it's off now, it would go on changing the old database. Update MetaRush there and open it once, or remove that computer from the workspace (%s), first.", name, in.Version, revoke)
 }
 
 // DatabaseCount is one headline count of what moves ("120 clips").
@@ -558,8 +590,8 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 		default:
 			c.Needs = "Its own sign-in for the new database (a database user of its own; sign-ins are never copied between computers), then a switch on that computer."
 		}
-		if c.Running && c.Older && !c.This {
-			out.Problems = append(out.Problems, fmt.Sprintf("%s is running an older MetaRush, which doesn't pause by itself for a move: update MetaRush there (or quit it there) first.", c.Name))
+		if c.why != "" {
+			out.Problems = append(out.Problems, c.why)
 		}
 	}
 	if t.place.Reach == "this-computer" && others > 0 && !t.in.OnlyThisComputer {
@@ -703,18 +735,17 @@ func countWords(n int64, noun string) string {
 // workspaceComputers are the workspace's computers that aren't removed.
 func workspaceComputers(ctx context.Context, a *app.App) []DatabaseComputer {
 	insts := installationsOf(ctx, a)
-	here := version.Current().Version
 	running := runningInstallations(ctx, a)
 	out := []DatabaseComputer{}
 	seenThis := false
 	for _, in := range insts {
 		c := DatabaseComputer{Name: firstNonEmpty(in.Name, in.Hostname, in.ID), This: in.ID == a.Cfg.Installation.ID, Version: in.Version,
 			Running: running[in.ID]}
-		if cmp, ok := version.Compare(in.Version, here); ok && in.Version != "" {
-			c.Older = cmp < 0
-		}
 		if c.This {
-			seenThis = true
+			// This computer runs this build, whatever its record last said.
+			seenThis, c.Version = true, version.Current().Version
+		} else if knows, why := knowsMoves(in, c.Name); !knows {
+			c.Older, c.why = true, why
 		}
 		out = append(out, c)
 	}

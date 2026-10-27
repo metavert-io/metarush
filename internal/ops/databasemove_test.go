@@ -25,6 +25,7 @@ import (
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/testutil/testapp"
+	"github.com/metavert-io/metarush/internal/version"
 )
 
 // moveDB is a new, empty test database for a move to go into (dropped after
@@ -111,7 +112,7 @@ func newMoveWorkspace(t *testing.T) *moveWorkspace {
 	keyring.MockInit() // the new database's address and the switch: never the real keychain
 	a := testapp.New(t)
 	ctx := context.Background()
-	ws, now := a.WorkspaceID(), time.Now().UTC()
+	ws, now, cur := a.WorkspaceID(), time.Now().UTC(), version.Current()
 	a.Cfg.Installation.Name = "Studio Mac"
 	b := secondComputer(t, a, "Edit laptop")
 	for coll, doc := range map[string]bson.M{
@@ -127,7 +128,8 @@ func newMoveWorkspace(t *testing.T) *moveWorkspace {
 	}
 	for _, in := range []models.Installation{
 		{ID: a.Cfg.Installation.ID, WorkspaceID: ws, Name: "Studio Mac", CreatedAt: now},
-		{ID: b.Cfg.Installation.ID, WorkspaceID: ws, Name: "Edit laptop", CreatedAt: now, LastSeenAt: now.Add(-time.Hour)},
+		{ID: b.Cfg.Installation.ID, WorkspaceID: ws, Name: "Edit laptop", CreatedAt: now, LastSeenAt: now.Add(-time.Hour),
+			Version: cur.Version, Commit: cur.Commit, KnowsMoves: app.MovesMark(cur.Version, cur.Commit)},
 	} {
 		if _, err := a.DB.C(store.CInstallations).InsertOne(ctx, in); err != nil {
 			t.Fatal(err)
@@ -877,5 +879,57 @@ func TestDatabaseMoveGoesByTheServersTime(t *testing.T) {
 	})
 	if c, r := codeAndReason(err); c != apperr.Conflict || r != "move_running" {
 		t.Fatalf("a laptop with a fast clock abandoned a running move: %v", err)
+	}
+}
+
+// A computer that's off during the move can start afterwards: if it runs a
+// MetaRush that doesn't know about moves it goes on changing the old database
+// (two copies of the workspace that drift apart). The plan names every such
+// computer — off or on, older than the first MetaRush that knows about moves
+// or not saying which it runs, or invited and not joined — and isn't ready
+// until it's updated or removed. It compares with that first version, not
+// with this build.
+func TestDatabasePlanNamesComputersThatDontKnowAboutMoves(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a := w.a
+	ctx := context.Background()
+	now := time.Now().UTC()
+	for _, in := range []models.Installation{
+		{ID: ids.New(ids.Installation), WorkspaceID: a.WorkspaceID(), Name: "Old iMac", Version: "0.13.0", Commit: "abc1234", CreatedAt: now, LastSeenAt: now.Add(-48 * time.Hour)},
+		{ID: ids.New(ids.Installation), WorkspaceID: a.WorkspaceID(), Name: "Spare mini", CreatedAt: now, LastSeenAt: now.Add(-48 * time.Hour)},
+		{ID: ids.New(ids.Installation), WorkspaceID: a.WorkspaceID(), Name: "Sam's laptop", State: models.InstallationInvited, CreatedAt: now},
+		// This build's version without saying it knows about moves: a build of
+		// the same release that doesn't.
+		{ID: ids.New(ids.Installation), WorkspaceID: a.WorkspaceID(), Name: "Same-number Mac", Version: version.Current().Version, Commit: "0000000", CreatedAt: now, LastSeenAt: now.Add(-48 * time.Hour)},
+		{ID: ids.New(ids.Installation), WorkspaceID: a.WorkspaceID(), Name: "New Mac", Version: ops.FirstMoveVersion, Commit: "fffffff", CreatedAt: now, LastSeenAt: now.Add(-48 * time.Hour)},
+		{ID: ids.New(ids.Installation), WorkspaceID: a.WorkspaceID(), Name: "Gone Mac", Version: "0.10.0", State: models.InstallationRevoked, CreatedAt: now},
+	} {
+		if _, err := a.DB.C(store.CInstallations).InsertOne(ctx, in); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ops.SaveMoveAddress(a.Cfg, testutil.URI()); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := ops.CallTyped[ops.DatabasePlanOut](ctx, a, "database.plan", ops.DatabasePlanIn{DatabaseTargetIn: ops.DatabaseTargetIn{To: ops.MoveToSaved, Name: store.TestDBPrefix + "never-made"}}, ops.Caller{Human: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	problems := strings.Join(plan.Problems, "\n")
+	if plan.Ready {
+		t.Fatalf("plan ready with computers that don't know about moves: %s", problems)
+	}
+	for _, name := range []string{"Old iMac", "Spare mini", "Sam's laptop", "Same-number Mac"} {
+		if !strings.Contains(problems, name) {
+			t.Errorf("the plan doesn't name %s:\n%s", name, problems)
+		}
+	}
+	for _, name := range []string{"New Mac", "Gone Mac", "Edit laptop", "Studio Mac"} {
+		if strings.Contains(problems, name) {
+			t.Errorf("the plan names %s, which knows about moves or is removed:\n%s", name, problems)
+		}
+	}
+	if !strings.Contains(problems, "metarush machine revoke") {
+		t.Errorf("the plan doesn't say how to remove a computer:\n%s", problems)
 	}
 }

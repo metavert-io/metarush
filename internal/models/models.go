@@ -131,6 +131,11 @@ type Installation struct {
 	// and kept current by its daemon (background service or dashboard).
 	Commit string `bson:"commit,omitempty" json:"commit,omitempty"`
 	Built  string `bson:"built,omitempty" json:"built,omitempty"`
+	// KnowsMoves is set by a MetaRush that knows about moving the database:
+	// the build that said so (its version and commit). A record whose
+	// version or commit says another build — an older one started there
+	// since — doesn't count (D334).
+	KnowsMoves string `bson:"knowsMoves,omitempty" json:"knowsMoves,omitempty"`
 	// Machine lifecycle (additive; see `metarush machine`). Empty means active.
 	State string `bson:"state,omitempty" json:"state,omitempty" jsonschema:"enum=invited,enum=active,enum=revoked"`
 	// StorageKeyID is the object-store access key ID this installation is

@@ -51,7 +51,8 @@ func moveDB(t *testing.T) *store.DB {
 }
 
 // hashBut is the server's own hash of a database's collections but the
-// move's marker: "the old database is untouched".
+// move's marker and the activity log (whose entries go in until the move
+// freezes it: logQuietSince checks those): "the old database is untouched".
 func hashBut(t *testing.T, db *store.DB) string {
 	t.Helper()
 	ctx := context.Background()
@@ -61,7 +62,7 @@ func hashBut(t *testing.T, db *store.DB) string {
 	}
 	var colls bson.A
 	for _, n := range names {
-		if n != store.CDatabaseMove {
+		if n != store.CDatabaseMove && n != store.CLogEntries {
 			colls = append(colls, n)
 		}
 	}
@@ -70,6 +71,20 @@ func hashBut(t *testing.T, db *store.DB) string {
 		t.Fatal(err)
 	}
 	return h["md5"].(string)
+}
+
+// logQuietSince fails when the old database's activity log got an entry
+// after the move froze it.
+func logQuietSince(t *testing.T, db *store.DB) {
+	t.Helper()
+	ctx := context.Background()
+	m, err := db.ReadMoveMarker(ctx)
+	if err != nil || m == nil {
+		t.Fatalf("no marker: %v", err)
+	}
+	if n, _ := db.C(store.CLogEntries).CountDocuments(ctx, bson.M{"at": bson.M{"$gte": m.StartedAt}}); n > 0 {
+		t.Fatalf("%d activity log entries went into the old database after it froze", n)
+	}
 }
 
 // databaseExists says whether the server still has a database.
@@ -221,6 +236,7 @@ func TestDatabaseMoveBetweenTwoDatabases(t *testing.T) {
 	if hashBut(t, a.DB) != before {
 		t.Fatal("the move changed the old database")
 	}
+	logQuietSince(t, a.DB)
 	if !databaseExists(t, a.DB) {
 		t.Fatal("the old database is gone")
 	}
@@ -327,6 +343,7 @@ func TestDatabaseMoveBetweenTwoDatabases(t *testing.T) {
 	if hashBut(t, a.DB) != before {
 		t.Fatal("the switch changed the old database")
 	}
+	logQuietSince(t, a.DB)
 	// Switching again: there is no move in the new database.
 	if _, err := ops.CallTyped[ops.DatabaseSwitchOut](ctx, b2, "database.switch", ops.DatabaseSwitchIn{}, ops.Caller{Human: true}); apperr.From(err).Code != apperr.Conflict {
 		t.Fatalf("a second switch: %v", err)

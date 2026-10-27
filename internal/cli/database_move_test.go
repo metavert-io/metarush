@@ -15,15 +15,18 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/localdb"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/plainwords"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/testutil"
+	"github.com/metavert-io/metarush/internal/tools"
 )
 
 // dbHashBut is the server's hash of a database's collections but the move's
-// marker.
+// marker and the activity log (a terminal's own entries go in until the move
+// freezes the database: frozenSince checks those).
 func dbHashBut(t *testing.T, db *store.DB) string {
 	t.Helper()
 	ctx := context.Background()
@@ -33,7 +36,7 @@ func dbHashBut(t *testing.T, db *store.DB) string {
 	}
 	var colls bson.A
 	for _, n := range names {
-		if n != store.CDatabaseMove {
+		if n != store.CDatabaseMove && n != store.CLogEntries {
 			colls = append(colls, n)
 		}
 	}
@@ -42,6 +45,20 @@ func dbHashBut(t *testing.T, db *store.DB) string {
 		t.Fatal(err)
 	}
 	return h["md5"].(string)
+}
+
+// frozenSince fails when the old database's activity log got an entry after
+// the move froze it.
+func frozenSince(t *testing.T, db *store.DB) {
+	t.Helper()
+	ctx := context.Background()
+	m, err := db.ReadMoveMarker(ctx)
+	if err != nil || m == nil {
+		t.Fatalf("no marker: %v", err)
+	}
+	if n, _ := db.C(store.CLogEntries).CountDocuments(ctx, bson.M{"at": bson.M{"$gte": m.StartedAt}}); n > 0 {
+		t.Fatalf("%d activity log entries went into the old database after it froze", n)
+	}
 }
 
 // laptopHome is a second installation home of the same workspace on the same
@@ -123,6 +140,7 @@ func TestDatabaseMoveAtATerminal(t *testing.T) {
 	if dbHashBut(t, a.DB) != before {
 		t.Fatal("the move changed the old database")
 	}
+	frozenSince(t, a.DB)
 	// This computer works in the new database now.
 	r = run(h, "project", "create", "Summer", "--json")
 	if r.code != 0 {
@@ -158,6 +176,7 @@ func TestDatabaseMoveAtATerminal(t *testing.T) {
 	if dbHashBut(t, a.DB) != before {
 		t.Fatal("the old database changed")
 	}
+	frozenSince(t, a.DB)
 
 	// The address is nowhere it shouldn't be.
 	for _, r := range runs {
@@ -196,5 +215,79 @@ func TestDatabaseMoveAtATerminal(t *testing.T) {
 				t.Fatalf("the address is in the log: %s", b)
 			}
 		}
+	}
+}
+
+// Moving to the database on this computer (a real server standing in for the
+// download): set up the way setup does it (its own port, its administrator
+// and MetaRush's own sign-in kept in the keychain), everything copied and
+// checked, this computer switched to it with the port in its settings; the
+// old database is untouched but its marker.
+func TestDatabaseMoveToThisComputer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("starts a real database server")
+	}
+	keyring.MockInit()
+	realHome, _ := os.UserHomeDir()
+	a := archiveWorkspace(t)
+	asPerson(t)
+	h := a.Cfg.Home()
+	installRealMongod(t, h, realHome)
+	t.Cleanup(func() {
+		if st, ok := localdb.New(h, 0, tools.New(config.Tools{})).ReadState(); ok {
+			_ = localdb.New(h, st.Port, tools.New(config.Tools{})).Stop(context.Background())
+		}
+	})
+	ctx := context.Background()
+	name := store.TestDBPrefix + strings.TrimPrefix(ids.New("t"), "t_")
+	cctx, cancel := context.WithTimeout(ctx, 4*time.Minute)
+	defer cancel()
+	r := runCLIContext(t, cctx, h, "database", "plan", "--to", "here", "--name", name, "--json")
+	var plan ops.DatabasePlanOut
+	decodeData(t, r, &plan)
+	if !plan.Ready || plan.To.Kind != "here" || plan.To.Reach != "this-computer" {
+		t.Fatalf("plan: %+v", plan)
+	}
+	if _, err := os.Stat(filepath.Join(h, "database", "state.json")); err == nil {
+		t.Fatal("the plan set the database up")
+	}
+	before := dbHashBut(t, a.DB) // the plan is in its activity log
+	r = runCLIContext(t, cctx, h, "database", "move", "--to", "here", "--name", name, "--yes", "--json")
+	var out ops.DatabaseMoveOut
+	decodeData(t, r, &out)
+	if !out.Verified || !out.Switched || out.To.Kind != "here" {
+		t.Fatalf("move: %+v", out)
+	}
+	if dbHashBut(t, a.DB) != before {
+		t.Fatal("the old database changed")
+	}
+	frozenSince(t, a.DB)
+	cfg, err := config.Load(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, ok := localdb.New(h, 0, tools.New(config.Tools{})).ReadState()
+	if !ok || !st.Initiated || cfg.Database.Local == nil || cfg.Database.Local.Port != st.Port || cfg.Database.Name != name {
+		t.Fatalf("settings: %+v %+v", cfg.Database.Local, st)
+	}
+	if !localdb.New(h, st.Port, nil).Ours(cfg.Database.URI, localdb.User) {
+		t.Fatal("this computer doesn't sign in to its own database as MetaRush")
+	}
+	if admin, err := config.ResolveSecret(h, config.SecretRef(localdb.AdminSecret)); err != nil || !localdb.New(h, st.Port, nil).Ours(admin, localdb.AdminUser) {
+		t.Fatalf("the administrator's address: %v", err)
+	}
+	raw, _ := os.ReadFile(config.Path(h))
+	if strings.Contains(string(raw), "mongodb://") {
+		t.Fatal("config.yaml holds a database address")
+	}
+	r = runCLIContext(t, cctx, h, "project", "create", "Made here", "--json")
+	if r.code != 0 {
+		t.Fatalf("a change after moving here: %s %s", r.stdout, r.stderr)
+	}
+	r = runCLIContext(t, cctx, h, "database", "move-status", "--json")
+	var st2 ops.DatabaseMoveStatusOut
+	decodeData(t, r, &st2)
+	if st2.This.Kind != "here" || st2.Frozen {
+		t.Fatalf("status: %+v", st2)
 	}
 }

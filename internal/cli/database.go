@@ -112,14 +112,20 @@ func printDatabaseStatus(st localdb.Status, details bool) {
 		return
 	case st.Running:
 		fmt.Printf("The database on this computer is running and holds %s.\n", fmtBytes(st.DataBytes))
+	case st.CantStart != "":
+		fmt.Println("The database on this computer can't start right now.")
 	default:
 		fmt.Println("The database on this computer isn't running. MetaRush starts it whenever it needs it.")
 	}
 	switch {
+	case st.CantStart != "":
+		fmt.Println("  " + st.CantStart)
 	case st.UpgradeUnfinished:
 		fmt.Println("  Its last upgrade didn't finish. Upgrade it again to finish it: it takes a moment.")
 	case st.UpgradeReady:
 		fmt.Println("  A newer version of it comes with this MetaRush. Upgrade it when it suits you: it takes a minute.")
+	case st.UpgradeWaits != "":
+		fmt.Println("  " + st.UpgradeWaits)
 	}
 	if details {
 		fmt.Printf("  MongoDB %s on 127.0.0.1:%d", st.Version, st.Port)
@@ -127,6 +133,9 @@ func printDatabaseStatus(st localdb.Status, details bool) {
 			fmt.Printf(" (pid %d)", st.PID)
 		}
 		fmt.Printf("\n  folder %s\n  log %s\n", st.Folder, st.Log)
+		if st.Kernel != "" {
+			fmt.Printf("  Linux kernel %s\n", st.Kernel)
+		}
 		if st.UpgradeReady {
 			fmt.Printf("  upgrade to %s: metarush database upgrade\n", st.Pinned)
 		}
@@ -293,6 +302,12 @@ func databaseUpgradeCmd() *cobra.Command {
 func databaseErr(err error, what string) error {
 	if errors.Is(err, context.Canceled) {
 		return apperr.New("E_CANCELED", "%s: it was stopped.", what)
+	}
+	if le := (*localdb.Error)(nil); errors.Is(err, localdb.ErrKernel) && errors.As(err, &le) {
+		// This computer's Linux kernel stops MongoDB 8 (D339): the words say why
+		// and what to do; nothing about the database itself is wrong.
+		return apperr.New(apperr.Database, "%s", sentence(le.Plain)).WithHint(le.Next).
+			WithDetails(map[string]any{"problem": localdb.ErrKernel.Error(), "kernel": localdb.ReadKernel().Release})
 	}
 	if errors.Is(err, localdb.ErrNoBuild) {
 		return apperr.New(apperr.NotConfigured, "%s: MongoDB doesn't make its database for this kind of computer.", what).

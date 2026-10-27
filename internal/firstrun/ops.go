@@ -99,7 +99,11 @@ func DatabaseState(ctx context.Context, cfg *config.Config, ts *tools.Set) Setup
 	st := localdb.New(cfg.Home(), l.Port, ts).Status(ctx)
 	d := SetupDatabase{Local: true, Running: st.Running, UpgradeReady: st.UpgradeReady,
 		Says: "Your projects are kept in a database on this computer; MetaRush keeps it running."}
-	if !st.Running {
+	switch {
+	case st.CantStart != "":
+		// This computer's Linux kernel stops it (D339): why, and what to do.
+		d.Says = "Your projects are kept in a database on this computer, which can't start right now. " + st.CantStart
+	case !st.Running:
 		d.Says = "Your projects are kept in a database on this computer. It isn't running right now; MetaRush starts it when it needs it."
 	}
 	return d

@@ -418,8 +418,11 @@ func detectDatabase(ctx context.Context, e *Env) Found {
 	if l := c.Database.Local; l != nil {
 		st := localdb.New(e.Home(), l.Port, e.Tools).Status(ctx)
 		f := Found{Ready: st.SetUp, Version: st.Version, Path: st.Folder, Detail: fmt.Sprintf("on this computer, port %d", st.Port)}
-		if !st.SetUp {
+		switch {
+		case !st.SetUp:
 			f.Partly = "The database on this computer isn't set up; run MetaRush's setup again."
+		case st.CantStart != "":
+			f.Partly = st.CantStart // this computer's Linux kernel stops it (D339)
 		}
 		return f
 	}

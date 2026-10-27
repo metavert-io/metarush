@@ -52,11 +52,21 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with: { go-version: "1.27" }
+      # Ubuntu's mirror is sometimes very slow (scripts/ci-apt.sh): the package files an earlier run kept.
+      - id: apt-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with: { path: ~/apt-debs, key: apt-debs-, restore-keys: apt-debs- }
       # bubblewrap: the abilities' sandbox on Linux (D232). Ubuntu's AppArmor blocks the user
       # namespaces it needs unless the limit is lifted (docs/abilities.md, Linux).
-      - run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg bubblewrap
+      - name: ffmpeg and bubblewrap
+        run: |
+          scripts/ci-apt.sh install ffmpeg bubblewrap
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - id: apt
+        run: scripts/ci-apt.sh keep
+      - if: steps.apt.outputs.key != steps.apt-cache.outputs.cache-matched-key
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with: { path: ~/apt-debs, key: "${{ steps.apt.outputs.key }}" }
       # Like the dev database (scripts/dev-mongo.sh): a replica set, as the dashboard's live updates
       # are change streams, with the dev one's settings for many test databases at once.
       - name: MongoDB as a one-member replica set

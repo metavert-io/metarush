@@ -47,10 +47,15 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.chosen.outputs.run
         with: { node-version: 22 }
+      # Ubuntu's mirror is sometimes very slow (scripts/ci-apt.sh): the package files an earlier run kept.
+      - id: apt-cache
+        if: steps.chosen.outputs.run
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with: { path: ~/apt-debs, key: apt-debs-, restore-keys: apt-debs- }
       - name: ffmpeg, bubblewrap, and where the run keeps its files
         if: steps.chosen.outputs.run
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg bubblewrap
+          scripts/ci-apt.sh install ffmpeg bubblewrap
           # A Remotion refresh runs in bubblewrap (D174); Ubuntu's AppArmor stops unprivileged user namespaces
           # unless this is off, and MetaRush then refuses to plan one (remotion-e2e's refresh steps).
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
@@ -66,6 +71,12 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
+      - id: apt
+        if: steps.chosen.outputs.run
+        run: scripts/ci-apt.sh keep
+      - if: steps.chosen.outputs.run && steps.apt.outputs.key != steps.apt-cache.outputs.cache-matched-key
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with: { path: ~/apt-debs, key: "${{ steps.apt.outputs.key }}" }
       - name: scripts/${{ matrix.suite }}-e2e.sh
         if: steps.chosen.outputs.run
         run: scripts/${{ matrix.suite }}-e2e.sh

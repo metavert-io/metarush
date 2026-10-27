@@ -3,7 +3,8 @@
 // the tracks up (when the microphone's first sample was heard, its drift, the
 // samples a pause drops), the queue that sends each track's pieces at the
 // host's offset (a piece cut off on its way, a dropped connection, a reload),
-// the teleprompter's lines from a pasted script, and the file format chosen.
+// the teleprompter's lines from a pasted script, the file format chosen and
+// how often each recorder hands its pieces over.
 //
 //   node --experimental-strip-types web/scripts/recorder-test.mjs
 import path from 'node:path';
@@ -14,7 +15,7 @@ const src = (f) => path.join(here, '..', 'src', 'screens', 'record', f);
 const { fitMic, VoiceGate, pausesOnClock, recordedAt, voiceStart, toPCM16, DRIFT_MIN_MS } = await import(src('clock.ts'));
 const { TrackQueue, OffsetMismatch, Refused, BACKOFF } = await import(src('pieces.ts'));
 const { splitScript, sentences, estimateSeconds, promptLines } = await import(src('script.ts'));
-const { pickFormat, videoBits, formatOf } = await import(src('formats.ts'));
+const { pickFormat, videoBits, formatOf, pacing, PIECE_MS } = await import(src('formats.ts'));
 const { withDeadline, NoAnswer, DEVICE_DEADLINE_MS, armedBy } = await import(path.join(here, '..', 'src', 'lib', 'deadline.ts'));
 
 let failed = 0;
@@ -197,6 +198,12 @@ eq('a browser that throws is skipped', pickFormat((t) => { if (t.includes('mp4')
 eq('1080p at 30 fps: about 6 Mbit/s', videoBits(1920, 1080, 30), 6220800);
 eq('small pictures get at least 1.5 Mbit/s', videoBits(320, 180, 15), 1500000);
 eq('a 5K screen at 60 is capped at 12 Mbit/s', videoBits(5120, 2880, 60), 12000000);
+// Chromium's MP4 recorder writes a piece only at the keyframe that ends it, and only a whole timeslice after its
+// last write: half the keyframe interval writes every piece as it ends, and requestData() hands over the first.
+eq('Chromium, MP4: a keyframe every two seconds, written each second, handed over each half', pacing('video/mp4;codecs=avc1.640020,mp4a.40.2', true), { timeslice: PIECE_MS / 2, handover: PIECE_MS / 4 });
+eq('Chromium, MP4 as the browser spells it', pacing('video/MP4; codecs="avc1.64001F, mp4a.40.2"', true), { timeslice: 1000, handover: 500 });
+eq('Chromium, WebM: two-second pieces, as before', pacing('video/webm;codecs=vp9,opus', true), { timeslice: 2000, handover: 0 });
+eq('another browser’s MP4 (Safari): as before', pacing('video/mp4;codecs=avc1.64001F,mp4a.40.2', false), { timeslice: 2000, handover: 0 });
 eq('the format as kept', formatOf('video/webm; codecs="vp8, opus"'), 'video/webm;codecs="vp8,opus"');
 
 // ----- a device that never answers -----

@@ -44,6 +44,30 @@ export function videoBits(width: number, height: number, fps: number): number {
   return Math.round(Math.min(12e6, Math.max(1.5e6, w * h * f * 0.1)));
 }
 
+/** A piece of the screen or the camera: the recorder makes a keyframe this often, so each piece starts with one. */
+export const PIECE_MS = 2000;
+
+/**
+ * How a recorder hands its pieces over while it records (D342): the
+ * timeslice for start(), and how often to call requestData() (0: never).
+ *
+ * Chromium's MP4 recorder writes a piece (a fragment, from one keyframe to
+ * the next) only when the keyframe that ends it arrives, and then only if a
+ * whole timeslice has passed since its last write. With the timeslice equal
+ * to the keyframe interval, the two clocks round against each other and
+ * keyframes are skipped: pieces came every four seconds, or none for a long
+ * while. Half the interval writes every piece as its keyframe arrives. And
+ * the movie's header and its first piece are written back to back: the
+ * second waits inside the recorder for its next write (two seconds later)
+ * unless requestData() hands it over, which every half second does (most
+ * calls hand over nothing). Other recorders (WebM, Safari's MP4) hand over
+ * what they have at each timeslice, as before.
+ */
+export function pacing(format: string, chromium: boolean): { timeslice: number; handover: number } {
+  if (chromium && formatOf(format).startsWith('video/mp4')) return { timeslice: PIECE_MS / 2, handover: PIECE_MS / 4 };
+  return { timeslice: PIECE_MS, handover: 0 };
+}
+
 /** The file format as the host keeps it: the media type without spaces, lower case. */
 export function formatOf(mime: string): string {
   return mime.replace(/\s+/g, '').toLowerCase();

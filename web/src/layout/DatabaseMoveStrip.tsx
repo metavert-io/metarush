@@ -23,7 +23,13 @@ export function DatabaseMoveStrip() {
     <div data-database-strip={s.state} role="status" className="border-t border-line bg-accent-soft">
       <div className="mx-auto flex min-h-10 w-full max-w-[1480px] items-center gap-2 px-4 py-1.5 text-[12.5px] sm:px-6 lg:px-8">
         <span className="grid h-5 w-5 shrink-0 place-items-center text-accent-text">{moving ? <Spinner size={12} /> : <Database size={15} />}</span>
-        <span className="min-w-0 flex-1 text-fg">{s.summary}</span>
+        <span className="min-w-0 flex-1 text-fg">
+          {moving
+            ? 'The workspace is being moved to another database; changes wait until it’s done.'
+            : s.canSwitch
+              ? 'The workspace moved to another database: switch this computer too.'
+              : s.summary}
+        </span>
         <button
           type="button"
           onClick={() => go('/settings/storage#database')}

@@ -271,7 +271,10 @@ type jobRunner interface {
 }
 
 // waitJobs waits for jobs to finish. When no capable worker is online it runs a
-// worker in this process (and says so) so CLI-driven workflows never hang.
+// worker in this process (and says so) so CLI-driven workflows never hang; jobs
+// no computer can run (this one lacks a component, and no other running
+// MetaRush takes them) are not waited for: the wait ends with what was done and
+// a plain error saying what waits and what adds it (waitingErr, D340).
 func waitJobs(c *cobra.Command, a *app.App, jobIDs []string, timeout time.Duration, quiet bool) ([]models.Job, error) {
 	return waitJobsOpt(c, a, jobIDs, timeout, quiet, nil)
 }
@@ -371,6 +374,7 @@ func waitJobsOpt(c *cobra.Command, a *app.App, jobIDs []string, timeout time.Dur
 	var out []models.Job
 	last := map[string]string{}
 	names := newJobWords(a)
+	var caps *hereCan // what this computer runs (stuckJobs looks once)
 	for {
 		out = out[:0]
 		var pendingJobs []models.Job
@@ -416,6 +420,15 @@ func waitJobsOpt(c *cobra.Command, a *app.App, jobIDs []string, timeout time.Dur
 			}
 		} else if err := term.keepGoing(ctx, pendingJobs, say); err != nil {
 			return out, err
+		}
+		// Nothing left that any computer can run now: what is done is done,
+		// and the rest is said plainly instead of waited for forever (D340).
+		// After startInline, which sets the renderer up for a first render here.
+		// (A command that runs its job here itself checked first that it can.)
+		if here == nil {
+			if stuck := stuckJobs(ctx, a, pendingJobs, &caps); len(stuck) == len(pendingJobs) {
+				return out, waitingErr(ctx, a, stuck)
+			}
 		}
 		select {
 		case <-ctx.Done():

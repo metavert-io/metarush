@@ -34,33 +34,72 @@ const EnvArchive = "METARUSH_MONGODB_ARCHIVE"
 // EnvPin names a JSON file ({"version", "url", "sha256"}) that replaces the
 // pin, for browser runs that serve an archive from this computer: only a
 // loopback address (http://127.0.0.1:…) is accepted, so it can never send
-// MetaRush somewhere else for its database.
+// MetaRush somewhere else for its database. Its "older" ({"version", "url",
+// "sha256"}) stands in for Older (D339); without it a stand-in never falls
+// back to MongoDB's own downloads.
 const EnvPin = "METARUSH_MONGODB_PIN"
+
+// standIn is EnvPin's file.
+type standIn struct {
+	Version string   `json:"version"`
+	URL     string   `json:"url"`
+	SHA256  string   `json:"sha256"`
+	Older   *standIn `json:"older,omitempty"`
+}
+
+// readStandIn reads EnvPin's file (nil when the variable isn't set).
+func readStandIn() (*standIn, error) {
+	p := os.Getenv(EnvPin)
+	if p == "" {
+		return nil, nil
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return nil, plainErr("the stand-in database download couldn't be read", err)
+	}
+	var f standIn
+	if err := json.Unmarshal(b, &f); err != nil {
+		return nil, plainErr("the stand-in database download isn't readable", err)
+	}
+	for _, x := range []*standIn{&f, f.Older} {
+		if x != nil && (!loopbackURL(x.URL) || x.Version == "" || len(x.SHA256) != 64) {
+			return nil, errors.New("a stand-in database download must name a version, its SHA-256 and an address on this computer")
+		}
+	}
+	return &f, nil
+}
+
+func (f *standIn) pin() Pin {
+	t, _ := Target()
+	return Pin{Version: f.Version, SizeMB: 1, Archives: map[string]Archive{t: {URL: f.URL, SHA256: f.SHA256}}}
+}
 
 // PinFromEnv is the pin for this computer: Current, or the stand-in EnvPin
 // names (loopback only).
 func PinFromEnv() (Pin, error) {
-	p := os.Getenv(EnvPin)
-	if p == "" {
+	f, err := readStandIn()
+	switch {
+	case err != nil:
+		return Pin{}, err
+	case f == nil:
 		return Current, nil
 	}
-	b, err := os.ReadFile(p)
-	if err != nil {
-		return Pin{}, plainErr("the stand-in database download couldn't be read", err)
+	return f.pin(), nil
+}
+
+// olderFromEnv is Older, or EnvPin's stand-in for it; ok is false when a
+// stand-in replaces the pin without one (nothing older is set up then).
+func olderFromEnv() (Pin, bool) {
+	f, err := readStandIn()
+	switch {
+	case err != nil:
+		return Pin{}, false
+	case f == nil:
+		return Older, true
+	case f.Older == nil:
+		return Pin{}, false
 	}
-	var f struct {
-		Version string `json:"version"`
-		URL     string `json:"url"`
-		SHA256  string `json:"sha256"`
-	}
-	if err := json.Unmarshal(b, &f); err != nil {
-		return Pin{}, plainErr("the stand-in database download isn't readable", err)
-	}
-	if !loopbackURL(f.URL) || f.Version == "" || len(f.SHA256) != 64 {
-		return Pin{}, errors.New("a stand-in database download must name a version, its SHA-256 and an address on this computer")
-	}
-	t, _ := Target()
-	return Pin{Version: f.Version, SizeMB: 1, Archives: map[string]Archive{t: {URL: f.URL, SHA256: f.SHA256}}}, nil
+	return f.Older.pin(), true
 }
 
 func loopbackURL(u string) bool {

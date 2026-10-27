@@ -75,6 +75,10 @@ type Server struct {
 	Client *http.Client
 	// Pin replaces the pinned version (tests); nil is PinFromEnv.
 	Pin *Pin
+	// OlderPin replaces Older (tests); nil is Older, or EnvPin's stand-in.
+	OlderPin *Pin
+	// Kernel replaces this computer's Linux kernel (tests); nil is ReadKernel().
+	Kernel *Kernel
 	// TargetName replaces this computer's target (tests); "" is Target().
 	TargetName string
 	// CacheGB is the server's memory for data (default 1).
@@ -86,7 +90,22 @@ func New(home string, port int, ts *tools.Set) *Server {
 	return &Server{Home: home, Port: port, Tools: ts}
 }
 
+// pin is the version this computer sets up: the current pin, or Older where
+// this computer's Linux kernel keeps the current one from running (D339).
 func (s *Server) pin() Pin {
+	cur := s.current()
+	if KernelRefuses(cur.Version, s.kernel()) {
+		if o, ok := s.older(); ok {
+			if _, ok := o.For(s.target()); ok {
+				return o
+			}
+		}
+	}
+	return cur
+}
+
+// current is the version this MetaRush comes with, whatever the kernel.
+func (s *Server) current() Pin {
 	if s.Pin != nil {
 		return *s.Pin
 	}
@@ -95,6 +114,43 @@ func (s *Server) pin() Pin {
 		return Pin{Version: Current.Version}
 	}
 	return p
+}
+
+func (s *Server) older() (Pin, bool) {
+	if s.OlderPin != nil {
+		return *s.OlderPin, true
+	}
+	if s.Pin != nil {
+		return Pin{}, false // a test's own pin stands alone
+	}
+	return olderFromEnv()
+}
+
+func (s *Server) kernel() Kernel {
+	if s.Kernel != nil {
+		return *s.Kernel
+	}
+	return ReadKernel()
+}
+
+// ErrKernel is the cause of every error that says MongoDB can't run on this
+// computer's Linux kernel (errors.Is finds it under the plain words).
+var ErrKernel = errors.New("MongoDB can't run on this computer's Linux kernel (SERVER-121912)")
+
+// KernelNote says, before anything is downloaded, that this computer's Linux
+// kernel keeps the MongoDB this MetaRush comes with from running, and what
+// the database on this computer gets instead ("" when nothing is in the way).
+func (s *Server) KernelNote() string {
+	cur, k := s.current(), s.kernel()
+	if !KernelRefuses(cur.Version, k) {
+		return ""
+	}
+	why, todo := kernelWhy(cur.Version, k)
+	if p := s.pin(); p.Version != cur.Version {
+		return why + " So MetaRush sets up MongoDB " + p.Version + " instead: it works the same for MetaRush, and an upgrade moves it on to " +
+			Series(cur.Version) + " once " + Series(cur.Version) + " runs here."
+	}
+	return why + " " + todo
 }
 
 func (s *Server) target() string {
@@ -410,6 +466,10 @@ func (s *Server) startLocked(ctx context.Context, st State) error {
 		// Ours, but not answering yet: it is starting or recovering.
 		return s.waitReady(ctx, pid, nil, 5*time.Minute)
 	}
+	// A MongoDB this kernel stops (or would crash): said before it starts (D339).
+	if k := s.kernel(); KernelRefuses(st.Version, k) {
+		return cantStart(st.Version, k)
+	}
 	if s.Answers(ctx) || !portFree(s.Port) {
 		return fmt.Errorf("another program on this computer uses the database's port (%d)", s.Port)
 	}
@@ -499,6 +559,17 @@ func (s *Server) whyStopped() error {
 		return errors.New("the database can't start: another database server is using its folder")
 	case strings.Contains(text, "No space left on device"):
 		return errors.New("the database can't start: the disk is full")
+	case strings.Contains(text, `"id":12257600`) || strings.Contains(text, "Linux kernel versions 6.19 and newer"):
+		// MongoDB's own kernel check stopped it (one MetaRush's didn't foresee).
+		v := ""
+		if st, ok := s.ReadState(); ok {
+			v = st.Version
+		}
+		k := s.kernel()
+		if k.Release == "" {
+			k.Release = "unknown"
+		}
+		return cantStart(v, k)
 	}
 	return errors.New("the database on this computer stopped while starting; its log says why")
 }
@@ -626,13 +697,21 @@ type Status struct {
 	UpgradeReady bool   `json:"upgradeReady"`
 	// UpgradeUnfinished: an upgrade stopped before the data moved on to the
 	// new release series; upgrading again finishes it.
-	UpgradeUnfinished bool   `json:"upgradeUnfinished,omitempty"`
-	Running           bool   `json:"running"`
-	PID               int    `json:"pid,omitempty"`
-	Port              int    `json:"port,omitempty"`
-	DataBytes         int64  `json:"dataBytes"`
-	Folder            string `json:"folder"`
-	Log               string `json:"log"`
+	UpgradeUnfinished bool `json:"upgradeUnfinished,omitempty"`
+	// CantStart says why the version set up here can't start on this
+	// computer's Linux kernel, and what to do (D339).
+	CantStart string `json:"cantStart,omitempty"`
+	// UpgradeWaits says why the version this MetaRush comes with can't be
+	// moved to yet: this computer's Linux kernel keeps it from running.
+	UpgradeWaits string `json:"upgradeWaits,omitempty"`
+	// Kernel is this computer's Linux kernel when it is in the way.
+	Kernel    string `json:"kernel,omitempty"`
+	Running   bool   `json:"running"`
+	PID       int    `json:"pid,omitempty"`
+	Port      int    `json:"port,omitempty"`
+	DataBytes int64  `json:"dataBytes"`
+	Folder    string `json:"folder"`
+	Log       string `json:"log"`
 }
 
 // Status reads the database's state without changing anything.
@@ -647,7 +726,13 @@ func (s *Server) Status(ctx context.Context) Status {
 	}
 	out.SetUp, out.Version, out.Port = st.Initiated, st.Version, s.Port
 	out.UpgradeUnfinished = st.FeaturePending != ""
-	out.UpgradeReady = out.Available && Compare(out.Pinned, st.Version) > 0 || out.UpgradeUnfinished
+	k := s.kernel()
+	out.UpgradeReady = out.Available && Compare(out.Pinned, st.Version) > 0 && !KernelRefuses(out.Pinned, k) || out.UpgradeUnfinished
+	if KernelRefuses(st.Version, k) {
+		out.CantStart, out.Kernel = cantStart(st.Version, k).Words(), k.Release
+	} else if cur := s.current().Version; KernelRefuses(cur, k) && Compare(cur, st.Version) > 0 {
+		out.UpgradeWaits, out.Kernel = upgradeWaits(st.Version, cur, k).Words(), k.Release
+	}
 	out.PID = s.PID()
 	out.Running = out.PID > 0 && s.Answers(ctx)
 	out.DataBytes = dirSize(s.DataDir())

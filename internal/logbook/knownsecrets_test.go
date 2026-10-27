@@ -32,12 +32,12 @@ func TestKnownSecrets(t *testing.T) {
 	defer SetKeyLookup(old)
 	RememberSecret("remembered" + "Key4242")
 	got := KnownSecrets(cfg, "stockpics")
-	for _, want := range []string{"longPassw0rd", "tsec_SecretValue123456", "heygenKeyValue1234", "abilityKeyValue99", "rememberedKey4242"} {
+	for _, want := range []string{"longPassw0rd", "tsec_SecretValue123456", "heygenKeyValue1234", "abilityKeyValue99", "rememberedKey4242"} { // secret-scan: allow (made-up values)
 		if !slices.Contains(got, want) {
 			t.Errorf("missing %q", want)
 		}
 	}
-	for _, not := range []string{"tid_IdentifierOnly123", "/Volumes/x", "abc"} {
+	for _, not := range []string{"tid_IdentifierOnly123", "/Volumes/x", "abc"} { // secret-scan: allow (made-up values)
 		if slices.Contains(got, not) {
 			t.Errorf("%q is not a secret", not)
 		}

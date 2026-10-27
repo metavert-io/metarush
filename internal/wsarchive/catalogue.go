@@ -119,6 +119,7 @@ var Catalogue = map[string]Entry{
 	store.CTodos:                  {How: AsIs, Why: "questions for people and how they were answered"},
 	store.CFaces:                  {How: AsIs, Why: "faces followed through clips"},
 	store.CTestRun:                {How: LeftOut, Why: "a test database's marker"},
+	store.CRestoreLock:            {How: LeftOut, Why: "the marker a restore keeps in the database it writes into: that copy's own state"},
 	"catch_ups":                   {How: AsIs, Why: "which catch-up steps already ran (so the copy doesn't run them again)"},
 	"sound_cache":                 {How: AsIs, Why: "clearer voices already made (made once, kept by content address)"},
 }

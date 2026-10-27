@@ -3,6 +3,7 @@ package wsarchive
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -112,18 +113,11 @@ func ErrNotEmpty(db *store.DB, colls []string) error {
 }
 
 // CheckEmpty refuses a database that holds any collection (a test database's
-// own marker aside).
+// own marker and a restore's marker aside: Restore reads that one itself).
 func CheckEmpty(ctx context.Context, db *store.DB) error {
-	colls, err := ListCollections(ctx, db)
+	names, err := holds(ctx, db)
 	if err != nil {
 		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't look into the database.")
-	}
-	var names []string
-	for _, c := range colls {
-		if c.Name == store.CTestRun && strings.HasPrefix(db.Name, store.TestDBPrefix) {
-			continue
-		}
-		names = append(names, c.Name)
 	}
 	if len(names) > 0 {
 		return ErrNotEmpty(db, names)
@@ -131,10 +125,36 @@ func CheckEmpty(ctx context.Context, db *store.DB) error {
 	return nil
 }
 
+// holds lists a database's collections but the test marker and the restore marker.
+func holds(ctx context.Context, db *store.DB) ([]string, error) {
+	colls, err := ListCollections(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, c := range colls {
+		if c.Name == store.CRestoreLock || c.Name == store.CTestRun && strings.HasPrefix(db.Name, store.TestDBPrefix) {
+			continue
+		}
+		names = append(names, c.Name)
+	}
+	return names, nil
+}
+
+// partial is the error of a restore that stopped once the copy's records
+// began going in: its marker stays, so nothing works in the database.
+func partial(err error, format string, args ...any) error {
+	return apperr.Wrap(apperr.Integrity, err, format, args...).
+		WithHint("The database now holds part of the copy, and MetaRush won't work in it. It never deletes anything: restore again into a new, empty database (or empty this one yourself first).").
+		WithDetails(map[string]any{"reason": "partial_restore"})
+}
+
 // Opened is an archive ready to read: its folder and manifest.
 type Opened struct {
 	Dir      string
 	Manifest *Manifest
+	// ID is the archive's identity: the SHA-256 of its manifest.json.
+	ID string
 	// unpacked: a single-file archive unpacked into Dir (removed by Close).
 	unpacked bool
 }
@@ -188,7 +208,8 @@ func Open(path, scratch string, progress func(ArchiveProgress)) (*Opened, error)
 		a.Close()
 		return nil, apperr.Wrap(apperr.InvalidInput, err, "%s.", capitalize(err.Error()))
 	}
-	a.Manifest = m
+	sum := sha256.Sum256(b)
+	a.Manifest, a.ID = m, hex.EncodeToString(sum[:])
 	return a, nil
 }
 
@@ -323,8 +344,29 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 	if err := a.Verify(o.Progress); err != nil {
 		return nil, err
 	}
-	if err := CheckEmpty(ctx, o.DB); err != nil {
-		return nil, err
+	// The database: empty, or holding this very restore stopped before its
+	// records went in (it continues) or while bringing the copy up to date
+	// (it finishes that).
+	lock, err := o.DB.ReadRestoreLock(ctx)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't look into the database.")
+	}
+	others, err := holds(ctx, o.DB)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't look into the database.")
+	}
+	resumeMigrating := false
+	switch {
+	case lock.Unfinished() && lock.Archive != a.ID:
+		return nil, apperr.New(apperr.Conflict, "That database holds part of another restore, and a restore writes only into an empty one.").
+			WithHint("Restore into a new, empty database: MetaRush never deletes anything.").WithDetails(map[string]any{"reason": "not_empty", "database": o.DB.Name})
+	case lock.Unfinished() && lock.State == store.RestoreMigrating && !o.Plan:
+		resumeMigrating = true
+	case len(others) > 0:
+		if lock.Unfinished() {
+			return nil, partial(nil, "This database holds part of a restore of this archive that stopped while its records went in.")
+		}
+		return nil, ErrNotEmpty(o.DB, others)
 	}
 	rep := &RestoreReport{Plan: o.Plan, Workspace: m.Workspace, MadeAt: m.MadeAt, MadeBy: m.MadeBy, FromLevel: m.Level.Highest,
 		Migrated: []string{}, Collections: []RestoredCollection{}, LeftOut: m.LeftOut,
@@ -336,6 +378,16 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 	entries, err := readMediaIndex(filepath.Join(a.Dir, MediaIndexName))
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Integrity, err, "The archive's list of footage can't be read.")
+	}
+	if resumeMigrating {
+		return finishRestore(ctx, o, a, rep, true)
+	}
+	// The marker first: from now on nothing else works in this database until
+	// the copy is whole and checked.
+	if !o.Plan {
+		if err := o.DB.SetRestoreLock(ctx, a.ID, m.Workspace.ID, m.Workspace.Name, store.RestoreCopying); err != nil {
+			return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't write into the database.")
+		}
 	}
 	// The media first: copying it is the slow part and continues when
 	// started again, while the documents go into an empty database once.
@@ -401,64 +453,94 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 		rep.Verified = true // every checksum matched
 		return rep, nil
 	}
-	// The documents.
+	// Nothing else may have come into the database meanwhile: the copy is
+	// never merged with anything.
+	if others, err := holds(ctx, o.DB); err != nil {
+		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't look into the database.")
+	} else if len(others) > 0 {
+		_ = o.DB.SetRestoreLock(ctx, a.ID, m.Workspace.ID, m.Workspace.Name, store.RestoreAbandoned) // nothing of the copy is in it
+		return nil, ErrNotEmpty(o.DB, others)
+	}
+	// The records, each collection checked against the archive as soon as it
+	// is in.
 	for i, c := range m.Collections {
 		o.progress(ArchiveProgress{Phase: "documents", Collection: c.Name, Collections: len(m.Collections), CollectionsDone: i})
 		if err := restoreCollection(ctx, o.DB, a.Dir, c); err != nil {
-			return nil, err
+			return nil, partial(err, "Writing %s into the copy stopped.", c.Name)
 		}
-	}
-	// The migration level the archive was made at.
-	for _, ap := range m.Level.Applied {
-		doc := bson.M{"_id": ap.Version, "name": ap.Name, "appliedAt": ap.AppliedAt}
-		if _, err := o.DB.C(store.CMigrations).InsertOne(ctx, doc); err != nil {
-			return nil, apperr.Wrap(apperr.Database, err, "The migration level couldn't be set.")
-		}
-	}
-	// The copy holds exactly what the archive does.
-	for i, c := range m.Collections {
-		o.progress(ArchiveProgress{Phase: "verifying", Collection: c.Name, Collections: len(m.Collections), CollectionsDone: i})
 		d, err := HashCollection(ctx, o.DB, c.Name, m.Workspace.ID)
 		if err != nil {
-			return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't read the copy of %s back.", c.Name)
+			return nil, partial(err, "MetaRush couldn't read the copy of %s back.", c.Name)
 		}
 		if d.Count != c.Count || d.SHA256 != c.SHA256 {
-			return nil, apperr.New(apperr.Integrity, "The copy of %s doesn't hold what the archive does (%d of %d records match).", c.Name, d.Count, c.Count).
-				WithDetails(map[string]any{"collection": c.Name, "want": c.SHA256, "got": d.SHA256})
+			return nil, partial(nil, "The copy of %s doesn't hold what the archive does (%d of %d records).", c.Name, d.Count, c.Count)
 		}
 		rep.Collections = append(rep.Collections, RestoredCollection{Name: c.Name, Count: c.Count, Verified: true})
 	}
-	// Then the migrations forward.
+	// The migration level the archive was made at, last of the copy's records.
+	for _, ap := range m.Level.Applied {
+		doc := bson.M{"_id": ap.Version, "name": ap.Name, "appliedAt": ap.AppliedAt}
+		if _, err := o.DB.C(store.CMigrations).InsertOne(ctx, doc); err != nil {
+			return nil, partial(err, "The copy's migration level couldn't be set.")
+		}
+	}
+	if err := o.DB.SetRestoreLock(ctx, a.ID, m.Workspace.ID, m.Workspace.Name, store.RestoreMigrating); err != nil {
+		return nil, partial(err, "MetaRush couldn't write into the database.")
+	}
+	return finishRestore(ctx, o, a, rep, false)
+}
+
+// finishRestore brings a copy whose records are all in and checked up to
+// date, checks its counts and lets go of the database.
+func finishRestore(ctx context.Context, o RestoreOptions, a *Opened, rep *RestoreReport, resumed bool) (*RestoreReport, error) {
+	m := a.Manifest
+	if resumed {
+		for _, c := range m.Collections {
+			rep.Collections = append(rep.Collections, RestoredCollection{Name: c.Name, Count: c.Count, Verified: true})
+		}
+		rep.Notes = append(rep.Notes, "This restore had stopped while the copy was brought up to date; it finished that now.")
+	}
 	o.progress(ArchiveProgress{Phase: "migrating"})
-	applied, err := o.DB.Migrate(ctx)
+	applied, err := o.DB.MigrateRestoring(ctx)
 	if err != nil {
-		return nil, apperr.Wrap(apperr.Database, err, "Bringing the copy up to date stopped: %v.", err).
-			WithHint("Bring it up to date again once MetaRush is set up with it: that picks up where it stopped.").WithCommand("metarush migrate")
+		return nil, apperr.Wrap(apperr.Database, err, "Bringing the copy up to date stopped: %v.", sentenceOf(err)).
+			WithHint("Run the same restore again: every record is in and checked, and it finishes bringing the copy up to date.")
 	}
 	rep.Migrated = append(rep.Migrated, applied...)
 	// The counts again: migrations only add.
 	for i, c := range m.Collections {
 		n, err := o.DB.C(c.Name).CountDocuments(ctx, workspaceFilter(m.Workspace.ID))
 		if err != nil {
-			return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't count the copy of %s.", c.Name)
+			return nil, partial(err, "MetaRush couldn't count the copy of %s.", c.Name)
 		}
 		if n < c.Count {
 			rep.Collections[i].Verified = false
-			return nil, apperr.New(apperr.Integrity, "After bringing it up to date, the copy of %s holds fewer records than the archive (%d of %d).", c.Name, n, c.Count)
+			return nil, partial(nil, "After bringing it up to date, the copy of %s holds fewer records than the archive (%d of %d).", c.Name, n, c.Count)
 		}
 	}
 	// The copy's footage is in this storage when it was included.
 	if m.Media.Mode == MediaIncluded {
 		id := models.StoreIdentity{Provider: o.Store.Name(), Locator: o.Store.Locator(), Shared: o.Store.Capabilities().Shared}
 		if _, err := o.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": m.Workspace.ID}, bson.M{"$set": bson.M{"mediaStore": id}}); err != nil {
-			return nil, apperr.Wrap(apperr.Database, err, "The copy couldn't be told where its footage is.")
+			return nil, partial(err, "The copy couldn't be told where its footage is.")
 		}
 	} else if ws, err := FindWorkspace(ctx, o.DB, m.Workspace.ID); err == nil && ws != nil && ws.MediaStore.Locator != "" && ws.MediaStore.Locator != o.Store.Locator() {
 		rep.Notes = append(rep.Notes, "The workspace keeps its footage in other storage than this one: set this copy up with that storage, or move the media.")
 	}
 	rep.Elsewhere = elsewhere(ctx, o.DB, m.Workspace.ID)
+	if err := o.DB.SetRestoreLock(ctx, a.ID, m.Workspace.ID, m.Workspace.Name, store.RestoreDone); err != nil {
+		return nil, apperr.Wrap(apperr.Database, err, "The copy is whole, but MetaRush couldn't mark the restore finished. Run the same restore again to finish it.")
+	}
 	rep.Verified = true
 	return rep, nil
+}
+
+// sentenceOf is an error's words without a closing stop.
+func sentenceOf(err error) string {
+	if err == nil {
+		return ""
+	}
+	return strings.TrimSuffix(err.Error(), ".")
 }
 
 func migrationName(v int) string {

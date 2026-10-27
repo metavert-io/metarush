@@ -143,6 +143,7 @@ on someone's computer (a clip's original path, shortened to `~`) is history, and
 | `remotion_sources` | as it is | Remotion projects kept in projects |
 | `remotion_versions` | as it is | Remotion projects' versions and who approved them |
 | `renders` | as it is | renders and where their files are kept |
+| `restore_lock` | left out | the marker a restore keeps in the database it writes into: that copy's own state |
 | `resources` | as it is | pictures, logos, fonts, PDFs, repositories and web pages, with where each came from |
 | `review_links` | as it is | links sent to outside reviewers, as the record of what was shared |
 | `schema_migrations` | in the manifest | the database's migration level: written in manifest.json and set from it by the restore, which then brings the copy up to date |
@@ -178,14 +179,22 @@ anything; restore into a new database name, or empty that one yourself). It:
 
 1. checks every file of the archive against the manifest's SHA-256 — and, with included footage, every file of it;
    one changed byte anywhere and nothing is written;
-2. puts the footage in place: included footage is copied into the storage by content address, each file checked on
-   the way in (a restore that stops continues where it stopped, and nothing is in the database yet); referenced
-   footage is looked for in the storage, and what isn't there is named;
-3. makes each collection as it was made (its options, then all its indexes) and streams its records in;
-4. sets the migration level the archive was made at;
-5. checks the copy against the archive, collection by collection, by count and by SHA-256;
-6. brings the copy up to date with this MetaRush's migrations, and checks that no collection lost a record;
-7. writes the restore into the copy's activity log and change history, and says what happened in plain words.
+2. puts its marker in the database: until the copy is whole, checked and up to date, MetaRush doesn't bring that
+   database up to date, set a computer up with it or start its background service there;
+3. puts the footage in place: included footage is copied into the storage by content address, each file checked on
+   the way in (a restore that stops here continues where it stopped when started again); referenced footage is
+   looked for in the storage, and what isn't there is named;
+4. looks at the database again — anything written into it meanwhile and the restore stops, merging nothing;
+5. makes each collection as it was made (its options, then all its indexes) and streams its records in, checking
+   each collection against the archive (count and SHA-256) as soon as it is in;
+6. sets the migration level the archive was made at, last of the copy's records;
+7. brings the copy up to date with this MetaRush's migrations, and checks that no collection lost a record;
+8. marks the restore finished and writes it into the copy's activity log and change history, and says what happened
+   in plain words.
+
+If it stops once the records began going in, the database holds part of the copy and its marker stays: MetaRush
+says so, and you restore again into a new, empty database (it never deletes anything; empty that one yourself if you
+want it back). If it stops while bringing the copy up to date, running the same restore again finishes it.
 
 On a new computer, setting MetaRush up from the export does all of it and joins the restored workspace:
 

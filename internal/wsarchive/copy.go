@@ -236,6 +236,13 @@ func (s Spec) Make(ctx context.Context, db *store.DB) error {
 	if s.Type != "" && s.Type != "collection" {
 		return fmt.Errorf("%s is a %s, which an archive doesn't carry", s.Name, s.Type)
 	}
+	// Never into a collection that is there already (MongoDB's create says
+	// yes to one made the same way): a copy is never merged.
+	if names, err := db.DB.ListCollectionNames(ctx, bson.D{{Key: "name", Value: s.Name}}); err != nil {
+		return err
+	} else if len(names) > 0 {
+		return fmt.Errorf("%s is in the database already", s.Name)
+	}
 	cmd := bson.D{{Key: "create", Value: s.Name}}
 	if len(s.Options) > 0 {
 		elems, err := s.Options.Elements()

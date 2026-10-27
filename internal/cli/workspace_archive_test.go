@@ -286,3 +286,23 @@ func TestSetupInterviewOffersARestore(t *testing.T) {
 		t.Fatal("a restore of nothing")
 	}
 }
+
+// A database a restore still holds is never set up with, brought up to date
+// or opened by the background service.
+func TestSetupRefusesAHalfRestoredDatabase(t *testing.T) {
+	setupEnv(t)
+	db := archiveEmptyDB(t)
+	if err := db.SetRestoreLock(context.Background(), "abc", "ws_x", "FernBrook Studio", store.RestoreCopying); err != nil {
+		t.Fatal(err)
+	}
+	h := filepath.Join(t.TempDir(), "home")
+	r := runCLI(t, h, "setup", "--yes", "--json", "--database", "elsewhere", "--db-uri", testutil.URI(), "--db-name", db.Name, "--test-db",
+		"--secrets", "env", "--service=false", "--skills=false", "--no-components", "--port", strconv.Itoa(freeTCPPort(t)), "--workspace-name", "Other")
+	c, m := errorCode(t, r)
+	if c != "E_CONFLICT" || !strings.Contains(m, "part of a restore") {
+		t.Fatalf("setup with a half-restored database: %s %s", c, m)
+	}
+	if n, _ := db.C(store.CWorkspaces).CountDocuments(context.Background(), bson.M{}); n != 0 {
+		t.Fatal("setup wrote into it")
+	}
+}

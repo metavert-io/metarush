@@ -77,7 +77,7 @@ func TestScrubTakesOutCredentialsNotWords(t *testing.T) {
 	}
 }
 
-// Two recipes whose names a broad scrub would have made equal ("Basic
+// Two Recipes records whose names a broad scrub would have made equal ("Basic
 // explainer", "Basic interviews") export and restore: names are never
 // rewritten, and the export checks every changed record against its
 // collection's unique indexes before it says it is ready.
@@ -103,7 +103,7 @@ func TestScrubNeverBreaksUniqueIndexes(t *testing.T) {
 	}
 	res := exportTo(t, src, st, ws, wsarchive.MediaReferenced, false)
 	if c := collection(res.Manifest, store.CRecipes); c.Scrubbed != 0 {
-		t.Fatalf("recipes' names were changed: %+v", c)
+		t.Fatalf("names in Recipes were changed: %+v", c)
 	}
 	if c := collection(res.Manifest, store.CComments); c.Scrubbed != 1 || len(c.ScrubbedAt) != 1 || c.ScrubbedAt[0].Kind == "" {
 		t.Fatalf("the comment's key: %+v", c)

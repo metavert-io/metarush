@@ -284,6 +284,10 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 			return nil, failErr(c, err)
 		}
 	} else {
+		// A database a restore still holds is nobody's to set up with (D333).
+		if err := db.CheckNoUnfinishedRestore(ctx); err != nil {
+			return nil, failErr(c, unfinishedRestore(err))
+		}
 		say("  Updating the database…")
 		mctx, mcancel := context.WithTimeout(c.Context(), 10*time.Minute)
 		defer mcancel()
@@ -645,6 +649,16 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 		result["warnings"] = homeWarnings
 	}
 	return result, nil
+}
+
+// unfinishedRestore says plainly that a database holds part of a restore.
+func unfinishedRestore(err error) error {
+	var u *store.ErrRestoreUnfinished
+	if !errors.As(err, &u) {
+		return err
+	}
+	return apperr.New(apperr.Conflict, "%s.", sentence(err.Error())).
+		WithDetails(map[string]any{"reason": "restore_unfinished", "workspace": u.Lock.Workspace, "state": u.Lock.State})
 }
 
 // restoredPerson is who this computer works as in a restored workspace: the

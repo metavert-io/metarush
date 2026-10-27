@@ -97,7 +97,8 @@ Stopped part-way (Ctrl-C, a lost connection, the computer went to sleep), change
 - **run the same move again** on the computer that started it: it continues where it stopped (what is in the new
   database stays; nothing is copied twice) and checks everything again; or
 - **abandon it** (`metarush database abandon`, or Abandon the move in the card): changes go on in the old database on
-  every computer. The new database keeps its lock, so nothing ever uses that copy; move again into a new, empty
+  every computer. A move that is still running is abandoned only on its own computer (stop it there first); its marker
+  says it runs every few seconds, so another computer can tell. The new database keeps its lock, so nothing ever uses that copy; move again into a new, empty
   database when you want.
 
 If something did change the old database while it was copied (a computer that didn't pause), the check notices it and

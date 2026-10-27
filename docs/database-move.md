@@ -103,6 +103,12 @@ Stopped part-way (Ctrl-C, a lost connection, the computer went to sleep), change
 If something did change the old database while it was copied (a computer that didn't pause), the check notices it and
 nothing switches: abandon the move and move again into a new, empty database.
 
+If the copy is whole but this computer's own switch doesn't hold (a setting in its environment names another
+database, the keychain didn't answer), the old database already says the workspace moved: this computer refuses
+changes there and its card offers the switch, as on any other computer — `metarush database switch --to saved` (the
+address is still kept here), or `--to here` for the database on this computer. It never ends up on the new database
+while the old one could still be abandoned and changed.
+
 ## The other computers
 
 After the move, MetaRush on every other computer still uses the old database, and refuses changes there: *"The workspace
@@ -131,7 +137,7 @@ this computer and a server on your network are fine.
 |---|---|
 | `metarush database plan --to here\|address\|env:NAME\|saved [--name] [--only-this-computer]` | What moving would do; changes nothing (owners) |
 | `metarush database move --to … [--name] [--yes]` | Move the database (owners, a person at a terminal) |
-| `metarush database switch --to address\|env:NAME\|saved [--name]` | Switch this computer after another one moved the workspace (owners, a person at this computer) |
+| `metarush database switch --to address\|env:NAME\|saved\|here [--name]` | Switch this computer after another one moved the workspace, or after its own switch didn't hold (owners, a person at this computer) |
 | `metarush database abandon [--yes]` | Lift the pause of a move that stopped (owners, a person) |
 | `metarush database move-status` | Which database this computer uses; a move under way or done; what to do here |
 

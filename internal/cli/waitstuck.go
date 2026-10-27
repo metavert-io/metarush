@@ -172,6 +172,10 @@ func waitingErr(ctx context.Context, a *app.App, stuck []stuckJob) *apperr.Error
 			missing = true
 			adds = append(adds, name)
 			cmds = append(cmds, "metarush components add "+name)
+			if strings.EqualFold(what, c.Title) { // "Seeing what's on screen" is its component's name too
+				says = append(says, what+" "+verb+": add it in Settings → Components ("+c.Size()+").")
+				continue
+			}
 			says = append(says, what+" "+verb+" for "+componentName(c)+": add it in Settings → Components ("+c.Size()+").")
 			continue
 		}

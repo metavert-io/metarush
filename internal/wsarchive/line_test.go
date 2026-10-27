@@ -75,7 +75,7 @@ func TestScrubberKeepsCleanDocumentsExact(t *testing.T) {
 	}
 	key := "sk-" + "ant01234567890abcdefghijklmnop" // secret-scan: allow (a made-up key)
 	dirty, _ := bson.Marshal(bson.D{{Key: "_id", Value: "cmt_2"}, {Key: "text", Value: "my key is " + key},
-		{Key: "turns", Value: bson.A{bson.D{{Key: "prompt", Value: "use mongodb://maya:hunter2pass@db.example.com/x"}}}},
+		{Key: "turns", Value: bson.A{bson.D{{Key: "prompt", Value: "use mongodb://maya:hunter2pass@db.example.com/x"}}}}, // secret-scan: allow (a made-up address)
 		{Key: "n", Value: int32(3)}})
 	out, changed, err = s.Doc(dirty)
 	if err != nil {

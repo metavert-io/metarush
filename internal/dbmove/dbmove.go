@@ -374,18 +374,7 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 			if err != nil {
 				return nil, err
 			}
-			// A time limit an earlier run of this move paused is put back
-			// first, so MetaRush's own indexes are made as they are.
-			if err := setTimeLimits(ctx, o.From, o.To, false); err != nil {
-				return nil, &Partial{Err: err}
-			}
 			if err := o.To.MakeForRestore(ctx, lvl.Versions()); err != nil {
-				return nil, &Partial{Err: err}
-			}
-			// While the copy goes in, the new database deletes nothing by
-			// itself (a TTL index on sign-in links): its records stay as
-			// they were copied until the copy is whole.
-			if err := setTimeLimits(ctx, o.From, o.To, true); err != nil {
 				return nil, &Partial{Err: err}
 			}
 		}
@@ -464,10 +453,6 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 		return res, &Partial{Err: err}
 	} else if late != "" {
 		return res, &Partial{Collection: late, Err: ErrChanged}
-	}
-	// The new database's own time limits again, now that the copy is whole.
-	if err := setTimeLimits(ctx, o.From, o.To, false); err != nil {
-		return res, &Partial{Err: err}
 	}
 	names := make([]string, 0, len(order))
 	for _, info := range order {
@@ -554,19 +539,14 @@ func Recheck(ctx context.Context, from, to *store.DB, res *Result) error {
 
 /* ---------- records that end by themselves ---------- */
 
-// pausedLimit is the time limit a TTL index of the new database has while
-// the copy goes in: as long as MongoDB allows (about 68 years), so nothing
-// is deleted by itself meanwhile.
-const pausedLimit = 2147483647
-
 // endingSoon is how close to its end a time-limited record may be and still
 // be compared: one that ends sooner may be deleted on either side by now.
 const endingSoon = 15 * time.Minute
 
 // timeLimit is a TTL index: its field and how long after it a record goes.
 type timeLimit struct {
-	name, field string
-	after       int64
+	field string
+	after int64
 }
 
 // timeLimits lists a collection's TTL indexes (one field each).
@@ -595,48 +575,9 @@ func timeLimits(ctx context.Context, db *store.DB, coll string) []timeLimit {
 		if err != nil || len(elems) != 1 {
 			continue
 		}
-		name, _ := ix.Lookup("name").StringValueOK()
-		out = append(out, timeLimit{name: name, field: elems[0].Key(), after: after})
+		out = append(out, timeLimit{field: elems[0].Key(), after: after})
 	}
 	return out
-}
-
-// setTimeLimits pauses the new database's TTL indexes (pause) or gives them
-// the old database's limits again, by index name (an index setting, never a
-// record).
-func setTimeLimits(ctx context.Context, from, to *store.DB, pause bool) error {
-	names, err := to.DB.ListCollectionNames(ctx, bson.D{})
-	if err != nil {
-		return err
-	}
-	for _, coll := range names {
-		limits := timeLimits(ctx, to, coll)
-		if len(limits) == 0 {
-			continue
-		}
-		want := map[string]int64{}
-		for _, l := range timeLimits(ctx, from, coll) {
-			want[l.name] = l.after
-		}
-		for _, l := range limits {
-			after := int64(pausedLimit)
-			if !pause {
-				w, ok := want[l.name]
-				if !ok {
-					continue
-				}
-				after = w
-			}
-			if l.after == after {
-				continue
-			}
-			if err := to.DB.RunCommand(ctx, bson.D{{Key: "collMod", Value: coll},
-				{Key: "index", Value: bson.D{{Key: "name", Value: l.name}, {Key: "expireAfterSeconds", Value: after}}}}).Err(); err != nil {
-				return fmt.Errorf("%s's time limit: %w", coll, err)
-			}
-		}
-	}
-	return nil
 }
 
 // serverNow is the database server's own time (every computer's clock may differ).
@@ -686,6 +627,9 @@ func hashBoth(ctx context.Context, from, to *store.DB, coll string) (wsarchive.D
 // continues after the documents that are there (an ordered copy leaves a
 // prefix of the stream; the check afterwards proves it).
 func copyCollection(ctx context.Context, o Options, info wsarchive.CollectionInfo, p *CopyProgress, progress func(), stop func() error) error {
+	if limits := timeLimits(ctx, o.From, info.Name); len(limits) > 0 {
+		return copyTimeLimited(ctx, o, info.Name, limits, p, progress, stop)
+	}
 	have, err := o.To.C(info.Name).CountDocuments(ctx, bson.M{})
 	if err != nil {
 		return err
@@ -713,6 +657,32 @@ func copyCollection(ctx context.Context, o Options, info wsarchive.CollectionInf
 		return err
 	}
 	return in.Flush()
+}
+
+// copyTimeLimited copies the records of a collection with TTL indexes (sign-in
+// links) that don't end soon, each put in place by its _id. The new database
+// may delete ended ones by itself meanwhile (pausing its time limits takes
+// more than a database user that may read and write records), so what is
+// there says nothing of how far a copy got: a copy that runs again puts each
+// in place again. The check compares the same records on both sides.
+func copyTimeLimited(ctx context.Context, o Options, coll string, limits []timeLimit, p *CopyProgress, progress func(), stop func() error) error {
+	var n int64
+	return wsarchive.EachDocWhere(ctx, o.From, coll, stillLive(limits, serverNow(ctx, o.From)), func(doc bson.Raw) error {
+		n++
+		p.DocumentsDone++
+		id, err := doc.LookupErr("_id")
+		if err != nil {
+			return err
+		}
+		if _, err := o.To.C(coll).ReplaceOne(ctx, bson.D{{Key: "_id", Value: id}}, doc, options.Replace().SetUpsert(true)); err != nil {
+			return err
+		}
+		if n%wsarchive.InsertBatch == 0 {
+			progress()
+			return stop()
+		}
+		return nil
+	})
 }
 
 // holdsRecords reports whether a database holds any record but a lock's or

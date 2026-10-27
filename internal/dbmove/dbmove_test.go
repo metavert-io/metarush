@@ -417,3 +417,46 @@ func TestCopyKeepsTimeLimitedRecordsSteady(t *testing.T) {
 		t.Fatalf("a change to a link that still works: %v", err)
 	}
 }
+
+// The new database may delete ended sign-in links by itself while the copy
+// goes in (its time limits can't be paused with a database user that may only
+// read and write records, as most are): a copy that runs again puts every
+// link that still works in place again, whatever is there.
+func TestCopyContinuesAfterTheNewDatabaseDeletedALink(t *testing.T) {
+	src, ws := workspaceDB(t)
+	dst := emptyDB(t)
+	ctx := context.Background()
+	later := time.Now().UTC().Add(48 * time.Hour)
+	for _, id := range []string{"tok_a", "tok_b", "tok_c"} {
+		if _, err := src.C(store.CAuthTokens).InsertOne(ctx, bson.M{"_id": id, "workspaceId": ws, "kind": "invite", "purgeAt": later}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stopped := errors.New("stopped by the test")
+	seen := false
+	_, err := Copy(ctx, Options{From: src, To: dst, Workspace: ws, Move: "mvL",
+		Progress: func(p CopyProgress) {
+			if p.Collection == store.CAuthTokens {
+				seen = true
+			}
+		},
+		Stop: func(context.Context) error {
+			if n, _ := dst.C(store.CAuthTokens).CountDocuments(ctx, bson.M{}); seen && n == 3 {
+				return stopped
+			}
+			return nil
+		}})
+	if !errors.Is(err, stopped) {
+		t.Fatalf("stop: %v", err)
+	}
+	if _, err := dst.C(store.CAuthTokens).DeleteOne(ctx, bson.M{"_id": "tok_a"}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Copy(ctx, Options{From: src, To: dst, Workspace: ws, Move: "mvL"})
+	if err != nil || !res.Verified {
+		t.Fatalf("the copy after the new database deleted a link: %v", err)
+	}
+	if n, _ := dst.C(store.CAuthTokens).CountDocuments(ctx, bson.M{}); n != 3 {
+		t.Fatalf("links in the new database: %d", n)
+	}
+}

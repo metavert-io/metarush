@@ -235,7 +235,11 @@ func TestDatabaseMoveEndpoints(t *testing.T) {
 	}
 	// A wrong grant uses up the move's only try.
 	other := start(second.MoveID)
-	if _, _, err := ops.ClaimDashboardDatabaseMove(ctx, d.a, second.MoveID, "0"+other[1:]); err == nil {
+	wrong := "0" + other[1:] // never the grant itself, whatever it starts with
+	if other[0] == '0' {
+		wrong = "1" + other[1:]
+	}
+	if _, _, err := ops.ClaimDashboardDatabaseMove(ctx, d.a, second.MoveID, wrong); err == nil {
 		t.Fatal("a wrong grant was taken")
 	}
 	if _, _, err := ops.ClaimDashboardDatabaseMove(ctx, d.a, second.MoveID, other); err == nil {

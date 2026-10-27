@@ -37,7 +37,6 @@ cleanup() {
     for _ in $(seq 1 60); do kill -0 "$SRV" 2>/dev/null || break; sleep 0.25; done
   fi
   go run ./scripts/droptestdb "$URI" "$DB" >/dev/null || true
-  [ -z "${METARUSH_COMPONENTS_DIR:-}" ] && rm -rf "$BASE" || true
 }
 trap cleanup EXIT
 . scripts/lib/e2e.sh && e2e_run "$DB" "$BASE"  # D194: stops what the run started, drops its database, removes its folder when it passes

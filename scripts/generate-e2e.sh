@@ -20,7 +20,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
 export PATH="${METARUSH_TOOLCHAIN_PATH:+$METARUSH_TOOLCHAIN_PATH:}$PATH:/opt/homebrew/bin:/usr/local/bin"   # Go and Node: PATH, else Homebrew
 PORT="${METARUSH_GEN_PORT:-5141}"; FAKE="${METARUSH_GEN_FAKE_PORT:-5142}"
 # Outside any repository: the key file and .env must never sit where git could commit them.
-H="${METARUSH_GEN_HOME:-$(mktemp -d -t gen-e2e)/home}"; DB="metarush-test-gen$(date +%s)"
+H="${METARUSH_GEN_HOME:-$(mktemp -d "${TMPDIR:-/tmp}/gen-e2e-XXXXXX")/home}"; DB="metarush-test-gen$(date +%s)"
 URI="$(scripts/dev-mongo.sh start)"
 SRV=""; FK=""
 cleanup() {

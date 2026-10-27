@@ -42,7 +42,6 @@ cleanup() {
   fi
   go run ./scripts/droptestdb "$URI" "$DB" >/dev/null || true
   go run ./scripts/droptestdb "$URI" "$DBB" >/dev/null || true
-  [ -z "${METARUSH_LEAVE_DIR:-}" ] && rm -rf "$BASE" || true
 }
 trap cleanup EXIT
 . scripts/lib/e2e.sh && e2e_run "$DB" "$BASE"  # D194: stops what the run started, drops its database, removes its folder when it passes

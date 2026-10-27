@@ -18,7 +18,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
 export PATH="${METARUSH_TOOLCHAIN_PATH:+$METARUSH_TOOLCHAIN_PATH:}$PATH:/opt/homebrew/bin:/usr/local/bin"   # Go and Node: PATH, else Homebrew
 PORT="${METARUSH_AI_PORT:-5400}"; GFAKE="${METARUSH_AI_GEMINI_PORT:-5401}"; XFAKE="${METARUSH_AI_ELEVEN_PORT:-5402}"
 # Outside any repository: the keys and .env must never sit where git could commit them.
-H="${METARUSH_AI_HOME:-$(mktemp -d -t ai-e2e)/home}"; DB="metarush-test-ai$(date +%s)"
+H="${METARUSH_AI_HOME:-$(mktemp -d "${TMPDIR:-/tmp}/ai-e2e-XXXXXX")/home}"; DB="metarush-test-ai$(date +%s)"
 URI="$(scripts/dev-mongo.sh start)"
 SRV=""; GF=""; XF=""
 cleanup() {

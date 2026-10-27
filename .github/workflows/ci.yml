@@ -70,7 +70,9 @@ jobs:
       # Like the dev database (scripts/dev-mongo.sh): a replica set, as the dashboard's live updates
       # are change streams, with the dev one's settings for many test databases at once.
       - name: MongoDB as a one-member replica set
-        run: scripts/ci-mongo.sh start
+        run: |
+          scripts/ci-mongo.sh start
+          scripts/ci-mongo.sh watch
       - name: test (with coverage)
         env:
           METARUSH_TEST_MONGODB_URI: mongodb://127.0.0.1:27018/?directConnection=true
@@ -81,6 +83,14 @@ jobs:
       - name: what became of MongoDB (after a failure)
         if: failure()
         run: scripts/ci-mongo.sh report
+      - name: MongoDB's whole log and the watch's samples (after a failure)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mongo-${{ matrix.group }}
+          path: ${{ runner.temp }}/mongo
+          if-no-files-found: ignore
+          retention-days: 14
       - name: coverage profile (each block once)
         if: always()
         run: |

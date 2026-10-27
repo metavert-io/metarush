@@ -92,3 +92,34 @@ func (d *DB) CheckNoUnfinishedRestore(ctx context.Context) error {
 	}
 	return nil
 }
+
+// MakeForRestore makes, in a database a restore holds and has written no
+// record into yet, what MetaRush's own migrations up to an archive's level
+// make — its collections' indexes, exactly as MetaRush defines them — without
+// recording those migrations: the restore records the archive's level once
+// every record is in and checked, and the later migrations run then. An
+// archive's own list of indexes is never used (one could delete records).
+// With no records in the database, a migration that changes records finds
+// none.
+func (d *DB) MakeForRestore(ctx context.Context, versions []int) error {
+	l, err := d.ReadRestoreLock(ctx)
+	if err != nil {
+		return err
+	}
+	if l == nil || l.State != RestoreCopying {
+		return errors.New("only a restore holding the database makes its indexes")
+	}
+	want := map[int]bool{}
+	for _, v := range versions {
+		want[v] = true
+	}
+	for _, m := range Migrations {
+		if !want[m.Version] {
+			continue
+		}
+		if err := m.Up(ctx, d); err != nil {
+			return fmt.Errorf("migration %d (%s): %w", m.Version, m.Name, err)
+		}
+	}
+	return nil
+}

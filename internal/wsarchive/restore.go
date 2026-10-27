@@ -233,14 +233,15 @@ func capitalize(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-// notOptions are collection options an export never writes: a view, a time
-// series, a clustered or encrypted collection.
+// notOptions are collection options that make a collection something else
+// than a collection: a view, a time series, a clustered or encrypted one. Any
+// other option is refused too (CheckCollections).
 var notOptions = map[string]bool{"viewOn": true, "pipeline": true, "timeseries": true, "clusteredIndex": true, "encryptedFields": true}
 
 // CheckCollections refuses an archive that names a collection an export
 // never holds (one the catalogue leaves out — passwords, sign-in links —
 // or doesn't know), names one twice, or makes one as something other than a
-// plain collection. An archive is restored only as an export makes it,
+// plain collection, or with any setting (MetaRush sets none). An archive is restored only as an export makes it,
 // whatever its checksums say (D333).
 func CheckCollections(m *Manifest) error {
 	refuse := func(name, why string) error {
@@ -271,6 +272,14 @@ func CheckCollections(m *Manifest) error {
 					return refuse(c.Name, "a collection made as a view or another special kind")
 				}
 			}
+			// MetaRush makes every collection plain: capped (old records
+			// pushed out), a validator, a collation or any other setting
+			// isn't one of its own.
+			keys := make([]string, 0, len(elems))
+			for _, el := range elems {
+				keys = append(keys, el.Key())
+			}
+			return refuse(c.Name, "a collection made with settings MetaRush never uses ("+strings.Join(keys, ", ")+")")
 		}
 	}
 	return nil
@@ -514,6 +523,19 @@ func Restore(ctx context.Context, o RestoreOptions) (*RestoreReport, error) {
 	} else if len(others) > 0 {
 		_ = o.DB.SetRestoreLock(ctx, a.ID, m.Workspace.ID, m.Workspace.Name, store.RestoreAbandoned) // nothing of the copy is in it
 		return nil, ErrNotEmpty(o.DB, others)
+	}
+	// MetaRush's own indexes, as its migrations make them at the archive's
+	// level, before the records (a unique index refuses a duplicate as it
+	// comes in). The archive's list only says where it differs.
+	versions := make([]int, 0, len(m.Level.Applied))
+	for _, ap := range m.Level.Applied {
+		versions = append(versions, ap.Version)
+	}
+	if err := o.DB.MakeForRestore(ctx, versions); err != nil {
+		return nil, partial(err, "MetaRush couldn't make the copy's indexes.")
+	}
+	if note := indexDifferences(ctx, o.DB, m); note != "" {
+		rep.Notes = append(rep.Notes, note)
 	}
 	// The records, each collection checked against the archive as soon as it
 	// is in.
@@ -804,23 +826,10 @@ func migrationName(v int) string {
 	return fmt.Sprint(v)
 }
 
-// restoreCollection makes one collection and streams its documents in.
+// restoreCollection streams one collection's documents in (MetaRush's
+// migrations made the collection and its indexes; one they don't make is
+// made by its first record).
 func restoreCollection(ctx context.Context, db *store.DB, dir string, c CollectionFile) error {
-	spec := Spec{Name: c.Name, Type: c.Type}
-	var err error
-	if spec.Options, err = fromEJSON(c.Options); err != nil {
-		return apperr.Wrap(apperr.Integrity, err, "How %s is kept can't be read from the archive.", c.Name)
-	}
-	for _, ix := range c.Indexes {
-		raw, err := fromEJSON(ix)
-		if err != nil {
-			return apperr.Wrap(apperr.Integrity, err, "An index of %s can't be read from the archive.", c.Name)
-		}
-		spec.Indexes = append(spec.Indexes, raw)
-	}
-	if err := spec.Make(ctx, db); err != nil {
-		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't make %s in the copy.", c.Name)
-	}
 	f, err := os.Open(filepath.Join(dir, filepath.FromSlash(c.File)))
 	if err != nil {
 		return err
@@ -834,6 +843,76 @@ func restoreCollection(ctx context.Context, db *store.DB, dir string, c Collecti
 		return apperr.New(apperr.Integrity, "The archive's %s holds %d records, not the %d its manifest says.", c.Name, n, c.Count)
 	}
 	return nil
+}
+
+// indexDifferences says, in plain words, which indexes the archive lists that
+// MetaRush didn't make in the copy (they were left out: an archive's list
+// never makes one).
+func indexDifferences(ctx context.Context, db *store.DB, m *Manifest) string {
+	var left []string
+	for _, c := range m.Collections {
+		have := map[string]bool{}
+		if ixs, err := ListIndexes(ctx, db, c.Name); err == nil {
+			for _, ix := range ixs {
+				have[indexShape(ix)] = true
+			}
+		}
+		for _, raw := range c.Indexes {
+			ix, err := fromEJSON(raw)
+			if err != nil || len(ix) == 0 {
+				continue
+			}
+			if name, _ := ix.Lookup("name").StringValueOK(); name == "_id_" || have[indexShape(ix)] {
+				continue
+			}
+			left = append(left, c.Name+" "+indexWords(ix))
+		}
+	}
+	if len(left) == 0 {
+		return ""
+	}
+	sort.Strings(left)
+	shown := left
+	if len(shown) > 10 {
+		shown = append(shown[:10:10], fmt.Sprintf("%d more", len(left)-10))
+	}
+	were := "they were"
+	if len(left) == 1 {
+		were = "it was"
+	}
+	return fmt.Sprintf("The archive lists %s MetaRush doesn't make, so %s left out (the copy has MetaRush's own): %s.",
+		plural(int64(len(left)), "index", "indexes"), were, strings.Join(shown, "; "))
+}
+
+// indexShape is what an index does — its keys, in order, and how it treats
+// records — whatever its name or version.
+func indexShape(ix bson.Raw) string {
+	var d bson.D
+	for _, k := range []string{"key", "unique", "sparse", "expireAfterSeconds", "partialFilterExpression", "collation", "hidden",
+		"weights", "default_language", "language_override", "2dsphereIndexVersion", "bits", "min", "max", "wildcardProjection"} {
+		if v, err := ix.LookupErr(k); err == nil {
+			d = append(d, bson.E{Key: k, Value: v})
+		}
+	}
+	b, _ := bson.MarshalExtJSON(d, false, false)
+	return string(b)
+}
+
+// indexWords names an index for people: its name, and what it does that
+// matters (deleting records after a time, refusing duplicates).
+func indexWords(ix bson.Raw) string {
+	name, _ := ix.Lookup("name").StringValueOK()
+	var what []string
+	if _, err := ix.LookupErr("expireAfterSeconds"); err == nil {
+		what = append(what, "which deletes records after a time")
+	}
+	if u, ok := ix.Lookup("unique").BooleanOK(); ok && u {
+		what = append(what, "which refuses duplicates")
+	}
+	if len(what) == 0 {
+		return name
+	}
+	return name + ", " + strings.Join(what, " and ")
 }
 
 // elsewhere lists what stays tied to each computer in the copy.

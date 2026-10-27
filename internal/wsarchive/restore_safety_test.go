@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -21,6 +22,50 @@ import (
 	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/wsarchive"
 )
+
+// rawObj is a JSON object whose values keep their bytes (and so the order of
+// the keys inside them: an index's keys are in order).
+type rawObj = map[string]json.RawMessage
+
+// editManifest changes an archive folder's collections and files lists,
+// keeping everything else byte for byte (the manifest's own checksum is the
+// archive's identity, which nothing else checks).
+func editManifest(t *testing.T, dir string, change func(colls, files *[]rawObj)) {
+	t.Helper()
+	mp := filepath.Join(dir, wsarchive.ManifestName)
+	mb, _ := os.ReadFile(mp)
+	var m rawObj
+	if err := json.Unmarshal(mb, &m); err != nil {
+		t.Fatal(err)
+	}
+	var colls, files []rawObj
+	if err := json.Unmarshal(m["collections"], &colls); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(m["files"], &files); err != nil {
+		t.Fatal(err)
+	}
+	change(&colls, &files)
+	m["collections"], m["files"] = rawJSON(colls), rawJSON(files)
+	out, _ := json.MarshalIndent(m, "", "  ")
+	if err := os.WriteFile(mp, out, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func rawJSON(v any) json.RawMessage {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func rawString(r json.RawMessage) string {
+	var s string
+	_ = json.Unmarshal(r, &s)
+	return s
+}
 
 // rewriteFile changes a file of an archive folder and fixes the manifest's
 // checksums to match (an archive made that way, not one damaged on the way).
@@ -36,27 +81,21 @@ func rewriteFile(t *testing.T, dir, rel string, change func([]byte) []byte) {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256(nb)
-	mp := filepath.Join(dir, wsarchive.ManifestName)
-	var m map[string]any
-	mb, _ := os.ReadFile(mp)
-	if err := json.Unmarshal(mb, &m); err != nil {
-		t.Fatal(err)
-	}
-	for _, list := range []string{"files", "collections"} {
-		for _, it := range m[list].([]any) {
-			f := it.(map[string]any)
-			if f["path"] == rel || f["file"] == rel {
-				f["sha256"], f["bytes"] = hex.EncodeToString(sum[:]), len(nb)
-				if c, ok := f["count"].(float64); ok {
-					f["count"] = c + float64(bytes.Count(nb, []byte("\n"))-bytes.Count(b, []byte("\n")))
+	editManifest(t, dir, func(colls, files *[]rawObj) {
+		for _, list := range [][]rawObj{*colls, *files} {
+			for _, f := range list {
+				if rawString(f["path"]) != rel && rawString(f["file"]) != rel {
+					continue
+				}
+				f["sha256"], f["bytes"] = rawJSON(hex.EncodeToString(sum[:])), rawJSON(len(nb))
+				if c, ok := f["count"]; ok {
+					var n int
+					_ = json.Unmarshal(c, &n)
+					f["count"] = rawJSON(n + bytes.Count(nb, []byte("\n")) - bytes.Count(b, []byte("\n")))
 				}
 			}
 		}
-	}
-	out, _ := json.MarshalIndent(m, "", "  ")
-	if err := os.WriteFile(mp, out, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	})
 }
 
 func restoreSeed(t *testing.T) (*store.DB, *wsarchive.Result, string) {
@@ -168,22 +207,15 @@ func addCollection(t *testing.T, dir, name, lines string, options any) {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256([]byte(lines))
-	mp := filepath.Join(dir, wsarchive.ManifestName)
-	var m map[string]any
-	mb, _ := os.ReadFile(mp)
-	if err := json.Unmarshal(mb, &m); err != nil {
-		t.Fatal(err)
-	}
-	entry := map[string]any{"name": name, "how": "as-is", "file": rel, "count": bytes.Count([]byte(lines), []byte("\n")), "bytes": len(lines), "sha256": hex.EncodeToString(sum[:]), "type": "collection"}
-	if options != nil {
-		entry["options"] = options
-	}
-	m["collections"] = append(m["collections"].([]any), entry)
-	m["files"] = append(m["files"].([]any), map[string]any{"path": rel, "bytes": len(lines), "sha256": hex.EncodeToString(sum[:])})
-	out, _ := json.MarshalIndent(m, "", "  ")
-	if err := os.WriteFile(mp, out, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	editManifest(t, dir, func(colls, files *[]rawObj) {
+		entry := rawObj{"name": rawJSON(name), "how": rawJSON("as-is"), "file": rawJSON(rel), "count": rawJSON(bytes.Count([]byte(lines), []byte("\n"))),
+			"bytes": rawJSON(len(lines)), "sha256": rawJSON(hex.EncodeToString(sum[:])), "type": rawJSON("collection")}
+		if options != nil {
+			entry["options"] = rawJSON(options)
+		}
+		*colls = append(*colls, entry)
+		*files = append(*files, rawObj{"path": rawJSON(rel), "bytes": rawJSON(len(lines)), "sha256": rawJSON(hex.EncodeToString(sum[:]))})
+	})
 }
 
 // An archive is restored only as an export makes it: a collection an export
@@ -459,4 +491,81 @@ func TestRestoreContinuesOnlyOverAnUntouchedCopy(t *testing.T) {
 			t.Fatalf("continuing an untouched copy: %v %+v", err, rep)
 		}
 	})
+}
+
+// An archive's list of indexes never shapes the copy: MetaRush makes its own,
+// as its migrations make them, so an index that deletes records after a time
+// listed for consent records is never made (the report names it), and the
+// records stay. A collection made with settings MetaRush never uses — capped
+// (old records pushed out), a validator, a collation, any other — is refused
+// before anything is written.
+func TestRestoreMakesOnlyMetaRushsOwnIndexes(t *testing.T) {
+	ctx := context.Background()
+	_, res, ws := restoreSeed(t)
+	// After the seed's consent records in _id order, as an export writes them.
+	doc, _ := bson.Marshal(bson.D{{Key: "_id", Value: "zz_consent_1"}, {Key: "workspaceId", Value: ws}, {Key: "subject", Value: "Maya"},
+		{Key: "recordedAt", Value: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}})
+	line, _ := wsarchive.Line(doc)
+	rewriteFile(t, res.Path, "collections/"+store.CConsents+".jsonl", func(b []byte) []byte { return append(b, line...) })
+	ttl, _ := bson.MarshalExtJSON(bson.D{{Key: "v", Value: int32(2)}, {Key: "key", Value: bson.D{{Key: "recordedAt", Value: int32(1)}}},
+		{Key: "name", Value: "recordedAt_1"}, {Key: "expireAfterSeconds", Value: int32(1)}}, true, false)
+	editManifest(t, res.Path, func(colls, _ *[]rawObj) {
+		for _, c := range *colls {
+			if rawString(c["name"]) == store.CConsents {
+				var ixs []json.RawMessage
+				_ = json.Unmarshal(c["indexes"], &ixs)
+				c["indexes"] = rawJSON(append(ixs, json.RawMessage(ttl)))
+			}
+		}
+	})
+	dst := emptyDB(t)
+	rep, err := restoreInto(t, res.Path, dst, fsStore(t), false)
+	if err != nil || !rep.Verified {
+		t.Fatalf("restore: %v", err)
+	}
+	cur, err := dst.C(store.CConsents).Indexes().List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ixs []bson.M
+	_ = cur.All(ctx, &ixs)
+	for _, ix := range ixs {
+		if _, ok := ix["expireAfterSeconds"]; ok {
+			t.Fatalf("the archive's index that deletes records was made: %v", ix)
+		}
+	}
+	if !strings.Contains(strings.Join(rep.Notes, " "), "recordedAt") {
+		t.Errorf("the report doesn't name the index left out: %q", rep.Notes)
+	}
+	if n, _ := dst.C(store.CConsents).CountDocuments(ctx, bson.M{"_id": "zz_consent_1"}); n != 1 {
+		t.Errorf("the consent record isn't there: %d", n)
+	}
+	for _, tc := range []struct {
+		what    string
+		options map[string]any
+	}{
+		{"capped", map[string]any{"capped": true, "size": 4096}},
+		{"a validator", map[string]any{"validator": map[string]any{"name": map[string]any{"$type": "string"}}}},
+		{"a collation", map[string]any{"collation": map[string]any{"locale": "fr"}}},
+		{"another setting", map[string]any{"changeStreamPreAndPostImages": map[string]any{"enabled": true}}},
+	} {
+		t.Run(tc.what, func(t *testing.T) {
+			_, res, _ := restoreSeed(t)
+			editManifest(t, res.Path, func(colls, _ *[]rawObj) {
+				for _, c := range *colls {
+					if rawString(c["name"]) == store.CProjects {
+						c["options"] = rawJSON(tc.options)
+					}
+				}
+			})
+			dst := emptyDB(t)
+			_, err := restoreInto(t, res.Path, dst, fsStore(t), false)
+			if code(err) != apperr.Integrity {
+				t.Fatalf("restored: %v", err)
+			}
+			if names, _ := wsarchive.ListCollections(ctx, dst); len(names) != 1 {
+				t.Fatalf("something was written: %v", names)
+			}
+		})
+	}
 }

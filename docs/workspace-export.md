@@ -15,7 +15,7 @@ A folder (or, with `--tar`, one `.tar` file of the same folder):
 
 | File | What it holds |
 |---|---|
-| `manifest.json` | the archive's format, the MetaRush that made it, when, on which computer and for whom; the workspace's ID and name; **the database's migration level** (every migration it had applied); for each collection its count, how it was made (options and indexes) and the SHA-256 of its file; what was left out and why; notes |
+| `manifest.json` | the archive's format, the MetaRush that made it, when, on which computer and for whom; the workspace's ID and name; **the database's migration level** (every migration it had applied); for each collection its count, how it was made (options and indexes, which a restore only compares with MetaRush's own) and the SHA-256 of its file; what was left out and why; notes |
 | `collections/<name>.jsonl` | one file per collection: every document of the workspace in canonical MongoDB Extended JSON v2, one per line, in `_id` order — exact to the byte (numbers, dates and binary data keep their types) |
 | `media.jsonl` | every file of the workspace's footage, renders, pictures and long log texts, by key and size (and SHA-256) |
 | `media/` | with included footage only: each of those files, stored by its content address and checked as it was copied |
@@ -201,14 +201,17 @@ anything; restore into a new database name, or empty that one yourself). It:
 
 1. checks every file of the archive against the manifest's SHA-256 — and, with included footage, every file of it;
    one changed byte anywhere and nothing is written. An archive naming a kind of record an export never writes
-   (passwords, say, or one MetaRush doesn't know) or a collection made as a view is refused the same way;
+   (passwords, say, or one MetaRush doesn't know), or a collection made as a view or with any setting (capped, a
+   validator, a collation: MetaRush sets none), is refused the same way;
 2. puts its marker in the database: until the copy is whole, checked and up to date, MetaRush doesn't work in that
    database at all — no command, background service, worker or assistant connection opens it, no computer is set up
    with it, it isn't brought up to date and it can't be exported; the checkup (`metarush doctor`) says so;
 3. looks for referenced footage in the storage, and names what isn't there;
 4. looks at the database again — anything written into it meanwhile and the restore stops, merging nothing;
-5. makes each collection as it was made (its options, then all its indexes) and streams its records in, checking
-   each collection against the archive (count and SHA-256) as soon as it is in;
+5. makes MetaRush's own indexes, exactly as its migrations make them at the archive's level — never the archive's
+   list of indexes (one could delete records after a time); any index the archive lists that MetaRush doesn't make
+   is named in the report — then streams each collection's records in, checking each against the archive (count and
+   SHA-256) as soon as it is in;
 6. with included footage, asks each client's rules (What may leave) whether their footage may go into that storage,
    then copies it in by content address, each file checked on the way in;
 7. sets the migration level the archive was made at, last of the copy's records;

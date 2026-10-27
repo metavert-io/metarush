@@ -12,15 +12,15 @@ jobs:
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: no likely secrets in tracked files
         run: scripts/secret-scan.sh
 
   go-static:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with: { go-version: "1.27" }
       - name: gofmt
         run: |
@@ -49,8 +49,8 @@ jobs:
       matrix:
         group: [assistant, ops, heavy, rest]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with: { go-version: "1.27" }
       # bubblewrap: the abilities' sandbox on Linux (D232). Ubuntu's AppArmor blocks the user
       # namespaces it needs unless the limit is lifted (docs/abilities.md, Linux).
@@ -80,7 +80,7 @@ jobs:
           go run ./scripts/covreport table go-unit.cov | tail -1
       - name: coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           use_oidc: true
           files: go-unit.cov
@@ -95,8 +95,8 @@ jobs:
     # then with the limit lifted, where every sandbox test must run (METARUSH_TEST_SANDBOX=require).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with: { go-version: "1.27" }
       - run: sudo apt-get update && sudo apt-get install -y bubblewrap
       - name: as the runner is
@@ -127,9 +127,9 @@ jobs:
       HAS_LIVE_BUCKET: ${{ secrets.METARUSH_TEST_S3_BUCKET != '' && secrets.METARUSH_TEST_S3_SECRET_ACCESS_KEY != '' }}
       HAS_LIVE_GCS: ${{ secrets.METARUSH_TEST_GCS_BUCKET != '' && secrets.METARUSH_TEST_GCS_CREDENTIALS_JSON != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: env.HAS_LIVE_BUCKET == 'true' || env.HAS_LIVE_GCS == 'true'
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         if: env.HAS_LIVE_BUCKET == 'true' || env.HAS_LIVE_GCS == 'true'
         with: { go-version: "1.27" }
       - name: live bucket test (real S3-compatible bucket; key limited to ci-test/)
@@ -160,8 +160,8 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 22 }
       - run: npm ci
       - run: npm run typecheck
@@ -172,7 +172,7 @@ jobs:
       - run: npm run build -w web
       - name: coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           use_oidc: true
           files: web/coverage/lcov.info

@@ -147,8 +147,10 @@ type SetupRestoredOut struct {
 	Media        string `json:"media" jsonschema:"enum=referenced,enum=included"`
 	MediaFiles   int    `json:"mediaFiles"`
 	MediaMissing int    `json:"mediaMissing"`
-	// Elsewhere counts what stays tied to the computers it was asked on.
+	// Elsewhere counts what stays tied to the computers it was asked on;
+	// Held the work held for a person (it could run twice beside the original).
 	Elsewhere int      `json:"elsewhere"`
+	Held      int64    `json:"held"`
 	Notes     []string `json:"notes,omitempty"`
 	Says      string   `json:"says"`
 }
@@ -464,7 +466,7 @@ func (s *setupRun) chooseRestore() error {
 // restoredOut is setup's word on a restore.
 func restoredOut(rep *wsarchive.RestoreReport) *SetupRestoredOut {
 	out := &SetupRestoredOut{Workspace: rep.Workspace.Name, Documents: rep.Documents, Migrated: len(rep.Migrated), Media: rep.Media.Mode,
-		MediaFiles: rep.Media.Files, MediaMissing: rep.Media.Missing, Elsewhere: len(rep.Elsewhere), Notes: rep.Notes}
+		MediaFiles: rep.Media.Files, MediaMissing: rep.Media.Missing, Elsewhere: len(rep.Elsewhere), Held: rep.Held, Notes: rep.Notes}
 	out.Says = fmt.Sprintf("Restored “%s” from its export: %s, each checked against the archive", rep.Workspace.Name, pluralWords(int(rep.Documents), "record", "records"))
 	if out.Migrated > 0 {
 		out.Says += ", then brought up to date"

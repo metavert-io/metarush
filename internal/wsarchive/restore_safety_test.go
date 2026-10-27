@@ -296,3 +296,49 @@ func TestExportStartsAfreshAfterAStoppedOneWithOtherOptions(t *testing.T) {
 		}
 	}
 }
+
+// Work that was running, and paid work that was waiting, is held in a copy
+// for a person — never taken by any computer by itself, so a copy beside a
+// still-running original never does (or pays for) the same work twice — and
+// the restore lists it. Other waiting work waits as before.
+func TestRestoreHoldsWorkThatCouldRunTwice(t *testing.T) {
+	ctx := context.Background()
+	src := testutil.DB(t)
+	st := fsStore(t)
+	s := seed(t, src, st)
+	for _, j := range []bson.M{
+		{"_id": "job_paid", "workspaceId": s.ws, "type": "generate", "state": "queued", "idempotencyKey": "g1", "cancelRequested": false},
+		{"_id": "job_local", "workspaceId": s.ws, "type": "transcribe", "state": "queued", "idempotencyKey": "t2", "cancelRequested": false},
+	} {
+		if _, err := src.C(store.CJobs).InsertOne(ctx, j); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := src.C(store.CRenders).InsertOne(ctx, bson.M{"_id": "rnd_running", "workspaceId": s.ws, "state": "rendering", "jobId": "job_running"}); err != nil {
+		t.Fatal(err)
+	}
+	res := exportTo(t, src, st, s.ws, wsarchive.MediaReferenced, false)
+	dst := emptyDB(t)
+	rep, err := restoreInto(t, res.Path, dst, st, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := func(coll, id string) string {
+		var d bson.M
+		_ = dst.C(coll).FindOne(ctx, bson.M{"_id": id}).Decode(&d)
+		s, _ := d["state"].(string)
+		return s
+	}
+	for id, want := range map[string]string{"job_running": "canceled", "job_paid": "canceled", "job_local": "queued"} {
+		if got := state(store.CJobs, id); got != want {
+			t.Errorf("%s: %s, want %s", id, got, want)
+		}
+	}
+	if got := state(store.CRenders, "rnd_running"); got != "canceled" {
+		t.Errorf("the render whose work was held: %s", got)
+	}
+	// The running render, the paid shot and the seed's import (it downloads).
+	if rep.Held != 3 || !strings.Contains(strings.Join(rep.Notes, " "), "held here for a person") {
+		t.Errorf("the report should list the held work: %d %v", rep.Held, rep.Notes)
+	}
+}

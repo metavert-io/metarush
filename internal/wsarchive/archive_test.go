@@ -372,7 +372,7 @@ func TestRoundTripReferenced(t *testing.T) {
 			t.Errorf("%s: %+v, want %d documents", name, c, want)
 		}
 	}
-	for name, n := range map[string]int64{store.CUsers: 1, store.CJobs: 1, store.CAssistantConversations: 1, store.CIngest: 1} {
+	for name, n := range map[string]int64{store.CUsers: 1, store.CJobs: 2, store.CAssistantConversations: 1, store.CIngest: 1} {
 		if c := collection(m, name); c == nil || c.Transformed != n {
 			t.Errorf("%s transformed: %+v", name, c)
 		}
@@ -442,8 +442,8 @@ func TestRoundTripReferenced(t *testing.T) {
 	if err := dst.C(store.CJobs).FindOne(ctx, bson.M{"_id": "job_running"}).Decode(&job); err != nil {
 		t.Fatal(err)
 	}
-	if job["state"] != "queued" || job["lease"] != nil || job["attemptCount"] != int32(1) {
-		t.Errorf("a running job comes back waiting, its attempt not counted: %v", job)
+	if job["state"] != "canceled" || job["lease"] != nil || job["attemptCount"] != int32(1) || job["held"] == nil {
+		t.Errorf("a running job comes back held for a person, its attempt not counted: %v", job)
 	}
 	if atts := job["attempts"].(bson.A); asMap(atts[1])["outcome"] != "released" || asMap(atts[0])["outcome"] != "failed" {
 		t.Errorf("its last attempt is released, the one before as it was: %v", atts)
@@ -464,7 +464,7 @@ func TestRoundTripReferenced(t *testing.T) {
 	if n, _ := dst.C(store.CMigrations).CountDocuments(ctx, bson.M{}); n != int64(len(store.Migrations)) {
 		t.Errorf("migration level: %d", n)
 	}
-	if len(rep.Elsewhere) != 1 || rep.Elsewhere[0].Computer != "Maya's MacBook" || rep.Elsewhere[0].Jobs != 1 || rep.Elsewhere[0].Conversations != 1 {
+	if len(rep.Elsewhere) != 1 || rep.Elsewhere[0].Computer != "Maya's MacBook" || rep.Elsewhere[0].Jobs != 0 || rep.Elsewhere[0].Conversations != 1 || rep.Held != 2 {
 		t.Errorf("what stays the old computer's: %+v", rep.Elsewhere)
 	}
 	// A second restore into the same database is refused: it isn't empty.

@@ -70,7 +70,10 @@ type RestoreReport struct {
 	Media       RestoredMedia        `json:"media"`
 	// Elsewhere is what stays tied to the computers it was asked on.
 	Elsewhere []ComputerWork `json:"elsewhere,omitempty"`
-	Notes     []string       `json:"notes,omitempty"`
+	// Held counts work held for a person: what was running, and paid work
+	// that was waiting, when the archive was made.
+	Held  int64    `json:"held"`
+	Notes []string `json:"notes,omitempty"`
 	// Verified: every checksum matched, every collection holds exactly what
 	// the archive does (and, after the migrations, at least as much), and
 	// the media is in the storage (included) or was looked for (referenced).
@@ -632,6 +635,11 @@ func finishRestore(ctx context.Context, o RestoreOptions, a *Opened, rep *Restor
 		rep.Notes = append(rep.Notes, "The workspace keeps its footage in other storage than this one: set this copy up with that storage, or move the media.")
 	}
 	rep.Elsewhere = elsewhere(ctx, o.DB, m.Workspace.ID)
+	if n, err := o.DB.C(store.CJobs).CountDocuments(ctx, bson.M{"workspaceId": m.Workspace.ID, "state": models.JobCanceled, "held": bson.M{"$exists": true}}); err == nil && n > 0 {
+		rep.Held = n
+		rep.Notes = append(rep.Notes, fmt.Sprintf("%s held here for a person (it was running when the archive was made, or it costs money or acts outside the workspace): start each again (Retry) once you're sure the original isn't doing it.",
+			plural(n, "piece of work is", "pieces of work are")))
+	}
 	if err := o.DB.SetRestoreLock(ctx, a.ID, m.Workspace.ID, m.Workspace.Name, store.RestoreDone); err != nil {
 		return nil, apperr.Wrap(apperr.Database, err, "The copy is whole, but MetaRush couldn't mark the restore finished. Run the same restore again to finish it.")
 	}

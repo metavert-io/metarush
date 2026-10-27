@@ -31,46 +31,76 @@ func dropUploadSession(doc bson.D, _ time.Time) (bson.D, bool) {
 	return set(doc, "upload", up), true
 }
 
-// runningJobMessage is what a job put back as waiting says.
-const runningJobMessage = "waiting (it was running when the workspace was exported)"
+// HeldMessage is what work held in a copy says (D330).
+const HeldMessage = "Held for a person: it was running, or it costs money or acts outside the workspace, when the workspace was exported. Start it again here once you're sure the original isn't doing it."
 
-// releaseRunningJob puts work that was running back as waiting, the way a
-// worker that stops releases its job: the lease taken off, the attempt not
-// counted and marked released (the computer running it isn't in the
-// archive). Work pinned to one computer stays pinned to it.
-func releaseRunningJob(doc bson.D, at time.Time) (bson.D, bool) {
-	if s, _ := get(doc, "state").(string); s != "running" {
+// paidWork are kinds of work that spend money or act outside the workspace
+// (AI services, the AI voice, abilities, Claude Code's scene descriptions,
+// pushes to repositories, a source's own steps, downloads): never run by a
+// copy by itself, beside an original that may be running them too.
+var paidWork = map[string]bool{"generate": true, "voiceover": true, "ability-run": true, "describe": true,
+	"remotion-refresh": true, "remotion-push": true, "fetch": true, "import": true}
+
+// holdJob holds work for a person in a copy: what was running (the computer
+// running it isn't in the archive, and the original may still finish it) and
+// paid work that was waiting. It is stopped the way a person stops work —
+// cancelled, with the attempt that was running not counted and marked
+// released — so Retry (job.retry) starts it again here; nothing takes it by
+// itself. Other waiting work waits as before.
+func holdJob(doc bson.D, at time.Time) (bson.D, bool) {
+	state, _ := get(doc, "state").(string)
+	typ, _ := get(doc, "type").(string)
+	running := state == "running"
+	if !running && !(state == "queued" && paidWork[typ]) {
 		return doc, false
 	}
-	doc = set(doc, "state", "queued")
+	doc = set(doc, "state", "canceled")
+	doc = set(doc, "cancelRequested", false)
 	doc, _ = unset(doc, "lease")
-	switch n := get(doc, "attemptCount").(type) {
-	case int32:
-		if n > 0 {
-			doc = set(doc, "attemptCount", n-1)
+	if running {
+		switch n := get(doc, "attemptCount").(type) {
+		case int32:
+			if n > 0 {
+				doc = set(doc, "attemptCount", n-1)
+			}
+		case int64:
+			if n > 0 {
+				doc = set(doc, "attemptCount", n-1)
+			}
 		}
-	case int64:
-		if n > 0 {
-			doc = set(doc, "attemptCount", n-1)
+		if atts, ok := get(doc, "attempts").(bson.A); ok {
+			for i := len(atts) - 1; i >= 0; i-- {
+				a, ok := atts[i].(bson.D)
+				if !ok {
+					continue
+				}
+				if get(a, "endedAt") == nil {
+					a = set(a, "endedAt", bson.NewDateTimeFromTime(at))
+					a = set(a, "outcome", "released")
+					atts[i] = a
+				}
+				break
+			}
+			doc = set(doc, "attempts", atts)
 		}
 	}
-	if atts, ok := get(doc, "attempts").(bson.A); ok {
-		for i := len(atts) - 1; i >= 0; i-- {
-			a, ok := atts[i].(bson.D)
-			if !ok {
-				continue
-			}
-			if get(a, "endedAt") == nil {
-				a = set(a, "endedAt", bson.NewDateTimeFromTime(at))
-				a = set(a, "outcome", "released")
-				atts[i] = a
-			}
-			break
-		}
-		doc = set(doc, "attempts", atts)
-	}
-	doc = set(doc, "progress", bson.D{{Key: "message", Value: runningJobMessage}})
+	doc = set(doc, "progress", bson.D{{Key: "message", Value: HeldMessage}})
+	doc = set(doc, "error", HeldMessage)
+	doc = set(doc, "held", bson.D{{Key: "at", Value: bson.NewDateTimeFromTime(at)}, {Key: "was", Value: state}})
+	doc = set(doc, "finishedAt", bson.NewDateTimeFromTime(at))
 	doc = set(doc, "updatedAt", bson.NewDateTimeFromTime(at))
+	return doc, true
+}
+
+// holdRender says a render that was being made is held with its work (Retry
+// of the job queues it again).
+func holdRender(doc bson.D, at time.Time) (bson.D, bool) {
+	if s, _ := get(doc, "state").(string); s != "rendering" && s != "uploading" {
+		return doc, false
+	}
+	doc = set(doc, "state", "canceled")
+	doc = set(doc, "error", HeldMessage)
+	doc = set(doc, "held", bson.D{{Key: "at", Value: bson.NewDateTimeFromTime(at)}})
 	return doc, true
 }
 

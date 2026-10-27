@@ -121,7 +121,7 @@ on someone's computer (a clip's original path, shortened to `~`) is history, and
 | `improvement_reports` | as it is | the weekly reports |
 | `ingest_sessions` | changed | upload records; an unfinished upload's resumable address is taken out (it allows writing into the storage) |
 | `installations` | as it is | the workspace's computers as history: their names, systems and MetaRush versions, and the names (never the secrets) of their storage keys and database users; a computer that restores the archive joins as a new one |
-| `jobs` | changed | work: what finished is history; what was running is put back as waiting (the computer running it isn't in the archive); work asked for on one computer still waits for that computer |
+| `jobs` | changed | work: what finished is history; what was running, and paid work that was waiting, is held for a person (a copy beside a running original never does it twice); other work asked for on one computer still waits for that computer |
 | `keep_items` | as it is | what projects kept from conversations |
 | `linked_folders` | as it is | linked folders' shared records (where each folder is on a computer stays in that computer's settings) |
 | `log_entries` | as it is | the activity log (written without keys or passwords) |
@@ -142,7 +142,7 @@ on someone's computer (a clip's original path, shortened to `~`) is history, and
 | `remotion_renders` | as it is | Remotion renders already made |
 | `remotion_sources` | as it is | Remotion projects kept in projects |
 | `remotion_versions` | as it is | Remotion projects' versions and who approved them |
-| `renders` | as it is | renders and where their files are kept |
+| `renders` | changed | renders and where their files are kept; one being made is held with its work |
 | `restore_lock` | left out | the marker a restore keeps in the database it writes into: that copy's own state |
 | `resources` | as it is | pictures, logos, fonts, PDFs, repositories and web pages, with where each came from |
 | `review_links` | as it is | links sent to outside reviewers, as the record of what was shared |
@@ -165,12 +165,16 @@ on someone's computer (a clip's original path, shortened to `~`) is history, and
 | `workspaces` | as it is | the workspace itself: its name, its settings and where its footage is kept (never a password or a key) |
 
 **Computers, work and conversations.** The workspace's computers go in as history (names, systems, MetaRush versions);
-a computer that restores the archive joins as a new one. Work that was running is put back as waiting, the way a
-computer that stops hands its work back. Work asked for on one computer, Recipes' runs (each goes on only on the
-computer that started it) and recipes that plan by themselves (on the computer they were turned on at) stay tied to
-that computer: on a copy restored elsewhere they wait for it. Claude Code conversations go in whole — their text,
-cards and decisions — but the Claude Code session that continues one stays on the computer that held it; one that was
-answering is marked as waiting. Moving those to another computer is a computer's handover, not a restore.
+a computer that restores the archive joins as a new one. Work that was running when the archive was made, and work
+waiting that costs money or acts outside the workspace (AI services, the AI voice, abilities, downloads, pushes to a
+repository), is **held for a person** in the copy: stopped, never taken by any computer by itself, so a copy beside an
+original that is still running never does the same work twice or pays for it twice. The restore lists it; start each
+piece again (Retry, or `metarush job retry <job>`) once you're sure the original isn't doing it. Other waiting work
+waits as before. Work asked for on one computer, Recipes' runs (each goes on only on the computer that started it) and
+recipes that plan by themselves (on the computer they were turned on at) stay tied to that computer: on a copy restored
+elsewhere they wait for it. Claude Code conversations go in whole — their text, cards and decisions — but the Claude
+Code session that continues one stays on the computer that held it; one that was answering is marked as waiting.
+Moving those to another computer is a computer's handover, not a restore.
 
 ## Restoring
 

@@ -57,11 +57,7 @@ jobs:
           echo "COVERAGE=1" >> "$GITHUB_ENV"
       - name: MongoDB as a one-member replica set (the dashboard's live updates need one)
         if: steps.chosen.outputs.run
-        run: |
-          docker run -d --name mongo -p 27018:27017 mongo:8.0 --replSet rs0 --bind_ip_all
-          for _ in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.runCommand({ping:1}).ok' 2>/dev/null | grep -q 1 && break; sleep 1; done
-          docker exec mongo mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
-          for _ in $(seq 1 60); do docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -q true && break; sleep 1; done
+        run: scripts/ci-mongo.sh start
       - name: packages and Chromium
         if: steps.chosen.outputs.run
         run: |
@@ -70,6 +66,9 @@ jobs:
       - name: scripts/${{ matrix.suite }}-e2e.sh
         if: steps.chosen.outputs.run
         run: scripts/${{ matrix.suite }}-e2e.sh
+      - name: what became of MongoDB (after a failure)
+        if: failure() && steps.chosen.outputs.run
+        run: scripts/ci-mongo.sh report
       - name: coverage (Go, from every program the run started)
         if: always() && steps.chosen.outputs.run
         run: scripts/coverage.sh --no-check || true

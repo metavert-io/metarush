@@ -41,6 +41,10 @@ type ExportOptions struct {
 	// continues); ScratchDir its partial downloads.
 	StateDir, ScratchDir string
 	Scrub                *Scrubber
+	// Here is the computer (installation) the export runs on when it is that
+	// computer's own MetaRush making it (the dashboard): not named among the
+	// computers working while the archive is made.
+	Here string
 	MadeBy               ArchiveMadeBy
 	Progress             func(ArchiveProgress)
 	Now                  func() time.Time
@@ -187,7 +191,7 @@ func Export(ctx context.Context, o ExportOptions) (*Result, error) {
 	if v, _, err := o.DB.ServerInfo(ctx); err == nil {
 		m.Database.Server = v
 	}
-	if run := runningNow(ctx, o.DB, ws.ID, at); len(run) > 0 {
+	if run := runningNow(ctx, o.DB, ws.ID, o.Here, at); len(run) > 0 {
 		m.Notes = append(m.Notes, fmt.Sprintf("MetaRush was running on %s while the archive was made: what changed meanwhile may be only partly in it.", strings.Join(run, ", ")))
 	}
 	if level.Older {
@@ -454,7 +458,7 @@ func MakePlan(ctx context.Context, o ExportOptions) (*ExportPlan, error) {
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't list the database's collections.")
 	}
 	p := &ExportPlan{Workspace: ArchiveWorkspace{ID: ws.ID, Name: ws.Name}, Level: level, Collections: []ExportPlanCollection{}, LeftOut: []LeftOutCollection{}, Path: dest}
-	if run := runningNow(ctx, o.DB, ws.ID, o.now()); len(run) > 0 {
+	if run := runningNow(ctx, o.DB, ws.ID, o.Here, o.now()); len(run) > 0 {
 		p.Notes = append(p.Notes, fmt.Sprintf("MetaRush is running on %s: what changes while the archive is written may be only partly in it. For an exact copy, quit MetaRush there first.", strings.Join(run, ", ")))
 	}
 	if level.Older {

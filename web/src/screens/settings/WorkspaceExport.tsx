@@ -130,7 +130,7 @@ export function WorkspaceExport() {
           </ul>
         ) : null}
 
-        <div className="rounded-[10px] bg-inset px-3 py-2.5 text-[12.5px] leading-relaxed text-muted" data-restore-note>
+        <div className="rounded-[10px] px-3 py-2.5 text-[12.5px] leading-relaxed text-muted hairline" data-restore-note>
           <p>Restoring an export happens in a terminal on the computer the copy goes to, never here. It checks every file first, writes only into an empty database and never deletes anything.</p>
           <Details label="The commands for a terminal">
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">

@@ -303,6 +303,9 @@ func exportOptions(ctx context.Context, a *app.App, to string, tar bool, media s
 	if a.Media != nil && a.Cfg != nil {
 		o.StoreWords = StorageWords(a.Cfg.Media)
 	}
+	if CallerFrom(ctx).Remote && a.Cfg != nil {
+		o.Here = a.Cfg.Installation.ID // this computer's own MetaRush is the one exporting
+	}
 	if st := exportsState(a); st != "" {
 		o.StateDir = filepath.Join(st, "copy")
 	}

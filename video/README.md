@@ -76,7 +76,7 @@ node render/render.mjs --props <file.json> --out <file.mp4>
 - `--concurrency` (default: Remotion's default): parallel browser tabs.
 - `--bundle-cache` (default `video/.bundle-cache`): webpack bundle cache. Bundles are keyed by a SHA-256 of `src/**`, `package.json`, `tsconfig.json`, the schema types and the Remotion version. The first bundle takes ~6 s; after that it is reused instantly. Builds are written to a temp dir and renamed atomically, so concurrent renders are safe; old bundles are pruned (newest three kept).
 - `--hwaccel` (default `disable`): `if-possible` asks Remotion for hardware H.264 (VideoToolbox on macOS, verified). Hardware encoders cannot honor CRF, so with an explicit `--crf` Remotion encodes in software anyway (logged to stderr). Without `--crf`, a bitrate scaled to the frame size is used (≈0.18 bits/pixel/frame, about 11 Mb/s at 1080p30).
-- Environment: `METARUSH_REMOTION_GL` overrides Chrome's GL backend (default `angle`, which is GPU-accelerated and Remotion v5's default). Use `swangle` on GPU-less Linux hosts.
+- Environment: `METARUSH_REMOTION_GL` overrides Chrome's GL backend (default `angle` on macOS, GPU-accelerated and Remotion v5's default; `swangle` on Linux, where most hosts that render have no GPU). Set `angle` on a Linux host with a GPU. Review copies use the hardware encoder (VideoToolbox) on macOS only; `METARUSH_REMOTION_HWACCEL=1` lets a Linux host with an NVIDIA GPU use NVENC.
 
 **stdout is JSON lines only**. Everything else (Remotion logs, browser console errors) goes to stderr. In order:
 

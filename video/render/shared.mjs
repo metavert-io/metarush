@@ -310,9 +310,12 @@ export const ensureBrowserInstalled = async () => {
 };
 
 // ANGLE (GPU) is Remotion v5's default and is markedly faster for blur/filters
-// on macOS. Override with METARUSH_REMOTION_GL=swangle on GPU-less hosts.
+// on macOS. Linux defaults to swangle (SwiftShader through ANGLE): most Linux
+// hosts that render (servers, CI runners) have no GPU, and there 'angle' draws
+// no frames. METARUSH_REMOTION_GL overrides either (e.g. angle on a Linux GPU).
+export const defaultGL = () => process.env.METARUSH_REMOTION_GL || (process.platform === 'linux' ? 'swangle' : 'angle');
 export const chromiumOptions = {
-  gl: process.env.METARUSH_REMOTION_GL || 'angle',
+  gl: defaultGL(),
   enableMultiProcessOnLinux: true,
 };
 

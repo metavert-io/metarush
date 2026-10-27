@@ -465,7 +465,8 @@ metarush brand set --project "Widget tour" --from-site acme-com --apply   # the 
 metarush resources refresh widget --wait                         # newest commit; code slides follow their lines
 metarush resources pictures widget --keep art/characters --wait  # the pictures in a folder, each a picture of its own
 ```
-`web/scripts/resources-e2e.mjs` checks the dashboard flows (the Add box, safe drags, the Sources "…" menu, Delete…,
-Where it's used, nesting another project's cut) and takes screenshots; `web/scripts/resources2-e2e.mjs` pastes a
+`scripts/resources-e2e.sh` checks the dashboard flows (the Add box, safe drags, the Sources "…" menu, Delete…,
+Where it's used, nesting another project's cut) on a seeded throwaway installation and takes screenshots
+(`web/scripts/resources-e2e.mjs`); `web/scripts/resources2-e2e.mjs` pastes a
 repository and a web page, previews the slides and sends a page from the browser extension; `scripts/acceptance.sh`
 runs the CLI flow end to end (a fixture repository and a local site included), render included.

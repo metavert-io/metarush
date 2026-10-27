@@ -15,7 +15,6 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/ids"
-	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/version"
 	"github.com/metavert-io/metarush/internal/wsarchive"
@@ -103,7 +102,10 @@ type ExportRecord struct {
 	Older bool `json:"older,omitempty"`
 	// LeftOut names what stayed out (credentials, computers' own settings).
 	LeftOut []string `json:"leftOut,omitempty"`
-	Notes   []string `json:"notes,omitempty"`
+	// Scrubbed says how many records had something that looked like a key
+	// or a password taken out, and of which kinds.
+	Scrubbed wsarchive.ScrubSummary `json:"scrubbed"`
+	Notes    []string               `json:"notes,omitempty"`
 	Error   string   `json:"error,omitempty"`
 	Says    string   `json:"says"`
 	// PID is the process making it (a stopped one is said as stopped).
@@ -286,10 +288,10 @@ func workspaceExport(ctx context.Context, a *app.App, in *WorkspaceExportIn) (*W
 // exportOptions are the export's options for this App: its database (read
 // only), its workspace, its storage and this computer's copies.
 func exportOptions(ctx context.Context, a *app.App, to string, tar bool, media string) wsarchive.ExportOptions {
-	red := logbook.NewRedactor()
-	red.FromConfig(a.Cfg)
-	red.FromEnvironment()
 	extra, _ := ctx.Value(exportSecretsKey{}).([]string)
+	if a.Cfg != nil {
+		extra = append(extra, a.Cfg.Media.S3.SecretAccessKey)
+	}
 	b := version.Current()
 	machine := ""
 	if a.Cfg != nil {
@@ -299,7 +301,7 @@ func exportOptions(ctx context.Context, a *app.App, to string, tar bool, media s
 		machine = app.Hostname()
 	}
 	o := wsarchive.ExportOptions{DB: a.DB, Workspace: a.WorkspaceID(), To: to, Tar: tar, Media: media, Store: a.Media, Cache: a.Cache,
-		Scrub: wsarchive.NewScrubber(red, extra...), MadeBy: wsarchive.ArchiveMadeBy{MetaRush: b.Version, Commit: b.Commit, Machine: machine, Person: a.Actor.UserName}}
+		Scrub: wsarchive.NewScrubber(extra...), MadeBy: wsarchive.ArchiveMadeBy{MetaRush: b.Version, Commit: b.Commit, Machine: machine, Person: a.Actor.UserName}}
 	if a.Media != nil && a.Cfg != nil {
 		o.StoreWords = StorageWords(a.Cfg.Media)
 	}
@@ -355,6 +357,10 @@ func fillDone(rec *ExportRecord, res *wsarchive.Result) {
 		footage = fmt.Sprintf("%s of footage (%s)", countNoun(m.Media.Files, "file"), humanBytes(m.Media.Bytes))
 	}
 	rec.Says = fmt.Sprintf("The archive is ready: %s and %s, %s in all.", countNoun(int(rec.Documents), "record"), footage, humanBytes(rec.Bytes))
+	if m.Scrubbed.Says != "" {
+		rec.Scrubbed = m.Scrubbed
+		rec.Says += " " + m.Scrubbed.Says
+	}
 }
 
 // progressWords says how far an export is.

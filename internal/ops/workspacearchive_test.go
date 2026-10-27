@@ -13,6 +13,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
@@ -150,5 +151,48 @@ func TestWorkspaceExportIsAnOwnersAndAPersons(t *testing.T) {
 	}
 	if n, _ := a.DB.C(store.CLogEntries).CountDocuments(ctx, bson.M{"workspaceId": ws, "op.name": "workspace.export"}); n < 2 {
 		t.Errorf("the exports in the activity log: %d", n)
+	}
+}
+
+// An export keeps out every key this computer holds, not only its
+// configured ones: a provider's key and an ability's key kept in the home's
+// secrets file, and a key this process already read, pasted into comments.
+func TestWorkspaceExportKeepsThisComputersKeysOut(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	ws := a.WorkspaceID()
+	provider := "hg" + strings.Repeat("Q4w", 11)
+	ability := "ab" + strings.Repeat("Z7r", 11)
+	remembered := "rm" + strings.Repeat("K2p", 11)
+	env := "METARUSH_HEYGEN_API_KEY=" + provider + "\nMETARUSH_STOCKPICS_API_KEY=" + ability + "\n"
+	if err := os.WriteFile(filepath.Join(a.Cfg.Home(), ".env"), []byte(env), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	logbook.RememberSecret(remembered)
+	for coll, doc := range map[string]bson.M{
+		store.CWorkspaces: {"_id": ws, "workspaceId": ws, "name": "FernBrook Studio", "mediaStore": bson.M{"provider": a.Media.Name(), "locator": a.Media.Locator()}},
+		store.CAbilities:  {"_id": ws + "/" + strings.Repeat("a", 64), "workspaceId": ws, "name": "stock-pictures", "facts": bson.M{"keys": bson.A{bson.M{"name": "stockpics", "env": "STOCK_KEY"}}}},
+		store.CComments:   {"_id": "cmt_keys", "workspaceId": ws, "text": "keys: " + provider + " / " + ability + " / " + remembered},
+	} {
+		if _, err := a.DB.C(coll).InsertOne(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	to := filepath.Join(t.TempDir(), "archive")
+	out, err := ops.CallTyped[ops.WorkspaceExportOut](ctx, a, "workspace.export", ops.WorkspaceExportIn{To: to}, ops.Caller{Human: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(to, "collections", store.CComments+".jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for what, key := range map[string]string{"the provider's key": provider, "the ability's key": ability, "a key this process read": remembered} {
+		if strings.Contains(string(b), key) {
+			t.Errorf("%s is in the archive", what)
+		}
+	}
+	if !strings.Contains(out.Export.Says, "taken out of 1 record: 1 comment") {
+		t.Errorf("the export should say what it took out: %q", out.Export.Says)
 	}
 }

@@ -22,7 +22,7 @@ var secretShapes = []struct {
 	{regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})`), "a GitHub token"},
 	{regexp.MustCompile(`\bxox[abposr]-[A-Za-z0-9-]{10,}`), "a Slack token"},
 	{regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}`), "a Google API key"},
-	{regexp.MustCompile(`(?i)mongodb(?:\+srv)?://[^:/?#@\s"'<>]+:[^@/\s"'<>]+@`), "a database password"},
+	{regexp.MustCompile(`(?i)(mongodb(?:\+srv)?://[^:/?#@\s"'<>]+:)[^@/\s"'<>]+@`), "a database password"},
 	{regexp.MustCompile(`(?i)\bxi-api-key["']?\s*[:=]\s*["']?[A-Za-z0-9_]{24,}`), "an API key"},
 }
 
@@ -41,4 +41,23 @@ func SecretShape(data []byte) string {
 		}
 	}
 	return ""
+}
+
+// HideShapes replaces every credential shape in a text with mask — a
+// database address keeps its scheme and user, only its password masked —
+// and says which kinds it found (none: the text as it was).
+func HideShapes(text, mask string) (string, []string) {
+	var kinds []string
+	for _, s := range secretShapes {
+		if !s.re.MatchString(text) {
+			continue
+		}
+		kinds = append(kinds, s.what)
+		if s.re.NumSubexp() > 0 {
+			text = s.re.ReplaceAllString(text, "${1}"+mask+"@")
+		} else {
+			text = s.re.ReplaceAllLiteralString(text, mask)
+		}
+	}
+	return text, kinds
 }

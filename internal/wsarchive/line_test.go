@@ -66,22 +66,22 @@ func TestLinesRoundTripEveryType(t *testing.T) {
 // The scrubber changes nothing in a document without credentials (the same
 // bytes come out), and takes them out of every text where they are.
 func TestScrubberKeepsCleanDocumentsExact(t *testing.T) {
-	s := NewScrubber(nil)
+	s := NewScrubber()
 	clean, _ := bson.Marshal(bson.D{{Key: "_id", Value: "cmt_1"}, {Key: "text", Value: "Cut the intro at 0:12"}, {Key: "n", Value: int32(3)},
 		{Key: "words", Value: bson.A{bson.D{{Key: "w", Value: "hello"}}}}})
-	out, changed, err := s.Doc(clean)
+	out, changed, err := s.Doc(clean, nil)
 	if err != nil || changed != nil || !bytes.Equal(out, clean) {
 		t.Fatalf("a clean document changed: %v %v", changed, err)
 	}
-	key := "sk-" + "ant01234567890abcdefghijklmnop" // secret-scan: allow (a made-up key)
+	key := "sk-" + "ant01234567890abcdefghijklmnopq" // secret-scan: allow (a made-up key)
 	dirty, _ := bson.Marshal(bson.D{{Key: "_id", Value: "cmt_2"}, {Key: "text", Value: "my key is " + key},
 		{Key: "turns", Value: bson.A{bson.D{{Key: "prompt", Value: "use mongodb://maya:hunter2pass@db.example.com/x"}}}}, // secret-scan: allow (a made-up address)
 		{Key: "n", Value: int32(3)}})
-	out, changed, err = s.Doc(dirty)
+	out, changed, err = s.Doc(dirty, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(changed) != 2 || changed[0] != "text" || changed[1] != "turns.0.prompt" {
+	if len(changed) != 2 || changed[0].Field != "text" || changed[1].Field != "turns.0.prompt" {
 		t.Fatalf("changed fields: %v", changed)
 	}
 	if bytes.Contains(out, []byte(key)) || bytes.Contains(out, []byte("hunter2pass")) {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/cache"
@@ -228,6 +229,7 @@ func Export(ctx context.Context, o ExportOptions) (*Result, error) {
 			}
 		}
 	}
+	m.Scrubbed = summarize(m.Collections)
 	if noWorkspace > 0 {
 		m.Notes = append(m.Notes, fmt.Sprintf("%s belonging to no workspace stayed out.", plural(noWorkspace, "record", "records")))
 	}
@@ -327,6 +329,10 @@ func exportCollection(ctx context.Context, o *ExportOptions, work string, c Coll
 		return nil, err
 	}
 	lw := NewLineWriter(f)
+	// Fields a unique index covers are never scrubbed (two records made equal
+	// would stop a restore halfway); a scrubbed record is checked against
+	// them all the same.
+	protect, uniqueKeys := uniqueFields(spec.Indexes)
 	o.progress(ArchiveProgress{Phase: "documents", Collection: c.Name, Collections: n, CollectionsDone: i})
 	err = EachDoc(ctx, o.DB, c.Name, ws, func(raw bson.Raw) error {
 		doc := raw
@@ -344,15 +350,22 @@ func exportCollection(ctx context.Context, o *ExportOptions, work string, c Coll
 				cf.Transformed++
 			}
 		}
-		clean, fields, err := o.Scrub.Doc(doc)
+		clean, changes, err := o.Scrub.Doc(doc, protect)
 		if err != nil {
 			return err
 		}
-		if len(fields) > 0 {
+		if len(changes) > 0 {
+			if err := uniqueClash(ctx, o.DB, c.Name, ws, clean, uniqueKeys); err != nil {
+				return err
+			}
 			cf.Scrubbed++
-			for _, fl := range fields {
+			if cf.ScrubbedKinds == nil {
+				cf.ScrubbedKinds = map[string]int64{}
+			}
+			cf.ScrubbedKinds[changes[0].Kind]++
+			for _, ch := range changes {
 				if len(cf.ScrubbedAt) < 20 {
-					cf.ScrubbedAt = append(cf.ScrubbedAt, Scrubbed{ID: idString(raw), Field: fl})
+					cf.ScrubbedAt = append(cf.ScrubbedAt, Scrubbed{ID: idString(raw), Field: ch.Field, Kind: ch.Kind})
 				}
 			}
 			doc = clean
@@ -377,6 +390,49 @@ func exportCollection(ctx context.Context, o *ExportOptions, work string, c Coll
 	}
 	cf.Count, cf.Bytes, cf.SHA256 = lw.Count, lw.Bytes, sum
 	return cf, nil
+}
+
+// uniqueClash refuses a scrubbed record whose unique index values another
+// record of the workspace already has (read only; the export stops before it
+// says the archive is ready).
+func uniqueClash(ctx context.Context, db *store.DB, coll, ws string, doc bson.Raw, keys [][]string) error {
+	id, _ := doc.LookupErr("_id")
+	for _, key := range keys {
+		f := bson.D{{Key: "_id", Value: bson.D{{Key: "$ne", Value: id}}}}
+		whole := true
+		for _, field := range key {
+			v, err := doc.LookupErr(strings.Split(field, ".")...)
+			if err != nil {
+				whole = false // a sparse or partial index doesn't hold it
+				break
+			}
+			f = append(f, bson.E{Key: field, Value: v})
+		}
+		if !whole {
+			continue
+		}
+		if _, ok := firstKey(key, "workspaceId"); !ok {
+			f = append(f, bson.E{Key: "workspaceId", Value: ws})
+		}
+		n, err := db.C(coll).CountDocuments(ctx, f, options.Count().SetLimit(1))
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			return apperr.New(apperr.Integrity, "Taking a key out of a record of %s would make it clash with another record, so the export stopped.", coll).
+				WithDetails(map[string]any{"collection": coll, "id": idString(doc), "index": key})
+		}
+	}
+	return nil
+}
+
+func firstKey(keys []string, want string) (int, bool) {
+	for i, k := range keys {
+		if k == want {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // treeBytes is the size of every file under a folder.

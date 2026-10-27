@@ -44,6 +44,9 @@ type Manifest struct {
 	LeftOut []LeftOutCollection `json:"leftOut"`
 	// Files is every file in the archive but this one, with its SHA-256.
 	Files []File `json:"files"`
+	// Scrubbed says how many records had something that looked like a key
+	// or a password taken out, and where.
+	Scrubbed ScrubSummary `json:"scrubbed"`
 	// Notes are plain sentences about the copy (MetaRush was running
 	// somewhere while it was made, documents belonging to no workspace…).
 	Notes []string `json:"notes,omitempty"`
@@ -127,9 +130,10 @@ type CollectionFile struct {
 	// Transformed counts documents its entry changed; Scrubbed those whose
 	// text had something that looked like a key or password taken out (at
 	// most the first 20 places in ScrubbedAt).
-	Transformed int64      `json:"transformed,omitempty"`
-	Scrubbed    int64      `json:"scrubbed,omitempty"`
-	ScrubbedAt  []Scrubbed `json:"scrubbedAt,omitempty"`
+	Transformed   int64            `json:"transformed,omitempty"`
+	Scrubbed      int64            `json:"scrubbed,omitempty"`
+	ScrubbedKinds map[string]int64 `json:"scrubbedKinds,omitempty"`
+	ScrubbedAt    []Scrubbed       `json:"scrubbedAt,omitempty"`
 }
 
 // LeftOutCollection is a collection nothing of went in.

@@ -302,7 +302,7 @@ func exportTo(t *testing.T, db *store.DB, st media.Store, ws, mode string, tar b
 	t.Helper()
 	to := filepath.Join(t.TempDir(), "archive")
 	res, err := wsarchive.Export(context.Background(), wsarchive.ExportOptions{DB: db, Workspace: ws, To: to, Tar: tar, Media: mode, Store: st,
-		StoreWords: "the folder media on this computer", Scrub: wsarchive.NewScrubber(nil, fakeS3Secret),
+		StoreWords: "the folder media on this computer", Scrub: wsarchive.NewScrubber(fakeS3Secret),
 		MadeBy: wsarchive.ArchiveMadeBy{MetaRush: "test", Machine: "test-machine", Person: "Maya Lin"}})
 	if err != nil {
 		t.Fatalf("export: %v", err)

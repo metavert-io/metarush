@@ -2,7 +2,7 @@ import { ApiError, call, request, toApiError } from '../../api/client';
 import type { RecordingClockIn, RecordingCreateIn, RecordingInfo, RecordingPieceOut, RecordingRecord, RecordingScript } from '../../api/types';
 import type { Mic } from '../studio/voiceover/capture';
 import { fitMic, pausesOnClock, recordedAt, toPCM16, voiceStart, VoiceGate, type Arrival, type MicFit, type Pause } from './clock';
-import { formatOf, pickFormat, videoBits } from './formats';
+import { formatOf, pacing, pickFormat, PIECE_MS, videoBits } from './formats';
 import { OffsetMismatch, Refused, TrackQueue, type QueueState, type Sender } from './pieces';
 import { forget, pieceStore, piecesOf, remember, type Pending } from './store';
 import { surfaceOf } from './sources';
@@ -47,8 +47,13 @@ export interface TrackProgress extends QueueState {
   id: TrackID;
 }
 
-const PIECE_MS = 2000;
 const CLOCK_EVERY_MS = 5000;
+
+/** Chrome, Edge and the other browsers built on Chromium (whose MP4 recorder formats.ts pacing works around). */
+function isChromium(): boolean {
+  const brands = (navigator as Navigator & { userAgentData?: { brands?: { brand: string }[] } }).userAgentData?.brands ?? [];
+  return brands.some((b) => b.brand === 'Chromium');
+}
 
 /** Sends a track's pieces to the host. */
 export function senderFor(rec: string, track: string): Sender {
@@ -172,7 +177,7 @@ export class RecordingSession {
     for (const p of plan) {
       let r: MediaRecorder;
       try {
-        // A keyframe every piece: an MP4 recorder sends a piece only from one
+        // A keyframe every piece: an MP4 recorder writes a piece only from one
         // keyframe to the next, so a closed tab would lose everything since the last.
         const o = { ...(p.format ? { mimeType: p.format } : {}), videoBitsPerSecond: p.bits, audioBitsPerSecond: 128_000, videoKeyFrameIntervalDuration: PIECE_MS };
         r = new MediaRecorder(p.stream, o as MediaRecorderOptions);
@@ -191,8 +196,15 @@ export class RecordingSession {
       mic.onBlock = (t, n) => s.arrivals!.add(t, n);
       micTrack?.addEventListener('ended', () => opts.onSourceEnded('voice'));
     }
+    // How each recorder hands its pieces over (formats.ts pacing): worked out
+    // first, so the recorders still start together.
+    const chromium = isChromium();
+    const paced = [...s.recorders.values()].map((r) => ({ r, ...pacing(r.mimeType, chromium) }));
     s.t0 = performance.now();
-    for (const r of s.recorders.values()) r.start(PIECE_MS);
+    for (const { r, timeslice } of paced) r.start(timeslice);
+    for (const { r, handover } of paced) {
+      if (handover) s.timers.push(window.setInterval(() => r.state === 'recording' && r.requestData(), handover));
+    }
     mic?.start();
     if (mic) s.timers.push(window.setInterval(() => s.drainVoice(), 250));
     // The clock goes to the host soon after it starts (a tab closed in the first seconds keeps it) and then every few seconds.

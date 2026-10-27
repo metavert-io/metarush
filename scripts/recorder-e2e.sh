@@ -10,7 +10,9 @@
 #   and resumes, stops; checks the three tracks became footage of the same length with the
 #   pause left out of each, the voice's place on the clock agrees with lining the files up
 #   by their sound, and a cut starts with the camera in a corner; closes a tab mid-recording
-#   and keeps what it sent from the next page; stops by itself when screen sharing ends.
+#   once pieces of every track have reached MetaRush (a piece of picture at least every 3.5 s)
+#   and keeps what it sent from the next page (it plays to its end, all but about the last
+#   piece); stops by itself when screen sharing ends.
 #   Desktop and 390 px phone, dark and light, screenshots; no native dialog, no sideways
 #   scrolling.
 #

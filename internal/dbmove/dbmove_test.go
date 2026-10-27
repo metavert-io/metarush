@@ -149,9 +149,13 @@ func TestCopyIsWholeAndChecked(t *testing.T) {
 	if n, _ := dst.C(store.CUserCredentials).CountDocuments(ctx, bson.M{}); n != 1 {
 		t.Fatal("the password didn't move with the workspace")
 	}
-	ix, _ := wsarchive.ListIndexes(ctx, dst, "studio_notes")
-	if len(ix) != 1 {
-		t.Fatalf("the unknown kind's index: %v", ix)
+	// The new database has MetaRush's own indexes, every one the old database
+	// has, and none of a kind MetaRush doesn't know: that one is said.
+	if ix, _ := wsarchive.ListIndexes(ctx, dst, "studio_notes"); len(ix) != 0 {
+		t.Fatalf("the unknown kind's index was made: %v", ix)
+	}
+	if len(res.IndexesLeft) != 1 || res.IndexesLeft[0] != "studio_notes by_text" {
+		t.Fatalf("indexes not made: %v", res.IndexesLeft)
 	}
 	lvlSrc, _ := wsarchive.ReadLevel(ctx, src)
 	lvlDst, _ := wsarchive.ReadLevel(ctx, dst)

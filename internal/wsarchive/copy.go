@@ -309,23 +309,6 @@ func (s Spec) Make(ctx context.Context, db *store.DB) error {
 	return nil
 }
 
-// EnsureIndexes makes the collection's indexes where they are missing (the
-// same specs again are accepted as they are): a move continued after it
-// stopped between making a collection and its indexes.
-func (s Spec) EnsureIndexes(ctx context.Context, db *store.DB) error {
-	if len(s.Indexes) == 0 {
-		return nil
-	}
-	ixs := make(bson.A, 0, len(s.Indexes))
-	for _, ix := range s.Indexes {
-		ixs = append(ixs, withoutNS(ix))
-	}
-	if err := db.DB.RunCommand(ctx, bson.D{{Key: "createIndexes", Value: s.Name}, {Key: "indexes", Value: ixs}}).Err(); err != nil {
-		return fmt.Errorf("%s indexes: %w", s.Name, err)
-	}
-	return nil
-}
-
 // withoutNS drops the "ns" field older servers list with an index (newer
 // ones refuse it in createIndexes).
 func withoutNS(ix bson.Raw) bson.Raw {

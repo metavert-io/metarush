@@ -72,9 +72,11 @@ metarush database move --to saved --name studio      # a person at a terminal; a
    waits on that computer until it can be written where the workspace is. Each computer says in the marker that it
    paused; the move waits until every computer running MetaRush did and no work runs. An older MetaRush doesn't pause by
    itself: the plan names it, and the move waits for it (update it there, or quit it).
-2. **The copy.** The new database is locked first, so nothing uses a half copy. Every kind of record is made the way
-   the old database made it (its settings and indexes) and copied in order; then every one is read again on both sides
-   and must match exactly (the same check as the workspace export's). The migration level goes in last. Passwords and
+2. **The copy.** The new database is locked first, so nothing uses a half copy. It gets MetaRush's own collections and
+   indexes, made by MetaRush's updates up to the old database's level (as a restore does; an index of the old database
+   MetaRush doesn't make is named, never made), then every record is copied in order; then every kind of record is read
+   again on both sides and must match exactly (the same check as the workspace export's). The migration level goes in
+   last. Passwords and
    invitations move with it (it is the same workspace in another place); the old database's own marker and lock, and
    what MetaRush writes again by itself (each computer's live record, counts of wrong passwords), stay behind.
 3. **The old database says the workspace moved** — where, in words (*"MongoDB Atlas"*), never a sign-in. From then on
@@ -148,9 +150,11 @@ Every command takes `--json` and `--details`. The operations are `database.plan`
 ## For developers
 
 - `internal/dbmove` — the copy, on the workspace export's engine (`internal/wsarchive`): `SurveySource`, `CheckTarget`
-  (reads only; `connectionStatus` with its privileges), `Copy` (the restore's lock with kind `move`, collections made
-  by `Spec.Make`, streamed in `_id` order by `EachDocWhere`/`Inserter`, a stopped copy continued after the prefix that is
-  in, every collection's `HashWhere` on both sides, `schema_migrations` last). `LeftOut` says what stays behind.
+  (reads only; `connectionStatus` with its privileges), `Copy` (the restore's lock with kind `move`; MetaRush's own
+  collections and indexes by `store.DB.MakeForRestore` before the first record; streamed in `_id` order by
+  `EachDocWhere`/`Inserter`, never scrubbed; a stopped copy continued after the prefix that is in; every collection's
+  `HashWhere` on both sides; `schema_migrations` last; `wsarchive.IndexesNotMade` names the old database's other
+  indexes). `LeftOut` says what stays behind.
 - `internal/store/movemarker.go` — the old database's marker (`database_move`): `moving`, `moved`, `abandoned`;
   `Holding` and `Switched` per computer. `Migrate` refuses a frozen database.
 - `internal/ops/databasemove.go`, `databasemove_state.go` — the operations, the freeze check in `dispatch`

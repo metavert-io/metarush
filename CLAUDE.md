@@ -1052,7 +1052,8 @@ Read `docs/architecture.md` before structural changes.
   (`logbook.Options.Hold`), `Migrate` refuses, daemons `watchForMove` and restart into `serveHeld` (`api.NewHeld`,
   `heldGuard`: reads only, no background work, `HoldForMove` acks), the terminal worker stops; `waitQuiet` waits for
   every computer seen within `RunningWithin` to ack and no live leases. `dbmove.Copy` (the restore lock, kind `move`;
-  `wsarchive` `Spec.Make`/`EachDocWhere`/`Inserter`/`HashWhere`; resumes after the copied prefix; `LeftOut`; level
+  `MakeForRestore` before the first record — never the source's index list, `IndexesNotMade` says it; `wsarchive`
+  `EachDocWhere`/`Inserter`/`HashWhere`, never the archive scrub; resumes after the copied prefix; `LeftOut`; level
   last; `ErrChanged`) → marker `moved` **before** `switchDatabase` (keychain/.env, previous kept aside, config.yaml's
   `database` section, checked as loaded) → `recordMove` into the new database. No job (the old database is frozen):
   progress is `<state>/database-move/<id>.json`; the dashboard starts `database move --dashboard-move <id>` with

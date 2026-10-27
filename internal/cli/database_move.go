@@ -391,6 +391,9 @@ func printDatabasePlan(c *cobra.Command, p *ops.DatabasePlanOut) {
 
 func printDatabaseMove(c *cobra.Command, r *ops.DatabaseMoveOut) {
 	fmt.Println(r.Summary)
+	for _, n := range r.Notes {
+		fmt.Println("  " + n)
+	}
 	if len(r.Next) > 0 {
 		fmt.Println("Next:")
 		for _, n := range r.Next {

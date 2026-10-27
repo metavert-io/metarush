@@ -178,6 +178,9 @@ type DatabaseMoveOut struct {
 	// Restarted: MetaRush running in the background here started again with
 	// the new database.
 	Restarted bool `json:"restarted"`
+	// Notes say what else to know (indexes of the old database MetaRush
+	// doesn't make).
+	Notes []string `json:"notes"`
 	// Others are the other computers, each to switch with its own sign-in.
 	Others  []string `json:"others"`
 	Seconds float64  `json:"seconds"`
@@ -903,7 +906,11 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 	}
 	forgetMoveAddress(a.Cfg)
 	out := &DatabaseMoveOut{From: databasePlaceOf(a.Cfg.Database), To: t.place, Collections: res.Collections, Documents: res.Documents, Resumed: resume || res.Resumed,
-		Verified: res.Verified, Switched: true, Marked: true, Others: []string{}, Next: []string{}, Kept: keptWords(databasePlaceOf(a.Cfg.Database))}
+		Verified: res.Verified, Switched: true, Marked: true, Others: []string{}, Next: []string{}, Notes: []string{}, Kept: keptWords(databasePlaceOf(a.Cfg.Database))}
+	if n := len(res.IndexesLeft); n > 0 {
+		out.Notes = append(out.Notes, fmt.Sprintf("The old database had %s MetaRush doesn't make, so the new one doesn't (it has MetaRush's own): %s.",
+			map[bool]string{true: "an index", false: fmt.Sprintf("%d indexes", n)}[n == 1], strings.Join(res.IndexesLeft, "; ")))
+	}
 	for _, c := range plan.Computers {
 		if !c.This {
 			out.Others = append(out.Others, c.Name)

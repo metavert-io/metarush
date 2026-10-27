@@ -1,8 +1,9 @@
 // Package dbmove copies a workspace's whole database into another, empty one
 // and checks the copy (`metarush database move`, D334–D338): built on the
 // workspace export's engine (internal/wsarchive) — the source is only ever
-// read; every collection is made as the source made it (its options and
-// indexes first) and streamed in _id order; the copy is locked from before
+// read; the new database gets MetaRush's own collections and indexes (its
+// migrations up to the source's level, as a restore does) and every
+// collection is streamed in _id order; the copy is locked from before
 // its first write until it is whole and checked (the restore's lock, kind
 // move); every collection's documents are hashed on both sides and must
 // match; the migration level goes in last. Nothing is ever deleted, in either
@@ -23,6 +24,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/wsarchive"
@@ -295,7 +297,10 @@ type Result struct {
 	Resumed bool `json:"resumed"`
 	// Verified: every collection's documents are the same on both sides.
 	Verified bool `json:"verified"`
-	Seconds  float64
+	// IndexesLeft are indexes of the old database MetaRush doesn't make (the
+	// new one has MetaRush's own), in words.
+	IndexesLeft []string `json:"indexesLeft,omitempty"`
+	Seconds     float64
 }
 
 // ErrChanged is a copy whose old database changed meanwhile: something wrote
@@ -349,6 +354,23 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 	if !mine || lock.State != store.RestoreDone {
 		if err := o.To.SetMoveLock(ctx, o.Move, o.Workspace, o.WorkspaceName, store.RestoreCopying); err != nil {
 			return nil, err
+		}
+		// MetaRush's own collections and indexes, as its migrations up to the
+		// old database's level make them (never the old database's own list,
+		// as a restore never takes an archive's), before the first record: a
+		// copy that stopped once records went in made them already.
+		has, err := holdsRecords(ctx, o.To)
+		if err != nil {
+			return nil, err
+		}
+		if !has {
+			lvl, err := wsarchive.ReadLevel(ctx, o.From)
+			if err != nil {
+				return nil, err
+			}
+			if err := o.To.MakeForRestore(ctx, lvl.Versions()); err != nil {
+				return nil, &Partial{Err: err}
+			}
 		}
 	}
 	infos, err := wsarchive.ListCollections(ctx, o.From)
@@ -423,6 +445,13 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 	}
 	p.CollectionsDone, p.Collection = len(order), ""
 	progress()
+	names := make([]string, 0, len(order))
+	for _, info := range order {
+		names = append(names, info.Name)
+	}
+	if left := wsarchive.IndexesNotMade(ctx, o.From, o.To, names); len(left) > 0 {
+		res.IndexesLeft = left
+	}
 	if err := o.To.SetMoveLock(ctx, o.Move, o.Workspace, o.WorkspaceName, store.RestoreDone); err != nil {
 		return res, err
 	}
@@ -432,31 +461,15 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 	return res, nil
 }
 
-// copyCollection makes one collection in the new database the way the old
-// one made it and streams its documents in, in _id order — or, when this
-// move already made it, continues after the documents that are there (an
-// ordered copy leaves a prefix of the stream; the check afterwards proves it).
+// copyCollection streams a collection's documents into the new database, in
+// _id order (MetaRush made its own collections there; any other is made as
+// its first document goes in) — or, when this move already copied some,
+// continues after the documents that are there (an ordered copy leaves a
+// prefix of the stream; the check afterwards proves it).
 func copyCollection(ctx context.Context, o Options, info wsarchive.CollectionInfo, p *CopyProgress, progress func(), stop func() error) error {
-	spec, err := wsarchive.ReadSpec(ctx, o.From, info)
+	have, err := o.To.C(info.Name).CountDocuments(ctx, bson.M{})
 	if err != nil {
 		return err
-	}
-	names, err := o.To.DB.ListCollectionNames(ctx, bson.D{{Key: "name", Value: info.Name}})
-	if err != nil {
-		return err
-	}
-	var have int64
-	if len(names) == 0 {
-		if err := spec.Make(ctx, o.To); err != nil {
-			return err
-		}
-	} else {
-		if err := spec.EnsureIndexes(ctx, o.To); err != nil {
-			return err
-		}
-		if have, err = o.To.C(info.Name).CountDocuments(ctx, bson.M{}); err != nil {
-			return err
-		}
 	}
 	in := wsarchive.NewInserter(ctx, o.To, info.Name)
 	var seen int64
@@ -481,6 +494,26 @@ func copyCollection(ctx context.Context, o Options, info wsarchive.CollectionInf
 		return err
 	}
 	return in.Flush()
+}
+
+// holdsRecords reports whether a database holds any record but a lock's or
+// a test database's own marker.
+func holdsRecords(ctx context.Context, db *store.DB) (bool, error) {
+	names, err := db.DB.ListCollectionNames(ctx, bson.D{})
+	if err != nil {
+		return false, err
+	}
+	for _, n := range names {
+		if n == store.CRestoreLock || n == store.CTestRun || strings.HasPrefix(n, "system.") {
+			continue
+		}
+		if c, err := db.C(n).CountDocuments(ctx, bson.M{}, options.Count().SetLimit(1)); err != nil {
+			return false, err
+		} else if c > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func firstOf(vs ...string) string {

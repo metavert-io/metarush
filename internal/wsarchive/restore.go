@@ -910,6 +910,33 @@ func indexDifferences(ctx context.Context, db *store.DB, m *Manifest) string {
 		plural(int64(len(left)), "index", "indexes"), were, strings.Join(shown, "; "))
 }
 
+// IndexesNotMade names the indexes a database's collections have that the
+// copy's don't (by what they do, whatever their names): what MetaRush's own
+// migrations didn't make there. A move of the database (D334) says them, as a
+// restore does the archive's.
+func IndexesNotMade(ctx context.Context, from, to *store.DB, colls []string) []string {
+	var out []string
+	for _, c := range colls {
+		src, err := ListIndexes(ctx, from, c)
+		if err != nil {
+			continue
+		}
+		have := map[string]bool{}
+		if ixs, err := ListIndexes(ctx, to, c); err == nil {
+			for _, ix := range ixs {
+				have[indexShape(ix)] = true
+			}
+		}
+		for _, ix := range src {
+			if !have[indexShape(ix)] {
+				out = append(out, c+" "+indexWords(ix))
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // indexShape is what an index does — its keys, in order, and how it treats
 // records — whatever its name or version.
 func indexShape(ix bson.Raw) string {

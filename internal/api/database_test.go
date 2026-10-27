@@ -30,7 +30,6 @@ import (
 
 // Moving the database from the dashboard (D338) through the whole server.
 
-
 // newDatabaseName is a test database's name nobody made yet.
 func newDatabaseName() string {
 	return store.TestDBPrefix + strings.ToLower(strings.TrimPrefix(ids.New("t"), "t_"))

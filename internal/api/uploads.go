@@ -265,19 +265,23 @@ func (u *uploadAPI) ingest(id string) {
 				u.st.Update(id, true, func(*uploads.Record) {})
 			}
 		}})
-	final, _ := u.st.Update(id, true, func(x *uploads.Record) {
+	added := false
+	switch res.Status {
+	case "ingested", "deduped", "resumed", "duplicate":
+		added = true
+		// The canonical store and the cache hold the bytes now: the received
+		// part goes before anyone sees the upload done.
+		_ = os.Remove(u.st.Part(id))
+	}
+	u.st.Update(id, true, func(x *uploads.Record) {
 		x.Result = &res
-		switch res.Status {
-		case "ingested", "deduped", "resumed", "duplicate":
+		if added {
 			x.State = uploads.StateDone
 			uploads.Progress(x, uploads.StageDone, x.Size, x.Size, time.Now().UTC())
-		default:
+		} else {
 			x.State, x.Error = uploads.StateFailed, res.Error
 		}
 	})
-	if final.State == uploads.StateDone {
-		_ = os.Remove(u.st.Part(id)) // canonical store + cache hold the bytes now
-	}
 }
 
 func (u *uploadAPI) cancel(w http.ResponseWriter, r *http.Request) {

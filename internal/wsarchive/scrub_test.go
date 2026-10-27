@@ -116,3 +116,24 @@ func TestScrubNeverBreaksUniqueIndexes(t *testing.T) {
 		t.Fatalf("restore: %v", err)
 	}
 }
+
+// A private key goes whole: a pasted service account's JSON (its newlines
+// written as \n) loses the key's body and its END line, not just the BEGIN
+// line; a key cut short is taken out to the end of the text.
+func TestScrubTakesOutAWholePrivateKey(t *testing.T) {
+	s := wsarchive.NewScrubber()
+	body := strings.Repeat("MIIEvQIBADANBgkqhkiG9w0BAQEFAASC", 3)
+	begin, end := "-----BEGIN "+"PRIVATE KEY-----", "-----END "+"PRIVATE KEY-----" // a made-up key: its markers split for the scanners
+	pem := begin + `\n` + body + `\n` + body + `\n` + end + `\n`
+	sa := `{"type": "service_account", "private_key": "` + pem + `", "client_email": "render@example.com"}`
+	got, changed := scrubbed(t, s, bson.D{{Key: "_id", Value: "cmt_sa"}, {Key: "text", Value: "here it is " + sa}})
+	text := got["text"].(string)
+	if len(changed) != 1 || strings.Contains(text, body) || strings.Contains(text, "END PRIVATE KEY") || !strings.Contains(text, "client_email") {
+		t.Fatalf("a service account's key: %q", text)
+	}
+	cut := "-----BEGIN RSA " + "PRIVATE KEY-----\n" + body + "\n" + body[:20]
+	got, _ = scrubbed(t, s, bson.D{{Key: "_id", Value: "cmt_cut"}, {Key: "text", Value: "partial: " + cut}})
+	if text := got["text"].(string); strings.Contains(text, body[:20]) || !strings.HasPrefix(text, "partial: ") {
+		t.Fatalf("a key cut short: %q", text)
+	}
+}

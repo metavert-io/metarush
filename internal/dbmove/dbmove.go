@@ -65,6 +65,9 @@ type MoveCollection struct {
 	Copied   int64  `json:"copied,omitempty"`
 	Verified bool   `json:"verified,omitempty"`
 	SHA256   string `json:"sha256,omitempty"`
+	// TimeLimited: its records end by themselves (a TTL index); those ending
+	// soon aren't compared.
+	TimeLimited bool `json:"timeLimited,omitempty"`
 }
 
 // Survey is what a database holds, for a move's plan.
@@ -371,7 +374,18 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 			if err != nil {
 				return nil, err
 			}
+			// A time limit an earlier run of this move paused is put back
+			// first, so MetaRush's own indexes are made as they are.
+			if err := setTimeLimits(ctx, o.From, o.To, false); err != nil {
+				return nil, &Partial{Err: err}
+			}
 			if err := o.To.MakeForRestore(ctx, lvl.Versions()); err != nil {
+				return nil, &Partial{Err: err}
+			}
+			// While the copy goes in, the new database deletes nothing by
+			// itself (a TTL index on sign-in links): its records stay as
+			// they were copied until the copy is whole.
+			if err := setTimeLimits(ctx, o.From, o.To, true); err != nil {
 				return nil, &Partial{Err: err}
 			}
 		}
@@ -430,16 +444,13 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 	for i, info := range order {
 		p.Collection, p.CollectionsDone = info.Name, i
 		progress()
-		src, err := wsarchive.HashWhere(ctx, o.From, info.Name, nil)
-		if err != nil {
-			return nil, &Partial{Collection: info.Name, Err: err}
-		}
-		dst, err := wsarchive.HashWhere(ctx, o.To, info.Name, nil)
+		src, dst, err := hashBoth(ctx, o.From, o.To, info.Name)
 		if err != nil {
 			return nil, &Partial{Collection: info.Name, Err: err}
 		}
 		p.DocumentsDone += src.Count
-		c := MoveCollection{Name: info.Name, Carried: true, Count: src.Count, Bytes: src.Bytes, Copied: dst.Count, Verified: src == dst, SHA256: dst.SHA256}
+		c := MoveCollection{Name: info.Name, Carried: true, Count: src.Count, Bytes: src.Bytes, Copied: dst.Count, Verified: src == dst, SHA256: dst.SHA256,
+			TimeLimited: len(timeLimits(ctx, o.From, info.Name)) > 0}
 		res.Collections = append(res.Collections, c)
 		res.Documents += dst.Count
 		if src != dst {
@@ -453,6 +464,10 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 		return res, &Partial{Err: err}
 	} else if late != "" {
 		return res, &Partial{Collection: late, Err: ErrChanged}
+	}
+	// The new database's own time limits again, now that the copy is whole.
+	if err := setTimeLimits(ctx, o.From, o.To, false); err != nil {
+		return res, &Partial{Err: err}
 	}
 	names := make([]string, 0, len(order))
 	for _, info := range order {
@@ -498,7 +513,7 @@ func lateCollections(ctx context.Context, from *store.DB, copied []wsarchive.Col
 // moved (it is frozen by then): every kind of record is listed again and read
 // again, and must add up to exactly what the copy holds. A kind made since,
 // a record written or removed since, stops the move (ErrChanged).
-func Recheck(ctx context.Context, from *store.DB, res *Result) error {
+func Recheck(ctx context.Context, from, to *store.DB, res *Result) error {
 	if res == nil {
 		return errors.New("nothing was copied")
 	}
@@ -514,6 +529,18 @@ func Recheck(ctx context.Context, from *store.DB, res *Result) error {
 		return &Partial{Collection: late, Err: ErrChanged}
 	}
 	for _, c := range res.Collections {
+		if c.TimeLimited {
+			// Records that end by themselves are read again on both sides,
+			// those ending soon left out (either side may delete them by now).
+			a, b, err := hashBoth(ctx, from, to, c.Name)
+			if err != nil {
+				return &Partial{Collection: c.Name, Err: err}
+			}
+			if a != b {
+				return &Partial{Collection: c.Name, Err: ErrChanged}
+			}
+			continue
+		}
 		d, err := wsarchive.HashWhere(ctx, from, c.Name, nil)
 		if err != nil {
 			return &Partial{Collection: c.Name, Err: err}
@@ -523,6 +550,134 @@ func Recheck(ctx context.Context, from *store.DB, res *Result) error {
 		}
 	}
 	return nil
+}
+
+/* ---------- records that end by themselves ---------- */
+
+// pausedLimit is the time limit a TTL index of the new database has while
+// the copy goes in: as long as MongoDB allows (about 68 years), so nothing
+// is deleted by itself meanwhile.
+const pausedLimit = 2147483647
+
+// endingSoon is how close to its end a time-limited record may be and still
+// be compared: one that ends sooner may be deleted on either side by now.
+const endingSoon = 15 * time.Minute
+
+// timeLimit is a TTL index: its field and how long after it a record goes.
+type timeLimit struct {
+	name, field string
+	after       int64
+}
+
+// timeLimits lists a collection's TTL indexes (one field each).
+func timeLimits(ctx context.Context, db *store.DB, coll string) []timeLimit {
+	ixs, err := wsarchive.ListIndexes(ctx, db, coll)
+	if err != nil {
+		return nil
+	}
+	var out []timeLimit
+	for _, ix := range ixs {
+		v, err := ix.LookupErr("expireAfterSeconds")
+		if err != nil {
+			continue
+		}
+		after, ok := v.AsInt64OK()
+		if !ok {
+			if f, okf := v.DoubleOK(); okf {
+				after, ok = int64(f), true
+			}
+		}
+		key, err := ix.LookupErr("key")
+		if err != nil || !ok {
+			continue
+		}
+		elems, err := key.Document().Elements()
+		if err != nil || len(elems) != 1 {
+			continue
+		}
+		name, _ := ix.Lookup("name").StringValueOK()
+		out = append(out, timeLimit{name: name, field: elems[0].Key(), after: after})
+	}
+	return out
+}
+
+// setTimeLimits pauses the new database's TTL indexes (pause) or gives them
+// the old database's limits again, by index name (an index setting, never a
+// record).
+func setTimeLimits(ctx context.Context, from, to *store.DB, pause bool) error {
+	names, err := to.DB.ListCollectionNames(ctx, bson.D{})
+	if err != nil {
+		return err
+	}
+	for _, coll := range names {
+		limits := timeLimits(ctx, to, coll)
+		if len(limits) == 0 {
+			continue
+		}
+		want := map[string]int64{}
+		for _, l := range timeLimits(ctx, from, coll) {
+			want[l.name] = l.after
+		}
+		for _, l := range limits {
+			after := int64(pausedLimit)
+			if !pause {
+				w, ok := want[l.name]
+				if !ok {
+					continue
+				}
+				after = w
+			}
+			if l.after == after {
+				continue
+			}
+			if err := to.DB.RunCommand(ctx, bson.D{{Key: "collMod", Value: coll},
+				{Key: "index", Value: bson.D{{Key: "name", Value: l.name}, {Key: "expireAfterSeconds", Value: after}}}}).Err(); err != nil {
+				return fmt.Errorf("%s's time limit: %w", coll, err)
+			}
+		}
+	}
+	return nil
+}
+
+// serverNow is the database server's own time (every computer's clock may differ).
+func serverNow(ctx context.Context, db *store.DB) time.Time {
+	var h struct {
+		LocalTime time.Time `bson:"localTime"`
+	}
+	if err := db.DB.RunCommand(ctx, bson.D{{Key: "hello", Value: 1}}).Decode(&h); err != nil || h.LocalTime.IsZero() {
+		return time.Now().UTC()
+	}
+	return h.LocalTime.UTC()
+}
+
+// stillLive is the records of a collection with TTL indexes that won't end
+// within endingSoon (records whose field isn't a date never end).
+func stillLive(limits []timeLimit, now time.Time) bson.M {
+	var and bson.A
+	for _, l := range limits {
+		cutoff := now.Add(endingSoon).Add(-time.Duration(l.after) * time.Second)
+		and = append(and, bson.M{"$or": bson.A{
+			bson.M{l.field: bson.M{"$not": bson.M{"$type": "date"}}},
+			bson.M{l.field: bson.M{"$gt": cutoff}},
+		}})
+	}
+	return bson.M{"$and": and}
+}
+
+// hashBoth digests a collection on both sides: every record, or for one with
+// TTL indexes (in the old database) the records that don't end soon, by one
+// time — the old database server's.
+func hashBoth(ctx context.Context, from, to *store.DB, coll string) (wsarchive.Digest, wsarchive.Digest, error) {
+	var filter bson.M
+	if limits := timeLimits(ctx, from, coll); len(limits) > 0 {
+		filter = stillLive(limits, serverNow(ctx, from))
+	}
+	a, err := wsarchive.HashWhere(ctx, from, coll, filter)
+	if err != nil {
+		return a, wsarchive.Digest{}, err
+	}
+	b, err := wsarchive.HashWhere(ctx, to, coll, filter)
+	return a, b, err
 }
 
 // copyCollection streams a collection's documents into the new database, in

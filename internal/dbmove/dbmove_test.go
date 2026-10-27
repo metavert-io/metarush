@@ -350,7 +350,7 @@ func TestRecheckNoticesAWriteAfterTheCheck(t *testing.T) {
 	if err != nil || !done {
 		t.Fatalf("copy: %v (wrote: %v)", err, done)
 	}
-	if err := Recheck(ctx, src, res); !errors.Is(err, ErrChanged) {
+	if err := Recheck(ctx, src, dst, res); !errors.Is(err, ErrChanged) {
 		t.Fatalf("a write after %s was checked: %v", first, err)
 	}
 	// Nothing changed: the last look agrees.
@@ -360,7 +360,60 @@ func TestRecheckNoticesAWriteAfterTheCheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Recheck(ctx, src2, res2); err != nil {
+	if err := Recheck(ctx, src2, dst2, res2); err != nil {
 		t.Fatalf("an unchanged database: %v", err)
+	}
+}
+
+// Sign-in links end by themselves (a TTL index deletes them once their time
+// is up): one deleted from the old database while it is copied is no change,
+// the new database deletes nothing while the copy goes in and deletes again
+// once it is whole, and a change to a link that still works is noticed.
+func TestCopyKeepsTimeLimitedRecordsSteady(t *testing.T) {
+	src, ws := workspaceDB(t)
+	dst := emptyDB(t)
+	ctx := context.Background()
+	past, later := time.Now().UTC().Add(-time.Hour), time.Now().UTC().Add(48*time.Hour)
+	for _, d := range []bson.M{
+		{"_id": "tok_gone1", "workspaceId": ws, "kind": "reset", "purgeAt": past},
+		{"_id": "tok_gone2", "workspaceId": ws, "kind": "reset", "purgeAt": past},
+		{"_id": "tok_live", "workspaceId": ws, "kind": "invite", "purgeAt": later},
+	} {
+		if _, err := src.C(store.CAuthTokens).InsertOne(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deleted := false
+	res, err := Copy(ctx, Options{From: src, To: dst, Workspace: ws, Move: "mvT",
+		Progress: func(p CopyProgress) {
+			if p.Phase == "checking" && !deleted {
+				deleted = true // what the old database's TTL index does when its time comes
+				_, _ = src.C(store.CAuthTokens).DeleteOne(ctx, bson.M{"_id": "tok_gone1"})
+			}
+		}})
+	if err != nil || !res.Verified {
+		t.Fatalf("an ended sign-in link deleted during the copy: %v", err)
+	}
+	_, _ = src.C(store.CAuthTokens).DeleteOne(ctx, bson.M{"_id": "tok_gone2"})
+	if err := Recheck(ctx, src, dst, res); err != nil {
+		t.Fatalf("another one deleted before the last look: %v", err)
+	}
+	ttl := func(db *store.DB) any {
+		ixs, _ := wsarchive.ListIndexes(ctx, db, store.CAuthTokens)
+		for _, ix := range ixs {
+			if v, err := ix.LookupErr("expireAfterSeconds"); err == nil {
+				return v.AsInt64()
+			}
+		}
+		return nil
+	}
+	if ttl(dst) != ttl(src) || ttl(src) == nil {
+		t.Fatalf("the new database's time limit: %v (old %v)", ttl(dst), ttl(src))
+	}
+	if _, err := src.C(store.CAuthTokens).UpdateOne(ctx, bson.M{"_id": "tok_live"}, bson.M{"$set": bson.M{"kind": "reset"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Recheck(ctx, src, dst, res); !errors.Is(err, ErrChanged) {
+		t.Fatalf("a change to a link that still works: %v", err)
 	}
 }

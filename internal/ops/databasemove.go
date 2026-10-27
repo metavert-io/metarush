@@ -874,7 +874,7 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 	// The last look, right before: the old database (frozen) still adds up
 	// to exactly what the copy holds, every kind of record listed again.
 	rec.phase(a, "checking", "Looking at the old database one last time")
-	if err := dbmove.Recheck(ctx, a.DB, res); err != nil {
+	if err := dbmove.Recheck(ctx, a.DB, t.db, res); err != nil {
 		return nil, copyError(err, t.place)
 	}
 	ok, err := a.DB.SetMoveState(ctx, moveID, store.MoveMoving, store.MoveMoved, "")

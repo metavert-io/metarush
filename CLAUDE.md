@@ -35,7 +35,8 @@ Read `docs/architecture.md` before structural changes.
 - **Cut sheets (`.cut.md`, narration and mix included) are a lossless projection of the edit spec; JSON stays canonical** (`internal/cutsheet`,
   D46, docs/cut-sheet.md): print→parse keeps the spec hash; saving = minimal ops plan (`editspec.DiffOps`, merge-patch
   updates) through the same check/confirm/rebase/locks; quoted words resolve to exact times when checked.
-- **Durable jobs on MongoDB leases** (heartbeats, retries, recovery, idempotency); workers coordinate only via the DB;
+- **Durable jobs on MongoDB leases** (heartbeats, retries, recovery, idempotency; a lease ends by the database server's
+  time, `$$NOW` + `LeaseDuration`, and is compared with `$$NOW`); workers coordinate only via the DB;
   heavy jobs defer on low battery (threshold, override) — never silently. A stopping worker releases its job (attempt
   not counted, never failed); a terminal's `--wait` runs only the jobs it waits for (`LeaseAmong`) and keeps them
   to the end: retries are taken in the terminal, and `waitJobsOpt` restarts a stopped terminal worker or fails
@@ -508,7 +509,8 @@ Read `docs/architecture.md` before structural changes.
   than its release, unlike semver). A release is cut with `scripts/bump-version.sh 0.2.0|patch|minor|major` (VERSION,
   CHANGELOG's Unreleased moved under `## X.Y.Z — 20 Oct 2026`, a commit and an annotated tag; never pushes;
   `release.sh vX.Y.Z` publishes that tag). CHANGELOG.md is embedded (`version_files.go`) and read by
-  `version.ParseChangelog`. The daemon records each computer's build on its installation (`TouchInstallation`); the
+  `version.ParseChangelog`. Every process records its computer's build on its installation before its first write (`OnFirstWrite` →
+  `app.sayBuild`), the daemon also every minute (`TouchInstallation`); the
   renderer folder is named by the release, not the exact build.
 - **Remotion sources** (D131–D138, `internal/remotion`, `video/render/source`, docs/remotion-sources.md): a whole
   Remotion project in a project (`remotion_sources`); versions are canonical manifests of content-addressed files
@@ -1049,12 +1051,15 @@ Read `docs/architecture.md` before structural changes.
   leave first (`ops.LeaveDatabase`: storage, words + voices + faces — the database holds the voice/face prints —
   cloud per `leave.DatabaseKept`; a restore asks `leave.ArchiveDatabaseCheck` via `RestoreOptions.MayHold` before any
   record), names every non-revoked computer whose record doesn't show a build that knows moves (`knowsMoves` ==
-  `app.MovesMark(version, commit)`, or version ≥ `ops.FirstMoveVersion`; invited/unknown count), then the target (`dbmove.CheckTarget`: reads only, `connectionStatus` privileges). The move:
+  `app.MovesMark(version, commit)`, written by every process before its first write via `OnFirstWrite`, or version ≥
+  `ops.FirstMoveVersion`; invited/unknown count; an older build in the activity log after the record's, `olderBuildLogged`), then the target (`dbmove.CheckTarget`: reads only, `connectionStatus` privileges). The move:
   `StartMoveMarker` (`database_move` in the old database: moving → moved | abandoned, `Holding`, `Switched`) freezes
-  it — `store.DB.C` returns a `Coll` whose every write refuses while frozen (`guard.go`: marker watched by
-  `WatchMoves` from `OpenWith`, trusted `MoveLookTrusted`; only the marker and `WriteThroughFreeze` pass), `dispatch`
-  refuses mutating ops up front (`refuseWhileMoving`, `E_MOVING` reason database_moving|database_moved; the move's own
-  ops exempt) and `Admit`s the rest (counted, published in the marker's `busy`; the move waits for them), every
+  it — `store.DB.C` returns a `Coll` whose every write refuses while frozen (`guard.go`: every connection looks at the
+  marker, trusted `MoveLookTrusted`, fail closed when unreadable during a move; a running change's pass — `Admit`,
+  `WriteThroughFreeze` — writes only after `listPassage` lists it in `busy`, never once `copying` (`MoveCopying`, set
+  only while nothing is listed) or moved, never after the change ended), `dispatch` refuses mutating ops up front
+  (`refuseWhileMoving`, `E_MOVING` reason database_moving|database_moved; the move's own ops exempt) and `Admit`s the
+  rest (counted, published in the marker's `busy`; the move waits for them), job leases end by `$$NOW` + `LeaseDuration`, every
   time compared across computers is the server's (`$currentDate`, `$$NOW`: `MoveAlive`, `SeenWithin`,
   `LiveLease`), `app.Held` keeps audit/TouchInstallation out and the log in the spool
   (`logbook.Options.Hold`), `Migrate` refuses, daemons `watchForMove` and restart into `serveHeld` (`api.NewHeld`,

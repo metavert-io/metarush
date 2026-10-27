@@ -56,9 +56,10 @@ It changes nothing (it doesn't even set the database on this computer up) and sa
   do: nothing is written to find out);
 - clients' **What may leave** rules that keep their words, voices or faces from it;
 - every computer whose MetaRush doesn't know about moves — older than the first release that does, not saying which it
-  runs, or invited and not joined yet — **even when it's off**: started after the move, it would go on changing the old
-  database. Update MetaRush there and open it once, or remove that computer from the workspace (`metarush machine
-  revoke "<name>"`), first;
+  runs, invited and not joined yet, or seen in the activity log running an older MetaRush after a newer one — **even
+  when it's off**: started after the move, it would go on changing the old database. Update MetaRush there and open it
+  once, or remove that computer from the workspace (`metarush machine revoke "<name>"`), first. (Every MetaRush
+  process records the build it runs before its first change, daemon or not);
 - that the old database is kept, and how you remove it later yourself.
 
 The database on this computer is refused while other computers use the workspace — they couldn't reach it — unless you
@@ -74,7 +75,9 @@ metarush database move --to saved --name studio      # a person at a terminal; a
    plainly: *"The workspace is being moved to another database; changes wait until it's done."* (`E_MOVING`, reason
    `database_moving`). It isn't only the commands: the database connection of every MetaRush process refuses every
    write while the marker is there (it looks at the marker about every second), so nothing that writes by itself slips
-   through. Changes that were already running finish first; the move waits for them. MetaRush running in the background on each computer starts again **holding**: the dashboard
+   through, and when the marker can't be read during a move nothing changes. Changes that were already running finish
+   first: each says so in the marker before it writes, the move waits for them, and once the copy starts none of them
+   writes again (a laptop that slept through the wait and wakes up is refused). MetaRush running in the background on each computer starts again **holding**: the dashboard
    reads and plays as usual, every page says changes wait, nothing works in the background (renders, transcripts,
    Recipes, review links…), work that was running stops and is handed back to run again later, and the activity log
    waits on that computer until it can be written where the workspace is. Each computer says in the marker that it
@@ -172,17 +175,24 @@ Every command takes `--json` and `--details`. The operations are `database.plan`
   before marking). `LeftOut` says what stays behind.
 - `internal/store/movemarker.go` — the old database's marker (`database_move`): `moving`, `moved`, `abandoned`;
   `Holding`, `Switched` and `busy` (changes running) per computer; every time in it is the server's (`$currentDate`,
-  compared with `$$NOW`). `Migrate` refuses a frozen database.
+  compared with `$$NOW`), and `copying` once the move stopped waiting (`MoveCopying`, set in one step only while no
+  running change is listed). `Migrate` refuses a frozen database.
 - `internal/store/guard.go` — the freeze in the database connection itself: `DB.C` returns a `Coll` whose writes check
-  the marker (looked at by a watcher `app.OpenWith` starts, trusted for `MoveLookTrusted`); `Admit` counts the changes
-  running and publishes them in the marker; only the move's own marker writes and a released job lease pass.
+  the marker (`MoveMarkerForChange`: a look at most `MoveLookTrusted` old, every connection, watched or not; unreadable →
+  refused unless a recent look showed no move); `Admit` gives a running change a pass that ends with it (work detached
+  from it gets none) and counts it; a pass writes during a move only after `listPassage` listed its process in `busy`,
+  in one step refused once `copying`; never once moved. `OnFirstWrite` runs `app.sayBuild` before a connection's first
+  write.
+- `internal/jobs/queue.go` — leases end by the server's time (`$$NOW` + `LeaseDuration` in pipeline updates, compared
+  with `$$NOW`), so `store.LiveLease` agrees whichever computer wrote them.
 - `internal/ops/databasemove.go`, `databasemove_state.go` — the operations, the freeze check in `dispatch`
   (`refuseWhileMoving`, exempting the move's own), the address kept for the move, the switch of this computer's
   settings, each move's record (`<state>/database-move/<id>.json`) and the dashboard's one-time grant.
 - `internal/app` — `MoveMarker` and `Held` (from the connection's look at the marker): a held process writes no audit,
   touches no installation and its activity log waits in the spool (`logbook.Options.Hold`, asked at every write). Each
-  installation's record says its build knows about moves (`knowsMoves`, `MovesMark`); the plan compares the others with
-  `ops.FirstMoveVersion`.
+  installation's record says its build knows about moves (`knowsMoves`, `MovesMark`, written by every process before
+  its first write); the plan compares the others with `ops.FirstMoveVersion` and reads the activity log for an older
+  build after the record's (`olderBuildLogged`).
 - `internal/cli/daemon.go` — `watchForMove` and `serveHeld` (`api.NewHeld`: reads only, `heldGuard` refuses other
   changes); the terminal worker stops.
 - Tests: `go test ./internal/dbmove/ ./internal/ops/ -run 'TestDatabaseMove|TestCopy'`, `./internal/cli -run

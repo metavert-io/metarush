@@ -39,12 +39,12 @@ jobs:
           SUITE: ${{ matrix.suite }}
         run: |
           if [ -z "$SUITES" ] || [[ " $SUITES " == *" $SUITE "* ]]; then echo "run=1" >> "$GITHUB_OUTPUT"; fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: steps.chosen.outputs.run
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         if: steps.chosen.outputs.run
         with: { go-version: "1.27" }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: steps.chosen.outputs.run
         with: { node-version: 22 }
       - name: ffmpeg, and where the run keeps its files
@@ -75,7 +75,7 @@ jobs:
         run: scripts/coverage.sh --no-check || true
       - name: coverage to Codecov (Go)
         if: always() && steps.chosen.outputs.run && hashFiles('.coverage/go-e2e.cov') != ''
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           use_oidc: true
           files: .coverage/go-e2e.cov
@@ -85,7 +85,7 @@ jobs:
           fail_ci_if_error: false
       - name: coverage to Codecov (the dashboard's pages)
         if: always() && steps.chosen.outputs.run && hashFiles('.coverage/web-e2e.lcov') != ''
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
         with:
           use_oidc: true
           files: .coverage/web-e2e.lcov
@@ -95,7 +95,7 @@ jobs:
           fail_ci_if_error: false
       - name: what a failed run left (homes, logs, screenshots)
         if: failure() && steps.chosen.outputs.run
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: browser-${{ matrix.suite }}
           path: |

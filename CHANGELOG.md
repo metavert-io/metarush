@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- **A screen recording's picture reaches MetaRush while you record**. In Chrome and Edge the screen and the camera
+  were held back in the browser, sometimes until you stopped, so a tab that closed mid-recording could lose all of
+  its picture and keep only your voice. Each two-second piece of picture is now sent within about half a second of
+  its end, like the voice, and a closed tab loses only the piece it was recording.
 - **Videos render on Linux computers without a graphics card**. Review copies there are encoded in software and
   drawn with Chrome's software renderer; they used to fail on Linux machines without an NVIDIA GPU (macOS is
   unchanged).

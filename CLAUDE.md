@@ -230,7 +230,9 @@ Read `docs/architecture.md` before structural changes.
 - **Screen recordings made in the dashboard** (D258–D262, `internal/recorder`, `internal/api/recordings.go`,
   `web/src/screens/Record.tsx`, `web/src/screens/record/`, docs/recordings.md): the browser records the screen
   (`getDisplayMedia`, this tab never offered), camera and microphone as separate files (MP4/WebM in 2 s pieces with a
-  keyframe each; the voice 16-bit from D63's tap) and sends each piece at once to `PATCH /api/recordings/{id}/tracks/{t}`
+  keyframe each — Chromium's MP4 recorder writes a piece only at the keyframe ending it and holds a write made right
+  after another, so it gets a 1 s timeslice and `requestData()` every 0.5 s, `formats.ts` `pacing`, D342; the voice
+  16-bit from D63's tap) and sends each piece at once to `PATCH /api/recordings/{id}/tracks/{t}`
   at the host's offset (`HEAD`), kept in IndexedDB until the host has it; pieces wait in `<home>/state/recordings/<id>/`
   on the receiving installation (`recordings`, `rcd_…`, migration 47) until `recording.finish` makes footage (WAV,
   ffmpeg remux, ingest; detached from the request; claimed once with a renewed lease that a later finish, discard or
@@ -243,7 +245,8 @@ Read `docs/architecture.md` before structural changes.
   `conversation.LayoutCut` (one pip/side-by-side/member shot). Teleprompter: `prompter.ts` schedule on the recording
   clock, optional document PiP window. Opening a camera/microphone has a 9 s deadline (`web/src/lib/deadline.ts`,
   shared with the narration recorder). Tests: `internal/recorder`, `web/scripts/recorder-test.mjs`,
-  `scripts/recorder-e2e.sh` (ports 5480–5489; fake devices asked for by ID, a canvas screen).
+  `scripts/recorder-e2e.sh` (ports 5480–5489; fake devices asked for by ID, a canvas screen; pieces of every track
+  must reach the host while recording, a picture piece at least every 3.5 s, before the tab is closed).
 - **Conversations from online calls** (D99–D103, `internal/conversation`, `internal/editspec/conv_*.go`,
   docs/conversations.md): a conversation is a record (`conversations`, `cnv_…`) plus a pin in the cut
   (`spec.conversations`) and clips with source `conv:<name>` and `shots` — footage to the engine (`wrapFacts`), the

@@ -53,7 +53,9 @@ a whole-screen recording would show it.
 
 The browser records each source into its own file: the screen and the camera in two-second pieces (H.264 and AAC in
 MP4 where the browser can, else VP9 or VP8 and Opus in WebM), the voice as plain 16-bit samples (like narration
-takes). Every piece is kept in the browser's storage until MetaRush has it, and sent at once:
+takes). Each piece of picture starts with a keyframe, so it plays from its own start, and is sent as soon as it ends
+(in Chrome and Edge, within about half a second): a tab that closes mid-recording loses only the piece it was
+recording. Every piece is kept in the browser's storage until MetaRush has it, and sent at once:
 
 | | |
 |---|---|
@@ -154,6 +156,9 @@ Recording itself happens only in a browser.
   cuts) and `internal/api` (`TestRecordingPiecesOverHTTP`).
 - The dashboard: `web/scripts/recorder-test.mjs` (in `npm test -w web`): the clock (the microphone's start and drift,
   the samples a pause drops), the piece queue (cut-off pieces, dropped connections, a reload, refusals), the
-  teleprompter's lines, the file format chosen and the device deadline.
+  teleprompter's lines, the file format chosen, how often each recorder hands its pieces over and the device
+  deadline.
 - The browser run: `scripts/recorder-e2e.sh` (ports 5480–5489), Chromium's fake camera and microphone (asked for by
-  device ID) and a fake window.
+  device ID) and a fake window. Before it closes a tab mid-recording it waits until pieces of every track have
+  reached MetaRush (a piece of picture at least every 3.5 s), then checks that what's kept plays to its end and
+  lacks only about the last piece.

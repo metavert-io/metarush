@@ -60,7 +60,7 @@ jobs:
           # A Remotion refresh runs in bubblewrap (D174); Ubuntu's AppArmor stops unprivileged user namespaces
           # unless this is off, and MetaRush then refuses to plan one (remotion-e2e's refresh steps).
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
-          # The runs' temp folder outside the home folder (RUNNER_TEMP is inside /home/runner): an ability's
+          # The runs' temp folder outside the home folder (RUNNER_TEMP is inside the runner's home): an ability's
           # sandbox hides the home and refuses a room inside it, as on any computer.
           mkdir -p /tmp/e2e "$RUNNER_TEMP/e2e-runs"
           echo "TMPDIR=/tmp/e2e/" >> "$GITHUB_ENV"

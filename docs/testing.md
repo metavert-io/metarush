@@ -52,11 +52,11 @@ once (default 2: three other builds may share the machine and the test mongod).
 
 | Run | Linux (CI `browser`) | Why not on Linux |
 |---|---|---|
-| about, accounts, content, keep, playback, recipes, recorder, remotion, windows | yes | — (their footage is made with ffmpeg in the run; recipes talks only to the fake ElevenLabs and Gemini; recorder uses Chromium's fake camera and microphone and a canvas for the screen; windows plays a Windows browser in Chromium, and in Edge where it is installed) |
+| about, abilities, accounts, catalogue, components, content, keep, playback, recipes, recorder, remotion, review-desk, windows | yes | — (their footage is made with ffmpeg in the run; recipes talks only to the fake ElevenLabs and Gemini; recorder uses Chromium's fake camera and microphone and a canvas for the screen; windows plays a Windows browser in Chromium, and in Edge where it is installed; abilities and catalogue run their abilities in bubblewrap, which the browser job installs and lets make its sandbox, with the runs' temp folder outside the home folder, which a sandbox hides) |
 | cards, delivery, generate, library, people, resources, sources, storage, transcript, voiceover, voiceover-live, acceptance | Mac only | they need `tests/fixtures/gen`, which `scripts/make-fixtures.sh` makes with macOS `say` (speech with known words) |
 | sound | Mac only | its fixtures are made with `say` too (`scripts/make-sound-fixtures.sh`) |
 | remote | Mac only | its check of spoofed Tailscale headers sends from `fe80::1%lo0` (`lo0` is macOS's name for loopback) |
-| abilities, catalogue | Mac only (for now) | they check an ability in the sandbox; on Linux that needs bubblewrap allowed to make its own sandbox (docs/abilities.md), which the CI runner gets only in the `sandbox-linux` job |
+| presenters | Mac only | a presenter reads only sound MetaRush has listened to (nobody's voice in it, or voices a person named), which needs a recognizer on the computer (the transcription component); GitHub's runner has none, so the narration's transcription never runs and the run waits for it |
 | install | Mac only (for now) | it serves a stand-in for MongoDB's download made from a copy of a real `mongod` (a local `mongod`, or `METARUSH_TEST_MONGOD`); CI runs MongoDB in a container, with no `mongod` to copy |
 
 The nightly runs keep the Linux list honest: a run that fails there for a Linux reason moves to the Mac list here

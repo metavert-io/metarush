@@ -697,7 +697,7 @@ func DatabaseMoveStatus(ctx context.Context, a *app.App, _ *DatabaseMoveStatusIn
 		started := m.StartedAt
 		out.StartedAt, out.MovedAt = &started, m.MovedAt
 		out.Paused = pausedNames(ctx, a, m)
-		out.Running = moveAlive(m)
+		out.Running = moveAlive(ctx, a, m)
 	}
 	for _, r := range dbMoves(a) {
 		if r.State == DBMovePlanned {

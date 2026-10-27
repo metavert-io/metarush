@@ -228,8 +228,10 @@ func (a *App) TouchInstallation(ctx context.Context) {
 		return
 	}
 	b := version.Current()
+	// lastSeenAt is the database server's time: other computers compare it
+	// with theirs (a move waits for every computer running now, D335).
 	_ = a.DB.Update(ctx, store.CInstallations, a.WorkspaceID(), a.Cfg.Installation.ID, map[string]any{"$set": map[string]any{
-		"lastSeenAt": time.Now().UTC(), "version": b.Version, "commit": b.Commit, "built": b.Date}})
+		"version": b.Version, "commit": b.Commit, "built": b.Date}, "$currentDate": map[string]any{"lastSeenAt": true}})
 }
 
 // Hostname returns a friendly machine name.

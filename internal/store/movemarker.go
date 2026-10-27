@@ -31,6 +31,9 @@ const (
 
 const moveMarkerID = "move"
 
+// Clock is this computer's clock (tests make it run slow or fast).
+var Clock = time.Now
+
 // MoveTarget is where a move takes the workspace, in words and without any
 // sign-in.
 type MoveTarget struct {
@@ -113,7 +116,7 @@ var ErrMoveUnderway = errors.New("another move of this database is underway or f
 // database has none, or one a person abandoned (an older move's). A marker of
 // this very move (a move run again to continue it) is left as it is.
 func (d *DB) StartMoveMarker(ctx context.Context, m MoveMarker) error {
-	now := time.Now().UTC()
+	now := Clock().UTC() // replaced by the server's time below
 	m.ID, m.State, m.UpdatedAt = moveMarkerID, MoveMoving, now
 	if m.StartedAt.IsZero() {
 		m.StartedAt = now
@@ -145,21 +148,25 @@ func (d *DB) StartMoveMarker(ctx context.Context, m MoveMarker) error {
 	if res.MatchedCount == 0 && res.UpsertedCount == 0 {
 		return ErrMoveUnderway
 	}
-	return nil
+	// The database server's time, never this computer's: every time in the
+	// marker is compared with others written on other computers.
+	_, err = d.C(CDatabaseMove).UpdateOne(ctx, bson.M{"_id": moveMarkerID, "move": m.Move},
+		bson.M{"$currentDate": bson.M{"startedAt": true, "updatedAt": true}})
+	return err
 }
 
 // SetMoveState moves a move's marker from one state to another, only while
 // it is that move's and in that state. It reports whether it did.
 func (d *DB) SetMoveState(ctx context.Context, move, from, to, by string) (bool, error) {
-	now := time.Now().UTC()
-	set := bson.M{"state": to, "updatedAt": now}
+	set := bson.M{"state": to}
+	when := bson.M{"updatedAt": true}
 	switch to {
 	case MoveMoved:
-		set["movedAt"] = now
+		when["movedAt"] = true
 	case MoveAbandoned:
-		set["abandonedAt"], set["abandonedBy"] = now, by
+		when["abandonedAt"], set["abandonedBy"] = true, by
 	}
-	res, err := d.C(CDatabaseMove).UpdateOne(ctx, bson.M{"_id": moveMarkerID, "move": move, "state": from}, bson.M{"$set": set})
+	res, err := d.C(CDatabaseMove).UpdateOne(ctx, bson.M{"_id": moveMarkerID, "move": move, "state": from}, bson.M{"$set": set, "$currentDate": when})
 	if err != nil {
 		return false, err
 	}
@@ -170,22 +177,42 @@ func (d *DB) SetMoveState(ctx context.Context, move, from, to, by string) (bool,
 // computer doesn't abandon a move that is running.
 func (d *DB) MoveBeat(ctx context.Context, move string) error {
 	_, err := d.C(CDatabaseMove).UpdateOne(ctx, bson.M{"_id": moveMarkerID, "move": move, "state": MoveMoving},
-		bson.M{"$set": bson.M{"updatedAt": time.Now().UTC()}})
+		bson.M{"$currentDate": bson.M{"updatedAt": true}})
 	return err
+}
+
+// MoveAlive reports whether a move's marker said it runs within the last
+// while, by the database server's own clock.
+func (d *DB) MoveAlive(ctx context.Context, move string, within time.Duration) (bool, error) {
+	n, err := d.C(CDatabaseMove).CountDocuments(ctx, bson.M{"_id": moveMarkerID, "move": move, "state": MoveMoving,
+		"$expr": bson.M{"$gt": bson.A{"$updatedAt", bson.M{"$subtract": bson.A{"$$NOW", within.Milliseconds()}}}}})
+	return n > 0, err
+}
+
+// SeenWithin is a filter for records whose field is within the last while
+// by the database server's own clock (computers' clocks differ).
+func SeenWithin(field string, within time.Duration) bson.M {
+	return bson.M{"$expr": bson.M{"$gte": bson.A{"$" + field, bson.M{"$subtract": bson.A{"$$NOW", within.Milliseconds()}}}}}
+}
+
+// LiveLease is a filter for jobs whose lease hasn't ended by the database
+// server's clock.
+func LiveLease() bson.M {
+	return bson.M{"$expr": bson.M{"$gt": bson.A{"$lease.expiresAt", "$$NOW"}}}
 }
 
 // MoveHolding records that a computer's MetaRush paused its changes for the
 // move (written only into the marker, which no move copies).
 func (d *DB) MoveHolding(ctx context.Context, move, installation string) error {
 	_, err := d.C(CDatabaseMove).UpdateOne(ctx, bson.M{"_id": moveMarkerID, "move": move},
-		bson.M{"$set": bson.M{"holding." + installation: time.Now().UTC()}})
+		bson.M{"$currentDate": bson.M{"holding." + installation: true}})
 	return err
 }
 
 // MoveSwitched records that a computer switched to the new database.
 func (d *DB) MoveSwitched(ctx context.Context, move, installation string) error {
 	_, err := d.C(CDatabaseMove).UpdateOne(ctx, bson.M{"_id": moveMarkerID, "move": move},
-		bson.M{"$set": bson.M{"switched." + installation: time.Now().UTC()}})
+		bson.M{"$currentDate": bson.M{"switched." + installation: true}})
 	return err
 }
 

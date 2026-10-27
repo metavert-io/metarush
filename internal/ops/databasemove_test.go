@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -822,5 +823,59 @@ func TestDatabasePlanWaitsForAMediaMove(t *testing.T) {
 	}
 	if plan.Ready || !strings.Contains(strings.Join(plan.Problems, " "), "The media is being moved on Edit laptop") {
 		t.Fatalf("plan during a media move: %+v", plan.Problems)
+	}
+}
+
+// skewed runs f with this computer's clock off by d (a computer whose clock
+// is wrong).
+func skewed(d time.Duration, f func()) {
+	old := store.Clock
+	store.Clock = func() time.Time { return old().Add(d) }
+	defer func() { store.Clock = old }()
+	f()
+}
+
+// Computers' clocks differ; the move goes by the database server's time: a
+// laptop whose clock is ten minutes slow counts as running and as paused, and
+// one whose clock is a minute fast can't abandon a move that runs.
+func TestDatabaseMoveGoesByTheServersTime(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a, b := w.a, w.b
+	ctx := context.Background()
+	skewed(-10*time.Minute, func() { b.TouchInstallation(ctx) })
+	if err := ops.SaveMoveAddress(a.Cfg, testutil.URI()); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := ops.CallTyped[ops.DatabasePlanOut](ctx, a, "database.plan", ops.DatabasePlanIn{DatabaseTargetIn: ops.DatabaseTargetIn{To: ops.MoveToSaved, Name: store.TestDBPrefix + "never-made"}}, ops.Caller{Human: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	running := false
+	for _, c := range plan.Computers {
+		if c.Name == "Edit laptop" {
+			running = c.Running
+		}
+	}
+	if !running {
+		t.Fatal("a laptop with a slow clock that just ran MetaRush doesn't count as running")
+	}
+	m := freezeFor(t, a)
+	skewed(-10*time.Minute, func() {
+		if _, err := ops.HoldForMove(ctx, b); err != nil {
+			t.Fatal(err)
+		}
+	})
+	st, err := ops.CallTyped[ops.DatabaseMoveStatusOut](ctx, a, "database.move.status", ops.DatabaseMoveStatusIn{}, ops.Caller{})
+	if err != nil || !slices.Contains(st.Paused, "Edit laptop") {
+		t.Fatalf("a laptop with a slow clock paused but doesn't count: %+v %v", st, err)
+	}
+	if err := a.DB.MoveBeat(ctx, m.Move); err != nil {
+		t.Fatal(err)
+	}
+	skewed(time.Minute, func() {
+		_, err = ops.CallTyped[ops.DatabaseAbandonOut](ctx, b, "database.abandon", ops.DatabaseAbandonIn{}, ops.Caller{Human: true})
+	})
+	if c, r := codeAndReason(err); c != apperr.Conflict || r != "move_running" {
+		t.Fatalf("a laptop with a fast clock abandoned a running move: %v", err)
 	}
 }

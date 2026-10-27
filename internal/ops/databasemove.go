@@ -704,12 +704,12 @@ func countWords(n int64, noun string) string {
 func workspaceComputers(ctx context.Context, a *app.App) []DatabaseComputer {
 	insts := installationsOf(ctx, a)
 	here := version.Current().Version
-	now := time.Now()
+	running := runningInstallations(ctx, a)
 	out := []DatabaseComputer{}
 	seenThis := false
 	for _, in := range insts {
 		c := DatabaseComputer{Name: firstNonEmpty(in.Name, in.Hostname, in.ID), This: in.ID == a.Cfg.Installation.ID, Version: in.Version,
-			Running: !in.LastSeenAt.IsZero() && now.Sub(in.LastSeenAt) < RunningWithin}
+			Running: running[in.ID]}
 		if cmp, ok := version.Compare(in.Version, here); ok && in.Version != "" {
 			c.Older = cmp < 0
 		}
@@ -960,9 +960,14 @@ var (
 	MoveAliveFor  = 45 * time.Second
 )
 
-// moveAlive reports whether a move's marker says it still runs.
-func moveAlive(m *store.MoveMarker) bool {
-	return m != nil && m.State == store.MoveMoving && time.Since(m.UpdatedAt) < MoveAliveFor
+// moveAlive reports whether a move's marker says it still runs (by the
+// database server's clock).
+func moveAlive(ctx context.Context, a *app.App, m *store.MoveMarker) bool {
+	if m == nil || m.State != store.MoveMoving {
+		return false
+	}
+	alive, err := a.DB.MoveAlive(ctx, m.Move, MoveAliveFor)
+	return err != nil || alive // unknown: as running (never abandoned on a guess)
 }
 
 // switchFails, set by tests, makes a move's own switch fail after the old
@@ -1100,14 +1105,30 @@ func runningChanges(ctx context.Context, a *app.App, m *store.MoveMarker) []stri
 	return out
 }
 
-// notPaused names the computers running MetaRush that didn't pause for the
-// move yet (this one only when MetaRush runs here in the background).
-func notPaused(ctx context.Context, a *app.App, m *store.MoveMarker) []string {
+// runningInstallations are the computers that ran MetaRush within
+// RunningWithin, by the database server's clock.
+func runningInstallations(ctx context.Context, a *app.App) map[string]bool {
+	f := store.SeenWithin("lastSeenAt", RunningWithin)
+	f["state"] = bson.M{"$ne": models.InstallationRevoked}
 	var insts []models.Installation
-	_ = a.DB.Find(ctx, store.CInstallations, a.WorkspaceID(), bson.M{"state": bson.M{"$ne": models.InstallationRevoked},
-		"lastSeenAt": bson.M{"$gte": time.Now().UTC().Add(-RunningWithin)}}, &insts)
-	out := []string{}
+	_ = a.DB.Find(ctx, store.CInstallations, a.WorkspaceID(), f, &insts)
+	out := map[string]bool{}
 	for _, in := range insts {
+		out[in.ID] = true
+	}
+	return out
+}
+
+// notPaused names the computers running MetaRush that didn't pause for the
+// move yet (this one only when MetaRush runs here in the background); the
+// marker's times are all the database server's.
+func notPaused(ctx context.Context, a *app.App, m *store.MoveMarker) []string {
+	running := runningInstallations(ctx, a)
+	out := []string{}
+	for _, in := range installationsOf(ctx, a) {
+		if !running[in.ID] {
+			continue
+		}
 		if in.ID == a.Cfg.Installation.ID && !daemonRunsHere(a) {
 			continue
 		}
@@ -1127,8 +1148,9 @@ func mediaMoveRunning(ctx context.Context, a *app.App) string {
 		return a.Cfg.MachineName()
 	}
 	var js []models.Job
-	_ = a.DB.Find(ctx, store.CJobs, a.WorkspaceID(), bson.M{"type": jobs.TypeStorageMove, "state": models.JobRunning,
-		"lease.expiresAt": bson.M{"$gt": time.Now().UTC()}}, &js)
+	f := store.LiveLease()
+	f["type"], f["state"] = jobs.TypeStorageMove, models.JobRunning
+	_ = a.DB.Find(ctx, store.CJobs, a.WorkspaceID(), f, &js)
 	for _, j := range js {
 		if j.Lease != nil {
 			return firstNonEmpty(j.Lease.OwnerName, j.Lease.Owner, "another computer")
@@ -1140,7 +1162,9 @@ func mediaMoveRunning(ctx context.Context, a *app.App) string {
 // busyComputers names the computers with work running (a live lease).
 func busyComputers(ctx context.Context, a *app.App) []string {
 	var js []models.Job
-	_ = a.DB.Find(ctx, store.CJobs, a.WorkspaceID(), bson.M{"state": models.JobRunning, "lease.expiresAt": bson.M{"$gt": time.Now().UTC()}}, &js)
+	f := store.LiveLease()
+	f["state"] = models.JobRunning
+	_ = a.DB.Find(ctx, store.CJobs, a.WorkspaceID(), f, &js)
 	seen := map[string]bool{}
 	out := []string{}
 	for _, j := range js {
@@ -1329,7 +1353,7 @@ func DatabaseAbandon(ctx context.Context, a *app.App, _ *DatabaseAbandonIn) (*Da
 	if moveRunsHere(a, m.Move) {
 		return nil, apperr.New(apperr.Conflict, "The move is still running on this computer.").WithHint("Stop it first (Ctrl-C in its terminal), or wait for it to finish.")
 	}
-	if m.From != a.Cfg.Installation.ID && moveAlive(m) {
+	if m.From != a.Cfg.Installation.ID && moveAlive(ctx, a, m) {
 		return nil, apperr.New(apperr.Conflict, "The move is still running on %s.", firstNonEmpty(m.FromName, "another computer")).
 			WithHint("Stop it there first, or wait for it to finish; once it has stopped it can be abandoned from any computer.").
 			WithDetails(map[string]any{"reason": "move_running"})

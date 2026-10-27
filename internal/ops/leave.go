@@ -24,6 +24,12 @@ var LeaveCheck func(ctx context.Context, a *app.App, place, to, toWords string, 
 // while a client's rules keep their things from it.
 var LeaveStorage func(ctx context.Context, a *app.App, to config.Media) error
 
+// LeaveDatabase refuses moving the workspace's database to one that is
+// cloud storage while a client's rules keep their words from it (D337): a
+// database elsewhere on the internet keeps transcripts, names and notes.
+// quiet: a plan, which lists the refusal without recording it.
+var LeaveDatabase func(ctx context.Context, a *app.App, to config.Database, quiet bool) error
+
 // MayLeave asks LeaveCheck (allowed when nothing set it).
 func MayLeave(ctx context.Context, a *app.App, place, to, toWords string, kinds, projects []string, what string) error {
 	if LeaveCheck == nil {

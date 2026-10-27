@@ -173,6 +173,11 @@ func dispatch(ctx context.Context, a *app.App, name string, op *Op, ok bool, raw
 				WithDetails(map[string]any{"op": name, "problem": err.Error()})
 		}
 	}
+	// A move of the database keeps changes out of it (D335): while it is
+	// being copied, and for good once it moved.
+	if err := refuseWhileMoving(ctx, a, op); err != nil {
+		return nil, err
+	}
 	if AIReads != nil && !op.Mutating { // What may leave: what an AI reads (D290)
 		if err := AIReads(ctx, a, name, in); err != nil {
 			return nil, err

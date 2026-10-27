@@ -44,10 +44,10 @@ type ExportOptions struct {
 	// Here is the computer (installation) the export runs on when it is that
 	// computer's own MetaRush making it (the dashboard): not named among the
 	// computers working while the archive is made.
-	Here string
-	MadeBy               ArchiveMadeBy
-	Progress             func(ArchiveProgress)
-	Now                  func() time.Time
+	Here     string
+	MadeBy   ArchiveMadeBy
+	Progress func(ArchiveProgress)
+	Now      func() time.Time
 }
 
 // ArchiveProgress is how far an export or a restore is.

@@ -587,9 +587,9 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 	out.Ready = len(out.Problems) == 0
 	switch {
 	case out.Ready && out.Resume:
-		out.Summary = fmt.Sprintf("Moving would continue copying the workspace's database to %s (%s, %s), check it and switch this computer.", t.place.Words, countWords(out.Documents, "record"), humanBytes(out.Bytes))
+		out.Summary = fmt.Sprintf("Moving would go on copying the workspace's database, %s (%s), to %s, check it and switch this computer.", countWords(out.Documents, "record"), humanBytes(out.Bytes), t.place.Words)
 	case out.Ready:
-		out.Summary = fmt.Sprintf("Moving would copy the workspace's database to %s (%s, %s) in %s, check it and switch this computer.", t.place.Words, countWords(out.Documents, "record"), humanBytes(out.Bytes), out.Takes)
+		out.Summary = fmt.Sprintf("Moving would copy the workspace's database, %s (%s), to %s in %s, check it and switch this computer.", countWords(out.Documents, "record"), humanBytes(out.Bytes), t.place.Words, out.Takes)
 	default:
 		out.Summary = "The database can't be moved to " + t.place.Words + " yet: " + lowerFirst(strings.TrimSuffix(out.Problems[0], "."))
 		if len(out.Problems) > 1 {
@@ -880,8 +880,8 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 		}
 	}
 	out.Seconds = time.Since(started).Seconds()
-	out.Summary = fmt.Sprintf("Moved the workspace's database to %s (%s), every record checked. This computer uses it now; the old database is kept, marked as moved, and nothing was deleted.",
-		t.place.Words, countWords(res.Documents, "record"))
+	out.Summary = fmt.Sprintf("Moved the workspace's database, %s, to %s, every record checked. This computer uses it now; the old database is kept, marked as moved, and nothing was deleted.",
+		countWords(res.Documents, "record"), t.place.Words)
 	if len(out.Others) > 0 {
 		if t.place.Reach == "this-computer" {
 			out.Next = append(out.Next, fmt.Sprintf("Your other computers (%s) can't reach the new database, so they keep refusing changes: this computer is the only one using the workspace now.", joinAnd(out.Others)))

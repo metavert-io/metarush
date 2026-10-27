@@ -56,7 +56,7 @@ once (default 2: three other builds may share the machine and the test mongod).
 | cards, delivery, generate, library, people, resources, sources, storage, transcript, voiceover, voiceover-live, acceptance | Mac only | they need `tests/fixtures/gen`, which `scripts/make-fixtures.sh` makes with macOS `say` (speech with known words) |
 | sound | Mac only | its fixtures are made with `say` too (`scripts/make-sound-fixtures.sh`) |
 | remote | Mac only | its check of spoofed Tailscale headers sends from `fe80::1%lo0` (`lo0` is macOS's name for loopback) |
-| presenters | Mac only | a presenter reads only sound MetaRush has listened to (nobody's voice in it, or voices a person named), which needs a recognizer on the computer (the transcription component); GitHub's runner has none, so the narration's transcription never runs and the run waits for it |
+| presenters | Mac only | a presenter reads only sound MetaRush has listened to (nobody's voice in it, or voices a person named), which needs a recognizer on the computer (the transcription component); GitHub's runner has none, so the narration is never transcribed (`ingest --wait` no longer hangs there: it ends at once saying the transcripts wait for that component) and the presenter steps are refused |
 | install | Mac only (for now) | it serves a stand-in for MongoDB's download made from a copy of a real `mongod` (a local `mongod`, or `METARUSH_TEST_MONGOD`); CI runs MongoDB in a container, with no `mongod` to copy |
 
 The nightly runs keep the Linux list honest: a run that fails there for a Linux reason moves to the Mac list here

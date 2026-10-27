@@ -592,6 +592,11 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 			out.Problems = append(out.Problems, "MongoDB makes no server for this computer, so MetaRush can't keep the database here.")
 		} else if _, have := t.local.ReadState(); !have {
 			out.Notes = append(out.Notes, fmt.Sprintf("MetaRush first sets up the database on this computer: it downloads MongoDB from MongoDB's own server (about %d MB) and keeps it in MetaRush's folder, the way setup does.", t.local.DownloadMB()))
+			if note := t.local.KernelNote(); note != "" {
+				out.Notes = append(out.Notes, note) // MongoDB 7.0 on a kernel MongoDB 8 refuses (D339)
+			}
+		} else if why := t.local.CantStart(); why != "" {
+			out.Problems = append(out.Problems, why)
 		}
 		if w := t.local.PlaceWarning(); w != "" {
 			out.Notes = append(out.Notes, w)

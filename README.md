@@ -185,7 +185,8 @@ See [docs/architecture.md](docs/architecture.md).
 `metarush setup` asks a few questions with suggested answers and sets up:
 - storage (a folder on this computer);
 - a database on this computer: MongoDB's free server, downloaded from MongoDB and looked after by MetaRush (started
-  when needed, kept running, upgraded only when you ask: `metarush database`);
+  when needed, kept running, upgraded only when you ask: `metarush database`); MongoDB 8.0, or 7.0 on the Linux
+  kernels MongoDB 8 refuses (6.19 through 7.0.13; setup says so first, and the upgrade to 8.0 waits for the kernel);
 - the dashboard, the background service and Claude Code's skills.
 
 Every answer is also a flag and `--json` prints the result. It says whether Claude Code is installed and signed in

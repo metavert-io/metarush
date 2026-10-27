@@ -26,10 +26,13 @@ type Pin struct {
 // Current is the version this build of MetaRush sets up (D254): MongoDB 8.0,
 // the release the repository's development and test databases run. The
 // archives and their SHA-256 are MongoDB's own, from its download catalogue
-// (downloads.mongodb.org/full.json, checked 2026-10-25 against the .sha256
-// file fastdl.mongodb.org publishes next to each archive). A newer pin is an
-// upgrade a person starts (`metarush database upgrade`); it never happens by
-// itself.
+// (downloads.mongodb.org/full.json, checked 2026-10-25 and again 2026-10-27
+// against the .sha256 file fastdl.mongodb.org publishes next to each archive).
+// It is the newest 8.0 (27 Oct 2026); no 8.0 runs on Linux kernels 6.19
+// through 7.0.13, which get Older instead (D339). 8.0.35, when MongoDB
+// publishes it, also starts on Ubuntu kernels that carry the fix but still
+// call themselves 7.0.0 (KernelRefuses). A newer pin is an upgrade a person
+// starts (`metarush database upgrade`); it never happens by itself.
 var Current = Pin{
 	Version: "8.0.34",
 	SizeMB:  85,
@@ -70,6 +73,56 @@ var Current = Pin{
 			SHA256: "fe918ca853000d5b48fcd3b2bc6119c72f4aab9e2b04a9a10e42923cb3aef6a4"},
 		"linux/arm64/ubuntu2404": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-ubuntu2404-8.0.34.tgz",
 			SHA256: "52655dd90adf0dbcbb87011075233285f44e262048ea30a9a48ad2a834c67736"},
+	},
+}
+
+// Older is MongoDB 7.0, which a new database on this computer gets instead of
+// Current when the computer's Linux kernel is one MongoDB 8 refuses (6.19
+// through 7.0.13, see kernel.go; D339). MetaRush needs nothing from 8.0 (its
+// tests run on 7.0 where CI's kernel refuses 8), and once the kernel lets 8.0
+// run, `metarush database upgrade` moves the database on to Current (one
+// release series, never back). MongoDB supports 7.0 until 31 August 2027.
+// MongoDB makes no 7.0 for Ubuntu 24.04 or RHEL 9.3: those computers get the
+// Ubuntu 22.04 and RHEL 9.0 builds (they need only libraries those systems
+// have: glibc, OpenSSL 3, libcurl). Archives and SHA-256 from MongoDB's
+// download catalogue (downloads.mongodb.org/full.json), checked 2026-10-27
+// against the .sha256 file fastdl.mongodb.org publishes next to each archive.
+var Older = Pin{
+	Version: "7.0.45",
+	SizeMB:  85,
+	Archives: map[string]Archive{
+		"linux/amd64/amazon2023": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-amazon2023-7.0.45.tgz",
+			SHA256: "2dcbaf1443a95744727a5c73ef6fb473cd49d1ca39bd4b75a581fe1a7dd95028"},
+		"linux/amd64/debian12": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-debian12-7.0.45.tgz",
+			SHA256: "e97e79211a7106a065d9119039ead401f32cfbbfa1681977fdeba4b4a4bf1f63"},
+		"linux/amd64/rhel10": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-rhel10-7.0.45.tgz",
+			SHA256: "8a1141175d7f7cd0bfe3f009ff18ba4e312844420330b16ef8eda90f82d31b92"},
+		"linux/amd64/rhel8": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-rhel8-7.0.45.tgz",
+			SHA256: "6c5729b53bfee1de1ad6329ce60049641a1bdebfe06b0aa8a2c1f558cec808c3"},
+		"linux/amd64/rhel93": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-rhel90-7.0.45.tgz",
+			SHA256: "975f59b27245c347d5c70d67e63652ac62a812de25c98e549754470d2817faba"},
+		"linux/amd64/suse15": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-suse15-7.0.45.tgz",
+			SHA256: "9c144e69807204c18520474b5139de0bf323758398f0163dd0849259efed6302"},
+		"linux/amd64/ubuntu2004": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2004-7.0.45.tgz",
+			SHA256: "9a9c20d284f91f12ba142b730085a97db7e86ad8d9676d71f88a0f0f005cfd2e"},
+		"linux/amd64/ubuntu2204": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2204-7.0.45.tgz",
+			SHA256: "c2eec1e4aaee967838430ac57fc7d46c22f566c718eda6033e32add80d506f8b"},
+		"linux/amd64/ubuntu2404": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2204-7.0.45.tgz",
+			SHA256: "c2eec1e4aaee967838430ac57fc7d46c22f566c718eda6033e32add80d506f8b"},
+		"linux/arm64/amazon2023": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-amazon2023-7.0.45.tgz",
+			SHA256: "5550fad541622972236c692a27996dde264036efb2be07c3e6ffd87e9e6613d9"},
+		"linux/arm64/rhel10": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-rhel10-7.0.45.tgz",
+			SHA256: "d9a0d0470ec3bf914e9e75f4c6252d7e2cc4b511d3f77c62d57f933c0747f164"},
+		"linux/arm64/rhel8": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-rhel8-7.0.45.tgz",
+			SHA256: "d7bd5f8c54cfa6a86e48ada336a30a6c3f6ae5c28f57e8276ffd04a219751062"},
+		"linux/arm64/rhel93": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-rhel90-7.0.45.tgz",
+			SHA256: "21cd7ee218515a3e929013bb5dbf0c5b9883f9553b9063ce4c8e611f8a58f386"},
+		"linux/arm64/ubuntu2004": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-ubuntu2004-7.0.45.tgz",
+			SHA256: "e3dae6e60b0ce606b0c6bc1670d7a58b1fbcfbb0a846b5e0d0119ad4aedfd742"},
+		"linux/arm64/ubuntu2204": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-ubuntu2204-7.0.45.tgz",
+			SHA256: "dfdfb314e2f6fc48fe01588d39d2b44b168fa589b5df12d354a0dbd68e71f95a"},
+		"linux/arm64/ubuntu2404": {URL: "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-ubuntu2204-7.0.45.tgz",
+			SHA256: "dfdfb314e2f6fc48fe01588d39d2b44b168fa589b5df12d354a0dbd68e71f95a"},
 	},
 }
 

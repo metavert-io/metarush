@@ -113,11 +113,17 @@ func OpenWith(ctx context.Context, cfg *config.Config, via string) (*App, error)
 			// Plain words for people; what MongoDB or the system said in Details.
 			details := map[string]any{}
 			var le *localdb.Error
-			if errors.As(err, &le) && le.Cause != nil {
-				details["problem"] = le.Cause.Error()
+			hint := "MetaRush's checkup (doctor) says more."
+			if errors.As(err, &le) {
+				if le.Cause != nil {
+					details["problem"] = le.Cause.Error()
+				}
+				if le.Next != "" {
+					hint = le.Next // what to do, when MetaRush knows (this computer's kernel, D339)
+				}
 			}
 			return nil, apperr.New(apperr.Database, "The database on this computer couldn't start: %s.", strings.TrimSuffix(err.Error(), ".")).
-				WithHint("MetaRush's checkup (doctor) says more.").WithDetails(details).WithCommand("metarush database status")
+				WithHint(hint).WithDetails(details).WithCommand("metarush database status")
 		}
 	}
 	db, err := store.Connect(ctx, cfg.Database.URI, cfg.Database.Name)

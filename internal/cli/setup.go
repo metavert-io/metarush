@@ -233,6 +233,9 @@ type setupRun struct {
 	warnings []string // plain lines that also go into the result
 	noClaude bool     // the skills were left out because Claude Code isn't installed
 	pick     componentPick
+	// kernelSaid: the interview already said that this computer's Linux
+	// kernel stops MongoDB 8 (D339).
+	kernelSaid bool
 }
 
 func (s *setupRun) say(f string, a ...any) {
@@ -550,6 +553,11 @@ func (s *setupRun) chooseDatabase() error {
 		}
 		if s.prompt && !s.changed("db-uri") {
 			s.say("\nWhere should MetaRush keep your projects?")
+			if note := srv.KernelNote(); note != "" && here {
+				// This computer's Linux kernel stops MongoDB 8 (D339): said before anything downloads.
+				s.say("  %s", note)
+				s.kernelSaid = true
+			}
 			if here {
 				s.say("  1  In a database on this computer (suggested: MetaRush downloads it from MongoDB, about %d MB, free)", srv.DownloadMB())
 				s.say("  2  In a database you already have (MongoDB Atlas, or your own server)")
@@ -687,6 +695,14 @@ func (s *setupRun) startLocalDatabase(ctx context.Context) (int, error) {
 			uri = u
 		}
 		return sec.keep(user, u)
+	}
+	// This computer's Linux kernel stops MongoDB 8 (D339): said before the
+	// download, and kept in the result for whoever reads --json.
+	if note := srv.KernelNote(); note != "" {
+		if !s.kernelSaid {
+			s.say("! %s", note)
+		}
+		s.warnings = append(s.warnings, note)
 	}
 	s.say("Setting up the database on this computer (MetaRush downloads it from MongoDB, about %d MB)…", srv.DownloadMB())
 	last := -1
@@ -983,7 +999,7 @@ func setupStatusCmd() *cobra.Command {
 // server isn't left running half set up).
 func setupDatabaseErr(c *cobra.Command, err error) error {
 	ae := apperr.From(databaseErr(err, "The database on this computer couldn't be set up"))
-	if ae.Code == apperr.Database {
+	if ae.Code == apperr.Database && !errors.Is(err, localdb.ErrKernel) {
 		ae.WithHint("Run setup again: it carries on where it stopped.").WithCommand(commandLine(c, "metarush setup"))
 	}
 	return ae

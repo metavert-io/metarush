@@ -23,7 +23,11 @@ lining up is.
    many files will be considered (non-media files are skipped by content, not extension).
 3. **Ingest.** `metarush ingest <paths…> --project <prj> [-r] --wait --json`. `--wait` makes the preview copies,
    frame grids, transcripts and the pauses and sound levels before returning (it runs a local worker if none is online — this can take a
-   while for long footage; tell the user). Originals are never modified or moved.
+   while for long footage; tell the user). Originals are never modified or moved. When some of that work needs a
+   component no computer running MetaRush has (a transcript without transcription on this computer, say), `--wait`
+   finishes the rest and ends with `E_TOOL_MISSING` (exit 6): the clips were still added (`error.details.ingest`),
+   `details.waiting` lists what waits and `details.components` what adds it. Tell the person in plain words; adding a
+   component is theirs to do (Settings → Components, or `metarush components add` in their own terminal), never yours.
 4. **Report** from the JSON, in plain words: how many clips were added, already there, resumed, skipped or failed,
    each clip's title and length, why anything was skipped or failed, and what is still being prepared. A clip that
    was already there was linked, not stored twice.

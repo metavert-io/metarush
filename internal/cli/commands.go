@@ -405,6 +405,17 @@ func ingestCmd() *cobra.Command {
 						fmt.Fprintf(os.Stderr, "Preparing %s: preview copies, transcripts and the rest…\n", plural(clips, "clip"))
 					}
 					waited, err = waitJobs(c, a, jobIDs, 0, false)
+					if we := waitingFrom(err); we != nil {
+						// The clips are in; some of their steps wait for a component no
+						// computer has (D340): what was added and made, then what waits.
+						if jsonMode(c) {
+							d := we.Details.(map[string]any)
+							d["ingest"], d["jobs"] = res, waited
+						} else {
+							printIngest(res, waited, true, details)
+						}
+						return failErr(c, we)
+					}
 					if err != nil {
 						return failErr(c, err)
 					}
@@ -2325,15 +2336,20 @@ func printIngest(res *ingest.FilesOut, waited []models.Job, didWait, details boo
 		}
 		return
 	}
-	unfinished := 0
+	unfinished, waiting := 0, 0
 	for _, j := range waited {
-		if j.State != models.JobSucceeded {
+		switch j.State {
+		case models.JobSucceeded:
+		case models.JobFailed, models.JobCanceled:
 			unfinished++
+		default:
+			waiting++ // what it waits for is said after (waitingErr)
 		}
 	}
-	if unfinished == 0 {
+	switch {
+	case unfinished == 0 && waiting == 0:
 		fmt.Println("The preview copies, transcripts and the rest are ready.")
-	} else {
+	case unfinished > 0:
 		fmt.Printf("%s didn't finish: Activity in the dashboard shows which, and can try again.\n", capitalize(plural(unfinished, "step")))
 	}
 }

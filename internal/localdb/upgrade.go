@@ -35,7 +35,18 @@ func (s *Server) PlanUpgrade() (UpgradeStep, error) {
 	}
 	if st.FeaturePending != "" {
 		// The new server runs; its data still works as the older series.
-		return UpgradeStep{From: st.Version, To: st.Version, SeriesChange: true, Finish: true}, nil
+		step := UpgradeStep{From: st.Version, To: st.Version, SeriesChange: true, Finish: true}
+		if k := s.kernel(); KernelRefuses(st.Version, k) {
+			return step, cantStart(st.Version, k)
+		}
+		return step, nil
+	}
+	// The version this MetaRush comes with, when this computer's Linux kernel
+	// keeps it from running: the database stays where it is (D339).
+	k := s.kernel()
+	if cur := s.current().Version; KernelRefuses(cur, k) && Compare(cur, st.Version) > 0 {
+		return UpgradeStep{From: st.Version, To: cur, SeriesChange: Series(st.Version) != Series(cur)},
+			upgradeWaits(st.Version, cur, k)
 	}
 	to := s.pin().Version
 	step := UpgradeStep{From: st.Version, To: to, SeriesChange: Series(st.Version) != Series(to)}
@@ -74,6 +85,11 @@ func (s *Server) Upgrade(ctx context.Context, adminURI string, progress func(don
 	if err != nil {
 		return step, err
 	}
+	// The version set up here can't start on this kernel (D339): moving to
+	// another release series needs it to check the data first.
+	if k := s.kernel(); step.SeriesChange && !step.Finish && KernelRefuses(step.From, k) {
+		return step, cantStart(step.From, k)
+	}
 	if !step.Finish {
 		if err := s.Install(ctx, progress); err != nil {
 			return step, err
@@ -91,18 +107,22 @@ func (s *Server) Upgrade(ctx context.Context, adminURI string, progress func(don
 		return step, s.finishFeatureVersionLocked(ctx, adminURI)
 	}
 	st, _ := s.ReadState()
-	if err := s.startLocked(ctx, st); err != nil {
-		return step, err
-	}
-	fcv, err := s.featureVersion(ctx, adminURI)
-	if err != nil {
-		return step, err
-	}
-	if fcv != Series(step.From) {
-		return step, plainErr("the database isn't ready to move on yet", fmt.Errorf("featureCompatibilityVersion %s, expected %s", fcv, Series(step.From)))
-	}
-	if err := s.stopLocked(ctx); err != nil {
-		return step, err
+	if !KernelRefuses(step.From, s.kernel()) {
+		// (A version this kernel won't start is skipped: within its release
+		// series the new one starts on the same data as it is.)
+		if err := s.startLocked(ctx, st); err != nil {
+			return step, err
+		}
+		fcv, err := s.featureVersion(ctx, adminURI)
+		if err != nil {
+			return step, err
+		}
+		if fcv != Series(step.From) {
+			return step, plainErr("the database isn't ready to move on yet", fmt.Errorf("featureCompatibilityVersion %s, expected %s", fcv, Series(step.From)))
+		}
+		if err := s.stopLocked(ctx); err != nil {
+			return step, err
+		}
 	}
 	now := time.Now().UTC()
 	st.UpgradedFrom, st.UpgradedAt, st.Version = st.Version, &now, step.To

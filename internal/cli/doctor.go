@@ -552,6 +552,12 @@ func localDatabaseChecks(ctx context.Context, cfg *config.Config, l *config.Loca
 		sctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 		err := srv.Start(sctx)
 		cancel()
+		if le := (*localdb.Error)(nil); errors.Is(err, localdb.ErrKernel) && errors.As(err, &le) {
+			// This computer's Linux kernel stops MongoDB 8 (D339): why, and what to do.
+			add("database", "on this computer", "fail", fmt.Sprintf("MongoDB %s refuses Linux kernel %s (6.19–7.0.13; MongoDB's SERVER-121912) (%s)", st.Version, st.Kernel, st.Folder), "",
+				"The database on this computer can't start: "+strings.TrimSuffix(le.Plain, "."), le.Next)
+			return
+		}
 		if err != nil {
 			add("database", "on this computer", "fail", fmt.Sprintf("MongoDB %s on 127.0.0.1:%d didn't start: %v (log %s)", st.Version, st.Port, err, st.Log), "metarush database start --details",
 				"The database on this computer isn't running, and it didn't start: "+strings.TrimSuffix(err.Error(), "."), "Its log says why.")
@@ -580,6 +586,9 @@ func localDatabaseChecks(ctx context.Context, cfg *config.Config, l *config.Loca
 	} else if st.UpgradeReady {
 		add("database", "upgrade", "info", fmt.Sprintf("MongoDB %s is installed; this MetaRush comes with %s", st.Version, st.Pinned), "metarush stop && metarush database upgrade",
 			"A newer version of the database comes with this MetaRush", "Upgrade it when it suits you (MetaRush stops for a minute).")
+	} else if st.UpgradeWaits != "" {
+		add("database", "upgrade", "info", fmt.Sprintf("MongoDB %s is installed; this MetaRush comes with %s, which refuses Linux kernel %s", st.Version, localdb.Current.Version, st.Kernel), "",
+			strings.TrimSuffix(st.UpgradeWaits, "."))
 	}
 }
 

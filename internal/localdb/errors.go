@@ -5,6 +5,8 @@ package localdb
 // people read the first, `--details` and `--json` carry the second.
 type Error struct {
 	Plain string
+	// Next is what a person can do about it, when MetaRush knows (a hint).
+	Next  string
 	Cause error
 }
 

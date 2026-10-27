@@ -40,7 +40,9 @@ Read `docs/architecture.md` before structural changes.
   heavy jobs defer on low battery (threshold, override) — never silently. A stopping worker releases its job (attempt
   not counted, never failed); a terminal's `--wait` runs only the jobs it waits for (`LeaseAmong`) and keeps them
   to the end: retries are taken in the terminal, and `waitJobsOpt` restarts a stopped terminal worker or fails
-  plainly, never waits forever (D177).
+  plainly, never waits forever (D177); a job no computer can run (this one lacks its component, no other running
+  MetaRush takes it) isn't waited for: the rest finishes, then `waitingErr` says what waits and the component that
+  adds it (`E_TOOL_MISSING`, exit 6, `details.waiting`/`components`/`command`; D340).
 - **Claude Code does the editorial reasoning and visual review** (reads contact sheets/frames the CLI extracts); no
   extra AI API calls. Local transcription: Parakeet v2 via sherpa-onnx (English), whisper.cpp fallback.
 - **The dashboard assistant runs the user's local Claude Code read-only**: a long-lived process per conversation, resumed
@@ -727,8 +729,13 @@ Read `docs/architecture.md` before structural changes.
   `KillMode=process` + `ExecStopPost` `metarush service reap` (never mongod);
   `app.OpenWith` starts it, the daemon `Watch`es it, `metarush stop` stops it, `metarush database
   status|start|stop|upgrade` (upgrades only by a person at a terminal, `--dry-run` for agents, one series at a time,
-  never back, an unfinished one offered again); downloads refused under
-  `go test` (stand-ins: `METARUSH_MONGODB_PIN`, loopback only; `METARUSH_MONGODB_ARCHIVE`); tests use a real mongod
+  never back, an unfinished one offered again). Linux kernels 6.19–7.0.13 (D339, `localdb/kernel.go`): MongoDB 8
+  refuses them, so `KernelRefuses` reads the kernel as the installed MongoDB does (uname's release; Ubuntu's
+  `/proc/version_signature` from 8.0.35) and a new home there gets `localdb.Older` (7.0.45; `KernelNote` said before
+  the download); an 8.0 home there never goes back: `Start` returns `ErrKernel` with plain words and what to do
+  (`Error.Next`), `Status.CantStart|UpgradeWaits`, doctor, `app.OpenWith`; upgrades wait for the kernel. Downloads refused under
+  `go test` (stand-ins: `METARUSH_MONGODB_PIN` with an optional `older`, loopback only; `METARUSH_MONGODB_ARCHIVE`;
+  `localdb.ReadKernel` replaced for a kernel); tests use a real mongod
   when one is installed (`METARUSH_TEST_MONGOD`, else skipped). `firstrun` says what works with no keys / with a key
   and checks Claude Code by asking it (`--version`, `auth status --json`; never a sign-in, never its credentials;
   refused under `go test` unless `tools.claude` is a fake); op `setup.status` feeds Home's Getting started. Release

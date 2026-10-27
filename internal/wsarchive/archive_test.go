@@ -181,7 +181,7 @@ func seed(t *testing.T, db *store.DB, st media.Store) seeded {
 		"userId": owner, "createdAt": now, "lastSeenAt": now.Add(-48 * time.Hour), "storageKeyId": "tid_" + "A1B2C3D4E5F6"})
 	ins(store.CWorkers, bson.M{"_id": inst, "name": "Maya's MacBook", "lastHeartbeat": now})
 	ins(store.CAbilitySetups, bson.M{"_id": ids.New("abs"), "installationId": inst, "programs": bson.A{bson.M{"name": "ffmpeg", "path": "/opt/homebrew/bin/ffmpeg"}}})
-	ins(store.CProjects, bson.M{"_id": prj, "name": "Spring launch", "createdAt": now, "updatedAt": now, "members": bson.A{owner}})
+	ins(store.CProjects, bson.M{"_id": prj, "name": "Spring launch", "archived": false, "createdAt": now, "updatedAt": now, "members": bson.A{owner}})
 	ins(store.CAssets, bson.M{"_id": ids.New(ids.Asset), "sha256": s.objects[0], "storageKey": media.ObjectKey(ws, s.objects[0]), "size": int64(len(fixture(t, "beach.jpg"))),
 		"projectIds": bson.A{prj}, "createdAt": now, "state": "available", "source": bson.M{"path": "~/Movies/beach.jpg", "machine": "Maya's MacBook"}})
 	ins(store.CSegments, bson.M{"_id": ids.New(ids.Segment), "assetId": "ast_x", "idx": int32(0), "text": "Welcome to the spring launch", "start": 0.0, "end": 2.5})

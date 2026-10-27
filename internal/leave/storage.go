@@ -207,7 +207,6 @@ func init() {
 	}
 }
 
-
 // ArchiveDatabaseCheck is the database check (D337) for a restore: the
 // archive's own clients' rules (no database holds its records yet; each
 // reads one of its collections) against the database it would go into, before

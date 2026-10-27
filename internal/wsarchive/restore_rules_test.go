@@ -41,7 +41,9 @@ func TestRestoreKeepsTheArchivesClientsRules(t *testing.T) {
 		dir := t.TempDir()
 		_, err := wsarchive.Restore(ctx, wsarchive.RestoreOptions{Archive: res.Path, DB: dst, Store: st, StoreWords: "the test storage",
 			StateDir: filepath.Join(dir, "state"), ScratchDir: filepath.Join(dir, "scratch"), Plan: plan,
-			MayHold: func(ctx context.Context, a *wsarchive.Opened) error { return leave.ArchiveDatabaseCheck(cloud, a.EachDoc) }})
+			MayHold: func(ctx context.Context, a *wsarchive.Opened) error {
+				return leave.ArchiveDatabaseCheck(cloud, a.EachDoc)
+			}})
 		if e := apperr.From(err); e == nil || e.Code != apperr.KeptHere || !strings.Contains(e.Message, "face prints") {
 			t.Fatalf("restoring (plan %v) into a database in the cloud: %v", plan, err)
 		}
@@ -57,7 +59,9 @@ func TestRestoreKeepsTheArchivesClientsRules(t *testing.T) {
 	here := config.Database{URI: testutil.URI(), Name: dst.Name}
 	if _, err := wsarchive.Restore(ctx, wsarchive.RestoreOptions{Archive: res.Path, DB: dst, Store: st, StoreWords: "the test storage",
 		StateDir: filepath.Join(dir, "state"), ScratchDir: filepath.Join(dir, "scratch"),
-		MayHold: func(ctx context.Context, a *wsarchive.Opened) error { return leave.ArchiveDatabaseCheck(here, a.EachDoc) }}); err != nil {
+		MayHold: func(ctx context.Context, a *wsarchive.Opened) error {
+			return leave.ArchiveDatabaseCheck(here, a.EachDoc)
+		}}); err != nil {
 		t.Fatalf("restoring into a database on this computer: %v", err)
 	}
 }

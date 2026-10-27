@@ -3975,6 +3975,27 @@ input: WorkerSettingsIn
 output: WorkerSettingsOut
 }
 /**
+ * Say this restored copy is now the workspace: it deletes by itself again as set (the Trash on its schedule, review links ending, old activity cleared out), once the original is retired or the copy has storage of its own (owners, people only)
+ */
+"workspace.adopt": {
+input: WorkspaceAdoptIn
+output: WorkspaceAdoptOut
+}
+/**
+ * Export the whole workspace into one archive — projects, versions, transcripts, people and consent records, conversations, the log, and the footage when included — for a backup or a move (owners, people only; --plan first)
+ */
+"workspace.export": {
+input: WorkspaceExportIn
+output: WorkspaceExportOut
+}
+/**
+ * List the exports of the workspace made on this computer and how far each one is (owners, people only)
+ */
+"workspace.exports": {
+input: WorkspaceExportsIn
+output: WorkspaceExportsOut
+}
+/**
  * Show the connected workspace, installations and storage
  */
 "workspace.show": {
@@ -35829,6 +35850,213 @@ export interface WorkerSettingsIn {
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WorkspaceAdoptIn".
+ */
+export interface WorkspaceAdoptIn {
+
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WorkspaceAdoptOut".
+ */
+export interface WorkspaceAdoptOut {
+was: boolean
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WorkspaceExportIn".
+ */
+export interface WorkspaceExportIn {
+/**
+ * Where to write the archive: a new folder, or with tar a new file (on the computer MetaRush runs on). Left out in the dashboard: MetaRush's archives folder.
+ */
+to?: string
+/**
+ * referenced (the default): the archive lists the footage by content address and the copy expects it in the same storage; included: every file is copied into the archive and checked.
+ */
+media?: ("" | "referenced" | "included")
+/**
+ * One file (.tar) instead of a folder.
+ */
+tar?: boolean
+/**
+ * Only say what would be written: counts, sizes, what stays out and why.
+ */
+plan?: boolean
+background?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WorkspaceExportOut".
+ */
+export interface WorkspaceExportOut {
+plan?: ExportPlan
+export?: ExportRecord
+holds: string
+summary: string
+next?: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ExportPlan".
+ */
+export interface ExportPlan {
+workspace: ArchiveWorkspace
+migrations: MigrationLevel
+collections: ExportPlanCollection[]
+leftOut: LeftOutCollection[]
+media: ArchiveMedia
+bytes: number
+free?: number
+path: string
+notes?: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ArchiveWorkspace".
+ */
+export interface ArchiveWorkspace {
+id: string
+name: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "MigrationLevel".
+ */
+export interface MigrationLevel {
+applied: AppliedMigration[]
+highest: number
+thisMetaRush: number
+older: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AppliedMigration".
+ */
+export interface AppliedMigration {
+version: number
+name?: string
+appliedAt?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ExportPlanCollection".
+ */
+export interface ExportPlanCollection {
+name: string
+how: ("as-is" | "transformed")
+why: string
+count: number
+bytes: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "LeftOutCollection".
+ */
+export interface LeftOutCollection {
+name: string
+why: string
+count: number
+unknown?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ArchiveMedia".
+ */
+export interface ArchiveMedia {
+mode: ("referenced" | "included")
+store: string
+storeWords?: string
+files: number
+bytes: number
+index: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ExportRecord".
+ */
+export interface ExportRecord {
+id: string
+state: ("running" | "done" | "failed" | "stopped")
+path: string
+name: string
+media: ("referenced" | "included")
+tar: boolean
+workspace: string
+by?: string
+startedAt: string
+finishedAt?: string
+updatedAt: string
+progress: ArchiveProgress
+documents?: number
+collections?: number
+mediaFiles?: number
+mediaBytes?: number
+bytes?: number
+level?: number
+older?: boolean
+leftOut?: string[]
+scrubbed: ScrubSummary
+notes?: string[]
+error?: string
+says: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ArchiveProgress".
+ */
+export interface ArchiveProgress {
+phase: ("checking" | "documents" | "media" | "packing" | "unpacking" | "migrating" | "verifying")
+collection?: string
+collections: number
+collectionsDone: number
+docs: number
+files?: number
+filesDone?: number
+bytes?: number
+bytesDone?: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ScrubSummary".
+ */
+export interface ScrubSummary {
+records: number
+byKind?: {
+[k: string]: number
+}
+says?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WorkspaceExportsIn".
+ */
+export interface WorkspaceExportsIn {
+
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WorkspaceExportsOut".
+ */
+export interface WorkspaceExportsOut {
+exports: ExportRecord[]
+folder: string
+holds: string
+restore: string
+paused?: DeletionsPause
+pausedSays?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DeletionsPause".
+ */
+export interface DeletionsPause {
+since: string
+archiveMadeAt?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "WorkspaceShowIn".
  */
 export interface WorkspaceShowIn {
@@ -35870,6 +36098,7 @@ reviewFollow?: ReviewFollowSettings
 estimates?: EstimateSettings
 shipGate?: ShipGateSettings
 reviewLinks?: ReviewLinkSettings
+deletionsPaused?: DeletionsPause
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

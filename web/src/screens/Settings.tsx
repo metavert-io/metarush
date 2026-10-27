@@ -28,6 +28,7 @@ import { WhoseClaudeSettings } from '../layout/assistant/WhoAnswers';
 import { LookingSettings } from './settings/LookingSettings';
 import { StorageMove } from './settings/StorageMove';
 import { TrashSettings } from './settings/TrashSettings';
+import { WorkspaceExport } from './settings/WorkspaceExport';
 import { ShipGateSettings } from './settings/ShipGateSettings';
 import { ReviewLinkSettings } from './settings/ReviewLinkSettings';
 import { LogPage, LogSettingsCard } from './Log';
@@ -460,6 +461,7 @@ function StorageSection() {
         <MachineCard />
       </div>
       <StorageMove />
+      <WorkspaceExport />
       <ReviewLinkSettings />
       <TrashSettings />
     </div>

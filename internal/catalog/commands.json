@@ -566,6 +566,9 @@
     "worker.configure": {"command":"metarush worker configure","usage":"metarush worker configure --heavy-battery-threshold <percent>","help":"Change the battery level below which big jobs wait for the charger (0 = never wait; people only)"},
     "worker.list": {"command":"metarush worker list","usage":"metarush worker list","help":"The machines that do background work, with their battery and when big jobs wait"},
     "worker.settings": {"command":"metarush worker settings","usage":"metarush worker settings","help":"This machine's battery, and the level below which big jobs wait for the charger"},
+    "workspace.adopt": {"command":"metarush workspace adopt","usage":"metarush workspace adopt","help":"Say this restored copy is now the workspace, so it deletes by itself again as set (owners, people only)"},
+    "workspace.export": {"command":"metarush workspace export","usage":"metarush workspace export --to <folder or file> [--media referenced|included] [--tar] [--plan]","help":"Export the whole workspace into one archive for a backup or a move (owners, people only; --plan first)"},
+    "workspace.exports": {"command":"metarush workspace exports","usage":"metarush workspace exports","help":"List the exports of the workspace made on this computer and how far each one is (owners, people only)"},
     "workspace.show": {"command":"metarush workspace show","usage":"metarush workspace show","help":"Show the workspace this machine is in"}
   }
 }

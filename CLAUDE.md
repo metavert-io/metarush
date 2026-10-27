@@ -1009,6 +1009,33 @@ Read `docs/architecture.md` before structural changes.
   nil)`; held: as a draft, or `anyway` with a note; tests stand in for it). Tests: `go test ./internal/reviewlinks/` on
   `fakebucket` (checks link and header signatures, signed headers, expiry; `Ahead` moves the links' clock); browser
   run `scripts/outside-reviewers-e2e.sh` (ports 5590–5599).
+- **Exporting and restoring a workspace** (D329–D333, `internal/wsarchive`, `internal/ops/workspacearchive.go`,
+  `internal/cli/workspace_archive.go`, `web/src/screens/settings/WorkspaceExport.tsx`, docs/workspace-export.md): an
+  archive is a private folder (0700/0600) or `--tar` file: `manifest.json` (format, maker, the migration level as every
+  applied version, per collection count/options/indexes/SHA-256, what stayed out and why), `collections/<name>.jsonl`
+  (canonical Extended JSON v2, one document per line, `_id` order, streamed both ways), `media.jsonl` and, included,
+  `media/` (a folder store filled by `storagemove`). Every collection is in `wsarchive.Catalogue` (as-is / transformed
+  / left-out / in-manifest with a why; `TestEveryCollectionIsClassified` and the docs table keep it whole — **add new
+  collections there**); unknown ones are named, credentials and computers' own state left out; strings are scrubbed only of
+  secretpath's narrow credential shapes, the archive's own (any address's password, signing/key query parts, JWTs,
+  Google client secrets and refresh tokens), `logbook.KnownSecrets` and `publish.Secrets` (≥ 8 characters; under 16
+  only as a word of their own), never `_id`, `…Id` fields or unique-index fields (byte-exact unless changed; the
+  manifest counts them) — **docs/workspace-export.md lists exactly what is looked for: keep it in step**; running and
+  paid or outside waiting work is held for a person (`holdJob`, `paidWork`: add new pinned kinds that act outside). Export only reads (`app.App.ReadOnly`; the CLI's log entry waits
+  in the spool; `ReadLevel`, refuses `newer_database`); another database's address only via `--db-uri-stdin|-env`.
+  Restore (not an op; `metarush workspace restore`, `setup --restore`) only into an empty database and only
+  plain collections the catalogue exports (`CheckCollections`: any collection option is refused): verify every
+  checksum, the `restore_lock` marker (`store.CheckNoUnfinishedRestore`: `app.OpenWith` — every command, worker,
+  MCP — Migrate, init, the daemon and export refuse a database it holds; doctor names it), referenced media looked for,
+  emptiness again, MetaRush's own indexes from its migrations at the archive's level (`store.DB.MakeForRestore`; the
+  archive's index list only reported), each collection checked by hash as it goes in, included media after What may
+  leave (`MayStore` → `ops.LeaveStorage`), the level last, `MigrateRestoring`, every archive record still there by
+  ID, background deletions paused (`workspaces.deletionsPaused`, `store.DB.DeletionsPaused`: the Trash schedule,
+  review links' endings and file deletion, log retention check it — **a new automatic deletion must too**; lifted by
+  `workspace.adopt`), `RecordRestore`; the same restore started again re-checks the copy (exact hashes before
+  migrations, IDs after) and continues; keeps the workspace ID; never deletes. `workspace.export|exports|adopt`
+  are OwnerOnly + HumanOnly + `archivePeopleOnly`; the CLI needs a person's terminal (`personAtTerminal`); dashboard
+  archives go to `<home>/archives`. Browser run `scripts/workspace-export-e2e.sh` (ports 5670–5679).
 - **Testing and coverage** (D194, D195, docs/testing.md): five layers (static → Go tests on a real MongoDB → several
   machines in one process (`tests/e2e`) → browser runs with fakes → Mac-only and live services); `scripts/check.sh
   --quick|--full|--release` runs them; test databases are copies of a per-process template and stale ones are swept
@@ -1061,6 +1088,7 @@ scripts/delivery-e2e.sh                                   # delivery notes, tran
 scripts/ship-gate-e2e.sh                                  # the ship gate and promises: Held by…, a promise measured on a real render, Deliver anyway… with a note, the receipt (D298–D302; ports 5560–5569)
 scripts/windows-e2e.sh                                    # the dashboard as Windows 11 uses it: Windows file names, folders, downloads, line endings, Ctrl (D247; ports 5440–5449; Edge when installed)
 scripts/presenters-e2e.sh                                 # presenters with the fake D-ID and HeyGen: a test clip, approve, a clip, a stock clip, consent words, No presenters, retire (D273–D277; ports 5510–5519)
+scripts/workspace-export-e2e.sh                           # Settings → Storage → Export the workspace, then a CLI restore into a fresh home and the dashboard on the copy (D329–D333; ports 5670–5679)
 scripts/components-e2e.sh                                 # only the required components, then Settings → Components and Getting started's Add it with a stand-in Homebrew (D324–D327; ports 5650–5659)
 scripts/resources-e2e.sh                                  # the Add box, Inbox clips dragged onto project cards, the Sources "…" menu, Delete…, a nested cut (D79–D84; ports 5660–5669)
 ```

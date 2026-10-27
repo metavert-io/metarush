@@ -1260,6 +1260,27 @@ that says it is archived.
 - It is refused while another project's cut plays one of its cuts, and a clear-out that stopped halfway finishes when
   run again.
 
+### Export the workspace, and bring it back
+One archive holds everything about the work: projects, versions, transcripts, comments, people and their consent
+records, Claude Code conversations and the activity log — and the footage itself when you include it. Use it for a
+backup, to move to another computer or service, or to leave with everything you made
+([exporting and restoring](docs/workspace-export.md)).
+- **Export** from Settings → Storage → *Export the workspace* (owners): check what it would hold, then Export…; or
+  `metarush workspace export --to <folder> [--media included] [--tar] [--plan]`. The footage is listed by where it is
+  kept, or copied in and checked.
+- **It only reads.** An export never updates the database, so it also reads a workspace an older MetaRush left as it
+  was, with a database user that may only read; another database's address comes on standard input or from an
+  environment variable, never the command line.
+- **Private, and whole.** The archive is readable only by your account, and passwords, keys and each computer's own
+  settings are never in it. Every kind of record says whether it goes in and why; a manifest checks every file.
+- **Restore** into an empty database on the new computer with `metarush setup --restore <archive>` (or `metarush
+  workspace restore <archive>`): every file is checked first, the footage is copied in or looked for, the copy is
+  checked against the archive and brought up to date, and nothing is ever deleted. Owners and people only, never
+  Claude or another AI app.
+- **A copy deletes nothing by itself at first.** The Trash's schedule, review links ending and old activity being
+  cleared out wait while the original may still use the same footage; once it is retired (or the copy has storage of
+  its own), `metarush workspace adopt` or Settings → Storage → *This copy is now the workspace…* lifts that.
+
 ## Commands you'll use
 Every command takes `--json` and `--details`. Plain output speaks plain words (what happened to the video and what to
 do next); `--details` adds the IDs, file paths, codes and exact commands, and errors show the command that fixes them;
@@ -1525,6 +1546,9 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush sync status [--project <id>]` | local vs canonical-only, pending ingests, jobs, reachability |
 | `metarush storage migrate --to <store-config> [--dry-run] [--read-back]` | move the media to another storage (S3-compatible, Google Cloud Storage or a folder): checked, resumable, switches when complete, deletes nothing (people only; `--dry-run` for anyone; the dashboard's Settings → Storage does the same) |
 | `metarush storage status` | which storage this computer uses, and whether the workspace moved on (then: switch this computer too) |
+| `metarush workspace export --to <folder> [--media referenced\|included] [--tar] [--plan]` / `workspace exports` | one archive of the whole workspace, footage listed or copied in; `--plan` says what it would hold and writes nothing; it only reads the database (owners, in your own terminal; another database with `--db-uri-stdin`/`--db-uri-env`) / the exports made on this computer |
+| `metarush workspace restore <archive> [--plan]` / `metarush setup --restore <archive>` | restore an export into an empty database (every file checked first; the copy checked and brought up to date; nothing deleted) / set a new computer up from one |
+| `metarush workspace adopt` | say a restored copy is now the workspace, so it deletes by itself again as set (owners, in your own terminal) |
 | `metarush machine invite <name> --atlas` → on the new machine `metarush machine join <bundle>` | add a machine with its own storage key and database user |
 | `metarush machine list --keys` / `machine revoke <name> --atlas` | see machines and their keys; cut off a lost one |
 | `metarush machine rekey [--dry-run]` | a machine that shares the old storage key gets its own, in place (people only; the old key is deleted by you once no machine uses it) |
@@ -1620,7 +1644,7 @@ support `${VAR}` / `${VAR:default}`.
 [installation](docs/installation.md) · [deployment, service and releases](docs/deployment.md) ·
 [collaboration](docs/collaboration.md) · [add a machine](docs/runbook-add-machine.md) · [edit schema](docs/edit-schema.md) ·
 [cut sheets](docs/cut-sheet.md) · [security](docs/security.md) ·
-[render QA](docs/qa.md) · [outside reviewers](docs/outside-reviewers.md) ·
+[render QA](docs/qa.md) · [outside reviewers](docs/outside-reviewers.md) · [exporting and restoring a workspace](docs/workspace-export.md) ·
 [speakers, people and to-dos](docs/speakers.md) · [motion graphics as code](docs/motion-graphics-as-code.md) ·
 [browser extension](docs/browser-extension.md) · [what MetaRush sees](docs/visual-index.md) · [resources, project links and nested cuts](docs/resources.md) · [timeline export](docs/timeline-export.md) · [timelines from other editors](docs/timeline-import.md) · [posting to video platforms](docs/publishing.md) · [Google Drive and Dropbox folders](docs/cloud-folders.md) · [the plugin](docs/plugin.md) · [MCP](docs/mcp.md) · [the catalogue](docs/catalogue.md) · [Remotion sources](docs/remotion-sources.md) · [recipes](docs/recipes.md) · [abilities](docs/abilities.md) · [testing](docs/testing.md) · [the review desk](docs/review-desk.md)
 
@@ -1725,6 +1749,10 @@ checks below in order, log each step and end with a table; [testing](docs/testin
   voice comparison dialog fixing an earlier wrong voice in place, the faces a name was learned from, and answers for
   many at once on a second copy of the call (None of these are …, Not … in this clip, Skip all in this project) (Mac
   only; desktop and phone, both themes).
+- `scripts/workspace-export-e2e.sh` runs `web/scripts/workspace-export-e2e.mjs` (ports 5670–5679): a workspace
+  exported from Settings → Storage (the plan, the styled confirm, the archive ready), a member refused, then restored
+  with the command line into a fresh home and an empty database, and the dashboard opened on the restored copy
+  (desktop and phone, both themes).
 
 ### Releases
 `scripts/release.sh --snapshot` builds and verifies every release archive without publishing anything

@@ -73,8 +73,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: 'storage',
     label: 'Storage',
-    line: 'Where footage is kept, review links, Trash',
-    intro: 'Where your footage and renders are kept, moving them, this computer and its battery, review links for people outside the workspace, and the Trash.',
+    line: 'Where footage is kept, exports, review links, Trash',
+    intro: 'Where your footage and renders are kept, moving them, exporting the whole workspace, this computer and its battery, review links for people outside the workspace, and the Trash.',
     icon: (s) => <HardDrives size={s} />,
   },
   {
@@ -131,6 +131,7 @@ const OLD_ANCHORS: Record<string, string> = {
   storage: '/settings/storage#storage',
   machine: '/settings/storage#machine',
   trash: '/settings/storage#trash',
+  export: '/settings/storage#export',
   'review-links': '/settings/storage#review-links',
   log: '/settings/log',
   about: '/settings/general',

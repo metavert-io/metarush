@@ -1556,7 +1556,8 @@ func opsCmd() *cobra.Command {
 }
 
 func workspaceCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "workspace", Short: "The workspace: where its footage is kept and the machines in it"}
+	cmd := &cobra.Command{Use: "workspace", Short: "The workspace: where its footage is kept, the machines in it, exporting and restoring it"}
+	cmd.AddCommand(workspaceArchiveCmds()...)
 	cmd.AddCommand(&cobra.Command{
 		Use: "show", Short: "Show the workspace this machine is in",
 		RunE: func(c *cobra.Command, _ []string) error {

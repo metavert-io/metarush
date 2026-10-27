@@ -22,8 +22,10 @@ import (
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/media"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/version"
+	"github.com/metavert-io/metarush/internal/wsarchive"
 )
 
 type initOpts struct {
@@ -58,6 +60,11 @@ type initOpts struct {
 	// askReplace is setup's own question (its interview).
 	replaceSaved bool
 	askReplace   func() bool
+	// restore is an archive of a workspace (metarush workspace export) that
+	// setup restores into the new, empty database before joining it (D333);
+	// restored is what the restore did.
+	restore  string
+	restored *wsarchive.RestoreReport
 }
 
 func initCmd() *cobra.Command {
@@ -270,17 +277,29 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 	// The database update gets its own time: the list of steps keeps growing,
 	// and a first setup against a far-away database (Atlas) or a busy one can
 	// take well over the half minute that connecting is allowed.
-	say("  Updating the database…")
-	mctx, mcancel := context.WithTimeout(c.Context(), 10*time.Minute)
-	defer mcancel()
-	applied, err := db.Migrate(mctx)
-	if err != nil {
-		return nil, failErr(c, apperr.Wrap(apperr.Database, err, "Updating the database failed.").
-			WithHint("Run the setup again: it picks up where the update stopped."))
-	}
-	if len(applied) > 0 {
-		say("  Updated the database (%s).", plural(len(applied), "step"))
-		tech("  applied migrations: %s", strings.Join(applied, ", "))
+	if o.restore != "" {
+		// A restore writes only into an empty database, and brings the copy
+		// up to date itself once its records are in.
+		if err := wsarchive.CheckEmpty(ctx, db); err != nil {
+			return nil, failErr(c, err)
+		}
+	} else {
+		// A database a restore still holds is nobody's to set up with (D333).
+		if err := db.CheckNoUnfinishedRestore(ctx); err != nil {
+			return nil, failErr(c, unfinishedRestore(err))
+		}
+		say("  Updating the database…")
+		mctx, mcancel := context.WithTimeout(c.Context(), 10*time.Minute)
+		defer mcancel()
+		applied, err := db.Migrate(mctx)
+		if err != nil {
+			return nil, failErr(c, apperr.Wrap(apperr.Database, err, "Updating the database failed.").
+				WithHint("Run the setup again: it picks up where the update stopped."))
+		}
+		if len(applied) > 0 {
+			say("  Updated the database (%s).", plural(len(applied), "step"))
+			tech("  applied migrations: %s", strings.Join(applied, ", "))
+		}
 	}
 	// The rest of the setup (the storage test, the workspace) gets a fresh
 	// deadline: a long database update must not use up the time they have.
@@ -399,6 +418,23 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 	}
 	say("  Storage works.")
 	tech("  media store %s (shared: %v)", ms.Locator(), ms.Capabilities().Shared)
+	if o.restore != "" {
+		say("\nRestoring the workspace from %s…", filepath.Base(o.restore))
+		rep, err := wsarchive.Restore(c.Context(), wsarchive.RestoreOptions{Archive: o.restore, DB: db, Store: ms, StoreWords: ops.StorageWords(cfg.Media),
+			StateDir: filepath.Join(h, "state", "restore"), ScratchDir: filepath.Join(cfg.Scratch.Dir, "restore"),
+			MayStore: restoreMayStore(cfg.Media, models.Actor{UserName: o.userName, Via: "cli"})})
+		if err != nil {
+			return nil, failErr(c, err)
+		}
+		o.restored, o.join = rep, rep.Workspace.ID
+		say("  Restored “%s”: %s, each checked against the archive.", rep.Workspace.Name, plural(int(rep.Documents), "record"))
+		if len(rep.Migrated) > 0 {
+			say("  Brought it up to date (%s).", plural(len(rep.Migrated), "step"))
+		}
+		if rep.Media.Missing > 0 {
+			say("  ! %s of its footage aren't in this storage yet.", plural(rep.Media.Missing, "file"))
+		}
+	}
 	// Workspace: create or join.
 	now := time.Now().UTC()
 	var ws models.Workspace
@@ -459,7 +495,17 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 	}
 	// User.
 	var user models.User
-	if err := db.C(store.CUsers).FindOne(ctx, bson.M{"workspaceId": ws.ID, "email": o.userEmail}).Decode(&user); err != nil || o.userEmail == "" {
+	if o.restored != nil {
+		user = restoredPerson(ctx, db, ws, o.userEmail)
+		if user.ID != "" && !strings.EqualFold(user.Email, o.userEmail) {
+			o.userEmail, o.userName = user.Email, user.Name
+			say("  This computer works as “%s”, the restored workspace's owner (another person: --user-email).", user.Name)
+		}
+	}
+	if user.ID == "" {
+		_ = db.C(store.CUsers).FindOne(ctx, bson.M{"workspaceId": ws.ID, "email": o.userEmail}).Decode(&user)
+	}
+	if user.ID == "" || o.userEmail == "" && o.restored == nil {
 		user = models.User{ID: ids.New(ids.User), WorkspaceID: ws.ID, Name: o.userName, Email: o.userEmail, CreatedAt: now}
 		if err := db.Insert(ctx, store.CUsers, user); err != nil {
 			return nil, err
@@ -592,12 +638,42 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 	for _, d := range []string{cfg.Cache.Dir, cfg.Scratch.Dir, cfg.StateDir(), cfg.LogDir()} {
 		_ = os.MkdirAll(d, 0o755)
 	}
+	if o.restored != nil {
+		if err := wsarchive.RecordRestore(ctx, db, o.restored, filepath.Base(o.restore), actor, inst.Name); err != nil {
+			say("  Warning: the restore couldn't be written into the workspace's activity log.")
+			tech("  %v", err)
+		}
+	}
 	result := map[string]any{"home": h, "workspace": cfg.Workspace, "installation": cfg.Installation, "user": cfg.User, "database": map[string]any{"host": host, "name": o.dbName, "version": ver, "replicaSet": rs, "atlasOrgId": cfg.Database.AtlasOrgID},
 		"mediaStore": ms.Locator(), "secrets": o.secrets, "dashboard": fmt.Sprintf("http://%s:%d", cfg.Dashboard.Host, cfg.Dashboard.Port)}
 	if len(homeWarnings) > 0 {
 		result["warnings"] = homeWarnings
 	}
 	return result, nil
+}
+
+// unfinishedRestore says plainly that a database holds part of a restore.
+func unfinishedRestore(err error) error { return app.UnfinishedRestore(err) }
+
+// restoredPerson is who this computer works as in a restored workspace: the
+// person with the email given, else its only owner, else (before anyone had
+// the owner role) the person who set the workspace up.
+func restoredPerson(ctx context.Context, db *store.DB, ws models.Workspace, email string) models.User {
+	var u models.User
+	if email != "" && db.C(store.CUsers).FindOne(ctx, bson.M{"workspaceId": ws.ID, "email": email}).Decode(&u) == nil {
+		return u
+	}
+	var owners []models.User
+	if cur, err := db.C(store.CUsers).Find(ctx, bson.M{"workspaceId": ws.ID, "role": models.RoleOwner}); err == nil {
+		_ = cur.All(ctx, &owners)
+	}
+	switch {
+	case len(owners) == 1:
+		return owners[0]
+	case len(owners) == 0 && ws.CreatedBy.UserID != "":
+		_ = db.C(store.CUsers).FindOne(ctx, bson.M{"_id": ws.CreatedBy.UserID, "workspaceId": ws.ID}).Decode(&u)
+	}
+	return u
 }
 
 func storeRoundTrip(ctx context.Context, ms media.Store) error {

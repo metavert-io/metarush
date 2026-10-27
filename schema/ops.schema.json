@@ -4592,6 +4592,25 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "AppliedMigration": {
+      "properties": {
+        "version": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "appliedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "version"
+      ]
+    },
     "AppliedProposal": {
       "properties": {
         "revisionId": {
@@ -4640,6 +4659,105 @@
       "type": "object",
       "required": [
         "state"
+      ]
+    },
+    "ArchiveMedia": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "referenced",
+            "included"
+          ]
+        },
+        "store": {
+          "type": "string"
+        },
+        "storeWords": {
+          "type": "string"
+        },
+        "files": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "index": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode",
+        "store",
+        "files",
+        "bytes",
+        "index"
+      ]
+    },
+    "ArchiveProgress": {
+      "properties": {
+        "phase": {
+          "type": "string",
+          "enum": [
+            "checking",
+            "documents",
+            "media",
+            "packing",
+            "unpacking",
+            "migrating",
+            "verifying"
+          ]
+        },
+        "collection": {
+          "type": "string"
+        },
+        "collections": {
+          "type": "integer"
+        },
+        "collectionsDone": {
+          "type": "integer"
+        },
+        "docs": {
+          "type": "integer"
+        },
+        "files": {
+          "type": "integer"
+        },
+        "filesDone": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "bytesDone": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "phase",
+        "collections",
+        "collectionsDone",
+        "docs"
+      ]
+    },
+    "ArchiveWorkspace": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name"
       ]
     },
     "AskFitIn": {
@@ -17099,6 +17217,23 @@
         "summary"
       ]
     },
+    "DeletionsPause": {
+      "properties": {
+        "since": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "archiveMadeAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "since"
+      ]
+    },
     "DeliverCaptionsFile": {
       "properties": {
         "video": {
@@ -19567,6 +19702,200 @@
         "sha256",
         "size",
         "how"
+      ]
+    },
+    "ExportPlan": {
+      "properties": {
+        "workspace": {
+          "$ref": "#/$defs/ArchiveWorkspace"
+        },
+        "migrations": {
+          "$ref": "#/$defs/MigrationLevel"
+        },
+        "collections": {
+          "items": {
+            "$ref": "#/$defs/ExportPlanCollection"
+          },
+          "type": "array"
+        },
+        "leftOut": {
+          "items": {
+            "$ref": "#/$defs/LeftOutCollection"
+          },
+          "type": "array"
+        },
+        "media": {
+          "$ref": "#/$defs/ArchiveMedia"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "free": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "workspace",
+        "migrations",
+        "collections",
+        "leftOut",
+        "media",
+        "bytes",
+        "path"
+      ]
+    },
+    "ExportPlanCollection": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "how": {
+          "type": "string",
+          "enum": [
+            "as-is",
+            "transformed"
+          ]
+        },
+        "why": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "how",
+        "why",
+        "count",
+        "bytes"
+      ]
+    },
+    "ExportRecord": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "running",
+            "done",
+            "failed",
+            "stopped"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "media": {
+          "type": "string",
+          "enum": [
+            "referenced",
+            "included"
+          ]
+        },
+        "tar": {
+          "type": "boolean"
+        },
+        "workspace": {
+          "type": "string"
+        },
+        "by": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "progress": {
+          "$ref": "#/$defs/ArchiveProgress"
+        },
+        "documents": {
+          "type": "integer"
+        },
+        "collections": {
+          "type": "integer"
+        },
+        "mediaFiles": {
+          "type": "integer"
+        },
+        "mediaBytes": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "level": {
+          "type": "integer"
+        },
+        "older": {
+          "type": "boolean"
+        },
+        "leftOut": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scrubbed": {
+          "$ref": "#/$defs/ScrubSummary"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "error": {
+          "type": "string"
+        },
+        "says": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "state",
+        "path",
+        "name",
+        "media",
+        "tar",
+        "workspace",
+        "startedAt",
+        "updatedAt",
+        "progress",
+        "scrubbed",
+        "says"
       ]
     },
     "ExportTimelineIn": {
@@ -27596,6 +27925,29 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "LeftOutCollection": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "why": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer"
+        },
+        "unknown": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "why",
+        "count"
+      ]
+    },
     "LevelsIn": {
       "properties": {
         "revisionId": {
@@ -31619,6 +31971,33 @@
         "needsKey",
         "madeWith",
         "line"
+      ]
+    },
+    "MigrationLevel": {
+      "properties": {
+        "applied": {
+          "items": {
+            "$ref": "#/$defs/AppliedMigration"
+          },
+          "type": "array"
+        },
+        "highest": {
+          "type": "integer"
+        },
+        "thisMetaRush": {
+          "type": "integer"
+        },
+        "older": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "applied",
+        "highest",
+        "thisMetaRush",
+        "older"
       ]
     },
     "Mix": {
@@ -57648,6 +58027,27 @@
         "timed"
       ]
     },
+    "ScrubSummary": {
+      "properties": {
+        "records": {
+          "type": "integer"
+        },
+        "byKind": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "says": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "records"
+      ]
+    },
     "SearchAsset": {
       "properties": {
         "assetId": {
@@ -69641,6 +70041,9 @@
         },
         "reviewLinks": {
           "$ref": "#/$defs/ReviewLinkSettings"
+        },
+        "deletionsPaused": {
+          "$ref": "#/$defs/DeletionsPause"
         }
       },
       "additionalProperties": false,
@@ -69652,6 +70055,124 @@
         "createdAt",
         "createdBy",
         "mediaStore"
+      ]
+    },
+    "WorkspaceAdoptIn": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "WorkspaceAdoptOut": {
+      "properties": {
+        "was": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "was",
+        "summary"
+      ]
+    },
+    "WorkspaceExportIn": {
+      "properties": {
+        "to": {
+          "type": "string",
+          "maxLength": 4096,
+          "description": "Where to write the archive: a new folder, or with tar a new file (on the computer MetaRush runs on). Left out in the dashboard: MetaRush's archives folder."
+        },
+        "media": {
+          "type": "string",
+          "enum": [
+            "",
+            "referenced",
+            "included"
+          ],
+          "description": "referenced (the default): the archive lists the footage by content address and the copy expects it in the same storage; included: every file is copied into the archive and checked."
+        },
+        "tar": {
+          "type": "boolean",
+          "description": "One file (.tar) instead of a folder."
+        },
+        "plan": {
+          "type": "boolean",
+          "description": "Only say what would be written: counts, sizes, what stays out and why."
+        },
+        "background": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "WorkspaceExportOut": {
+      "properties": {
+        "plan": {
+          "$ref": "#/$defs/ExportPlan"
+        },
+        "export": {
+          "$ref": "#/$defs/ExportRecord"
+        },
+        "holds": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "next": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "holds",
+        "summary"
+      ]
+    },
+    "WorkspaceExportsIn": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "WorkspaceExportsOut": {
+      "properties": {
+        "exports": {
+          "items": {
+            "$ref": "#/$defs/ExportRecord"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "type": "string"
+        },
+        "holds": {
+          "type": "string"
+        },
+        "restore": {
+          "type": "string"
+        },
+        "paused": {
+          "$ref": "#/$defs/DeletionsPause"
+        },
+        "pausedSays": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "exports",
+        "folder",
+        "holds",
+        "restore"
       ]
     },
     "WorkspaceShowIn": {
@@ -79309,6 +79830,57 @@
       ],
       "description": "Show this installation's battery state and heavy-job battery policy"
     },
+    "workspace.adopt": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/WorkspaceAdoptIn"
+        },
+        "output": {
+          "$ref": "#/$defs/WorkspaceAdoptOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Say this restored copy is now the workspace: it deletes by itself again as set (the Trash on its schedule, review links ending, old activity cleared out), once the original is retired or the copy has storage of its own (owners, people only)"
+    },
+    "workspace.export": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/WorkspaceExportIn"
+        },
+        "output": {
+          "$ref": "#/$defs/WorkspaceExportOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Export the whole workspace into one archive — projects, versions, transcripts, people and consent records, conversations, the log, and the footage when included — for a backup or a move (owners, people only; --plan first)"
+    },
+    "workspace.exports": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/WorkspaceExportsIn"
+        },
+        "output": {
+          "$ref": "#/$defs/WorkspaceExportsOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "List the exports of the workspace made on this computer and how far each one is (owners, people only)"
+    },
     "workspace.show": {
       "properties": {
         "input": {
@@ -79895,6 +80467,9 @@
     "worker.configure",
     "worker.list",
     "worker.settings",
+    "workspace.adopt",
+    "workspace.export",
+    "workspace.exports",
     "workspace.show"
   ],
   "title": "OpMap"

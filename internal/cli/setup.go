@@ -24,6 +24,7 @@ import (
 	"github.com/metavert-io/metarush/internal/skillsinstall"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/tools"
+	"github.com/metavert-io/metarush/internal/wsarchive"
 )
 
 // setupOpts are `metarush setup`'s choices: each one is asked in the
@@ -62,6 +63,10 @@ func setupCommand() *cobra.Command {
   transcription on this computer, the link downloader and more, the suggested ones ticked (metarush components lists
   them). It ends by saying what works now with no keys, and what a key adds.
 
+On a new computer, --restore <archive> starts from an export of a workspace (metarush workspace export): the
+archive's every file is checked, the workspace is restored into the new database (which must be empty) and brought
+up to date, and this computer joins it as its owner (or as the person --user-email names).
+
 Every answer is also a flag; --yes takes the suggested answer for the rest, and --json prints the result, so an
 agent can run it unattended. Running it again is safe: what is set up stays, what is missing is set up, and the
 database is started when it isn't running. (metarush init is the older, more technical way.)`,
@@ -92,6 +97,7 @@ database is started when it isn't running. (metarush init is the older, more tec
 	f.BoolVar(&o.open, "open", true, "open the dashboard at the end (in a terminal only)")
 	f.StringVar(&o.components, "components", "", "add exactly these optional components, comma-separated (metarush components lists them; default: the suggested ones)")
 	f.BoolVar(&o.noComponents, "no-components", false, "add no optional components (add them later in Settings → Components)")
+	f.StringVar(&o.init.restore, "restore", "", "start from an export of a workspace (metarush workspace export): restored into the new, empty database, every file checked first")
 	f.StringVar(&o.init.workspaceName, "workspace-name", "", "the new workspace's name (default My Studio)")
 	f.StringVar(&o.init.join, "join", "", "join a workspace already in the database (its ID)")
 	f.BoolVar(&o.init.newWorkspace, "new-workspace", false, "make a new workspace even if the database has one")
@@ -123,11 +129,33 @@ type SetupResult struct {
 	Skills       SetupSkillsOut   `json:"skills"`
 	// Components are the optional components this run added (D325).
 	Components SetupComponentsOut `json:"components"`
+	// Restored is what --restore brought in (D333).
+	Restored *SetupRestoredOut `json:"restored,omitempty"`
 	// WhatWorks is what works now with no keys, what a key adds, and Claude Code.
 	WhatWorks firstrun.WhatWorks `json:"whatWorks"`
 	Warnings  []string           `json:"warnings,omitempty"`
 	// Next are the commands for what is left (empty when nothing is).
 	Next []string `json:"next"`
+}
+
+// SetupRestoredOut is the workspace setup restored from an export.
+type SetupRestoredOut struct {
+	Workspace string `json:"workspace"`
+	Documents int64  `json:"documents"`
+	// Migrated counts the steps that brought the copy up to date.
+	Migrated     int    `json:"migrated"`
+	Media        string `json:"media" jsonschema:"enum=referenced,enum=included"`
+	MediaFiles   int    `json:"mediaFiles"`
+	MediaMissing int    `json:"mediaMissing"`
+	// Elsewhere counts what stays tied to the computers it was asked on;
+	// Held the work held for a person (it could run twice beside the original).
+	Elsewhere int   `json:"elsewhere"`
+	Held      int64 `json:"held"`
+	// DeletionsPaused: the copy deletes nothing by itself until an owner
+	// says it is now the workspace (metarush workspace adopt).
+	DeletionsPaused bool     `json:"deletionsPaused,omitempty"`
+	Notes           []string `json:"notes,omitempty"`
+	Says            string   `json:"says"`
 }
 
 // SetupDatabaseOut is where the projects are kept.
@@ -231,6 +259,9 @@ func (s *setupRun) run(ctx context.Context) (*SetupResult, error) {
 	o := s.o
 	s.say("Setting up MetaRush on this computer. Press Enter to take the suggested answer.")
 	s.tech("home: %s", s.h)
+	if err := s.chooseRestore(); err != nil {
+		return nil, err
+	}
 	if err := s.chooseStorage(); err != nil {
 		return nil, err
 	}
@@ -286,6 +317,13 @@ func (s *setupRun) run(ctx context.Context) (*SetupResult, error) {
 	s.tech("workspace %s, this computer %s (%s)", cfg.Workspace.ID, cfg.Installation.Name, cfg.Installation.ID)
 	res := &SetupResult{Home: s.h, Fresh: true, Workspace: cfg.Workspace, Installation: cfg.Installation, User: cfg.User,
 		Dashboard: fmt.Sprintf("http://%s:%d", cfg.Dashboard.Host, cfg.Dashboard.Port), Next: []string{}}
+	if rep := io.restored; rep != nil {
+		res.Restored = restoredOut(rep)
+		if rep.Media.Missing > 0 {
+			res.Next = append(res.Next, "Bring the missing footage over: Settings → Storage → Move the media, on the computer that has it.")
+		}
+		res.Next = append(res.Next, "People with a password set it again: the archive carries no passwords (Settings → People sends them a link).")
+	}
 	res.Warnings = append(res.Warnings, s.warnings...)
 	s.warnings = nil
 	if w, ok := initRes["warnings"].([]string); ok {
@@ -304,7 +342,7 @@ func (s *setupRun) again(ctx context.Context) (*SetupResult, error) {
 	if err != nil {
 		return nil, notSetUp(s.c, s.h, err)
 	}
-	for _, f := range []string{"storage", "media-root", "s3-bucket", "gcs-bucket", "database", "db-uri", "db-name", "workspace-name", "join", "secrets"} {
+	for _, f := range []string{"storage", "media-root", "s3-bucket", "gcs-bucket", "database", "db-uri", "db-name", "workspace-name", "join", "secrets", "restore"} {
 		if s.changed(f) {
 			return nil, failErr(s.c, apperr.New(apperr.Conflict, "MetaRush is set up on this computer already, so setup doesn't change where things are kept.").
 				WithHint("Moving footage to other storage is in Settings → Storage; setup keeps everything else as it is.").
@@ -396,6 +434,49 @@ func (s *setupRun) finish(ctx context.Context, cfg *config.Config, res *SetupRes
 }
 
 /* ---------- the interview ---------- */
+
+// chooseRestore: a new computer can start from an export of a workspace
+// (D333). The archive is checked in full when it is restored.
+func (s *setupRun) chooseRestore() error {
+	o := s.o
+	if o.init.restore == "" && s.prompt {
+		s.say("\nStarting a new workspace, or bringing one here from an export (metarush workspace export)?")
+		o.init.restore = expandHome(ask("The export's file or folder (leave empty for a new workspace)", ""))
+	}
+	if o.init.restore == "" {
+		return nil
+	}
+	// Restoring a workspace is a person's, at their own terminal (D332).
+	if err := personAtTerminal(s.c, "restores"); err != nil {
+		return err
+	}
+	for _, f := range []string{"join", "new-workspace", "workspace-name"} {
+		if s.changed(f) {
+			return fail(s.c, apperr.InvalidInput, "A restored workspace keeps its own name and ID, so --"+f+" can't go with --restore.", "")
+		}
+	}
+	abs, err := filepath.Abs(expandHome(o.init.restore))
+	if err != nil {
+		return failErr(s.c, err)
+	}
+	if _, err := os.Stat(abs); err != nil {
+		return fail(s.c, apperr.NotFound, "There's no export there.", "Give the path of the archive (a folder, or a .tar file).")
+	}
+	o.init.restore = abs
+	return nil
+}
+
+// restoredOut is setup's word on a restore.
+func restoredOut(rep *wsarchive.RestoreReport) *SetupRestoredOut {
+	out := &SetupRestoredOut{Workspace: rep.Workspace.Name, Documents: rep.Documents, Migrated: len(rep.Migrated), Media: rep.Media.Mode,
+		MediaFiles: rep.Media.Files, MediaMissing: rep.Media.Missing, Elsewhere: len(rep.Elsewhere), Held: rep.Held, DeletionsPaused: rep.DeletionsPaused, Notes: rep.Notes}
+	out.Says = fmt.Sprintf("Restored “%s” from its export: %s, each checked against the archive", rep.Workspace.Name, pluralWords(int(rep.Documents), "record", "records"))
+	if out.Migrated > 0 {
+		out.Says += ", then brought up to date"
+	}
+	out.Says += "."
+	return out
+}
 
 func (s *setupRun) chooseStorage() error {
 	o := s.o
@@ -776,6 +857,12 @@ func (s *setupRun) installService(ctx context.Context, cfg *config.Config, ts *t
 /* ---------- the end ---------- */
 
 func (s *setupRun) printEnd(res *SetupResult) {
+	if r := res.Restored; r != nil {
+		fmt.Println("\n" + r.Says)
+		for _, n := range r.Notes {
+			fmt.Println("  ! " + n)
+		}
+	}
 	w := res.WhatWorks
 	fmt.Println("\nWhat works now, free and on this computer:")
 	for _, x := range w.NoKeys {

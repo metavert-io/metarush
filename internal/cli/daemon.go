@@ -78,7 +78,7 @@ func serveCmd() *cobra.Command {
 			}
 			defer unlock()
 			if applied, err := a.DB.Migrate(ctx); err != nil {
-				return failErr(c, err)
+				return failErr(c, unfinishedRestore(err))
 			} else if len(applied) > 0 {
 				fmt.Fprintf(os.Stderr, "applied migrations: %v\n", applied)
 			}
@@ -727,7 +727,7 @@ func migrateCmd() *cobra.Command {
 			defer a.Close()
 			applied, err := a.DB.Migrate(c.Context())
 			if err != nil {
-				return failErr(c, err)
+				return failErr(c, unfinishedRestore(err))
 			}
 			// Then bring existing footage up to date (speaker detection, questions, voice profiles).
 			outs, err := catchup.Run(c.Context(), a)

@@ -543,6 +543,19 @@ func (d *DB) PendingMigrations(ctx context.Context) ([]int, error) {
 // so a database that already has a later version still gets an earlier one
 // that arrived with a later merge.
 func (d *DB) Migrate(ctx context.Context) (applied []string, err error) {
+	// A database a restore still holds is never brought up to date by
+	// anyone but that restore (D333).
+	if err := d.CheckNoUnfinishedRestore(ctx); err != nil {
+		return nil, err
+	}
+	return d.migrate(ctx)
+}
+
+// MigrateRestoring is Migrate for the restore that holds the database: it
+// brings the copy up to date once every record is in and checked.
+func (d *DB) MigrateRestoring(ctx context.Context) ([]string, error) { return d.migrate(ctx) }
+
+func (d *DB) migrate(ctx context.Context) (applied []string, err error) {
 	done, err := d.appliedVersions(ctx)
 	if err != nil {
 		return nil, err

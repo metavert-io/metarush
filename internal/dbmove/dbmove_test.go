@@ -302,3 +302,65 @@ func TestSurvey(t *testing.T) {
 		t.Fatalf("two workspaces: %v", s.Problems)
 	}
 }
+
+// A kind of record made in the old database while it was copied (by a
+// computer that didn't pause) stops the copy: it never says the copy is
+// whole while the old database holds something the new one lacks.
+func TestCopyNoticesALateCollection(t *testing.T) {
+	src, ws := workspaceDB(t)
+	dst := emptyDB(t)
+	ctx := context.Background()
+	calls := 0
+	res, err := Copy(ctx, Options{From: src, To: dst, Workspace: ws, Move: "mvL",
+		Stop: func(ctx context.Context) error {
+			calls++
+			if calls == 2 {
+				_, _ = src.C("late_kind").InsertOne(ctx, bson.M{"_id": "x", "workspaceId": ws, "v": 1})
+			}
+			return nil
+		}})
+	if !errors.Is(err, ErrChanged) || (res != nil && res.Verified) {
+		t.Fatalf("a collection made during the copy: err %v, verified %v", err, res != nil && res.Verified)
+	}
+	if lock, _ := dst.ReadRestoreLock(ctx); lock == nil || lock.State == store.RestoreDone {
+		t.Fatalf("the copy was marked whole: %+v", lock)
+	}
+}
+
+// A record written into the old database after its kind was checked is
+// noticed by the last look, right before the old database is marked moved.
+func TestRecheckNoticesAWriteAfterTheCheck(t *testing.T) {
+	src, ws := workspaceDB(t)
+	dst := emptyDB(t)
+	ctx := context.Background()
+	first, done := "", false
+	res, err := Copy(ctx, Options{From: src, To: dst, Workspace: ws, Move: "mvH",
+		Progress: func(p CopyProgress) {
+			if p.Phase != "checking" {
+				return
+			}
+			if p.CollectionsDone == 0 && p.Collection != "" {
+				first = p.Collection
+			}
+			if p.CollectionsDone == 1 && !done && first != "" {
+				done = true
+				_, _ = src.C(first).InsertOne(ctx, bson.M{"_id": "zz_late", "workspaceId": ws})
+			}
+		}})
+	if err != nil || !done {
+		t.Fatalf("copy: %v (wrote: %v)", err, done)
+	}
+	if err := Recheck(ctx, src, res); !errors.Is(err, ErrChanged) {
+		t.Fatalf("a write after %s was checked: %v", first, err)
+	}
+	// Nothing changed: the last look agrees.
+	src2, ws2 := workspaceDB(t)
+	dst2 := emptyDB(t)
+	res2, err := Copy(ctx, Options{From: src2, To: dst2, Workspace: ws2, Move: "mvH2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Recheck(ctx, src2, res2); err != nil {
+		t.Fatalf("an unchanged database: %v", err)
+	}
+}

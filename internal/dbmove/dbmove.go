@@ -59,9 +59,12 @@ type MoveCollection struct {
 	Carried bool  `json:"carried"`
 	// Why it stays behind (Carried false).
 	Why string `json:"why,omitempty"`
-	// Copied and Verified once moved.
-	Copied   int64 `json:"copied,omitempty"`
-	Verified bool  `json:"verified,omitempty"`
+	// Copied and Verified once moved; SHA256 is what the copy's documents
+	// add up to (the last look before the old database is marked moved
+	// compares the old one with it).
+	Copied   int64  `json:"copied,omitempty"`
+	Verified bool   `json:"verified,omitempty"`
+	SHA256   string `json:"sha256,omitempty"`
 }
 
 // Survey is what a database holds, for a move's plan.
@@ -436,7 +439,7 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 			return nil, &Partial{Collection: info.Name, Err: err}
 		}
 		p.DocumentsDone += src.Count
-		c := MoveCollection{Name: info.Name, Carried: true, Count: src.Count, Bytes: src.Bytes, Copied: dst.Count, Verified: src == dst}
+		c := MoveCollection{Name: info.Name, Carried: true, Count: src.Count, Bytes: src.Bytes, Copied: dst.Count, Verified: src == dst, SHA256: dst.SHA256}
 		res.Collections = append(res.Collections, c)
 		res.Documents += dst.Count
 		if src != dst {
@@ -445,6 +448,12 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 	}
 	p.CollectionsDone, p.Collection = len(order), ""
 	progress()
+	// A kind of record made in the old database meanwhile was never copied.
+	if late, err := lateCollections(ctx, o.From, order); err != nil {
+		return res, &Partial{Err: err}
+	} else if late != "" {
+		return res, &Partial{Collection: late, Err: ErrChanged}
+	}
 	names := make([]string, 0, len(order))
 	for _, info := range order {
 		names = append(names, info.Name)
@@ -459,6 +468,61 @@ func Copy(ctx context.Context, o Options) (*Result, error) {
 	res.Seconds = time.Since(started).Seconds()
 	sort.Slice(res.Collections, func(i, j int) bool { return res.Collections[i].Name < res.Collections[j].Name })
 	return res, nil
+}
+
+// lateCollections names a carried collection the old database holds records
+// in that isn't among those copied ("" none).
+func lateCollections(ctx context.Context, from *store.DB, copied []wsarchive.CollectionInfo) (string, error) {
+	known := map[string]bool{}
+	for _, c := range copied {
+		known[c.Name] = true
+	}
+	infos, err := wsarchive.ListCollections(ctx, from)
+	if err != nil {
+		return "", err
+	}
+	for _, info := range infos {
+		if !Carried(info.Name) || known[info.Name] {
+			continue
+		}
+		if n, err := from.C(info.Name).CountDocuments(ctx, bson.M{}, options.Count().SetLimit(1)); err != nil {
+			return "", err
+		} else if n > 0 {
+			return info.Name, nil
+		}
+	}
+	return "", nil
+}
+
+// Recheck is the last look at the old database, right before it is marked
+// moved (it is frozen by then): every kind of record is listed again and read
+// again, and must add up to exactly what the copy holds. A kind made since,
+// a record written or removed since, stops the move (ErrChanged).
+func Recheck(ctx context.Context, from *store.DB, res *Result) error {
+	if res == nil {
+		return errors.New("nothing was copied")
+	}
+	copied := map[string]MoveCollection{}
+	var order []wsarchive.CollectionInfo
+	for _, c := range res.Collections {
+		copied[c.Name] = c
+		order = append(order, wsarchive.CollectionInfo{Name: c.Name})
+	}
+	if late, err := lateCollections(ctx, from, order); err != nil {
+		return &Partial{Err: err}
+	} else if late != "" {
+		return &Partial{Collection: late, Err: ErrChanged}
+	}
+	for _, c := range res.Collections {
+		d, err := wsarchive.HashWhere(ctx, from, c.Name, nil)
+		if err != nil {
+			return &Partial{Collection: c.Name, Err: err}
+		}
+		if d.Count != c.Copied || d.SHA256 != c.SHA256 {
+			return &Partial{Collection: c.Name, Err: ErrChanged}
+		}
+	}
+	return nil
 }
 
 // copyCollection streams a collection's documents into the new database, in

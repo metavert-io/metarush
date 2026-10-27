@@ -871,6 +871,12 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 	// before this computer switches: a stop in between leaves this computer
 	// on the old database, told to switch — never on the new one while the
 	// old one could still be abandoned and changed (D335).
+	// The last look, right before: the old database (frozen) still adds up
+	// to exactly what the copy holds, every kind of record listed again.
+	rec.phase(a, "checking", "Looking at the old database one last time")
+	if err := dbmove.Recheck(ctx, a.DB, res); err != nil {
+		return nil, copyError(err, t.place)
+	}
 	ok, err := a.DB.SetMoveState(ctx, moveID, store.MoveMoving, store.MoveMoved, "")
 	if err != nil || !ok {
 		if err == nil {

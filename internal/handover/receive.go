@@ -346,6 +346,31 @@ type adoption struct {
 	src      source
 	// counts
 	moved, summaries int
+	// what each computer holds, read once
+	here, there map[string]assistant.HeldConversation
+}
+
+// held reads, once, the conversations this computer and the old one hold.
+func (ad *adoption) held(ctx context.Context) error {
+	if ad.here != nil {
+		return nil
+	}
+	mine, err := assistant.Held(ctx, ad.a, ad.a.Cfg.Installation.ID)
+	if err != nil {
+		return err
+	}
+	theirs, err := assistant.Held(ctx, ad.a, ad.from.ID)
+	if err != nil {
+		return err
+	}
+	ad.here, ad.there = map[string]assistant.HeldConversation{}, map[string]assistant.HeldConversation{}
+	for _, h := range mine {
+		ad.here[h.ID] = h
+	}
+	for _, h := range theirs {
+		ad.there[h.ID] = h
+	}
+	return nil
 }
 
 // one brings one conversation here (plan: only says what would happen):
@@ -353,26 +378,15 @@ type adoption struct {
 // record re-pinned by check and set.
 func (ad *adoption) one(ctx context.Context, id, title string, plan bool) (HandoverConversation, error) {
 	a := ad.a
-	held, err := assistant.Held(ctx, a, a.Cfg.Installation.ID)
-	if err != nil {
+	if err := ad.held(ctx); err != nil {
 		return HandoverConversation{}, err
 	}
-	for _, h := range held {
-		if h.ID == id && h.Moved != nil && h.Moved.Handover == ad.handover {
-			return HandoverConversation{ID: id, Title: h.Title, Session: "here", Words: "Already here."}, nil
-		}
+	if h, ok := ad.here[id]; ok && h.Moved != nil && h.Moved.Handover == ad.handover {
+		return HandoverConversation{ID: id, Title: h.Title, Session: "here", Words: "Already here."}, nil
 	}
-	from, err := assistant.Held(ctx, a, ad.from.ID)
-	if err != nil {
-		return HandoverConversation{}, err
-	}
-	var h *assistant.HeldConversation
-	for i := range from {
-		if from[i].ID == id {
-			h = &from[i]
-		}
-	}
-	if h == nil {
+	hc, ok := ad.there[id]
+	h := &hc
+	if !ok {
 		return HandoverConversation{ID: id, Title: title, Session: "none", Words: "It isn't held by “" + ad.from.Name + "” any more, so it stays where it is."}, nil
 	}
 	c := HandoverConversation{ID: id, Title: h.Title, ProjectName: h.ProjectName, UserName: h.UserName}

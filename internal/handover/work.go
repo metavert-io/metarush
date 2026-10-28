@@ -12,6 +12,7 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/recipes"
 	"github.com/metavert-io/metarush/internal/store"
 )
@@ -34,7 +35,7 @@ var stayKinds = []string{jobs.TypeStorageMove, jobs.TypeResourceUpload}
 
 // HandoverWork is one piece of work pinned to a computer.
 type HandoverWork struct {
-	Kind  string `json:"kind" jsonschema:"enum=job,enum=run,enum=trigger"`
+	Kind  string `json:"kind" jsonschema:"enum=job,enum=run,enum=trigger,enum=post"`
 	ID    string `json:"id"`
 	Words string `json:"words" jsonschema:"description=What it is, in plain words."`
 	// State is the job's or run's state (queued, running, waiting…).
@@ -127,6 +128,31 @@ func pinnedWork(ctx context.Context, a *app.App, from string, gone bool) ([]Hand
 	}
 	for _, r := range rs {
 		out = append(out, HandoverWork{Kind: "trigger", ID: r.ID, Words: "“" + r.Title + "” planning by itself", Moves: true})
+	}
+	// Posts being sent to a video platform: only the computer sending one can
+	// go on with it (its upload session is kept there), so it finishes there
+	// before that computer steps down.
+	var revs []models.Revision
+	if err := a.DB.Find(ctx, store.CRevisions, a.WorkspaceID(), bson.M{"publications": bson.M{"$elemMatch": bson.M{"state": models.PublicationSending, "installation": from}}}, &revs,
+		options.Find().SetProjection(bson.M{"publications": 1, "number": 1}).SetLimit(200)); err != nil {
+		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't read the posts being sent.")
+	}
+	for _, r := range revs {
+		for _, x := range r.Publications {
+			if x.State != models.PublicationSending || x.Installation != from {
+				continue
+			}
+			where := ops.PublishPlatforms[x.Platform]
+			if where == "" {
+				where = x.Platform
+			}
+			w := HandoverWork{Kind: "post", ID: x.ID, Words: fmt.Sprintf("version %d being posted to %s", r.Number, where), State: x.State,
+				Why: "It is being sent from there, so it finishes there."}
+			if gone {
+				w.Why = "It was being sent from there and can't go on elsewhere: after a day MetaRush marks it as not posted. Check " + where + " to see if it got there."
+			}
+			out = append(out, w)
+		}
 	}
 	return out, nil
 }

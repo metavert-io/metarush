@@ -81,7 +81,7 @@ func handoverStatus(ctx context.Context, a *app.App, _ *HandoverStatusIn) (*Hand
 	}
 	var c HandoverRecord
 	if a.DB.C(store.CHandovers).FindOne(ctx, bson.M{"workspaceId": a.WorkspaceID(), "from": me, "kind": KindHandover, "state": bson.M{"$in": bson.A{StateReceived, StateDone}},
-		"cleanedAt": nil}, options.FindOne().SetSort(bson.D{{Key: "settledAt", Value: -1}})).Decode(&c) == nil {
+		"cleanedAt": nil, "overtakenBy": nil}, options.FindOne().SetSort(bson.D{{Key: "settledAt", Value: -1}})).Decode(&c) == nil {
 		out.Clean = &c
 	}
 	switch {
@@ -120,6 +120,9 @@ var StepDownEvery = 10 * time.Second
 func Look(ctx context.Context, a *app.App) (HandoverRole, []HandoverWork, error) {
 	me := a.Cfg.Installation.ID
 	role, err := RoleOf(ctx, a, me)
+	if err == nil && role.Role == RoleHost {
+		err = settleOvertaken(ctx, a, me, role.Latest)
+	}
 	if err != nil || role.Role != RoleSteppingDown {
 		return role, nil, err
 	}
@@ -143,6 +146,24 @@ func Look(ctx context.Context, a *app.App) (HandoverRole, []HandoverWork, error)
 	}
 	role, err = RoleOf(ctx, a, me)
 	return role, nil, err
+}
+
+// settleOvertaken ends this computer's own handovers that a newer one
+// overtook: the role came back to it (handed back, or taken over) before it
+// had stepped down, so there is nothing left to step down from. Otherwise
+// such a handover would stay in progress for good, and no handover from this
+// computer could start again.
+func settleOvertaken(ctx context.Context, a *app.App, me string, latest *HandoverRecord) error {
+	if latest == nil || latest.To != me || latest.SettledAt == nil {
+		return nil
+	}
+	_, err := a.DB.C(store.CHandovers).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "from": me, "active": true, "state": StateReceived,
+		"settledAt": bson.M{"$lt": *latest.SettledAt}},
+		bson.M{"$set": bson.M{"state": StateDone, "overtakenBy": latest.ID}, "$unset": bson.M{"active": ""}, "$currentDate": bson.M{"steppedDownAt": true}})
+	if err != nil {
+		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't read the handovers.")
+	}
+	return nil
 }
 
 // Watch follows this computer's role while MetaRush runs in the background:

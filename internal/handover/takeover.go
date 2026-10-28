@@ -200,6 +200,9 @@ func takeOver(ctx context.Context, a *app.App, in *HandoverTakeoverIn) (*Handove
 	if rec, err = getRecord(ctx, a, rec.ID); err != nil {
 		return nil, err
 	}
+	if err := settleOvertaken(ctx, a, a.Cfg.Installation.ID, rec); err != nil {
+		return nil, err
+	}
 	a.Audit(ctx, "machine.takeover", "handover", rec.ID, "", map[string]any{"from": gone.Name, "conversations": moved.Conversations, "summaries": moved.Summaries,
 		"runs": moved.Runs, "triggers": moved.Triggers, "jobs": moved.Jobs, "folders": moved.Folders})
 	out.Handover, out.Moved = rec, moved

@@ -57,7 +57,7 @@ func cleanHandover(ctx context.Context, a *app.App, in *HandoverCleanIn) (*Hando
 	} else {
 		var r HandoverRecord
 		err := a.DB.C(store.CHandovers).FindOne(ctx, bson.M{"workspaceId": a.WorkspaceID(), "from": me, "kind": KindHandover,
-			"state": bson.M{"$in": bson.A{StateReceived, StateDone}}}, options.FindOne().SetSort(bson.D{{Key: "settledAt", Value: -1}})).Decode(&r)
+			"state": bson.M{"$in": bson.A{StateReceived, StateDone}}, "overtakenBy": nil}, options.FindOne().SetSort(bson.D{{Key: "settledAt", Value: -1}})).Decode(&r)
 		if err != nil {
 			return nil, apperr.New(apperr.NotFound, "No handover from this computer has been received yet, so nothing is removed.").
 				WithCommand("metarush machine handover status")

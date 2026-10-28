@@ -99,6 +99,9 @@ type HandoverRecord struct {
 	AbandonedAt   *time.Time    `bson:"abandonedAt,omitempty" json:"abandonedAt,omitempty"`
 	AbandonedBy   *models.Actor `bson:"abandonedBy,omitempty" json:"abandonedBy,omitempty"`
 	CleanedAt     *time.Time    `bson:"cleanedAt,omitempty" json:"cleanedAt,omitempty"`
+	// OvertakenBy is the newer handover that gave the role back to the old
+	// computer before it had stepped down (this one ended then).
+	OvertakenBy string `bson:"overtakenBy,omitempty" json:"overtakenBy,omitempty"`
 	// Moved counts what moved to the new computer.
 	Moved HandoverMoved `bson:"moved" json:"moved"`
 	// ConfirmedOff is the person who confirmed a computer that is gone was

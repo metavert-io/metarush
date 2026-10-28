@@ -204,6 +204,11 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 	if rec, err = getRecord(ctx, a, rec.ID); err != nil {
 		return nil, err
 	}
+	// The role came back here before this computer had stepped down from
+	// handing it away: that earlier handover ends now.
+	if err := settleOvertaken(ctx, a, a.Cfg.Installation.ID, rec); err != nil {
+		return nil, err
+	}
 	a.Audit(ctx, "machine.handover.receive", "handover", rec.ID, "", map[string]any{"from": m.From.Name, "conversations": moved.Conversations,
 		"summaries": moved.Summaries, "runs": moved.Runs, "triggers": moved.Triggers, "jobs": moved.Jobs, "folders": moved.Folders})
 	out.Handover, out.Moved = rec, moved

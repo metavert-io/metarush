@@ -9,5 +9,9 @@
     "build": "npm run build -w video --if-present && npm run build -w web",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
-  "engines": { "node": ">=22" }
+  "engines": { "node": ">=22" },
+  "//": "overrides: Remotion 4.0.536 pins zod at exactly 4.5.4, which has a known memory-exhaustion flaw fixed in 4.6.6 (the version video/ uses). Drop the override once Remotion depends on zod 4.6.6 or later.",
+  "overrides": {
+    "zod": "4.6.6"
+  }
 }

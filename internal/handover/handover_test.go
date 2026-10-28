@@ -844,3 +844,34 @@ func TestAbandonPutsConversationsBack(t *testing.T) {
 	_, err := ops.CallTyped[handover.HandoverReceiveOut](pctx, nu.a, "machine.handover.receive", handover.HandoverReceiveIn{File: out}, person())
 	refused(t, err, apperr.Conflict, "abandoned")
 }
+
+// A computer that made a handover file and then went away is taken over from
+// that file: its conversations go on from the sessions in it, and the
+// handover it never finished ends.
+func TestTakeOverFromAHandoverFile(t *testing.T) {
+	w := newWorkspace(t)
+	gone, nu := w.computer(t, "laptop"), w.computer(t, "desk")
+	ctx := context.Background()
+	id, _ := talk(t, gone.at(t, remembers()), "", "Plan the launch video.")
+	pctx := handover.WithPassphrase(ctx, pass)
+	out := filepath.Join(t.TempDir(), "h.age")
+	ex := call[handover.HandoverExportOut](t, pctx, gone.a, "machine.handover.export", handover.HandoverExportIn{To: "desk", Out: out})
+	// Then it went away for good.
+	_, _ = nu.a.DB.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": gone.a.Cfg.Installation.ID}, mongo.Pipeline{{{Key: "$set", Value: bson.D{
+		{Key: "lastSeenAt", Value: bson.D{{Key: "$subtract", Value: bson.A{"$$NOW", int64(2 * time.Hour / time.Millisecond)}}}}}}}})
+	m := nu.at(t, remembers())
+	_, err := ops.CallTyped[handover.HandoverTakeoverOut](ctx, nu.a, "machine.takeover", handover.HandoverTakeoverIn{From: "laptop", Source: out, Plan: true}, person())
+	refused(t, err, apperr.InvalidInput, "needs_passphrase")
+	done := call[handover.HandoverTakeoverOut](t, pctx, nu.a, "machine.takeover", handover.HandoverTakeoverIn{From: "laptop", Source: out, ConfirmedOff: "laptop",
+		Folders: []handover.HandoverFolderChoice{}})
+	if done.Moved.Conversations != 1 || done.Moved.Summaries != 0 {
+		t.Fatalf("take-over %+v", done.Moved)
+	}
+	if _, reply := talk(t, m, id, "Where were we?"); reply != "I remember 1 messages." {
+		t.Fatalf("the session from the file goes on: %q", reply)
+	}
+	var r handover.HandoverRecord
+	if err := nu.a.DB.GetByID(ctx, store.CHandovers, w.id, ex.Handover.ID, &r); err != nil || r.State != handover.StateAbandoned || r.Active {
+		t.Fatalf("the unfinished handover: %+v %v", r, err)
+	}
+}

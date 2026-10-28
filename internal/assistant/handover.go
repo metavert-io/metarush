@@ -615,6 +615,34 @@ func UnmarkHandingOver(ctx context.Context, a *app.App, handover, from string) (
 	return int(res.ModifiedCount), nil
 }
 
+// UnmarkHandingOverExcept takes a handover's mark off the conversations the
+// computer from still holds, but for keep (the ones a handover file already
+// made carries).
+func UnmarkHandingOverExcept(ctx context.Context, a *app.App, handover, from string, keep []string) (int, error) {
+	if keep == nil {
+		keep = []string{}
+	}
+	res, err := a.DB.C(store.CAssistantConversations).UpdateMany(ctx,
+		bson.M{"workspaceId": a.WorkspaceID(), "installationId": from, "handingOver.handover": handover, "_id": bson.M{"$nin": keep}},
+		bson.M{"$unset": bson.M{"handingOver": ""}})
+	if err != nil {
+		return 0, apperr.Wrap(apperr.Database, err, "MetaRush couldn't put the conversations back.")
+	}
+	return int(res.ModifiedCount), nil
+}
+
+// MarkedFor lists the handovers a computer's conversations are marked as
+// moving with.
+func MarkedFor(ctx context.Context, a *app.App, installation string) ([]string, error) {
+	var out []string
+	err := a.DB.C(store.CAssistantConversations).Distinct(ctx, "handingOver.handover",
+		bson.M{"workspaceId": a.WorkspaceID(), "installationId": installation, "handingOver": bson.M{"$exists": true}}).Decode(&out)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't read which conversations are moving.")
+	}
+	return out, nil
+}
+
 // Adopt is one conversation coming to this computer.
 type Adopt struct {
 	ID string

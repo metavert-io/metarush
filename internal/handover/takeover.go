@@ -187,6 +187,13 @@ func takeOver(ctx context.Context, a *app.App, in *HandoverTakeoverIn) (*Handove
 	now := time.Now().UTC()
 	_, _ = a.DB.C(store.CHandovers).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "from": gone.ID, "active": true},
 		bson.M{"$set": bson.M{"state": StateAbandoned, "abandonedAt": now, "abandonedBy": a.Actor}, "$unset": bson.M{"active": ""}})
+	// …and so does one to it that it never finished receiving: what it had
+	// taken came here with the rest of its work; the conversations it never
+	// took go on with the computer that sent them.
+	backHome, err := endHandoversTo(ctx, a, gone.ID)
+	if err != nil {
+		return nil, err
+	}
 	actor := a.Actor
 	rec.Moved, rec.ConfirmedOff, rec.ReceivedAt, rec.ReceivedBy = moved, &actor, &now, &actor
 	for _, c := range out.Conversations {
@@ -215,8 +222,36 @@ func takeOver(ctx context.Context, a *app.App, in *HandoverTakeoverIn) (*Handove
 	if moved.Summaries > 0 {
 		out.Summary += fmt.Sprintf(" %s go on from a summary.", plural(moved.Summaries, "conversation"))
 	}
+	if backHome > 0 {
+		out.Summary += fmt.Sprintf(" A handover to it that it never finished receiving ended: %s it never took %s on with the computer that sent %s.",
+			plural(backHome, "conversation"), goWord(backHome), map[bool]string{true: "it", false: "them"}[backHome == 1])
+	}
 	out.Summary += " Last, remove it from the workspace so its storage key stops working."
 	return out, nil
+}
+
+// endHandoversTo abandons the handovers to a computer that is gone which it
+// never finished receiving, and takes their marks off the conversations their
+// senders still hold. It returns how many went back to their senders.
+func endHandoversTo(ctx context.Context, a *app.App, gone string) (int, error) {
+	var recs []HandoverRecord
+	unfinished := bson.A{StateExporting, StateExported, StateReceiving}
+	if err := a.DB.Find(ctx, store.CHandovers, a.WorkspaceID(), bson.M{"to": gone, "active": true, "state": bson.M{"$in": unfinished}}, &recs); err != nil {
+		return 0, apperr.Wrap(apperr.Database, err, "MetaRush couldn't read the handovers.")
+	}
+	n := 0
+	for _, r := range recs {
+		if _, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": r.ID, "workspaceId": a.WorkspaceID(), "state": bson.M{"$in": unfinished}},
+			bson.M{"$set": bson.M{"state": StateAbandoned, "abandonedAt": time.Now().UTC(), "abandonedBy": a.Actor}, "$unset": bson.M{"active": ""}}); err != nil {
+			return n, apperr.Wrap(apperr.Database, err, "MetaRush couldn't end a handover to that computer.")
+		}
+		back, err := assistant.UnmarkHandingOver(ctx, a, r.ID, r.From)
+		if err != nil {
+			return n, err
+		}
+		n += back
+	}
+	return n, nil
 }
 
 // toDoc is a record as fields to insert (its ID and workspace come from the filter).

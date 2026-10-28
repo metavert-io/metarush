@@ -21,3 +21,10 @@ func WhileReceiving(f func(handover string)) func() {
 	receiveHook = f
 	return func() { receiveHook = nil }
 }
+
+// AfterMarking runs f once an export marked its conversations, until the
+// returned func puts things back.
+func AfterMarking(f func(handover string)) func() {
+	markedHook = f
+	return func() { markedHook = nil }
+}

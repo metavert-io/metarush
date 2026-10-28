@@ -10,6 +10,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/assistant"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
 )
@@ -119,6 +120,9 @@ var StepDownEvery = 10 * time.Second
 // handover is done (it stepped down). It returns the role after the look.
 func Look(ctx context.Context, a *app.App) (HandoverRole, []HandoverWork, error) {
 	me := a.Cfg.Installation.ID
+	if err := repairMarks(ctx, a, me); err != nil {
+		return HandoverRole{Role: RoleHost}, nil, err
+	}
 	role, err := RoleOf(ctx, a, me)
 	if err == nil && role.Role == RoleHost {
 		err = settleOvertaken(ctx, a, me, role.Latest)
@@ -146,6 +150,31 @@ func Look(ctx context.Context, a *app.App) (HandoverRole, []HandoverWork, error)
 	}
 	role, err = RoleOf(ctx, a, me)
 	return role, nil, err
+}
+
+// repairMarks takes the marks of handovers that ended off this computer's
+// conversations: one abandoned (an export that marked it after the abandon),
+// received or done without taking it (an export that stopped part-way after
+// marking it), or gone. Such a mark would keep the conversation "moving" for
+// good; nothing would ever take it.
+func repairMarks(ctx context.Context, a *app.App, me string) error {
+	marked, err := assistant.MarkedFor(ctx, a, me)
+	if err != nil {
+		return err
+	}
+	for _, id := range marked {
+		rec, err := getRecord(ctx, a, id)
+		switch {
+		case err != nil && apperr.From(err).Code != apperr.NotFound:
+			return err
+		case err == nil && rec.State != StateAbandoned && rec.State != StateReceived && rec.State != StateDone:
+			continue // still being made or received
+		}
+		if _, err := assistant.UnmarkHandingOver(ctx, a, id, me); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // settleOvertaken ends this computer's own handovers that a newer one

@@ -96,7 +96,9 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 		return nil, apperr.New(apperr.Conflict, "A handover from this computer to “%s” is in progress.", rec.ToName).
 			WithHint("Abandon it first to hand over to another computer.").WithCommand("metarush machine handover abandon")
 	case rec != nil && rec.State == StateReceiving:
-		return nil, apperr.New(apperr.Conflict, "“%s” is receiving this computer's role now.", rec.ToName).WithCommand("metarush machine handover status")
+		return nil, apperr.New(apperr.Conflict, "“%s” is receiving this computer's role now.", rec.ToName).
+			WithHint("If it stopped part-way and is gone, abandon the handover here once it has been quiet for " + quietWords() + ", or take it over.").
+			WithCommand("metarush machine handover abandon")
 	case rec != nil && rec.State == StateReceived:
 		return nil, apperr.New(apperr.Conflict, "“%s” has already received this computer's role.", rec.ToName).WithCommand("metarush machine handover status")
 	case rec == nil:
@@ -128,13 +130,35 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 		return nil, apperr.New(apperr.Conflict, "Claude is working on %s here.", strings.Join(busy, ", ")).
 			WithHint("Wait until it finishes (or stop it), then run the same command again.").WithDetails(map[string]any{"reason": "busy"})
 	}
+	// From here on, every way this stops takes this run's marks off again
+	// (putBack): a conversation is never left "moving" without a handover file.
 	_, busyNow, err := assistant.MarkHandingOver(ctx, a, convIDs, assistant.HandingOverMark{Handover: rec.ID, To: to.ID, ToName: to.Name})
 	if err != nil {
+		putBack(ctx, a, rec.ID, me.ID)
 		return nil, err
 	}
 	if len(busyNow) > 0 {
-		return nil, apperr.New(apperr.Conflict, "A message started in %s while the handover was being made.", plural(len(busyNow), "conversation")).
+		back := putBack(ctx, a, rec.ID, me.ID)
+		return nil, apperr.New(apperr.Conflict, "A message started in %s while the handover was being made.%s", plural(len(busyNow), "conversation"), back).
 			WithHint("Wait until Claude finishes, then run the same command again.").WithDetails(map[string]any{"reason": "busy"})
+	}
+	if markedHook != nil {
+		markedHook(rec.ID)
+	}
+	// Marked only while the handover is still being made: one abandoned (or
+	// being received) meanwhile takes its marks off at once — whichever comes
+	// last, the abandon or this look, sees the other.
+	if cur, err := getRecord(ctx, a, rec.ID); err != nil {
+		putBack(ctx, a, rec.ID, me.ID)
+		return nil, err
+	} else if cur.State != StateExporting && cur.State != StateExported {
+		back := putBack(ctx, a, rec.ID, me.ID)
+		if cur.State == StateAbandoned {
+			return nil, apperr.New(apperr.Conflict, "The handover was abandoned while its file was being made.%s", back).
+				WithDetails(map[string]any{"reason": "abandoned"})
+		}
+		return nil, apperr.New(apperr.Conflict, "“%s” is receiving this computer's role now.", cur.ToName).
+			WithCommand("metarush machine handover status").WithDetails(map[string]any{"reason": "receiving"})
 	}
 	if held, err = assistant.Held(ctx, a, me.ID); err != nil {
 		return nil, err
@@ -190,17 +214,9 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 		return nil
 	})
 	if err != nil {
-		// No file was made: a handover never written out yet is put back, so
-		// its conversations go on here (one written before keeps its file).
-		back := ""
-		if rec.State == StateExporting {
-			if r, uerr := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "state": StateExporting},
-				bson.M{"$set": bson.M{"state": StateAbandoned, "abandonedAt": time.Now().UTC(), "abandonedBy": a.Actor}, "$unset": bson.M{"active": ""}}); uerr == nil && r.MatchedCount == 1 {
-				if _, uerr := assistant.UnmarkHandingOver(ctx, a, rec.ID, me.ID); uerr == nil {
-					back = " Nothing moved: the conversations go on here."
-				}
-			}
-		}
+		// No file was made: the conversations go on here (one written
+		// before keeps its file and the conversations it carries).
+		back := putBack(ctx, a, rec.ID, me.ID)
 		var ae *apperr.Error
 		if errors.As(err, &ae) {
 			return nil, err
@@ -220,9 +236,10 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't record the handover.")
 	} else if r.MatchedCount == 0 {
 		// Abandoned (or taken over) while the file was being made: it can't
-		// be received, so it goes.
+		// be received, so it goes, and so do the marks.
 		_ = os.Remove(out)
-		return nil, apperr.New(apperr.Conflict, "The handover was ended while its file was being made, so the file was removed.").
+		back := putBack(ctx, a, rec.ID, me.ID)
+		return nil, apperr.New(apperr.Conflict, "The handover was ended while its file was being made, so the file was removed.%s", back).
 			WithCommand("metarush machine handover status").WithDetails(map[string]any{"reason": "changed"})
 	}
 	rec, err = getRecord(ctx, a, rec.ID)
@@ -247,6 +264,58 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 		"Changed your mind? metarush machine handover abandon puts everything back here."}
 	return res, nil
 }
+
+// markedHook runs (in tests) once an export marked its conversations.
+var markedHook func(handover string)
+
+// putBack takes an export's marks off after it stopped: a handover never
+// written out is abandoned and all its conversations go on here; one whose
+// file was written before keeps the conversations that file carries, and the
+// rest go on here. It says so in a few words ("" when nothing was put back).
+func putBack(ctx context.Context, a *app.App, id, me string) string {
+	ctx = context.WithoutCancel(ctx)
+	cur, err := getRecord(ctx, a, id)
+	if err != nil {
+		return ""
+	}
+	if cur.State == StateExporting {
+		if _, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": id, "workspaceId": a.WorkspaceID(), "state": StateExporting},
+			bson.M{"$set": bson.M{"state": StateAbandoned, "abandonedAt": time.Now().UTC(), "abandonedBy": a.Actor}, "$unset": bson.M{"active": ""}}); err != nil {
+			return ""
+		}
+		if cur, err = getRecord(ctx, a, id); err != nil {
+			return ""
+		}
+	}
+	if cur.State == StateAbandoned {
+		if _, err := assistant.UnmarkHandingOver(ctx, a, id, me); err != nil {
+			return ""
+		}
+		return " Nothing moved: the conversations go on here."
+	}
+	n, err := assistant.UnmarkHandingOverExcept(ctx, a, id, me, cur.Conversations)
+	if err != nil || n == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" %s that the handover file made before doesn't carry %s on here.", upperFirst(plural(n, "conversation")), goWord(n))
+}
+
+func goWord(n int) string {
+	if n == 1 {
+		return "goes"
+	}
+	return "go"
+}
+
+func upperFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// quietWords is how long a computer must be quiet, in words.
+func quietWords() string { return plural(int(TakeOverQuiet.Minutes()), "minute") }
 
 var nameSafe = regexp.MustCompile(`[^a-z0-9-]+`)
 

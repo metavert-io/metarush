@@ -180,19 +180,43 @@ func abandonHandover(ctx context.Context, a *app.App, in *HandoverAbandonIn) (*H
 	if err != nil {
 		return nil, err
 	}
+	from := bson.A{StateExporting, StateExported}
 	switch rec.State {
 	case StateAbandoned:
-		return &HandoverAbandonOut{Handover: *rec, Summary: "That handover was abandoned already."}, nil
+		// Abandoned already: its marks come off again, so running it again
+		// repairs a conversation an export marked after the abandon.
+		n, err := assistant.UnmarkHandingOver(ctx, a, rec.ID, rec.From)
+		if err != nil {
+			return nil, err
+		}
+		out := &HandoverAbandonOut{Handover: *rec, Conversations: n, Summary: "That handover was abandoned already."}
+		if n > 0 {
+			out.Summary += fmt.Sprintf(" %s still marked as moving %s on on “%s” again.", upperFirst(plural(n, "conversation")), goWord(n), rec.FromName)
+		}
+		return out, nil
 	case StateReceiving:
-		return nil, apperr.New(apperr.Conflict, "“%s” is receiving this handover now, so it can't be abandoned.", rec.ToName).
-			WithHint("Let it finish there; to give the role back after, hand it over from “" + rec.ToName + "” to “" + rec.FromName + "”.").
-			WithDetails(map[string]any{"reason": "receiving"})
+		// Only once the computer receiving it has been quiet long enough (it
+		// stopped part-way, and may be gone): what it took stays there.
+		recv, err := findComputer(ctx, a, rec.To)
+		if err != nil {
+			return nil, err
+		}
+		ok, _, err := quietEnough(ctx, a, recv)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, apperr.New(apperr.Conflict, "“%s” is receiving this handover now, so it can't be abandoned.", rec.ToName).
+				WithHint("Let it finish there. If it stopped part-way and is gone, abandon it once it has been quiet for " + quietWords() + ", or take it over.").
+				WithDetails(map[string]any{"reason": "receiving"})
+		}
+		from = bson.A{StateReceiving}
 	case StateReceived, StateDone:
 		return nil, apperr.New(apperr.Conflict, "“%s” has received this handover already, so it can't be abandoned.", rec.ToName).
 			WithHint("To give the role back, hand it over from “" + rec.ToName + "” to “" + rec.FromName + "”.")
 	}
 	now := time.Now().UTC()
-	res, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "state": bson.M{"$in": bson.A{StateExporting, StateExported}}},
+	res, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "state": bson.M{"$in": from}},
 		bson.M{"$set": bson.M{"state": StateAbandoned, "abandonedAt": now, "abandonedBy": a.Actor}, "$unset": bson.M{"active": ""}})
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't abandon the handover.")
@@ -205,13 +229,23 @@ func abandonHandover(ctx context.Context, a *app.App, in *HandoverAbandonIn) (*H
 	if err != nil {
 		return nil, err
 	}
-	a.Audit(ctx, "machine.handover.abandon", "handover", rec.ID, "", map[string]any{"to": rec.ToName, "conversations": n})
+	// What the receiving computer took before it stopped stays there.
+	taken, err := a.DB.C(store.CAssistantConversations).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "installationId": rec.To, "moved.handover": rec.ID})
+	if err != nil {
+		taken = 0
+	}
+	a.Audit(ctx, "machine.handover.abandon", "handover", rec.ID, "", map[string]any{"to": rec.ToName, "conversations": n, "taken": taken})
 	rec, err = getRecord(ctx, a, rec.ID)
 	if err != nil {
 		return nil, err
 	}
-	return &HandoverAbandonOut{Handover: *rec, Conversations: n, Summary: fmt.Sprintf("Abandoned the handover to “%s”: %s go on on “%s” as before. Delete the handover file if you made one.",
-		rec.ToName, plural(n, "conversation"), rec.FromName)}, nil
+	sum := fmt.Sprintf("Abandoned the handover to “%s”: %s %s on on “%s” as before. Delete the handover file if you made one.",
+		rec.ToName, plural(n, "conversation"), goWord(n), rec.FromName)
+	if taken > 0 {
+		sum += fmt.Sprintf(" %s had already gone to “%s” and %s there: take “%s” over to bring %s back.", upperFirst(plural(int(taken), "conversation")), rec.ToName,
+			map[bool]string{true: "stays", false: "stay"}[taken == 1], rec.ToName, map[bool]string{true: "it", false: "them"}[taken == 1])
+	}
+	return &HandoverAbandonOut{Handover: *rec, Conversations: n, Summary: sum}, nil
 }
 
 /* ---------- The handover files this computer made ---------- */

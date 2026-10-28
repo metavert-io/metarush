@@ -265,7 +265,12 @@ func file2(ctx context.Context, a *app.App, file string, gone *models.Installati
 	if err != nil {
 		return apperr.Wrap(apperr.Internal, err, "MetaRush couldn't make a private folder for the file.")
 	}
-	m, err := stageFile(file, passphraseFrom(ctx), dir)
+	m, err := stageFile(file, passphraseFrom(ctx), dir, func(m *fileManifest) error {
+		if m.Workspace.ID != a.WorkspaceID() || m.From.ID != gone.ID {
+			return apperr.New(apperr.Conflict, "This handover file was made on “%s”, not on “%s”.", m.From.Name, gone.Name)
+		}
+		return nil
+	})
 	if errors.Is(err, errNeedsPassphrase) {
 		os.RemoveAll(dir)
 		return apperr.New(apperr.InvalidInput, "This handover file is protected by a passphrase: MetaRush asks for it in the terminal.").
@@ -274,10 +279,6 @@ func file2(ctx context.Context, a *app.App, file string, gone *models.Installati
 	if err != nil {
 		os.RemoveAll(dir)
 		return err
-	}
-	if m.Workspace.ID != a.WorkspaceID() || m.From.ID != gone.ID {
-		os.RemoveAll(dir)
-		return apperr.New(apperr.Conflict, "This handover file was made on “%s”, not on “%s”.", m.From.Name, gone.Name)
 	}
 	src.dir, src.manifest = dir, m
 	*oldDir = m.AssistantDir

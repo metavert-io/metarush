@@ -82,20 +82,23 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 		return nil, apperr.Wrap(apperr.Internal, err, "MetaRush couldn't make a private folder to receive the file in.")
 	}
 	defer os.RemoveAll(dir)
-	m, err := stageFile(file, passphraseFrom(ctx), dir)
+	// Whose file it is, and for which computer, is checked before anything in it is unpacked.
+	m, err := stageFile(file, passphraseFrom(ctx), dir, func(m *fileManifest) error {
+		if m.Workspace.ID != a.WorkspaceID() {
+			return apperr.New(apperr.Conflict, "This handover file is from another workspace (“%s”).", m.Workspace.Name).WithDetails(map[string]any{"reason": "other_workspace"})
+		}
+		if m.To.ID != a.Cfg.Installation.ID {
+			return apperr.New(apperr.Conflict, "This handover file is for “%s”, not this computer.", m.To.Name).
+				WithHint("Receive it on “" + m.To.Name + "”, or make a new one for this computer there.").WithDetails(map[string]any{"reason": "other_computer"})
+		}
+		return nil
+	})
 	if errors.Is(err, errNeedsPassphrase) {
 		return nil, apperr.New(apperr.InvalidInput, "This handover file is protected by a passphrase: MetaRush asks for it in the terminal.").
 			WithDetails(map[string]any{"reason": "needs_passphrase"}).WithCommand("metarush machine handover receive <file> --passphrase-stdin")
 	}
 	if err != nil {
 		return nil, err
-	}
-	if m.Workspace.ID != a.WorkspaceID() {
-		return nil, apperr.New(apperr.Conflict, "This handover file is from another workspace (“%s”).", m.Workspace.Name).WithDetails(map[string]any{"reason": "other_workspace"})
-	}
-	if m.To.ID != a.Cfg.Installation.ID {
-		return nil, apperr.New(apperr.Conflict, "This handover file is for “%s”, not this computer.", m.To.Name).
-			WithHint("Receive it on “" + m.To.Name + "”, or make a new one for this computer there.").WithDetails(map[string]any{"reason": "other_computer"})
 	}
 	rec, err := getRecord(ctx, a, m.Handover)
 	if err != nil {

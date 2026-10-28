@@ -188,14 +188,25 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 		return nil
 	})
 	if err != nil {
+		// No file was made: a handover never written out yet is put back, so
+		// its conversations go on here (one written before keeps its file).
+		back := ""
+		if rec.State == StateExporting {
+			if r, uerr := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "state": StateExporting},
+				bson.M{"$set": bson.M{"state": StateAbandoned, "abandonedAt": time.Now().UTC(), "abandonedBy": a.Actor}, "$unset": bson.M{"active": ""}}); uerr == nil && r.MatchedCount == 1 {
+				if _, uerr := assistant.UnmarkHandingOver(ctx, a, rec.ID, me.ID); uerr == nil {
+					back = " Nothing moved: the conversations go on here."
+				}
+			}
+		}
 		var ae *apperr.Error
 		if errors.As(err, &ae) {
 			return nil, err
 		}
 		if errors.Is(err, os.ErrExist) {
-			return nil, apperr.New(apperr.Conflict, "There's already a file at %s: MetaRush never writes over one.", out).WithHint("Choose another name for it.")
+			return nil, apperr.New(apperr.Conflict, "There's already a file at %s: MetaRush never writes over one.%s", out, back).WithHint("Choose another name for it.")
 		}
-		return nil, apperr.Wrap(apperr.Internal, err, "MetaRush couldn't write the handover file.")
+		return nil, apperr.Wrap(apperr.Internal, err, "MetaRush couldn't write the handover file.%s", back)
 	}
 	now := time.Now().UTC()
 	convs := make([]string, 0, len(m.Conversations))
@@ -261,6 +272,12 @@ func handoverPath(out, toName string, encrypted bool) (string, error) {
 	}
 	if st, err := os.Stat(filepath.Dir(abs)); err != nil || !st.IsDir() {
 		return "", apperr.New(apperr.InvalidInput, "The folder %s isn't there.", filepath.Dir(abs))
+	}
+	// Checked before anything is marked, so a drive that can't take the file
+	// leaves everything as it was.
+	if err := writable(filepath.Dir(abs)); err != nil {
+		return "", apperr.New(apperr.Conflict, "MetaRush can't write a file in %s.", filepath.Dir(abs)).
+			WithHint("Check the drive is plugged in and not read-only, or choose another place.").WithDetails(map[string]any{"reason": "not_writable"})
 	}
 	if err := secretpath.Check(abs, "the handover file", false); err != nil {
 		return "", apperr.From(err)

@@ -112,9 +112,15 @@ type fileEntry struct {
 
 /* ---------- Writing ---------- */
 
+// packer gathers what goes into a handover file: each file's place in it
+// and where it is read from (hashed before anything is written, so the
+// manifest can go first).
 type packer struct {
-	tw    *tar.Writer
-	files []fileEntry
+	entries []packed
+}
+
+type packed struct {
+	name, src string
 }
 
 // addFile adds one regular file (never a link) under name.
@@ -123,23 +129,7 @@ func (p *packer) addFile(name, src string) error {
 	if err != nil || !st.Mode().IsRegular() {
 		return err
 	}
-	f, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	if err := p.tw.WriteHeader(&tar.Header{Name: name, Mode: 0o600, Size: st.Size(), ModTime: st.ModTime(), Typeflag: tar.TypeReg}); err != nil {
-		return err
-	}
-	h := sha256.New()
-	n, err := io.Copy(io.MultiWriter(p.tw, h), io.LimitReader(f, st.Size()))
-	if err != nil {
-		return err
-	}
-	if n != st.Size() {
-		return fmt.Errorf("%s changed while it was being read", src)
-	}
-	p.files = append(p.files, fileEntry{Path: name, Size: n, SHA256: hex.EncodeToString(h.Sum(nil))})
+	p.entries = append(p.entries, packed{name: name, src: src})
 	return nil
 }
 
@@ -163,18 +153,31 @@ func (p *packer) addDir(prefix, dir string) error {
 	})
 }
 
-func (p *packer) addBytes(name string, b []byte) error {
-	if err := p.tw.WriteHeader(&tar.Header{Name: name, Mode: 0o600, Size: int64(len(b)), ModTime: time.Now(), Typeflag: tar.TypeReg}); err != nil {
-		return err
-	}
-	_, err := p.tw.Write(b)
-	return err
-}
+// errChanged: a file changed between being listed and being written.
+var errChanged = errors.New("changed while the handover file was being made")
 
-// writeFile writes a handover file at out (never over an existing file):
-// fill adds the sessions and folders, then the manifest goes last. With a
+// writeFile writes a handover file at out (never over a file that is there):
+// fill names the sessions and folders; each is hashed, then handover.json
+// goes first — so a reader checks what the file holds before it unpacks
+// anything — and every file after it, checked against what was hashed. With a
 // passphrase it is encrypted with age's scrypt mode.
 func writeFile(out, pass string, m *fileManifest, fill func(p *packer) error) (int64, error) {
+	p := &packer{}
+	if err := fill(p); err != nil {
+		return 0, err
+	}
+	m.Files = make([]fileEntry, 0, len(p.entries))
+	for _, e := range p.entries {
+		size, sum, err := hashOf(e.src)
+		if err != nil {
+			return 0, err
+		}
+		m.Files = append(m.Files, fileEntry{Path: e.name, Size: size, SHA256: sum})
+	}
+	mb, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return 0, err
+	}
 	dir := filepath.Dir(out)
 	tmp, err := os.CreateTemp(dir, ".metarush-handover-*.part")
 	if err != nil {
@@ -188,9 +191,7 @@ func writeFile(out, pass string, m *fileManifest, fill func(p *packer) error) (i
 			_ = os.Remove(tmpName)
 		}
 	}()
-	if err := tmp.Chmod(0o600); err != nil {
-		return 0, err
-	}
+	_ = tmp.Chmod(0o600) // made 0600 already; some drives (exFAT) keep no permissions
 	var sink io.WriteCloser = nopCloser{tmp}
 	if pass != "" {
 		r, err := age.NewScryptRecipient(pass)
@@ -203,19 +204,19 @@ func writeFile(out, pass string, m *fileManifest, fill func(p *packer) error) (i
 		}
 	}
 	gz := gzip.NewWriter(sink)
-	p := &packer{tw: tar.NewWriter(gz)}
-	if err := fill(p); err != nil {
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{Name: "handover.json", Mode: 0o600, Size: int64(len(mb)), ModTime: time.Now(), Typeflag: tar.TypeReg}); err != nil {
 		return 0, err
 	}
-	m.Files = p.files
-	mb, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
+	if _, err := tw.Write(mb); err != nil {
 		return 0, err
 	}
-	if err := p.addBytes("handover.json", mb); err != nil {
-		return 0, err
+	for i, e := range p.entries {
+		if err := writeEntry(tw, e, m.Files[i]); err != nil {
+			return 0, err
+		}
 	}
-	for _, c := range []io.Closer{p.tw, gz, sink} {
+	for _, c := range []io.Closer{tw, gz, sink} {
 		if err := c.Close(); err != nil {
 			return 0, err
 		}
@@ -230,13 +231,94 @@ func writeFile(out, pass string, m *fileManifest, fill func(p *packer) error) (i
 	if err := tmp.Close(); err != nil {
 		return 0, err
 	}
-	// A hard link never replaces a file that is there already.
-	if err := os.Link(tmpName, out); err != nil {
+	if err := placeFile(tmpName, out); err != nil {
 		return 0, err
 	}
 	_ = os.Remove(tmpName)
 	ok = true
 	return st.Size(), nil
+}
+
+// writeEntry writes one file into the tar, exactly as it was hashed.
+func writeEntry(tw *tar.Writer, e packed, want fileEntry) error {
+	f, err := os.Open(e.src)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := tw.WriteHeader(&tar.Header{Name: e.name, Mode: 0o600, Size: want.Size, ModTime: time.Now(), Typeflag: tar.TypeReg}); err != nil {
+		return err
+	}
+	h := sha256.New()
+	n, err := io.Copy(io.MultiWriter(tw, h), io.LimitReader(f, want.Size))
+	if err != nil {
+		return err
+	}
+	if n != want.Size || hex.EncodeToString(h.Sum(nil)) != want.SHA256 {
+		return fmt.Errorf("%s %w", e.src, errChanged)
+	}
+	return nil
+}
+
+func hashOf(p string) (int64, string, error) {
+	f, err := os.Open(p)
+	if err != nil {
+		return 0, "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	n, err := io.Copy(h, f)
+	if err != nil {
+		return 0, "", err
+	}
+	return n, hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// linkFile is os.Link (tests stand in for a drive that has no hard links).
+var linkFile = os.Link
+
+// placeFile puts the finished file at out, never over a file that is there: a
+// hard link where the drive has them, else a new file made only if none is
+// there (O_EXCL) — USB drives formatted exFAT or FAT keep no hard links.
+func placeFile(tmp, out string) error {
+	err := linkFile(tmp, out)
+	if err == nil || errors.Is(err, os.ErrExist) {
+		return err
+	}
+	dst, err := os.OpenFile(out, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	src, err := os.Open(tmp)
+	if err != nil {
+		dst.Close()
+		_ = os.Remove(out)
+		return err
+	}
+	defer src.Close()
+	if _, err := io.Copy(dst, src); err != nil {
+		dst.Close()
+		_ = os.Remove(out)
+		return err
+	}
+	if err := dst.Sync(); err != nil {
+		dst.Close()
+		_ = os.Remove(out)
+		return err
+	}
+	return dst.Close()
+}
+
+// writable checks a file can be made in a folder (made and removed at once),
+// before anything is marked.
+func writable(dir string) error {
+	f, err := os.CreateTemp(dir, ".metarush-handover-check-*")
+	if err != nil {
+		return err
+	}
+	name := f.Name()
+	f.Close()
+	return os.Remove(name)
 }
 
 type nopCloser struct{ io.Writer }
@@ -298,10 +380,13 @@ func openFile(file, pass string) (*tar.Reader, func(), error) {
 	return tar.NewReader(gz), func() { gz.Close(); f.Close() }, nil
 }
 
-// stageFile unpacks a handover file into dir (a private folder), checking
-// every name, size and SHA-256 against its manifest; nothing outside
-// sessions/ and conversations/ (and the manifest) is taken.
-func stageFile(file, pass, dir string) (*fileManifest, error) {
+// stageFile unpacks a handover file into dir (a private folder). Its first
+// entry must be handover.json: the manifest is read and checked (check, the
+// caller's own look at it, and room enough on the disk) before anything is
+// unpacked, and every file after it must be listed there, the size it says
+// (never more is read) and the SHA-256 it says. Nothing outside sessions/ and
+// conversations/ is taken.
+func stageFile(file, pass, dir string, check func(*fileManifest) error) (*fileManifest, error) {
 	tr, done, err := openFile(file, pass)
 	if err != nil {
 		return nil, err
@@ -310,64 +395,20 @@ func stageFile(file, pass, dir string) (*fileManifest, error) {
 	bad := func(why string) error {
 		return apperr.New(apperr.InvalidInput, "This handover file is damaged or isn't one MetaRush made (%s).", why).WithDetails(map[string]any{"reason": "damaged"})
 	}
-	got := map[string]fileEntry{}
-	var mb []byte
-	var total int64
-	for n := 0; ; n++ {
-		h, err := tr.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			var ae *apperr.Error
-			if errors.As(err, &ae) {
-				return nil, err
-			}
-			return nil, bad("it ends too early")
-		}
-		if n > maxEntries {
-			return nil, bad("too many files")
-		}
-		if h.Typeflag == tar.TypeDir {
-			continue
-		}
-		if h.Typeflag != tar.TypeReg || h.Size < 0 || h.Size > maxFileBytes {
-			return nil, bad("something in it isn't a plain file")
-		}
-		name := h.Name
-		if name == "handover.json" {
-			if h.Size > 64<<20 {
-				return nil, bad("its list is too big")
-			}
-			if mb, err = io.ReadAll(tr); err != nil {
-				return nil, bad("its list can't be read")
-			}
-			continue
-		}
-		if !safeName(name) {
-			return nil, bad("a name in it points elsewhere")
-		}
-		if total += h.Size; total > maxTotalBytes {
-			return nil, bad("it is too big")
-		}
-		dst := filepath.Join(dir, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+	h, err := tr.Next()
+	if err != nil {
+		var ae *apperr.Error
+		if errors.As(err, &ae) {
 			return nil, err
 		}
-		out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err != nil {
-			return nil, bad("a file is in it twice")
-		}
-		hs := sha256.New()
-		c, err := io.Copy(io.MultiWriter(out, hs), io.LimitReader(tr, h.Size))
-		cerr := out.Close()
-		if err != nil || cerr != nil || c != h.Size {
-			return nil, bad("a file in it is cut short")
-		}
-		got[name] = fileEntry{Path: name, Size: c, SHA256: hex.EncodeToString(hs.Sum(nil))}
+		return nil, bad("it can't be read")
 	}
-	if mb == nil {
-		return nil, bad("its list is missing")
+	if h.Name != "handover.json" || h.Typeflag != tar.TypeReg || h.Size <= 0 || h.Size > 64<<20 {
+		return nil, bad("its list isn't first")
+	}
+	mb, err := io.ReadAll(io.LimitReader(tr, h.Size))
+	if err != nil || int64(len(mb)) != h.Size {
+		return nil, bad("its list can't be read")
 	}
 	var m fileManifest
 	if err := json.Unmarshal(mb, &m); err != nil {
@@ -377,16 +418,78 @@ func stageFile(file, pass, dir string) (*fileManifest, error) {
 		return nil, apperr.New(apperr.InvalidInput, "This handover file was made by another version of MetaRush that this one can't read.").
 			WithHint("Update MetaRush on this computer, then receive it again.").WithDetails(map[string]any{"format": m.Format})
 	}
-	if len(m.Files) != len(got) {
-		return nil, bad("files are missing or extra")
-	}
+	want := map[string]fileEntry{}
+	var total int64
 	for _, e := range m.Files {
-		g, ok := got[e.Path]
-		if !ok || g.Size != e.Size || g.SHA256 != e.SHA256 {
+		if !safeName(e.Path) || e.Size < 0 || e.Size > maxFileBytes || len(e.SHA256) != 64 {
+			return nil, bad("a name in its list points elsewhere")
+		}
+		if _, dup := want[e.Path]; dup {
+			return nil, bad("its list names a file twice")
+		}
+		want[e.Path] = e
+		if total += e.Size; total > maxTotalBytes || len(want) > maxEntries {
+			return nil, bad("it is too big")
+		}
+	}
+	if check != nil {
+		if err := check(&m); err != nil {
+			return nil, err
+		}
+	}
+	if free, ok := freeBytes(dir); ok && uint64(total) > free {
+		return nil, apperr.New(apperr.Conflict, "There isn't room on this computer to receive this handover file (it needs %s).", sizeWords(total)).
+			WithHint("Make room, then receive it again.").WithDetails(map[string]any{"reason": "no_room", "bytes": total})
+	}
+	got := map[string]bool{}
+	for {
+		h, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, bad("it ends too early")
+		}
+		if h.Typeflag == tar.TypeDir {
+			continue
+		}
+		e, listed := want[h.Name]
+		if !listed || got[h.Name] || h.Typeflag != tar.TypeReg || h.Size != e.Size {
+			return nil, bad("a file in it doesn't match its list")
+		}
+		got[h.Name] = true
+		dst := filepath.Join(dir, filepath.FromSlash(h.Name))
+		if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+			return nil, err
+		}
+		out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err != nil {
+			return nil, bad("a file is in it twice")
+		}
+		hs := sha256.New()
+		c, err := io.Copy(io.MultiWriter(out, hs), io.LimitReader(tr, e.Size))
+		cerr := out.Close()
+		if err != nil || cerr != nil || c != e.Size {
+			return nil, bad("a file in it is cut short")
+		}
+		if hex.EncodeToString(hs.Sum(nil)) != e.SHA256 {
 			return nil, bad("a file in it doesn't match its list")
 		}
 	}
+	if len(got) != len(want) {
+		return nil, bad("files are missing")
+	}
 	return &m, nil
+}
+
+func sizeWords(n int64) string {
+	switch {
+	case n >= 1<<30:
+		return fmt.Sprintf("%.1f GB", float64(n)/(1<<30))
+	case n >= 1<<20:
+		return fmt.Sprintf("%.0f MB", float64(n)/(1<<20))
+	}
+	return fmt.Sprintf("%d KB", (n+1023)/1024)
 }
 
 // safeName: a relative name under sessions/<conversation>/ or

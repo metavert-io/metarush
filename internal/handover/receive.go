@@ -101,6 +101,9 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 	if err != nil {
 		return nil, err
 	}
+	if rec.From != m.From.ID || rec.To != m.To.ID || rec.Kind != KindHandover {
+		return nil, apperr.New(apperr.InvalidInput, "This handover file doesn't match the handover it names.").WithDetails(map[string]any{"reason": "damaged"})
+	}
 	switch rec.State {
 	case StateAbandoned:
 		return nil, apperr.New(apperr.Conflict, "This handover was abandoned on “%s”: its conversations went on there.", rec.FromName).

@@ -1222,6 +1222,9 @@ func (m *Manager) startTurn(c *conv, msg message) (int, error) {
 		}
 		c.starting = false
 		c.data.State = ConvIdle
+		if c.proc == nil || !c.proc.alive() {
+			c.data.HolderPID = 0 // claimed for this message (mayContinue), no process holds it now
+		}
 		c.touch()
 		c.mu.Unlock()
 		m.save(c, true)
@@ -2379,6 +2382,11 @@ func (m *Manager) save(c *conv, immediate bool) {
 	c.saveVer++
 	v := c.saveVer
 	d := c.copyLocked(true)
+	if c.starting {
+		// A message being started is working already (mayContinue claimed it):
+		// a save meanwhile never says otherwise (D345).
+		d.State = ConvWorking
+	}
 	c.mu.Unlock()
 
 	c.saveMu.Lock()

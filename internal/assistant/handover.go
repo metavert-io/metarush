@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/app"
@@ -28,44 +29,73 @@ import (
 // saves match its installation, so once a conversation lives elsewhere the
 // old computer lets it go.
 
-// mayContinue claims the conversation's next message for this computer: it
-// must still be held here and not be on its way elsewhere. The same write
-// sets it working, which keeps a handover (it marks only idle
-// conversations) from crossing a message that has started.
+// mayContinue claims the conversation's next message for this computer and
+// this process, in one write: it must still be held here, not be on its way
+// elsewhere, and no other live MetaRush on this computer may hold it. The
+// write sets it working with this process as its holder (here and in the
+// database), so a handover — which marks only conversations nobody is
+// talking to — never crosses a message that has started, whatever is saved
+// before Claude Code is up (D345).
 func (m *Manager) mayContinue(c *conv) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	me, _ := m.machine()
-	res, err := m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx,
-		bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID(), "installationId": me, "handingOver": bson.M{"$exists": false}},
-		bson.M{"$set": bson.M{"state": ConvWorking}})
-	if err != nil {
-		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't reach its database to send this message. Try again in a moment.")
-	}
-	if res.MatchedCount == 1 {
-		c.mu.Lock()
-		if c.data.HandingOver != nil { // a handover that was abandoned
-			c.data.HandingOver = nil
-			c.touch()
+	pid := os.Getpid()
+	coll := m.App.DB.C(store.CAssistantConversations)
+	for range 3 {
+		var d struct {
+			InstallationID   string           `bson:"installationId"`
+			InstallationName string           `bson:"installationName"`
+			HandingOver      *ConvHandingOver `bson:"handingOver"`
+			HolderPID        int              `bson:"holderPid"`
 		}
-		c.mu.Unlock()
-		return nil
-	}
-	d, err := m.loadDoc(ctx, c.id)
-	if err != nil {
-		return err
-	}
-	if d.InstallationID != me {
-		go m.forget(c.id) // it lives on another computer now
-		return otherMachine(d)
-	}
-	if d.HandingOver != nil {
-		c.mu.Lock()
-		h := *d.HandingOver
-		c.data.HandingOver = &h
-		c.touch()
-		c.mu.Unlock()
-		return handingOverErr(d)
+		err := coll.FindOne(ctx, bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID()},
+			options.FindOne().SetProjection(bson.M{"installationId": 1, "installationName": 1, "handingOver": 1, "holderPid": 1})).Decode(&d)
+		if err != nil {
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				return notFound(c.id)
+			}
+			return apperr.Wrap(apperr.Database, err, "MetaRush couldn't reach its database to send this message. Try again in a moment.")
+		}
+		switch {
+		case d.InstallationID != me:
+			go m.forget(c.id) // it lives on another computer now
+			return otherMachine(&Conversation{InstallationID: d.InstallationID, InstallationName: d.InstallationName})
+		case d.HandingOver != nil:
+			c.mu.Lock()
+			h := *d.HandingOver
+			c.data.HandingOver = &h
+			c.touch()
+			c.mu.Unlock()
+			return handingOverErr(&Conversation{HandingOver: d.HandingOver})
+		case d.HolderPID != 0 && d.HolderPID != pid && pidAlive(d.HolderPID):
+			return apperr.New(apperr.Conflict, "This conversation is already open in another copy of MetaRush on this machine.").
+				WithHint("Continue it there (in the dashboard, or in the terminal that has it open), or close that one first.").
+				WithDetails(map[string]any{"reason": "held_elsewhere", "pid": d.HolderPID})
+		}
+		holder := bson.M{"holderPid": d.HolderPID}
+		if d.HolderPID == 0 {
+			holder = bson.M{"holderPid": bson.M{"$in": bson.A{0, nil}}}
+		}
+		filter := bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID(), "installationId": me, "handingOver": bson.M{"$exists": false}}
+		for k, v := range holder {
+			filter[k] = v
+		}
+		res, err := coll.UpdateOne(ctx, filter, bson.M{"$set": bson.M{"state": ConvWorking, "holderPid": pid}})
+		if err != nil {
+			return apperr.Wrap(apperr.Database, err, "MetaRush couldn't reach its database to send this message. Try again in a moment.")
+		}
+		if res.MatchedCount == 1 {
+			c.mu.Lock()
+			c.data.State, c.data.HolderPID = ConvWorking, pid
+			if c.data.HandingOver != nil { // a handover that was abandoned
+				c.data.HandingOver = nil
+			}
+			c.touch()
+			c.mu.Unlock()
+			return nil
+		}
+		// It changed between the look and the write: look again.
 	}
 	return apperr.New(apperr.Conflict, "MetaRush couldn't start this message. Send it again.")
 }
@@ -260,7 +290,7 @@ func Held(ctx context.Context, a *app.App, installation string) ([]HeldConversat
 	var docs []Conversation
 	err := a.DB.Find(ctx, store.CAssistantConversations, a.WorkspaceID(), bson.M{"installationId": installation}, &docs,
 		options.Find().SetProjection(bson.M{"title": 1, "projectName": 1, "userName": 1, "claudeSessionId": 1, "sessionStarted": 1, "sessionLost": 1,
-			"legacy": 1, "archived": 1, "state": 1, "holderPid": 1, "handingOver": 1, "moved": 1, "updatedAt": 1, "installationId": 1}).
+			"legacy": 1, "archived": 1, "state": 1, "holderPid": 1, "handingOver": 1, "moved": 1, "updatedAt": 1, "installationId": 1, "actions.state": 1}).
 			SetSort(bson.D{{Key: "updatedAt", Value: -1}}))
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't read the panel's conversations.")
@@ -270,7 +300,7 @@ func Held(ctx context.Context, a *app.App, installation string) ([]HeldConversat
 	for _, d := range docs {
 		out = append(out, HeldConversation{ID: d.ID, Title: d.Title, ProjectName: d.ProjectName, UserName: d.UserName, SessionID: d.ClaudeSessionID,
 			Started: d.SessionStarted, Lost: d.SessionLost, Legacy: d.Legacy, Archived: d.Archived, HandingOver: d.HandingOver, Moved: d.Moved,
-			Busy: here && d.State == ConvWorking && d.HolderPID != 0 && pidAlive(d.HolderPID)})
+			Busy: here && busyNow(&d)})
 	}
 	return out, nil
 }
@@ -320,16 +350,20 @@ func MarkHandingOver(ctx context.Context, a *app.App, ids []string, mk HandingOv
 			return marked, busy, apperr.New(apperr.Conflict, "“%s” is already moving to %s.", d.Title, d.HandingOver.ToName).
 				WithDetails(map[string]any{"reason": "handing_over"})
 		}
-		filter := bson.M{"_id": id, "workspaceId": a.WorkspaceID(), "installationId": me, "handingOver": bson.M{"$exists": false}}
-		switch {
-		case d.State != ConvWorking:
-			filter["state"] = bson.M{"$ne": ConvWorking}
-		case d.HolderPID == 0 || !pidAlive(d.HolderPID):
-			// Working, but no MetaRush here holds it: it stopped mid-message.
-			filter["state"], filter["holderPid"] = ConvWorking, d.HolderPID
-		default:
+		if busyNow(d) {
 			busy = append(busy, id)
 			continue
+		}
+		// Only as it was looked at: no message being started (a message
+		// claims the conversation with state and holder in one write) and no
+		// card running.
+		filter := bson.M{"_id": id, "workspaceId": a.WorkspaceID(), "installationId": me, "handingOver": bson.M{"$exists": false},
+			"actions.state": bson.M{"$ne": ActionRunning}}
+		if d.State != ConvWorking {
+			filter["state"] = bson.M{"$ne": ConvWorking}
+		} else {
+			// Working, held by a MetaRush that stopped: it stopped mid-message.
+			filter["state"], filter["holderPid"] = ConvWorking, d.HolderPID
 		}
 		res, uerr := a.DB.C(store.CAssistantConversations).UpdateOne(ctx, filter, bson.M{"$set": bson.M{
 			"handingOver": ConvHandingOver{Handover: mk.Handover, To: mk.To, ToName: mk.ToName, At: time.Now().UTC()}}})
@@ -343,6 +377,29 @@ func MarkHandingOver(ctx context.Context, a *app.App, ids []string, mk HandingOv
 		marked = append(marked, id)
 	}
 	return marked, busy, nil
+}
+
+// busyNow: something is going on in the conversation that a handover must
+// not cross — a message being started or answered by a MetaRush that is
+// running (working with a live holder, or working with no holder yet), or a
+// card running.
+func busyNow(d *Conversation) bool {
+	if d.State == ConvWorking && (d.HolderPID == 0 || pidAlive(d.HolderPID)) {
+		return true
+	}
+	for _, a := range d.Actions {
+		if a.State == ActionRunning {
+			return true
+		}
+	}
+	return false
+}
+
+// Settle brings this computer's conversations up to date before a handover
+// looks at them: a message a MetaRush that stopped left running ends as lost,
+// as when the daemon starts again.
+func Settle(ctx context.Context, a *app.App) {
+	For(a).ensureStarted(ctx)
 }
 
 // UnmarkHandingOver takes a handover's mark off the conversations the

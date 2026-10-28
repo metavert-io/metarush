@@ -108,7 +108,9 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 		}
 	}
 	// The conversations: none Claude is working on now, then each marked as
-	// on its way (from now on this computer never continues them).
+	// on its way (from now on this computer never continues them). A message
+	// a MetaRush that stopped left running ends first, as when it starts again.
+	assistant.Settle(ctx, a)
 	held, err := assistant.Held(ctx, a, me.ID)
 	if err != nil {
 		return nil, err

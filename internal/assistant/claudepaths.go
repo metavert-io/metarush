@@ -1,15 +1,20 @@
 package assistant
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf16"
 
 	"golang.org/x/text/unicode/norm"
+
+	"github.com/metavert-io/metarush/internal/app"
 )
 
 // Where Claude Code keeps a conversation's session (item 34, D345): its
@@ -124,20 +129,111 @@ func validSessionID(id string) bool {
 func ValidSessionID(id string) bool { return validSessionID(id) }
 
 // WorkingFolder is the folder this installation's Claude Code works in, as
-// Claude Code sees it (made when missing, so its real path is known).
+// Claude Code sees it — its getcwd(), the file system's own spelling (made
+// when missing, so it is known).
 func (m *Manager) WorkingFolder() (string, error) {
 	if err := os.MkdirAll(m.workspaceDir(), 0o700); err != nil {
 		return "", err
 	}
-	return realPath(m.workspaceDir()), nil
+	return onDiskPath(m.workspaceDir()), nil
 }
 
 // SessionPlaceOf is where Claude Code on this computer keeps a session of
-// this installation's working folder, by this process's environment.
+// this installation's working folder, by this process's environment (the
+// one it gives the Claude Code it starts).
 func (m *Manager) SessionPlaceOf(id string) (SessionPlace, error) {
 	cwd, err := m.WorkingFolder()
 	if err != nil {
 		return SessionPlace{}, err
 	}
 	return ClaudeSessionPlace(os.Getenv, cwd, id)
+}
+
+/* ---------- The background MetaRush's Claude Code ---------- */
+
+// claudeRecord is where the background MetaRush says its Claude Code keeps
+// its things (<home>/state/claude-code.json). A terminal's environment may
+// differ from the background service's (launchd gives it PATH and little
+// else), so a handover places and finds sessions by this record (D345).
+type claudeRecord struct {
+	ConfigDir string    `json:"configDir"`
+	At        time.Time `json:"at"`
+}
+
+func claudeRecordPath(a *app.App) string { return filepath.Join(a.Cfg.StateDir(), "claude-code.json") }
+
+// RecordClaudeConfig notes the configuration folder the Claude Code this
+// process starts uses; the background MetaRush calls it.
+func RecordClaudeConfig(a *app.App) {
+	dir, err := ClaudeConfigDir(os.Getenv)
+	if err != nil || a.Cfg.Home() == "" {
+		return
+	}
+	p := claudeRecordPath(a)
+	var old claudeRecord
+	if b, err := os.ReadFile(p); err == nil && json.Unmarshal(b, &old) == nil && old.ConfigDir == dir {
+		return
+	}
+	b, _ := json.Marshal(claudeRecord{ConfigDir: dir, At: time.Now().UTC()})
+	_ = os.MkdirAll(filepath.Dir(p), 0o700)
+	tmp := p + ".tmp"
+	if os.WriteFile(tmp, b, 0o600) == nil {
+		_ = os.Rename(tmp, p)
+	}
+}
+
+// ClaudeConfigFor is the configuration folder of the Claude Code the
+// background MetaRush starts on this computer: as it recorded, else this
+// process's own.
+func ClaudeConfigFor(a *app.App) (string, error) {
+	var r claudeRecord
+	if b, err := os.ReadFile(claudeRecordPath(a)); err == nil && json.Unmarshal(b, &r) == nil && filepath.IsAbs(r.ConfigDir) {
+		return r.ConfigDir, nil
+	}
+	return ClaudeConfigDir(os.Getenv)
+}
+
+// claudeConfigs are the configuration folders a session of this computer
+// may be in, the background MetaRush's first: as recorded, this process's,
+// and (outside go test) the home folder's own.
+func claudeConfigs(a *app.App) []string {
+	var out []string
+	add := func(d string, err error) {
+		if err == nil && d != "" && !slices.Contains(out, d) {
+			out = append(out, d)
+		}
+	}
+	add(ClaudeConfigFor(a))
+	add(ClaudeConfigDir(os.Getenv))
+	if !testing.Testing() {
+		if h, err := os.UserHomeDir(); err == nil {
+			add(norm.NFC.String(filepath.Join(h, ".claude")), nil)
+		}
+	}
+	return out
+}
+
+// findSession looks for a session by its ID in every projects folder of the
+// configuration folders this computer's sessions may be in (a working
+// folder spelled another way, or another configuration folder).
+func findSession(dirs []string, id string) (SessionPlace, bool) {
+	if !validSessionID(id) {
+		return SessionPlace{}, false
+	}
+	for _, cfg := range dirs {
+		entries, err := os.ReadDir(filepath.Join(cfg, "projects"))
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			base := filepath.Join(cfg, "projects", e.Name(), id)
+			if st, err := os.Stat(base + ".jsonl"); err == nil && st.Mode().IsRegular() {
+				return SessionPlace{File: base + ".jsonl", Dir: base}, true
+			}
+		}
+	}
+	return SessionPlace{}, false
 }

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -104,19 +106,28 @@ func (m *Manager) mayContinue(c *conv) error {
 // database (a handover made in a terminal, or abandoned): false when it now
 // lives on another computer (it is let go).
 func (m *Manager) syncHolder(ctx context.Context, c *conv) bool {
+	moved, _ := m.holderNow(ctx, c)
+	return moved == nil
+}
+
+// holderNow reads who holds a live conversation now: moved is its record
+// when another computer holds it (this one lets it go); the handover mark is
+// brought into memory. No answer from the database: as it was.
+func (m *Manager) holderNow(ctx context.Context, c *conv) (moved *Conversation, err error) {
 	var d struct {
-		InstallationID string           `bson:"installationId"`
-		HandingOver    *ConvHandingOver `bson:"handingOver"`
+		InstallationID   string           `bson:"installationId"`
+		InstallationName string           `bson:"installationName"`
+		HandingOver      *ConvHandingOver `bson:"handingOver"`
 	}
 	qctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	if err := m.App.DB.C(store.CAssistantConversations).FindOne(qctx, bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID()},
-		options.FindOne().SetProjection(bson.M{"installationId": 1, "handingOver": 1})).Decode(&d); err != nil {
-		return true // no answer: as it was
+		options.FindOne().SetProjection(bson.M{"installationId": 1, "installationName": 1, "handingOver": 1})).Decode(&d); err != nil {
+		return nil, err
 	}
 	if me, _ := m.machine(); d.InstallationID != "" && d.InstallationID != me {
 		m.forget(c.id)
-		return false
+		return &Conversation{InstallationID: d.InstallationID, InstallationName: d.InstallationName}, nil
 	}
 	c.mu.Lock()
 	if (c.data.HandingOver == nil) != (d.HandingOver == nil) {
@@ -124,7 +135,87 @@ func (m *Manager) syncHolder(ctx context.Context, c *conv) bool {
 		c.touch()
 	}
 	c.mu.Unlock()
-	return true
+	return nil, nil
+}
+
+// claimCards marks cards as running before they run, in one write that holds
+// only while this computer holds the conversation, it isn't on its way to
+// another computer, and none of the cards was decided already (pending in the
+// database, or not saved yet): a card runs once, on one computer, and a
+// handover never takes a conversation while one runs (D345). The cards are
+// running in memory from then on; release puts them back.
+func (m *Manager) claimCards(ctx context.Context, c *conv, ids []string, from ...string) (release func(), err error) {
+	if len(from) == 0 {
+		from = []string{ActionPending}
+	}
+	c.mu.Lock()
+	before := map[string]AssistantAction{}
+	for i := range c.data.Actions {
+		a := &c.data.Actions[i]
+		for _, id := range ids {
+			if a.ID == id {
+				before[id] = *a
+				a.State = ActionRunning
+			}
+		}
+	}
+	d := c.copyLocked(true)
+	c.touch()
+	c.mu.Unlock()
+	undo := func() {
+		c.mu.Lock()
+		for i := range c.data.Actions {
+			if b, ok := before[c.data.Actions[i].ID]; ok && c.data.Actions[i].State == ActionRunning {
+				c.data.Actions[i] = b
+			}
+		}
+		c.touch()
+		c.mu.Unlock()
+	}
+	filter := bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID(), "installationId": d.InstallationID, "handingOver": bson.M{"$exists": false},
+		"actions": bson.M{"$not": bson.M{"$elemMatch": bson.M{"id": bson.M{"$in": ids}, "state": bson.M{"$nin": from}}}}}
+	res, err := m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx, filter, bson.M{"$set": saveFields(d)})
+	if err != nil {
+		undo()
+		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't reach its database to run this change. Try again in a moment.")
+	}
+	if res.MatchedCount == 1 {
+		c.mu.Lock()
+		c.stored = true
+		c.mu.Unlock()
+		return func() { undo(); m.save(c, true) }, nil
+	}
+	undo()
+	cur, lerr := m.loadDoc(ctx, c.id)
+	switch {
+	case lerr != nil:
+		return nil, lerr
+	case cur.InstallationID != d.InstallationID:
+		go m.forget(c.id)
+		return nil, otherMachine(cur)
+	case cur.HandingOver != nil:
+		return nil, handingOverErr(cur)
+	}
+	for _, a := range cur.Actions {
+		for _, id := range ids {
+			if a.ID == id && !slices.Contains(from, a.State) {
+				return nil, apperr.New(apperr.Conflict, "%s", decidedAlready(a.State)).WithDetails(map[string]any{"state": a.State, "actionId": a.ID})
+			}
+		}
+	}
+	return nil, apperr.New(apperr.Conflict, "That card changed meanwhile. Look at it again.")
+}
+
+// errReason is an error's reason detail ("" when it has none).
+func errReason(err error) string {
+	var ae *apperr.Error
+	if errors.As(err, &ae) {
+		if d, ok := ae.Details.(map[string]any); ok {
+			r, _ := d["reason"].(string)
+			return r
+		}
+	}
+	return ""
 }
 
 // handingOverErr refuses a message for a conversation on its way elsewhere.
@@ -155,9 +246,58 @@ func (m *Manager) summaryIfSessionMissing(c *conv) {
 	if _, err := os.Stat(place.File); err == nil {
 		return
 	}
+	// Put where another environment would have looked (a receive run from a
+	// terminal whose Claude Code folder differs): a copy goes where this
+	// Claude Code looks.
+	if found, ok := findSession(claudeConfigs(m.App), sid); ok && found.File != place.File && copySession(found, place) == nil {
+		return
+	}
 	c.mu.Lock()
 	m.toSummaryLocked(c, "missing")
 	c.mu.Unlock()
+}
+
+// copySession copies a session (its file, then its folder) to another place.
+func copySession(from, to SessionPlace) error {
+	if err := os.MkdirAll(filepath.Dir(to.File), 0o700); err != nil {
+		return err
+	}
+	if err := copyPlain(from.File, to.File); err != nil {
+		return err
+	}
+	if st, err := os.Stat(from.Dir); err == nil && st.IsDir() {
+		_ = filepath.WalkDir(from.Dir, func(p string, d os.DirEntry, err error) error {
+			if err != nil || !d.Type().IsRegular() {
+				return nil
+			}
+			rel, rerr := filepath.Rel(from.Dir, p)
+			if rerr != nil {
+				return nil
+			}
+			_ = os.MkdirAll(filepath.Dir(filepath.Join(to.Dir, rel)), 0o700)
+			_ = copyPlain(p, filepath.Join(to.Dir, rel))
+			return nil
+		})
+	}
+	return nil
+}
+
+func copyPlain(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		_ = os.Remove(dst)
+		return err
+	}
+	return out.Close()
 }
 
 // toSummaryLocked starts the conversation's next message in a new session
@@ -322,7 +462,28 @@ func SessionPlaceFor(a *app.App, id string) (SessionPlace, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return SessionPlace{}, err
 	}
-	return ClaudeSessionPlace(os.Getenv, realPath(dir), id)
+	cfg, err := ClaudeConfigFor(a)
+	if err != nil {
+		return SessionPlace{}, err
+	}
+	return ClaudeSessionPlace(func(k string) string {
+		if k == "CLAUDE_CONFIG_DIR" {
+			return cfg
+		}
+		return os.Getenv(k)
+	}, onDiskPath(dir), id)
+}
+
+// FindSession is where this computer's Claude Code keeps session id: where
+// the background MetaRush's Claude Code would look for it, else wherever it
+// is in a projects folder of a configuration folder this computer uses.
+func FindSession(a *app.App, id string) (SessionPlace, bool) {
+	if place, err := SessionPlaceFor(a, id); err == nil {
+		if st, err := os.Stat(place.File); err == nil && st.Mode().IsRegular() {
+			return place, true
+		}
+	}
+	return findSession(claudeConfigs(a), id)
 }
 
 // HandingOverMark is what MarkHandingOver puts on each conversation.

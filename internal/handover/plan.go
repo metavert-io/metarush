@@ -3,7 +3,6 @@ package handover
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -292,10 +291,8 @@ func sessionState(a *app.App, h assistant.HeldConversation, newName string) (str
 	case !h.Started || h.SessionID == "":
 		return "none", "It moves, and goes on at " + newName + "."
 	}
-	if place, err := assistant.SessionPlaceFor(a, h.SessionID); err == nil {
-		if _, err := os.Stat(place.File); err == nil {
-			return "here", "It travels in the handover file and goes on at " + newName + " where it left off."
-		}
+	if _, ok := assistant.FindSession(a, h.SessionID); ok {
+		return "here", "It travels in the handover file and goes on at " + newName + " where it left off."
 	}
 	return "missing", "Claude Code's own record of it isn't on this computer: it goes on at " + newName + " from a summary of the conversation."
 }

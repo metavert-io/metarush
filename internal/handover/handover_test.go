@@ -875,3 +875,31 @@ func TestTakeOverFromAHandoverFile(t *testing.T) {
 		t.Fatalf("the unfinished handover: %+v %v", r, err)
 	}
 }
+
+// A handover run from a terminal whose Claude Code folder differs from the
+// background MetaRush's still finds each session to carry, and puts it where
+// the new computer's background Claude Code looks: the conversation goes on
+// in its own session there.
+func TestSessionsGoWhereTheServiceLooks(t *testing.T) {
+	w := newWorkspace(t)
+	old, nu := w.computer(t, "laptop"), w.computer(t, "desk")
+	ctx := context.Background()
+	id, _ := talk(t, old.at(t, remembers()), "", "Plan the launch video.")
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir()) // a terminal with another Claude Code folder
+	pctx := handover.WithPassphrase(ctx, pass)
+	out := filepath.Join(t.TempDir(), "h.age")
+	if ex := call[handover.HandoverExportOut](t, pctx, old.a, "machine.handover.export", handover.HandoverExportIn{To: "desk", Out: out}); ex.Sessions != 1 {
+		t.Fatalf("the session wasn't found: %+v", ex)
+	}
+	m := nu.at(t, remembers()) // the new computer's background MetaRush says where its Claude Code looks
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	call[handover.HandoverReceiveOut](t, pctx, nu.a, "machine.handover.receive", handover.HandoverReceiveIn{File: out})
+	sid := conv(t, nu.a, id).ClaudeSessionID
+	if _, err := os.Stat(sessionAt(t, nu, sid)); err != nil {
+		t.Fatalf("not where the background Claude Code looks: %v", err)
+	}
+	t.Setenv("CLAUDE_CONFIG_DIR", nu.claude) // the background MetaRush's own environment
+	if _, reply := talk(t, m, id, "Where were we?"); reply != "I remember 1 messages." {
+		t.Fatalf("it didn't go on in its own session: %q", reply)
+	}
+}

@@ -129,7 +129,8 @@ type Manager struct {
 // makes it the one ops use.
 func New(a *app.App, exe string) *Manager {
 	m := newManager(a, exe, false)
-	go m.inboxLoop() // notes for Claude from elsewhere (D186)
+	go m.inboxLoop()      // notes for Claude from elsewhere (D186)
+	RecordClaudeConfig(a) // where its Claude Code keeps sessions, for a handover run in a terminal (D345)
 	return m
 }
 
@@ -598,7 +599,7 @@ func (m *Manager) loadDoc(ctx context.Context, id string) (*Conversation, error)
 }
 
 // live returns a conversation of this machine for live use (loading it).
-func (m *Manager) live(ctx context.Context, id string, _ bool) (*conv, error) {
+func (m *Manager) live(ctx context.Context, id string, change bool) (*conv, error) {
 	if !ValidID(id) {
 		return nil, notFound(id)
 	}
@@ -606,6 +607,13 @@ func (m *Manager) live(ctx context.Context, id string, _ bool) (*conv, error) {
 	m.mu.Lock()
 	if c := m.convs[id]; c != nil {
 		m.mu.Unlock()
+		if change {
+			// Who holds it now (D345): a conversation that moved to another
+			// computer is let go and changed only there.
+			if moved, _ := m.holderNow(ctx, c); moved != nil {
+				return nil, otherMachine(moved)
+			}
+		}
 		return c, nil
 	}
 	m.mu.Unlock()
@@ -2396,20 +2404,7 @@ func (m *Manager) save(c *conv, immediate bool) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	set := bson.M{"state": d.State, "turns": d.Turns, "queue": d.Queue, "events": d.Events, "actions": d.Actions, "costUsd": d.CostUSD,
-		"budgetUsd": d.BudgetUSD, "model": d.Model, "effort": d.Effort, "modelUsed": d.ModelUsed, "claudeVersion": d.ClaudeVersion, "contextTokens": d.ContextTokens,
-		"contextWindow": d.ContextWindow, "turnCount": d.TurnCount, "firstPrompt": d.FirstPrompt, "lastPrompt": d.LastPrompt,
-		"proposalCount": d.ProposalCount, "compacted": d.Compacted, "holderPid": d.HolderPID, "sessionStarted": d.SessionStarted,
-		"claudeSessionId": d.ClaudeSessionID, "projectId": d.ProjectID, "projectName": d.ProjectName, "updatedAt": d.UpdatedAt,
-		"sessionLost": d.SessionLost, "pendingActions": pendingCount(d.Actions), "waitingFor": d.WaitingCounts(), "watching": runningWork(d.Actions),
-		"untold": untoldCount(d.Actions), "tokens": d.Tokens, "sessionTokens": d.SessionTokens, "counting": d.Counting, "tokenLimitM": d.TokenLimitM,
-		"compactions": d.Compactions, "compactedTo": d.CompactedTo, "metarushVersion": d.MetaRushVersion}
-	if d.Account != nil {
-		set["account"] = d.Account // whose Claude answered its latest message (D239)
-	}
-	if d.Moved != nil {
-		set["moved"] = d.Moved // it came from another computer (D345)
-	}
+	set := saveFields(d)
 	onInsert := bson.M{"workspaceId": d.WorkspaceID, "userId": d.UserID, "userName": d.UserName, "installationId": d.InstallationID,
 		"installationName": d.InstallationName, "createdAt": d.CreatedAt, "legacy": d.Legacy, "title": d.Title, "titleSource": d.TitleSource, "archived": d.Archived}
 	// Only its first save makes the record: one that is gone (its project was
@@ -2452,6 +2447,27 @@ func (m *Manager) save(c *conv, immediate bool) {
 		}
 		c.mu.Unlock()
 	}
+}
+
+// saveFields is what a save writes of a conversation: everything this
+// computer keeps of it, but who holds it and the fields people change from
+// any computer (title, archived), and the handover mark.
+func saveFields(d Conversation) bson.M {
+	set := bson.M{"state": d.State, "turns": d.Turns, "queue": d.Queue, "events": d.Events, "actions": d.Actions, "costUsd": d.CostUSD,
+		"budgetUsd": d.BudgetUSD, "model": d.Model, "effort": d.Effort, "modelUsed": d.ModelUsed, "claudeVersion": d.ClaudeVersion, "contextTokens": d.ContextTokens,
+		"contextWindow": d.ContextWindow, "turnCount": d.TurnCount, "firstPrompt": d.FirstPrompt, "lastPrompt": d.LastPrompt,
+		"proposalCount": d.ProposalCount, "compacted": d.Compacted, "holderPid": d.HolderPID, "sessionStarted": d.SessionStarted,
+		"claudeSessionId": d.ClaudeSessionID, "projectId": d.ProjectID, "projectName": d.ProjectName, "updatedAt": d.UpdatedAt,
+		"sessionLost": d.SessionLost, "pendingActions": pendingCount(d.Actions), "waitingFor": d.WaitingCounts(), "watching": runningWork(d.Actions),
+		"untold": untoldCount(d.Actions), "tokens": d.Tokens, "sessionTokens": d.SessionTokens, "counting": d.Counting, "tokenLimitM": d.TokenLimitM,
+		"compactions": d.Compactions, "compactedTo": d.CompactedTo, "metarushVersion": d.MetaRushVersion}
+	if d.Account != nil {
+		set["account"] = d.Account // whose Claude answered its latest message (D239)
+	}
+	if d.Moved != nil {
+		set["moved"] = d.Moved // it came from another computer (D345)
+	}
+	return set
 }
 
 /* ---------- Following (SSE) ---------- */

@@ -159,9 +159,9 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 			state, _ := sessionState(a, h, "")
 			switch state {
 			case "here":
-				place, err := assistant.SessionPlaceFor(a, h.SessionID)
-				if err != nil {
-					return err
+				place, ok := assistant.FindSession(a, h.SessionID)
+				if !ok {
+					return fmt.Errorf("a session went missing while the file was being made")
 				}
 				prefix := path.Join("sessions", h.ID)
 				if err := p.addFile(path.Join(prefix, h.SessionID+".jsonl"), place.File); err != nil {

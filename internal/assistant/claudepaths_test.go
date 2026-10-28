@@ -1,8 +1,11 @@
 package assistant
 
 import (
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -47,5 +50,66 @@ func TestClaudeConfigDirFollowsClaudeCode(t *testing.T) {
 	}
 	if _, err := ClaudeSessionPlace(env(map[string]string{"CLAUDE_CONFIG_DIR": "/c"}), "/w", "../../etc/passwd"); err == nil {
 		t.Fatal("a session ID is never a path")
+	}
+}
+
+// A handover run from a terminal places and finds sessions where the
+// background MetaRush's Claude Code keeps them (it recorded where), whatever
+// the terminal's own environment says; a session is found by its ID in any
+// projects folder of a configuration folder this computer uses.
+func TestSessionsFollowTheBackgroundClaudeCode(t *testing.T) {
+	service, terminal := t.TempDir(), t.TempDir()
+	a := testApp(t, "")
+	t.Setenv("CLAUDE_CONFIG_DIR", service)
+	RecordClaudeConfig(a) // what the background MetaRush does when it starts
+	t.Setenv("CLAUDE_CONFIG_DIR", terminal)
+	id := "0b5c2d1e-1f2a-4b3c-8d4e-5f6a7b8c9d0e"
+	place, err := SessionPlaceFor(a, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(place.File, filepath.Join(service, "projects")+string(filepath.Separator)) {
+		t.Fatalf("placed by the terminal's environment: %s", place.File)
+	}
+	if _, ok := FindSession(a, id); ok {
+		t.Fatal("found a session that isn't there")
+	}
+	// Kept under another spelling of the working folder, in the terminal's folder.
+	other := filepath.Join(terminal, "projects", "-somewhere-else", id+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(other), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(other, []byte(`{"type":"user"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := FindSession(a, id); !ok || got.File != other {
+		t.Fatalf("found %v %v", got, ok)
+	}
+}
+
+// Claude Code names a sessions folder from its getcwd(): the file system's own
+// spelling. A folder made in decomposed form and opened by its composed
+// spelling comes back decomposed, and the key MetaRush computes follows.
+func TestWorkingFolderKeyIsTheOnDiskSpelling(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("only a Mac's file system gives back its own Unicode form")
+	}
+	base := t.TempDir()
+	nfd := filepath.Join(base, "Café work") // "é" as e + U+0301
+	if err := os.Mkdir(nfd, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	nfc := filepath.Join(base, "Café work")
+	t.Chdir(nfc)
+	cwd, err := syscall.Getwd() // the system's getcwd(), as Claude Code reads it (os.Getwd may give $PWD back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := ClaudeProjectKey(onDiskPath(nfc)), ClaudeProjectKey(cwd); got != want {
+		t.Fatalf("key from the spelling typed %q, Claude Code's %q", got, want)
+	}
+	// The spelling typed alone would have named another folder.
+	if ClaudeProjectKey(realPath(nfc)) == ClaudeProjectKey(cwd) {
+		t.Fatalf("this file system gave back the composed spelling: %q", cwd)
 	}
 }

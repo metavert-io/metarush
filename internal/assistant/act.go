@@ -26,7 +26,7 @@ const maxActAtOnce = 30
 // and Claude hears about all of them in one note — once the work they started
 // (a render, a snapshot, an import) has finished (D142, D144).
 func (m *Manager) Act(ctx context.Context, a *app.App, caller ops.Caller, in ConversationActIn) (*ConversationActOut, error) {
-	c, err := m.live(ctx, in.ID, false)
+	c, err := m.live(ctx, in.ID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -73,14 +73,27 @@ func (m *Manager) Act(ctx context.Context, a *app.App, caller ops.Caller, in Con
 		return nil, err
 	}
 	orderCards(cards)
+	release := func() {}
+	if !in.Dismiss {
+		// Claimed first (D345): run once, on the computer holding the
+		// conversation, never while it moves to another one.
+		claim := make([]string, 0, len(cards))
+		for _, act := range cards {
+			claim = append(claim, act.ID)
+		}
+		if release, err = m.claimCards(ctx, c, claim); err != nil {
+			return nil, err
+		}
+	}
 	batch := shortID("b")
 	out := make([]AssistantAction, 0, len(cards))
 	for _, act := range cards {
 		done, err := m.runCard(ctx, a, caller, c, act, in)
 		if err != nil {
 			if len(cards) == 1 {
+				release()                        // a single card stays as it was (try again, or Not now)
 				m.replanRecipe(ctx, c, act, err) // Recipes: a plan that changed shows again on its card (D211)
-				return nil, err                  // a single card stays as it was (try again, or Not now)
+				return nil, err
 			}
 			done = act
 			done.State, done.Error = ActionFailed, apperr.From(err).Message

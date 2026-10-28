@@ -372,7 +372,7 @@ func run(scriptPath string) int {
 		lf.Close()
 	}
 	_ = os.WriteFile(filepath.Join(f.run, "env.txt"), []byte(strings.Join(os.Environ(), "\n")+"\n"), 0o600)
-	f.cwd, _ = os.Getwd()
+	f.cwd, _ = syscall.Getwd() // the system's getcwd(), like Claude Code (os.Getwd may give $PWD back)
 	if lf, err := os.OpenFile(filepath.Join(f.run, "spawns.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
 		sb, _ := json.Marshal(Spawn{Argv: args, Cwd: f.cwd, ConfigDir: os.Getenv("CLAUDE_CONFIG_DIR"), Home: os.Getenv("HOME")})
 		lf.Write(append(sb, '\n'))

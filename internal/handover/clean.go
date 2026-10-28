@@ -85,7 +85,7 @@ func cleanHandover(ctx context.Context, a *app.App, in *HandoverCleanIn) (*Hando
 			continue
 		}
 		if sid := rec.Sessions[id]; sid != "" {
-			if place, err := assistant.SessionPlaceFor(a, sid); err == nil {
+			if place, ok := assistant.FindSession(a, sid); ok {
 				paths = append(paths, place.File, place.Dir)
 			}
 		}

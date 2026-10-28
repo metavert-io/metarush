@@ -232,3 +232,57 @@ func mustOne(t *testing.T, c *computer) string {
 	}
 	return d.ID
 }
+
+// Receiving is one step a person can't cut in two: the handover can't be
+// abandoned while the new computer brings it in, and if it is ended meanwhile
+// anyway (a take-over elsewhere), receive says so plainly instead of saying it
+// worked.
+func TestReceiveIsRecordedOrSaysWhyNot(t *testing.T) {
+	w := newWorkspace(t)
+	old, nu := w.computer(t, "laptop"), w.computer(t, "desk")
+	ctx := context.Background()
+	talk(t, old.at(t, remembers()), "", "Hello.")
+	pctx := handover.WithPassphrase(ctx, pass)
+	out := filepath.Join(t.TempDir(), "h.age")
+	call[handover.HandoverExportOut](t, pctx, old.a, "machine.handover.export", handover.HandoverExportIn{To: "desk", Out: out})
+	nu.at(t, remembers())
+
+	// Abandon while it is being received: refused.
+	var abandonErr error
+	restore := handover.WhileReceiving(func(string) {
+		_, abandonErr = ops.CallTyped[handover.HandoverAbandonOut](ctx, old.a, "machine.handover.abandon", handover.HandoverAbandonIn{}, person())
+	})
+	r := call[handover.HandoverReceiveOut](t, pctx, nu.a, "machine.handover.receive", handover.HandoverReceiveIn{File: out})
+	restore()
+	refused(t, abandonErr, apperr.Conflict, "receiving")
+	if r.Handover.State != handover.StateReceived || r.Moved.Conversations != 1 {
+		t.Fatalf("receive %+v %+v", r.Handover.State, r.Moved)
+	}
+	// Received again: nothing moves twice, and the record isn't settled again.
+	settled := *r.Handover.SettledAt
+	again := call[handover.HandoverReceiveOut](t, pctx, nu.a, "machine.handover.receive", handover.HandoverReceiveIn{File: out})
+	if again.Moved != (handover.HandoverMoved{}) || again.Handover == nil || !again.Handover.SettledAt.Equal(settled) {
+		t.Fatalf("again %+v", again)
+	}
+
+	// Ended meanwhile by something else: said plainly, not reported as done.
+	w2 := newWorkspace(t)
+	o2, n2 := w2.computer(t, "laptop"), w2.computer(t, "desk")
+	talk(t, o2.at(t, remembers()), "", "Hi.")
+	out2 := filepath.Join(t.TempDir(), "h2.age")
+	ex2 := call[handover.HandoverExportOut](t, pctx, o2.a, "machine.handover.export", handover.HandoverExportIn{To: "desk", Out: out2})
+	n2.at(t, remembers())
+	restore = handover.WhileReceiving(func(id string) {
+		_, _ = w2.db.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": bson.M{"state": handover.StateAbandoned}, "$unset": bson.M{"active": ""}})
+	})
+	_, err := ops.CallTyped[handover.HandoverReceiveOut](pctx, n2.a, "machine.handover.receive", handover.HandoverReceiveIn{File: out2}, person())
+	restore()
+	refused(t, err, apperr.Conflict, "abandoned")
+	var rec handover.HandoverRecord
+	if err := w2.db.GetByID(ctx, store.CHandovers, w2.id, ex2.Handover.ID, &rec); err != nil || rec.State != handover.StateAbandoned || rec.SettledAt != nil {
+		t.Fatalf("the record %+v %v", rec, err)
+	}
+	if role, _ := handover.RoleOf(ctx, o2.a, o2.a.Cfg.Installation.ID); role.Role != handover.RoleHost {
+		t.Fatalf("the old computer is still the host: %+v", role)
+	}
+}

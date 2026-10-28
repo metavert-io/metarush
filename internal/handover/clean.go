@@ -167,6 +167,10 @@ func abandonHandover(ctx context.Context, a *app.App, in *HandoverAbandonIn) (*H
 	switch rec.State {
 	case StateAbandoned:
 		return &HandoverAbandonOut{Handover: *rec, Summary: "That handover was abandoned already."}, nil
+	case StateReceiving:
+		return nil, apperr.New(apperr.Conflict, "“%s” is receiving this handover now, so it can't be abandoned.", rec.ToName).
+			WithHint("Let it finish there; to give the role back after, hand it over from “" + rec.ToName + "” to “" + rec.FromName + "”.").
+			WithDetails(map[string]any{"reason": "receiving"})
 	case StateReceived, StateDone:
 		return nil, apperr.New(apperr.Conflict, "“%s” has received this handover already, so it can't be abandoned.", rec.ToName).
 			WithHint("To give the role back, hand it over from “" + rec.ToName + "” to “" + rec.FromName + "”.")
@@ -178,7 +182,8 @@ func abandonHandover(ctx context.Context, a *app.App, in *HandoverAbandonIn) (*H
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't abandon the handover.")
 	}
 	if res.MatchedCount == 0 {
-		return nil, apperr.New(apperr.Conflict, "The handover changed meanwhile (it may have been received).").WithCommand("metarush machine handover status")
+		return nil, apperr.New(apperr.Conflict, "The handover changed meanwhile: “%s” may be receiving it.", rec.ToName).
+			WithCommand("metarush machine handover status").WithDetails(map[string]any{"reason": "receiving"})
 	}
 	n, err := assistant.UnmarkHandingOver(ctx, a, rec.ID, rec.From)
 	if err != nil {

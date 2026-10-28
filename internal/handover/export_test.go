@@ -14,3 +14,10 @@ func NoHardLinks() func() {
 	}
 	return func() { linkFile = was }
 }
+
+// WhileReceiving runs f once the conversations came, before the handover is
+// recorded as received, until the returned func puts things back.
+func WhileReceiving(f func(handover string)) func() {
+	receiveHook = f
+	return func() { receiveHook = nil }
+}

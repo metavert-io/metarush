@@ -92,6 +92,10 @@ func handoverStatus(ctx context.Context, a *app.App, _ *HandoverStatusIn) (*Hand
 			out.Summary = fmt.Sprintf("Handing this computer's role to “%s”: the handover file waits to be received there. This computer no longer continues the conversations in it.", r.ToName)
 		case r.To == me && (r.State == StateExporting || r.State == StateExported):
 			out.Summary = fmt.Sprintf("“%s” is handing its role to this computer: receive the handover file here.", r.FromName)
+		case r.From == me && r.State == StateReceiving:
+			out.Summary = fmt.Sprintf("“%s” is receiving this computer's role now.", r.ToName)
+		case r.State == StateReceiving:
+			out.Summary = fmt.Sprintf("This computer is receiving “%s”'s role. If that stopped part way, receive the same file again.", r.FromName)
 		case r.From == me:
 			out.Summary = role.Says
 		default:

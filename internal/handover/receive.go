@@ -116,6 +116,9 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 	case StateDone:
 		return nil, apperr.New(apperr.Conflict, "This handover was received already, and “%s” has stepped down.", rec.FromName).WithCommand("metarush machine handover status")
 	}
+	// Received already: it only says so (nothing moves twice, and the role
+	// isn't taken again after it may have been handed back).
+	again := rec.State == StateReceived
 	src := source{dir: dir, manifest: m}
 	out := &HandoverReceiveOut{Plan: in.Plan, From: m.From, Work: m.Work, Folders: m.Folders, Conversations: []HandoverConversation{}}
 	if out.Work == nil {
@@ -128,9 +131,21 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 	if err != nil {
 		return nil, err
 	}
+	// This computer is receiving it from now on: it can't be abandoned
+	// meanwhile (a receive that stops part way runs again).
+	if !in.Plan && !again {
+		r, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "state": bson.M{"$in": bson.A{StateExported, StateReceiving}}},
+			bson.M{"$set": bson.M{"state": StateReceiving}})
+		if err != nil {
+			return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't record that the handover is being received.")
+		}
+		if r.MatchedCount == 0 {
+			return nil, changedMeanwhile(ctx, a, rec.ID)
+		}
+	}
 	adopt := adoption{a: a, from: m.From, handover: rec.ID, marked: true, oldDir: m.AssistantDir, src: src}
 	for _, fc := range m.Conversations {
-		c, err := adopt.one(ctx, fc.ID, fc.Title, in.Plan)
+		c, err := adopt.one(ctx, fc.ID, fc.Title, in.Plan || again)
 		if err != nil {
 			return nil, err
 		}
@@ -139,8 +154,26 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 	if in.Plan {
 		out.Summary = fmt.Sprintf("Receiving this file would bring %s from “%s” to this computer, move the work pinned there and set %s here.",
 			plural(len(out.Conversations), "conversation"), m.From.Name, plural(len(m.Folders), "folder"))
+		if again {
+			out.Summary = "This computer received this handover already: receiving it again changes nothing."
+		}
 		out.Steps = receivedSteps(a, m, rec)
 		return out, nil
+	}
+	if again {
+		out.Handover = rec
+		if out.Waiting, err = stillThere(ctx, a, m.From.ID); err != nil {
+			return nil, err
+		}
+		if out.Waiting == nil {
+			out.Waiting = []HandoverWork{}
+		}
+		out.Steps = receivedSteps(a, m, rec)
+		out.Summary = fmt.Sprintf("This computer received this handover from “%s” already: nothing more moved.", m.From.Name)
+		return out, nil
+	}
+	if receiveHook != nil {
+		receiveHook(rec.ID)
 	}
 	moved, err := moveWork(ctx, a, m.From.ID, a.Cfg.Installation.ID, a.Cfg.Installation.Name, false)
 	if err != nil {
@@ -153,11 +186,20 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 	}
 	moved.Folders = nf
 	now := time.Now().UTC()
-	_, err = a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "state": bson.M{"$in": bson.A{StateExported, StateReceived}}},
+	r, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "state": StateReceiving},
 		bson.M{"$set": bson.M{"state": StateReceived, "receivedAt": now, "receivedBy": a.Actor, "moved": addMoved(rec.Moved, moved)},
 			"$currentDate": bson.M{"settledAt": true}})
 	if err != nil {
-		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't record that the handover was received.")
+		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't record that the handover was received.").
+			WithHint("Receive the same file again: what came already stays, and the rest comes.")
+	}
+	if r.MatchedCount == 0 {
+		// Another receive here may have just finished it; anything else ended
+		// it meanwhile, and what came here stays here (each conversation is
+		// held by one computer all the same).
+		if again, gerr := getRecord(ctx, a, rec.ID); gerr != nil || again.State != StateReceived {
+			return nil, changedMeanwhile(ctx, a, rec.ID)
+		}
 	}
 	if rec, err = getRecord(ctx, a, rec.ID); err != nil {
 		return nil, err
@@ -183,6 +225,30 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 		out.Summary += fmt.Sprintf(" “%s” steps down by itself the next time MetaRush there looks.", m.From.Name)
 	}
 	return out, nil
+}
+
+// receiveHook runs (in tests) once the conversations came, before the
+// handover is recorded as received.
+var receiveHook func(handover string)
+
+// changedMeanwhile says, plainly, that the handover was ended while this
+// computer was receiving it.
+func changedMeanwhile(ctx context.Context, a *app.App, id string) error {
+	rec, err := getRecord(ctx, a, id)
+	if err != nil {
+		return err
+	}
+	switch rec.State {
+	case StateAbandoned:
+		return apperr.New(apperr.Conflict, "This handover was abandoned on “%s” while this computer was receiving it.", rec.FromName).
+			WithHint("Anything that came here already stays here. Run status to see where each computer stands.").
+			WithCommand("metarush machine handover status").WithDetails(map[string]any{"reason": "abandoned"})
+	case StateDone:
+		return apperr.New(apperr.Conflict, "This handover was received already, and “%s” has stepped down.", rec.FromName).WithCommand("metarush machine handover status")
+	}
+	return apperr.New(apperr.Conflict, "This handover changed while this computer was receiving it.").
+		WithHint("Run status to see where each computer stands, then receive the file again.").
+		WithCommand("metarush machine handover status").WithDetails(map[string]any{"reason": "changed"})
 }
 
 // checkChoices says where each folder goes; every folder needs a place or a

@@ -44,12 +44,15 @@ const (
 
 	// StateExporting: the old computer marked its conversations and is
 	// writing the file; StateExported: the file is ready for the new
-	// computer; StateReceived: the new computer has the role, the old one
-	// finishes its own running work; StateDone: the old computer stepped
-	// down (a take-over is done at once); StateAbandoned: a person abandoned
-	// it before it was received.
+	// computer; StateReceiving: the new computer is bringing it in (it can't
+	// be abandoned now, and a receive that stopped part way runs again);
+	// StateReceived: the new computer has the role, the old one finishes its
+	// own running work; StateDone: the old computer stepped down (a
+	// take-over is done at once); StateAbandoned: a person abandoned it
+	// before it was received.
 	StateExporting = "exporting"
 	StateExported  = "exported"
+	StateReceiving = "receiving"
 	StateReceived  = "received"
 	StateDone      = "done"
 	StateAbandoned = "abandoned"
@@ -73,7 +76,7 @@ type HandoverRecord struct {
 	FromName string `bson:"fromName" json:"fromName"`
 	To       string `bson:"to" json:"to"`
 	ToName   string `bson:"toName" json:"toName"`
-	State    string `bson:"state" json:"state" jsonschema:"enum=exporting,enum=exported,enum=received,enum=done,enum=abandoned"`
+	State    string `bson:"state" json:"state" jsonschema:"enum=exporting,enum=exported,enum=receiving,enum=received,enum=done,enum=abandoned"`
 	// Active: in progress (one per computer, a unique index): until the old
 	// computer stepped down, or it was abandoned.
 	Active bool `bson:"active,omitempty" json:"active"`

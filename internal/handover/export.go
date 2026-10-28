@@ -95,7 +95,7 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 	case rec != nil && rec.To != to.ID:
 		return nil, apperr.New(apperr.Conflict, "A handover from this computer to “%s” is in progress.", rec.ToName).
 			WithHint("Abandon it first to hand over to another computer.").WithCommand("metarush machine handover abandon")
-	case rec != nil && rec.State == StateReceived:
+	case rec != nil && (rec.State == StateReceived || rec.State == StateReceiving):
 		return nil, apperr.New(apperr.Conflict, "“%s” has already received this computer's role.", rec.ToName).WithCommand("metarush machine handover status")
 	case rec == nil:
 		rec = &HandoverRecord{ID: ids.New(ids.Handover), WorkspaceID: a.WorkspaceID(), Kind: KindHandover, From: me.ID, FromName: me.Name, To: to.ID, ToName: to.Name,
@@ -213,9 +213,15 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 	for _, c := range m.Conversations {
 		convs = append(convs, c.ID)
 	}
-	if _, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "state": bson.M{"$in": bson.A{StateExporting, StateExported}}},
+	if r, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "state": bson.M{"$in": bson.A{StateExporting, StateExported}}},
 		bson.M{"$set": bson.M{"state": StateExported, "exportedAt": now, "conversations": convs, "sessions": sessions, "file": filepath.Base(out)}}); err != nil {
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't record the handover.")
+	} else if r.MatchedCount == 0 {
+		// Abandoned (or taken over) while the file was being made: it can't
+		// be received, so it goes.
+		_ = os.Remove(out)
+		return nil, apperr.New(apperr.Conflict, "The handover was ended while its file was being made, so the file was removed.").
+			WithCommand("metarush machine handover status").WithDetails(map[string]any{"reason": "changed"})
 	}
 	rec, err = getRecord(ctx, a, rec.ID)
 	if err != nil {

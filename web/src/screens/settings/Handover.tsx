@@ -30,6 +30,7 @@ type Record = Status['recent'][number];
 const STATE_WORD: { [k: string]: string } = {
   exporting: 'File being made',
   exported: 'Waiting to be received',
+  receiving: 'Being received',
   received: 'Received',
   done: 'Done',
   abandoned: 'Abandoned',

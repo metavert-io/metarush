@@ -172,6 +172,17 @@ func talk(t *testing.T, m *assistant.Manager, id, prompt string) (string, string
 	if c == nil {
 		t.Fatal("the reply didn't come")
 	}
+	// …and saved so: a handover reads the database, not this process's memory.
+	for saved := false; !saved; {
+		var d assistant.Conversation
+		if err := m.App.DB.GetByID(ctx, store.CAssistantConversations, m.App.WorkspaceID(), id, &d); err == nil && d.State != assistant.ConvWorking {
+			saved = true
+		} else if time.Now().After(deadline) {
+			t.Fatal("the reply wasn't saved")
+		} else {
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
 	last := c.Turns[len(c.Turns)-1]
 	if last.State != assistant.TurnSucceeded {
 		t.Fatalf("turn %d %s: %s", last.N, last.State, last.Error)

@@ -116,6 +116,18 @@ type Server struct {
 	// held: a move keeps changes out of the workspace's database (D335);
 	// this server reads only and starts no background work (NewHeld).
 	held bool
+	// remoteOff: this computer handed its role to another one (D346): its
+	// dashboard answers only this computer's own browser, whatever
+	// config.yaml says of remote access (RemoteOff).
+	remoteOff atomic.Bool
+}
+
+// RemoteOff keeps remote access off for this server: a computer that handed
+// its role over works as a client of the workspace, its dashboard for its own
+// browser only (D346).
+func (s *Server) RemoteOff() {
+	s.remoteOff.Store(true)
+	_ = s.App.Cfg.SetRemote(config.Dashboard{})
 }
 
 // NewHeld builds the server MetaRush runs while a move of the database keeps

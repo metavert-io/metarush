@@ -19,6 +19,7 @@ import (
 	"github.com/metavert-io/metarush/internal/components"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/firstrun"
+	"github.com/metavert-io/metarush/internal/handover"
 	"github.com/metavert-io/metarush/internal/localdb"
 	"github.com/metavert-io/metarush/internal/media"
 	"github.com/metavert-io/metarush/internal/models"
@@ -316,6 +317,12 @@ func runDoctor(parent context.Context) []Check {
 		add("workspace", "this installation", "ok", fmt.Sprintf("%s with its own storage key %s (%s scope)", self.Name, self.StorageKey.Label, self.StorageKey.Scope), "")
 	}
 	a, err := app.OpenWith(ctx, cfg, "cli")
+	if err == nil {
+		// A computer that handed its role to another one says so (D346).
+		if role, rerr := handover.RoleOf(ctx, a, cfg.Installation.ID); rerr == nil && role.Role != handover.RoleHost {
+			add("workspace", "role", "info", role.Says, "", role.Says)
+		}
+	}
 	if err != nil {
 		add("storage", "media store", "fail", err.Error(), "", "MetaRush's storage can't be opened", "Check MetaRush's storage settings.")
 		return out

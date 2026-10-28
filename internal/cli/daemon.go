@@ -25,6 +25,7 @@ import (
 	"github.com/metavert-io/metarush/internal/components"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/generate"
+	"github.com/metavert-io/metarush/internal/handover"
 	"github.com/metavert-io/metarush/internal/improve"
 	"github.com/metavert-io/metarush/internal/ingest"
 	"github.com/metavert-io/metarush/internal/intake"
@@ -91,6 +92,11 @@ func serveCmd() *cobra.Command {
 				fmt.Fprintf(os.Stderr, "applied migrations: %v\n", applied)
 			}
 			a.TouchInstallation(ctx)
+			// A computer that handed its role to another one (D346) works as a
+			// client: its dashboard for this computer only, no background work.
+			if role, _, err := handover.Look(ctx, a); err == nil && role.Role == handover.RoleClient {
+				return serveClient(c, a, ctx, cancel, workerOnly, role)
+			}
 			// The database on this computer (D254): openApp started it; the
 			// daemon keeps it running.
 			if l := a.Cfg.Database.Local; l != nil {
@@ -176,6 +182,15 @@ func serveCmd() *cobra.Command {
 			go watchForMove(ctx, a, func(m *store.MoveMarker) {
 				if !moved.Swap(true) {
 					srv.Log("%s: pausing (MetaRush starts again, reading only)", ops.MovedWords(m))
+					cancel()
+				}
+			})
+			// Another computer received this one's role (D346): what can move
+			// moves, and once its own running work is done this computer steps
+			// down and starts again as a client.
+			go handover.Watch(ctx, a, false, srv.Log, func(r handover.HandoverRole) {
+				if !moved.Swap(true) {
+					srv.Log("%s Starting again as a client.", r.Says)
 					cancel()
 				}
 			})
@@ -374,6 +389,56 @@ func serveHeld(c *cobra.Command, a *app.App, ctx context.Context, cancel context
 	if workerOnly {
 		<-ctx.Done()
 	} else {
+		err = srv.Listen(ctx)
+	}
+	return restartIfMoved(restart.Load(), a, srv, err)
+}
+
+// serveClient is MetaRush on a computer that handed its role to another one
+// (D346): the dashboard for this computer's own browser (remote access off,
+// whatever config.yaml says), no worker and no background work for the
+// workspace. It starts again (exec, like a storage move) as a host once the
+// role comes back here (a handover to this computer).
+func serveClient(c *cobra.Command, a *app.App, ctx context.Context, cancel context.CancelFunc, workerOnly bool, role handover.HandoverRole) error {
+	logf := func(f string, x ...any) { fmt.Fprintf(os.Stderr, f+"\n", x...) }
+	logf("MetaRush %s: %s", versionString(), role.Says)
+	if l := a.Cfg.Database.Local; l != nil {
+		go localdb.New(a.Cfg.Home(), l.Port, a.Tools).Watch(ctx, logf)
+	}
+	srv := api.New(a)
+	srv.Log = logf
+	srv.RemoteOff()
+	var restart atomic.Bool
+	go handover.Watch(ctx, a, true, logf, func(handover.HandoverRole) {
+		if !restart.Swap(true) {
+			logf("this computer has a role in the workspace again: starting again")
+			cancel()
+		}
+	})
+	go func() {
+		t := time.NewTicker(time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				a.TouchInstallation(ctx)
+			}
+		}
+	}()
+	st := daemonState{PID: os.Getpid(), Port: a.Cfg.Dashboard.Port, StartedAt: time.Now().UTC(), Version: versionString(), Mode: "client", Service: os.Getenv("METARUSH_SERVICE")}
+	if workerOnly {
+		st.Port = 0
+	}
+	b, _ := json.Marshal(st)
+	_ = os.WriteFile(filepath.Join(a.Cfg.StateDir(), "daemon.json"), b, 0o600)
+	defer os.Remove(filepath.Join(a.Cfg.StateDir(), "daemon.json"))
+	var err error
+	if workerOnly {
+		<-ctx.Done()
+	} else {
+		fmt.Fprintf(os.Stderr, "MetaRush %s dashboard on http://%s:%d, as a client (workspace %s)\n", versionString(), a.Cfg.Dashboard.Host, a.Cfg.Dashboard.Port, a.Cfg.Workspace.Name)
 		err = srv.Listen(ctx)
 	}
 	return restartIfMoved(restart.Load(), a, srv, err)

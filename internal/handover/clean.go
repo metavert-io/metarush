@@ -39,13 +39,13 @@ type HandoverCleanOut struct {
 	Handover HandoverRecord `json:"handover"`
 	Removed  bool           `json:"removed"`
 	// Files and Bytes are this computer's copies (sessions and folders).
-	Files   int      `json:"files"`
-	Bytes   int64    `json:"bytes"`
-	Kept    []string `json:"kept,omitempty" jsonschema:"description=Conversations still held here, whose files stay."`
+	Files int      `json:"files"`
+	Bytes int64    `json:"bytes"`
+	Kept  []string `json:"kept,omitempty" jsonschema:"description=Conversations still held here, whose files stay."`
 	// HandoverFiles are the handover files this computer made for it that are
 	// still where it wrote them (removed too).
-	HandoverFiles int `json:"handoverFiles"`
-	Summary string   `json:"summary"`
+	HandoverFiles int    `json:"handoverFiles"`
+	Summary       string `json:"summary"`
 }
 
 func cleanHandover(ctx context.Context, a *app.App, in *HandoverCleanIn) (*HandoverCleanOut, error) {

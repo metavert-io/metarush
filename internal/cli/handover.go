@@ -90,6 +90,29 @@ func readPassphrase(c *cobra.Command, fromStdin, twice bool) (string, error) {
 	return "", failErr(c, apperr.New(apperr.Canceled, "No passphrase was chosen, so nothing changed."))
 }
 
+// unprotectedWord is what a person types to make a handover file without a
+// passphrase.
+const unprotectedWord = "unprotected"
+
+// confirmUnprotected: a file anyone who gets it can read is made only when the
+// person at the terminal types that they mean it — never from a script or a
+// flag alone.
+func confirmUnprotected(c *cobra.Command) error {
+	if !isInteractive() {
+		return failErr(c, apperr.New(apperr.InvalidInput, "A handover file without a passphrase is made only when you confirm it, typing at the terminal.").
+			WithHint("Run it in a terminal and type "+unprotectedWord+" when asked, or leave the file protected by a passphrase.").
+			WithDetails(map[string]any{"reason": "confirm_unprotected"}))
+	}
+	fmt.Fprintln(os.Stderr, "Warning: "+handover.NoPassphraseWarning)
+	fmt.Fprintf(os.Stderr, "Type %q to make it without a passphrase: ", unprotectedWord)
+	line, _ := bufio.NewReader(io.LimitReader(c.InOrStdin(), 256)).ReadString('\n')
+	if strings.TrimSpace(line) != unprotectedWord {
+		return failErr(c, apperr.New(apperr.Canceled, "Nothing was made: without a passphrase, a handover file is made only when you type %s.", unprotectedWord).
+			WithHint("Leave out --no-passphrase to protect the file with a passphrase."))
+	}
+	return nil
+}
+
 func handoverPlanCmd() *cobra.Command {
 	var in handover.HandoverPlanIn
 	c := &cobra.Command{Use: "plan --to <computer>", Short: "Say what handing this computer's role over would do with each thing tied to it (nothing changes)", Args: cobra.NoArgs,
@@ -209,8 +232,9 @@ func handoverExportCmd() *cobra.Command {
 	c := &cobra.Command{Use: "export --to <computer> [--out <file>]", Short: "Make the handover file: the panel's conversations with their Claude Code sessions, the pinned-work list and the folders (people only, at a terminal)", Args: cobra.NoArgs,
 		Long: `Makes the private handover file that carries this computer's conversations to the computer taking its role.
 It is protected by a passphrase you choose (asked for here, or read from standard input with --passphrase-stdin);
---no-passphrase writes it unprotected, and anyone who has it can read the conversations. From now on this computer
-no longer continues those conversations. It never writes over a file, nor into a synced folder or a repository.
+--no-passphrase writes it unprotected once you type "unprotected" to confirm: anyone who has it can read the
+conversations. From now on this computer no longer continues those conversations. It never writes over a file,
+nor into a synced folder or a repository.
 Running it again makes a new file for the same handover; "metarush machine handover abandon" puts everything back.`,
 		RunE: func(c *cobra.Command, _ []string) error {
 			if err := handoverAtTerminal(c); err != nil {
@@ -218,8 +242,8 @@ Running it again makes a new file for the same handover; "metarush machine hando
 			}
 			pass := ""
 			if in.NoPassphrase {
-				if !jsonMode(c) {
-					fmt.Fprintln(os.Stderr, "Warning: "+handover.NoPassphraseWarning)
+				if err := confirmUnprotected(c); err != nil {
+					return err
 				}
 			} else {
 				p, err := readPassphrase(c, fromStdin, !fromStdin)

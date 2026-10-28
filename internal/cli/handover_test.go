@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/metavert-io/metarush/internal/handover"
 	"github.com/metavert-io/metarush/internal/ids"
@@ -134,5 +135,50 @@ func TestHandoverAtAPersonsTerminal(t *testing.T) {
 	decodeData(t, runCLI(t, h, "machine", "handover", "status", "--json"), &st)
 	if len(st.InProgress) != 1 || st.InProgress[0].State != handover.StateExported {
 		t.Fatalf("status %+v", st)
+	}
+}
+
+// A handover file without a passphrase is made only when the person at the
+// terminal types that they mean it: not from a script, not on a flag alone.
+func TestUnprotectedHandoverFileIsTypedFor(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	for _, i := range []models.Installation{
+		{ID: a.Cfg.Installation.ID, WorkspaceID: a.WorkspaceID(), Name: a.Cfg.Installation.Name, State: models.InstallationActive, CreatedAt: now, LastSeenAt: now},
+		{ID: ids.New(ids.Installation), WorkspaceID: a.WorkspaceID(), Name: "desk", State: models.InstallationActive, CreatedAt: now, LastSeenAt: now},
+	} {
+		if err := a.DB.Insert(ctx, store.CInstallations, i); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := a.Cfg.Home()
+	asPerson(t)
+	out := filepath.Join(t.TempDir(), "h.tar.gz")
+	args := []string{"machine", "handover", "export", "--to", "desk", "--out", out, "--no-passphrase", "--json"}
+	made := func() bool { _, err := os.Stat(out); return err == nil }
+	// Not typed at a terminal: refused, nothing made or marked.
+	if c, _ := errorCode(t, runCLI(t, h, args...)); c != "E_INVALID_INPUT" || made() {
+		t.Fatalf("no one typed it: %s", c)
+	}
+	old := isInteractive
+	isInteractive = func() bool { return true }
+	t.Cleanup(func() { isInteractive = old })
+	for _, typed := range []string{"\n", "yes\n", "y\n"} {
+		withStdin(t, typed, func() {
+			if c, _ := errorCode(t, runCLI(t, h, args...)); c != "E_CANCELED" || made() {
+				t.Fatalf("typed %q: %s", typed, c)
+			}
+		})
+	}
+	if n, _ := a.DB.C(store.CHandovers).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID()}); n != 0 {
+		t.Fatal("a handover was recorded without the confirmation")
+	}
+	var ex handover.HandoverExportOut
+	withStdin(t, "unprotected\n", func() {
+		decodeData(t, runCLI(t, h, args...), &ex)
+	})
+	if ex.Encrypted || !made() || len(ex.Warnings) == 0 {
+		t.Fatalf("typed: %+v", ex)
 	}
 }

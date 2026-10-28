@@ -667,8 +667,11 @@ func lookAt(ctx context.Context, a *app.App, r *models.Recipe, now time.Time) (b
 	if len(unset) > 0 {
 		update["$unset"] = unset
 	}
-	// Only while the settings are the ones looked at (a person may change them meanwhile).
-	res, err := a.DB.C(store.CRecipes).UpdateOne(ctx, bson.M{"_id": r.ID, "workspaceId": a.WorkspaceID(), "triggers.at": t.At}, update)
+	// Only while the settings are the ones looked at (a person may change them
+	// meanwhile) and they are still this computer's (a handover may have moved
+	// them to another one, which plans from then on: D346).
+	res, err := a.DB.C(store.CRecipes).UpdateOne(ctx, bson.M{"_id": r.ID, "workspaceId": a.WorkspaceID(), "triggers.at": t.At,
+		"triggers.installation": a.Cfg.Installation.ID}, update)
 	if err != nil || res.MatchedCount == 0 || prepared == nil {
 		return false, err
 	}

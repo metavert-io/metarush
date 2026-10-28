@@ -423,7 +423,7 @@ func keepLease(ctx context.Context, a *app.App, run *models.RecipeRun) (stop fun
 				return
 			case <-t.C:
 				_, _ = a.DB.C(store.CRecipeRuns).UpdateOne(context.WithoutCancel(ctx), bson.M{"_id": run.ID, "workspaceId": a.WorkspaceID(), "lease.by": by},
-					bson.M{"$set": bson.M{"lease.until": time.Now().UTC().Add(leaseFor)}})
+					leaseFrom(by))
 			}
 		}
 	}()

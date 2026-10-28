@@ -117,11 +117,17 @@ function StatusView({ s }: { s: Status }) {
   const giveUp = async (r: Record) => {
     const ok = await dialog.confirm({
       title: 'Abandon the handover?',
-      body: (
-        <p>
-          The conversations go on on <Theirs>{r.fromName}</Theirs> as before, and the handover file can’t be received any more. Delete the file if you made one.
-        </p>
-      ),
+      body:
+        r.state === 'receiving' ? (
+          <p>
+            Only when <Theirs>{r.toName}</Theirs> stopped part-way and has been quiet for 30 minutes: what it already took stays there, the rest goes on on{' '}
+            <Theirs>{r.fromName}</Theirs>, and the handover file can’t be received any more.
+          </p>
+        ) : (
+          <p>
+            The conversations go on on <Theirs>{r.fromName}</Theirs> as before, and the handover file can’t be received any more. Delete the file if you made one.
+          </p>
+        ),
       confirmLabel: 'Abandon',
       tone: 'danger',
     });
@@ -160,7 +166,7 @@ function StatusView({ s }: { s: Status }) {
               {plural(r.conversations?.length ?? 0, 'conversation')}, started {stamp(r.startedAt)}
             </p>
           </div>
-          {r.from === me && (r.state === 'exported' || r.state === 'exporting') ? (
+          {r.from === me && (r.state === 'exported' || r.state === 'exporting' || r.state === 'receiving') ? (
             <OwnerOnly>
               <Button size="sm" variant="secondary" onClick={() => void giveUp(r)} loading={abandon.isPending} data-handover-abandon>
                 Abandon…

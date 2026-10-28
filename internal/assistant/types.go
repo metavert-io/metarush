@@ -310,6 +310,13 @@ type Conversation struct {
 	Events    []AssistantEvent  `bson:"events" json:"events,omitempty" jsonschema:"description=Condensed transcript (omitted in lists)."`
 	CreatedAt time.Time         `bson:"createdAt" json:"createdAt"`
 	UpdatedAt time.Time         `bson:"updatedAt" json:"updatedAt"`
+	// HandingOver: this computer is handing the conversation to another one
+	// (D345): it is no longer continued here, and it goes on there once that
+	// computer has received it.
+	HandingOver *ConvHandingOver `bson:"handingOver,omitempty" json:"handingOver,omitempty"`
+	// Moved: the conversation came from another computer (a handover or a
+	// take-over): where its files were, and whether it goes on from a summary.
+	Moved *ConvMoved `bson:"moved,omitempty" json:"moved,omitempty"`
 	// Computed for the caller, never stored.
 	Here      bool `bson:"-" json:"here" jsonschema:"description=This machine holds the session (it can be continued here)."`
 	Live      bool `bson:"-" json:"live" jsonschema:"description=A Claude Code process is running for it on this machine."`
@@ -317,6 +324,35 @@ type Conversation struct {
 	// Mine and WaitingForYou are about the person asking (D179).
 	Mine          bool `bson:"-" json:"mine" jsonschema:"description=The person asking started it."`
 	WaitingForYou int  `bson:"-" json:"waitingForYou" jsonschema:"description=Cards and questions waiting for the person asking: the ones Claude raised answering their messages."`
+}
+
+// ConvHandingOver says a conversation is on its way to another computer.
+type ConvHandingOver struct {
+	Handover string    `bson:"handover" json:"-"`
+	To       string    `bson:"to" json:"-"`
+	ToName   string    `bson:"toName" json:"toName" jsonschema:"description=The computer it is moving to."`
+	At       time.Time `bson:"at" json:"at"`
+}
+
+// ConvMoved says a conversation came from another computer.
+type ConvMoved struct {
+	Handover string    `bson:"handover" json:"-"`
+	From     string    `bson:"from" json:"-"`
+	FromName string    `bson:"fromName" json:"fromName" jsonschema:"description=The computer it came from."`
+	At       time.Time `bson:"at" json:"at"`
+	// OldDir and NewDir are MetaRush's folder for Claude Code there and
+	// here; when they differ, the first message here tells Claude in one
+	// line (Told once it has).
+	OldDir string `bson:"oldDir,omitempty" json:"-"`
+	NewDir string `bson:"newDir,omitempty" json:"-"`
+	Told   bool   `bson:"told,omitempty" json:"-"`
+	// Summary: Claude Code's own record of the conversation didn't come
+	// along (Why: missing or unreadable), so it goes on in a new session
+	// that starts from a summary MetaRush makes of the conversation; Primed
+	// once that summary was sent.
+	Summary bool   `bson:"summary,omitempty" json:"summary,omitempty" jsonschema:"description=It goes on from a summary of the conversation: Claude Code's own record of it didn't come along."`
+	Why     string `bson:"why,omitempty" json:"why,omitempty" jsonschema:"enum=missing,enum=unreadable"`
+	Primed  bool   `bson:"primed,omitempty" json:"primed,omitempty" jsonschema:"description=The summary has been given to Claude."`
 }
 
 // WaitingCount is how many cards and questions of a conversation wait for one person.

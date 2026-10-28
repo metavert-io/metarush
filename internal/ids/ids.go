@@ -86,6 +86,8 @@ const (
 	ShipOverride = "sho"
 	// A review link for people outside the workspace (D314).
 	ReviewLink = "rvl"
+	// A handover of a computer's role, or a take-over (item 34, D344).
+	Handover = "hov"
 )
 
 var pattern = regexp.MustCompile(`^([a-z]{2,4})_([0-9a-z]{26})$`)

@@ -22736,11 +22736,14 @@ exportedAt?: string
 receivedAt?: string
 receivedBy?: Actor
 settledAt?: string
+receivingAt?: string
 steppedDownAt?: string
 abandonedAt?: string
 abandonedBy?: Actor
 cleanedAt?: string
 overtakenBy?: string
+workMovedAt?: string
+workSkipped?: boolean
 moved: HandoverMoved
 confirmedOff?: Actor
 }

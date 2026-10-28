@@ -1103,7 +1103,9 @@ Read `docs/architecture.md` before structural changes.
   receiver passes `quietEnough`, or a take-over of it ends it: `endHandoversTo`) → received → done | abandoned; every
   final write's match is checked; a role that came back ends the computer's own earlier handover (`settleOvertaken`).
   A mark never outlives its handover (export's `putBack` on every stop and a look again after marking, abandon always
-  unmarks, `Look`'s `repairMarks`); cards are claimed by writing only their states. Receive/take-over `AdoptConversation` by check and set;
+  unmarks, `Look`'s `repairMarks`); cards are claimed by writing only their states. Receive takes the role first, then
+  `finishReceive` moves the work and folders (`workMovedAt`; the receiver's `Look` finishes a stopped one); the hosts'
+  `Look` re-pins work left on a client to its role holder (`rehomeWork`; never a live lease or `ownKinds`). Receive/take-over `AdoptConversation` by check and set;
   `Conversation.moved` tells Claude once where files are now, and `moved.summary` (session missing or unreadable, also
   found at spawn) starts a new session primed with `summaryOf`. Work moves by check and set on `$$NOW`
   (`moveWork`: queued and lease-ended jobs, never started `import`/`generate` while their computer runs, never

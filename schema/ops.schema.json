@@ -25984,6 +25984,10 @@
           "type": "string",
           "format": "date-time"
         },
+        "receivingAt": {
+          "type": "string",
+          "format": "date-time"
+        },
         "steppedDownAt": {
           "type": "string",
           "format": "date-time"
@@ -26001,6 +26005,13 @@
         },
         "overtakenBy": {
           "type": "string"
+        },
+        "workMovedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "workSkipped": {
+          "type": "boolean"
         },
         "moved": {
           "$ref": "#/$defs/HandoverMoved"

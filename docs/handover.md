@@ -106,8 +106,11 @@ before; every file in it must be one the list names, of the size and fingerprint
   check and set, so nothing runs twice;
 - **sets the folders** where you said (the watched folder then takes only new files: the old computer added the rest).
 
-`--plan` says what it would do and changes nothing. While a file is being received the handover can't be abandoned; if
-receiving stopped part-way, receive the same file again (what came already stays). If the computer receiving it
+`--plan` says what it would do and changes nothing. It takes the role first and only then moves the work and sets the
+folders, so nothing moves to a computer that ended up without the role (one taken over while it was receiving, say).
+While a file is being received the handover can't be abandoned; if receiving stopped part-way, receive the same file
+again (what came already stays). If it stopped after taking the role, MetaRush in the background on this computer
+finishes moving the work and setting the folders where you placed them (or receive the same file again). If the computer receiving it
 stopped part-way and is gone, abandon the handover on the old computer once that computer has been quiet for 30 minutes
 (as for a take-over: by the database server's clock, running no work) — what it already took stays with it, the rest
 goes on here — or take that computer over, which ends the handover too: what it took comes with the rest of its work,
@@ -137,6 +140,10 @@ A computer that receives a handover later (the role handed back) is the host aga
 stepping down: the earlier handover ends then, and it can hand its role over again.
 
 ## Work asked for on a computer that stepped down
+
+Work still pinned to a computer that stepped down or was taken over, by whatever path, goes to the computer that has
+its role now: MetaRush in the background on that computer looks every few seconds. Running work is never moved while it
+runs, and work only the old computer can do (below) stays, waiting for it.
 
 It runs no background work, so work asked for there goes to the computer that has its role now (followed through
 later handovers): recipe runs and "Planning by itself", link imports, repositories and web pages, and scene
@@ -236,7 +243,14 @@ Every command takes `--json`; `--details` adds the computers' and conversations'
   received → done, or abandoned. A mark never outlives its handover: an export looks at its record again after marking
   and puts back what it marked on every way it stops (`putBack`), abandon always unmarks (also when abandoned
   already), and `Look` takes off the marks of handovers that ended (`repairMarks`). Clean covers every received
-  handover from here not cleaned up yet (`cleanOffer` for the status), skipping conversations held here now. The passphrase reaches an operation only through its context
+  handover from here not cleaned up yet (`cleanOffer` for the status), skipping conversations held here now.
+  Receive takes the role first (the check and set to `received`; refused if this computer's own role changed after it
+  began receiving, `receivingAt`), then `finishReceive` moves the work and sets the folders (the placements kept on this
+  computer, `<home>/state/handover/received/`) and records `workMovedAt` — only while the handover is still the newest
+  for both computers (else `workSkipped`); the receiver's `Look` finishes one that stopped (`finishReceived`). A
+  stepping-down computer moves its work to `app.WorkHostOf(to)`. The hosts' `Look` re-pins work left on a client
+  (`rehomeWork`: jobs, recipe runs, triggers, by check and set on `$$NOW`; never a live lease, never `ownKinds` nor a
+  link import with the browser's sign-in). The passphrase reaches an operation only through its context
   (`handover.WithPassphrase`), never its input.
 - `internal/assistant/claudepaths.go` — where Claude Code keeps a session: `$CLAUDE_CONFIG_DIR`, else `$HOME/.claude`
   — for placing, the folder the background MetaRush's Claude Code uses (`RecordClaudeConfig` at its start,

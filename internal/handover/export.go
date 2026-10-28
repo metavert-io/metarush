@@ -95,7 +95,9 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 	case rec != nil && rec.To != to.ID:
 		return nil, apperr.New(apperr.Conflict, "A handover from this computer to “%s” is in progress.", rec.ToName).
 			WithHint("Abandon it first to hand over to another computer.").WithCommand("metarush machine handover abandon")
-	case rec != nil && (rec.State == StateReceived || rec.State == StateReceiving):
+	case rec != nil && rec.State == StateReceiving:
+		return nil, apperr.New(apperr.Conflict, "“%s” is receiving this computer's role now.", rec.ToName).WithCommand("metarush machine handover status")
+	case rec != nil && rec.State == StateReceived:
 		return nil, apperr.New(apperr.Conflict, "“%s” has already received this computer's role.", rec.ToName).WithCommand("metarush machine handover status")
 	case rec == nil:
 		rec = &HandoverRecord{ID: ids.New(ids.Handover), WorkspaceID: a.WorkspaceID(), Kind: KindHandover, From: me.ID, FromName: me.Name, To: to.ID, ToName: to.Name,

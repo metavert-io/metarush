@@ -108,7 +108,7 @@ func confirmUnprotected(c *cobra.Command) error {
 	line, _ := bufio.NewReader(io.LimitReader(c.InOrStdin(), 256)).ReadString('\n')
 	if strings.TrimSpace(line) != unprotectedWord {
 		return failErr(c, apperr.New(apperr.Canceled, "Nothing was made: without a passphrase, a handover file is made only when you type %s.", unprotectedWord).
-			WithHint("Leave out --no-passphrase to protect the file with a passphrase."))
+			WithHint("Run it again and choose a passphrase to protect the file."))
 	}
 	return nil
 }

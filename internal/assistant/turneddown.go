@@ -138,7 +138,9 @@ func (m *Manager) takeInbox(ctx context.Context, id string) []InboxNote {
 		Inbox []InboxNote `bson:"inbox"`
 	}
 	err := m.App.DB.C(store.CAssistantConversations).FindOneAndUpdate(ctx,
-		bson.M{"_id": id, "workspaceId": m.App.WorkspaceID(), "inbox.0": bson.M{"$exists": true}},
+		// Only the computer holding it takes its notes, never one handing it
+		// over (D345): they wait for the computer it goes to.
+		bson.M{"_id": id, "workspaceId": m.App.WorkspaceID(), "installationId": m.App.Cfg.Installation.ID, "handingOver": bson.M{"$exists": false}, "inbox.0": bson.M{"$exists": true}},
 		bson.M{"$set": bson.M{"inbox": bson.A{}}},
 		options.FindOneAndUpdate().SetReturnDocument(options.Before).SetProjection(bson.M{"inbox": 1})).Decode(&before)
 	if err != nil {
@@ -157,7 +159,7 @@ func (m *Manager) deliverInbox(ctx context.Context) int {
 	var docs []struct {
 		ID string `bson:"_id"`
 	}
-	if err := m.App.DB.Find(ctx, store.CAssistantConversations, m.App.WorkspaceID(), bson.M{"installationId": me, "inbox.0": bson.M{"$exists": true}}, &docs,
+	if err := m.App.DB.Find(ctx, store.CAssistantConversations, m.App.WorkspaceID(), bson.M{"installationId": me, "handingOver": bson.M{"$exists": false}, "inbox.0": bson.M{"$exists": true}}, &docs,
 		options.Find().SetProjection(bson.M{"_id": 1}).SetLimit(50)); err != nil {
 		return 0
 	}

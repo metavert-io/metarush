@@ -225,7 +225,12 @@ export type LocalOnlyOp =
   | 'ability.check'
   // Ability files between workspaces (D292): /api/abilities/export and /api/abilities/import.
   | 'ability.export'
-  | 'ability.import';
+  | 'ability.import'
+  // A handover's file and passphrase are a person's, at a terminal (D348).
+  | 'machine.handover.export'
+  | 'machine.handover.receive'
+  | 'machine.handover.clean'
+  | 'machine.takeover';
 /* Abilities (D230–D235): versions an owner approves, set up per computer, run in the sandbox. */
 export type AbilityRow = ops.AbilityRow;
 export type AbilityListOut = ops.AbilityListOut;

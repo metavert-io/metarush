@@ -150,7 +150,7 @@ func (s *Server) watchRemoteFile() {
 }
 
 func (s *Server) syncRemote() {
-	if s.App.Cfg.Home() == "" {
+	if s.App.Cfg.Home() == "" || s.remoteOff.Load() {
 		return
 	}
 	st, err := os.Stat(config.Path(s.App.Cfg.Home()))

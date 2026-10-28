@@ -468,9 +468,11 @@ func EnqueueDerivatives(ctx context.Context, a *app.App, as *models.Asset, trans
 	// the workspace: by this machine's Claude Code, after the rest.
 	if as.Media.HasVideo && DescribeReady != nil {
 		pid := firstOr(as.ProjectIDs)
-		if on, _, _ := DescribeOn(ctx, a, pid); on && DescribeReady(ctx, a) {
+		// By Claude Code where this computer's background work runs (D349).
+		host, herr := a.PinWork(ctx)
+		if on, _, _ := DescribeOn(ctx, a, pid); on && herr == nil && (!host.Here || DescribeReady(ctx, a)) {
 			j, _, err := a.Queue.Enqueue(ctx, jobs.EnqueueOptions{Type: jobs.TypeDescribe, IdempotencyKey: jobs.TypeDescribe + ":" + as.ID, Priority: 2, AssetID: as.ID,
-				ProjectID: pid, Payload: map[string]any{"assetId": as.ID, "projectId": pid}, Actor: a.Actor, Installation: a.Cfg.Installation.ID, MaxAttempts: 1})
+				ProjectID: pid, Payload: map[string]any{"assetId": as.ID, "projectId": pid}, Actor: a.Actor, Installation: host.ID, MaxAttempts: 1})
 			if err == nil {
 				out = append(out, j.ID)
 			}

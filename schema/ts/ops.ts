@@ -2155,6 +2155,48 @@ input: LookUpdateIn
 output: LookOut
 }
 /**
+ * Abandon a handover that hasn't been received: its conversations go on on the old computer (owners, people only)
+ */
+"machine.handover.abandon": {
+input: HandoverAbandonIn
+output: HandoverAbandonOut
+}
+/**
+ * On the old computer, after the new one received its role: remove this computer's copies of the handed-over conversations (owners, people only, in a terminal; says what it would remove unless yes)
+ */
+"machine.handover.clean": {
+input: HandoverCleanIn
+output: HandoverCleanOut
+}
+/**
+ * Make the handover file on the old computer: the panel conversations with their Claude Code sessions and folders, the pinned-work list and the folder settings, encrypted with a passphrase given at the terminal (owners, people only, in a terminal)
+ */
+"machine.handover.export": {
+input: HandoverExportIn
+output: HandoverExportOut
+}
+/**
+ * Say what handing this computer's role to another computer would do: its panel conversations and whether each session is here, recipe runs and planning by itself, pinned work, watched and linked folders, remote access, extension pairings, which keys are here (names only), the background role, and the steps only a person takes (owners, people only; nothing changes)
+ */
+"machine.handover.plan": {
+input: HandoverPlanIn
+output: HandoverPlan
+}
+/**
+ * Receive a handover file on the new computer: sessions put where Claude Code looks, conversations held here from now on, pinned work moved, folders set where the person says (owners, people only, in a terminal; plan first)
+ */
+"machine.handover.receive": {
+input: HandoverReceiveIn
+output: HandoverReceiveOut
+}
+/**
+ * Where this computer stands — the host, stepping down or a client since it handed its role over — and the handovers in progress (people only)
+ */
+"machine.handover.status": {
+input: HandoverStatusIn
+output: HandoverStatusOut
+}
+/**
  * Mint a per-machine storage key (and optionally a database user) and write a 0600 join bundle; owners
  */
 "machine.invite": {
@@ -2188,6 +2230,13 @@ output: MachineRekey
 "machine.revoke": {
 input: MachineRevokeIn
 output: MachineRevoke
+}
+/**
+ * Take over the role of a computer that is gone: only when it hasn't been seen for a while and a person confirms it is off; its conversations from a plain copy of its folders or a handover file, its pinned work and folders move here (owners, people only, in a terminal; plan first)
+ */
+"machine.takeover": {
+input: HandoverTakeoverIn
+output: HandoverTakeoverOut
 }
 /**
  * Hear a sound mix change before saving it: the plan the preview plays with the change, and the mix in plain words (nothing is saved)
@@ -10097,6 +10146,8 @@ actions?: AssistantAction[]
 events?: AssistantEvent[]
 createdAt: string
 updatedAt: string
+handingOver?: ConvHandingOver
+moved?: ConvMoved
 /**
  * This machine holds the session (it can be continued here).
  */
@@ -10446,6 +10497,37 @@ contextTokens?: number
 contextWindow?: number
 tokens?: TokenUsage
 totalTokens?: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ConvHandingOver".
+ */
+export interface ConvHandingOver {
+/**
+ * The computer it is moving to.
+ */
+toName: string
+at: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ConvMoved".
+ */
+export interface ConvMoved {
+/**
+ * The computer it came from.
+ */
+fromName: string
+at: string
+/**
+ * It goes on from a summary of the conversation: Claude Code's own record of it didn't come along.
+ */
+summary?: boolean
+why?: ("missing" | "unreadable")
+/**
+ * The summary has been given to Claude.
+ */
+primed?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -22616,6 +22698,307 @@ noRealPeople?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverAbandonIn".
+ */
+export interface HandoverAbandonIn {
+/**
+ * Default: the one in progress from this computer.
+ */
+id?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverAbandonOut".
+ */
+export interface HandoverAbandonOut {
+handover: HandoverRecord
+conversations: number
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverRecord".
+ */
+export interface HandoverRecord {
+id: string
+kind: ("handover" | "takeover")
+from: string
+fromName: string
+to: string
+toName: string
+state: ("exporting" | "exported" | "receiving" | "received" | "done" | "abandoned")
+active: boolean
+conversations?: string[]
+file?: string
+startedBy: Actor
+startedAt: string
+exportedAt?: string
+receivedAt?: string
+receivedBy?: Actor
+settledAt?: string
+receivingAt?: string
+steppedDownAt?: string
+abandonedAt?: string
+abandonedBy?: Actor
+cleanedAt?: string
+overtakenBy?: string
+workMovedAt?: string
+workSkipped?: boolean
+moved: HandoverMoved
+confirmedOff?: Actor
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverMoved".
+ */
+export interface HandoverMoved {
+conversations: number
+summaries: number
+runs: number
+triggers: number
+jobs: number
+folders: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverCleanIn".
+ */
+export interface HandoverCleanIn {
+id?: string
+yes?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverCleanOut".
+ */
+export interface HandoverCleanOut {
+handover: HandoverRecord
+removed: boolean
+files: number
+bytes: number
+/**
+ * Conversations still held here
+ */
+kept?: string[]
+handoverFiles: number
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverExportIn".
+ */
+export interface HandoverExportIn {
+/**
+ * The computer taking the role over (its name).
+ */
+to: string
+out?: string
+noPassphrase?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverExportOut".
+ */
+export interface HandoverExportOut {
+handover: HandoverRecord
+file: string
+bytes: number
+encrypted: boolean
+conversations: number
+sessions: number
+summaries: number
+folders: number
+warnings?: string[]
+summary: string
+next: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverPlanIn".
+ */
+export interface HandoverPlanIn {
+/**
+ * The computer taking the role over (its name as the workspace's computers list it); empty says what would move without naming one.
+ */
+to?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverPlan".
+ */
+export interface HandoverPlan {
+from: HandoverComputer
+to?: HandoverComputer
+computers: HandoverComputer[]
+role: HandoverRole
+inProgress?: HandoverRecord
+conversations: HandoverConversation[]
+work: HandoverWork[]
+folders: HandoverFolder[]
+remote: HandoverRemote
+extensions: HandoverItem[]
+keys: HandoverItem[]
+abilities: HandoverItem[]
+background: HandoverItem
+steps: HandoverStep[]
+blocking?: string[]
+ready: boolean
+summary: string
+next: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverComputer".
+ */
+export interface HandoverComputer {
+id: string
+name: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverRole".
+ */
+export interface HandoverRole {
+role: ("host" | "stepping-down" | "client")
+latest?: HandoverRecord
+says: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverConversation".
+ */
+export interface HandoverConversation {
+id: string
+title: string
+projectName?: string
+userName?: string
+session: ("here" | "missing" | "lost" | "none" | "legacy")
+/**
+ * Claude is working on it now.
+ */
+busy?: boolean
+words: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverWork".
+ */
+export interface HandoverWork {
+kind: ("job" | "run" | "trigger" | "post")
+id: string
+/**
+ * What it is
+ */
+words: string
+state: string
+moves: boolean
+why?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverFolder".
+ */
+export interface HandoverFolder {
+kind: ("watched" | "linked")
+id?: string
+name: string
+path: string
+off?: boolean
+projectId?: string
+moveProcessed?: boolean
+stableSeconds?: number
+words: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverRemote".
+ */
+export interface HandoverRemote {
+on: boolean
+address?: string
+logins?: number
+words: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverItem".
+ */
+export interface HandoverItem {
+name: string
+words: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverStep".
+ */
+export interface HandoverStep {
+where: ("new" | "old")
+words: string
+command?: string
+/**
+ * Where in the dashboard (Settings → …).
+ */
+click?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverReceiveIn".
+ */
+export interface HandoverReceiveIn {
+/**
+ * The handover file made on the old computer.
+ */
+file: string
+plan?: boolean
+folders?: HandoverFolderChoice[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverFolderChoice".
+ */
+export interface HandoverFolderChoice {
+path: string
+to?: string
+skip?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverReceiveOut".
+ */
+export interface HandoverReceiveOut {
+plan?: boolean
+handover?: HandoverRecord
+from: HandoverComputer
+conversations: HandoverConversation[]
+folders: HandoverFolder[]
+work: HandoverWork[]
+moved: HandoverMoved
+waiting: HandoverWork[]
+steps: HandoverStep[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverStatusIn".
+ */
+export interface HandoverStatusIn {
+
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverStatusOut".
+ */
+export interface HandoverStatusOut {
+computer: HandoverComputer
+role: HandoverRole
+inProgress: HandoverRecord[]
+recent: HandoverRecord[]
+waiting: HandoverWork[]
+clean?: HandoverRecord
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "MachineInviteIn".
  */
 export interface MachineInviteIn {
@@ -22814,6 +23197,39 @@ dbUser?: string
 dbUserDeleted: boolean
 manualSteps?: string[]
 warnings?: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverTakeoverIn".
+ */
+export interface HandoverTakeoverIn {
+/**
+ * The computer that is gone (its name).
+ */
+from: string
+source?: string
+plan?: boolean
+confirmedOff?: string
+folders?: HandoverFolderChoice[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "HandoverTakeoverOut".
+ */
+export interface HandoverTakeoverOut {
+plan?: boolean
+handover?: HandoverRecord
+from: HandoverComputer
+lastSeen?: string
+allowed: boolean
+why?: string
+conversations: HandoverConversation[]
+work: HandoverWork[]
+folders: HandoverFolder[]
+moved: HandoverMoved
+steps: HandoverStep[]
+summary: string
+next: string[]
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -36482,6 +36898,7 @@ version: string
 userId: string
 createdAt: string
 lastSeenAt: string
+lastUsedAt?: string
 commit?: string
 built?: string
 knowsMoves?: string

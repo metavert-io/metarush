@@ -972,6 +972,10 @@ func planFingerprint(a *app.App, s *models.RemotionSource, v *models.RemotionVer
 // ---- starting ----
 
 func startRefresh(ctx context.Context, a *app.App, in *RemotionRefreshStartIn) (*RemotionRefreshStartOut, error) {
+	// Its keys are this computer's (D349).
+	if err := a.NeedsThisComputer(ctx, "a Remotion refresh"); err != nil {
+		return nil, err
+	}
 	s, v, err := refreshTarget(ctx, a, in.ProjectID, in.Source)
 	if err != nil {
 		return nil, err

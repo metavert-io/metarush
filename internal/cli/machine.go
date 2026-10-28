@@ -31,9 +31,12 @@ database user), so a lost laptop can be removed without touching anyone else.
   new machine:    metarush machine join metarush-join-studio-mini.json   # deletes the bundle once joined
   later:          metarush machine revoke studio-mini --atlas
   older machines: metarush machine rekey --dry-run, then metarush machine rekey   # its own key, in place
+  another host:   metarush machine handover plan --to studio-mini   # hand this computer's role over
+  gone for good:  metarush machine take-over old-laptop --from <copy of its folders>
 
 Tigris keys are minted automatically; other providers print the exact manual steps.`}
-	cmd.AddCommand(machineListCmd(), machineInviteCmd(), machineJoinCmd(), machineRevokeCmd(), machineRekeyCmd(), machineCIKeyCmd())
+	cmd.AddCommand(machineListCmd(), machineInviteCmd(), machineJoinCmd(), machineRevokeCmd(), machineRekeyCmd(), machineCIKeyCmd(),
+		machineHandoverCmd(), machineTakeOverCmd())
 	return cmd
 }
 

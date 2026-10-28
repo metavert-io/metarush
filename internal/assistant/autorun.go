@@ -141,6 +141,23 @@ func (m *Manager) runAuto(c *conv, id string) {
 		return
 	}
 	act := cards[0]
+	// Only while this computer holds the conversation and isn't handing it
+	// over (D345): otherwise it waits for a person where it goes.
+	if _, err := m.claimCards(ctx, c, []string{id}, ActionPending, ActionRunning); err != nil {
+		if errReason(err) == "handing_over" {
+			c.mu.Lock()
+			for i := range c.data.Actions {
+				if a := &c.data.Actions[i]; a.ID == id && a.State == ActionRunning {
+					a.State, a.Auto, a.AutoMode, a.AutoPriced = ActionPending, false, false, false
+				}
+			}
+			c.touch()
+			c.mu.Unlock()
+			m.save(c, true)
+			m.changed(c.id)
+		}
+		return
+	}
 	a := m.autoApp(c, act)
 	done, err := m.runCard(ctx, a, ops.Caller{}, c, act, ConversationActIn{ReviewCopy: act.SavesVersion})
 	if err != nil {

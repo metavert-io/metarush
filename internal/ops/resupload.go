@@ -26,8 +26,17 @@ func queueResourceUploads(ctx context.Context, a *app.App, rev *models.Revision,
 		if v == nil || v.Stored || len(v.Holders) == 0 {
 			continue
 		}
+		// A computer that has the file and still does its own background
+		// work, before one that handed its role over (D349: it runs no worker).
+		holder := v.Holders[0]
+		for _, h := range v.Holders {
+			if wh, err := a.WorkHostOf(ctx, h, ""); err == nil && wh.ID == h {
+				holder = h
+				break
+			}
+		}
 		_, _, _ = a.Queue.Enqueue(ctx, jobs.EnqueueOptions{Type: jobs.TypeResourceUpload, IdempotencyKey: "resource-upload:" + pin.SHA256, Priority: 25,
-			ProjectID: rev.ProjectID, Installation: v.Holders[0], Actor: a.Actor,
+			ProjectID: rev.ProjectID, Installation: holder, Actor: a.Actor,
 			Payload: map[string]any{"resourceId": r.ID, "sha256": pin.SHA256, "title": r.Title}})
 	}
 }

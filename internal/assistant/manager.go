@@ -129,7 +129,8 @@ type Manager struct {
 // makes it the one ops use.
 func New(a *app.App, exe string) *Manager {
 	m := newManager(a, exe, false)
-	go m.inboxLoop() // notes for Claude from elsewhere (D186)
+	go m.inboxLoop()      // notes for Claude from elsewhere (D186)
+	RecordClaudeConfig(a) // where its Claude Code keeps sessions, for a handover run in a terminal (D345)
 	return m
 }
 
@@ -375,6 +376,14 @@ func (c *conv) copyLocked(events bool) Conversation {
 	if events {
 		d.Events = append([]AssistantEvent(nil), c.data.Events...)
 	}
+	if c.data.Moved != nil {
+		mv := *c.data.Moved
+		d.Moved = &mv
+	}
+	if c.data.HandingOver != nil {
+		h := *c.data.HandingOver
+		d.HandingOver = &h
+	}
 	return d
 }
 
@@ -455,7 +464,7 @@ func (m *Manager) present(d Conversation, events, raw, live bool, uid string) Co
 	me, _ := m.machine()
 	d.Here = d.InstallationID == me
 	d.Live = live
-	d.Resumable = !d.Legacy && !d.SessionLost
+	d.Resumable = !d.Legacy && !d.SessionLost && d.HandingOver == nil
 	d.LimitTokens = m.limitTokens(&d)
 	if m.billing() == "plan" {
 		d.BudgetUSD = 0 // a Claude plan has no dollar cap (D181): older conversations kept theirs
@@ -590,7 +599,7 @@ func (m *Manager) loadDoc(ctx context.Context, id string) (*Conversation, error)
 }
 
 // live returns a conversation of this machine for live use (loading it).
-func (m *Manager) live(ctx context.Context, id string, _ bool) (*conv, error) {
+func (m *Manager) live(ctx context.Context, id string, change bool) (*conv, error) {
 	if !ValidID(id) {
 		return nil, notFound(id)
 	}
@@ -598,6 +607,13 @@ func (m *Manager) live(ctx context.Context, id string, _ bool) (*conv, error) {
 	m.mu.Lock()
 	if c := m.convs[id]; c != nil {
 		m.mu.Unlock()
+		if change {
+			// Who holds it now (D345): a conversation that moved to another
+			// computer is let go and changed only there.
+			if moved, _ := m.holderNow(ctx, c); moved != nil {
+				return nil, otherMachine(moved)
+			}
+		}
 		return c, nil
 	}
 	m.mu.Unlock()
@@ -641,6 +657,9 @@ func (m *Manager) Get(ctx context.Context, id string, events, raw bool) (*Conver
 	m.mu.Lock()
 	c := m.convs[id]
 	m.mu.Unlock()
+	if c != nil && !m.syncHolder(ctx, c) {
+		c = nil // it lives on another computer now (D345)
+	}
 	if c != nil {
 		c.mu.Lock()
 		d := c.copyLocked(events)
@@ -831,6 +850,10 @@ type message struct {
 	// whatsNew says MetaRush was updated since the conversation's last
 	// message, and what changed (D185); set when the turn starts.
 	whatsNew string
+	// moved says, once, where a conversation from another computer finds its
+	// files now; summary is the conversation so far for one that goes on
+	// from a summary in a new session (D345).
+	moved, summary string
 }
 
 // shownText is what the person reads for a message.
@@ -1077,6 +1100,9 @@ func (m *Manager) send(ctx context.Context, c *conv, msg message) (*Conversation
 	c.starting = true
 	c.mu.Unlock()
 	n, err := m.startTurn(c, msg)
+	if err != nil && n == 0 {
+		return nil, err // refused before a turn was recorded (another computer has it now)
+	}
 	snap := m.snapshot(ctx, c)
 	if err != nil {
 		return &ConversationSendOut{Conversation: snap, Turn: n}, err
@@ -1097,6 +1123,14 @@ func (m *Manager) snapshot(ctx context.Context, c *conv) Conversation {
 // startTurn sends msg to Claude Code (spawning or resuming its process).
 // c.starting is set by the caller.
 func (m *Manager) startTurn(c *conv, msg message) (int, error) {
+	// One history (D345): a message starts only while this computer still
+	// holds the conversation and isn't handing it over.
+	if err := m.mayContinue(c); err != nil {
+		c.mu.Lock()
+		c.starting = false
+		c.mu.Unlock()
+		return 0, err
+	}
 	if msg.compact {
 		if pid := c.projectID(); pid != "" {
 			// What the project went through survives the summary (D185).
@@ -1152,6 +1186,17 @@ func (m *Manager) startTurn(c *conv, msg message) (int, error) {
 		}
 		c.data.MetaRushVersion = cur
 	}
+	if mv := c.data.Moved; mv != nil && !msg.compact {
+		// A conversation from another computer (D345): Claude hears once
+		// where its files are now, and one going on from a summary gets it
+		// (marked below, once the message goes).
+		if !mv.Told && mv.OldDir != "" && mv.NewDir != "" && mv.OldDir != mv.NewDir {
+			msg.moved = fmt.Sprintf("This conversation moved to another computer: what was in %s is now in %s.", mv.OldDir, mv.NewDir)
+		}
+		if mv.Summary && !mv.Primed {
+			msg.summary = summaryOf(c.data)
+		}
+	}
 	rc := msg.rc
 	if spawnErr == nil {
 		if err := os.MkdirAll(folder, 0o700); err != nil {
@@ -1185,11 +1230,22 @@ func (m *Manager) startTurn(c *conv, msg message) (int, error) {
 		}
 		c.starting = false
 		c.data.State = ConvIdle
+		if c.proc == nil || !c.proc.alive() {
+			c.data.HolderPID = 0 // claimed for this message (mayContinue), no process holds it now
+		}
 		c.touch()
 		c.mu.Unlock()
 		m.save(c, true)
 		m.changed(c.id)
 		return n, apperr.From(spawnErr)
+	}
+	if mv := c.data.Moved; mv != nil && !msg.compact {
+		mv.Told = true
+		if msg.summary != "" {
+			mv.Primed = true
+			c.addEvent(AssistantEvent{Kind: "notice", Turn: n, Text: "Continuing from a summary of this conversation: Claude Code’s own record of it didn’t come along from " +
+				orWords(mv.FromName, "the other computer") + "."})
+		}
 	}
 	sent := composeMessage(rc, msg, n, realPath(folder))
 	if msg.compact {
@@ -1394,13 +1450,33 @@ func (m *Manager) claim(c *conv) error {
 			WithHint("Continue it there (in the dashboard, or in the terminal that has it open), or close that one first.").
 			WithDetails(map[string]any{"reason": "held_elsewhere", "pid": cur.HolderPID})
 	}
-	_, _ = m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx, bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID()},
+	me, _ := m.machine()
+	_, _ = m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx, bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID(), "installationId": me},
 		bson.M{"$set": bson.M{"holderPid": os.Getpid()}})
 	return nil
 }
 
 func (m *Manager) release(c *conv) {
 	c.mu.Lock()
+	c.data.HolderPID = 0
+	c.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, _ = m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx, bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID(), "holderPid": os.Getpid()},
+		bson.M{"$set": bson.M{"holderPid": 0}})
+}
+
+// releaseIfIdle lets go of the conversation after its process ended — unless
+// a message has claimed it again meanwhile (D345: its claim, in turn with this
+// under saveMu, carries the same process ID, and must stand).
+func (m *Manager) releaseIfIdle(c *conv) {
+	c.saveMu.Lock()
+	defer c.saveMu.Unlock()
+	c.mu.Lock()
+	if c.starting || c.proc != nil {
+		c.mu.Unlock()
+		return
+	}
 	c.data.HolderPID = 0
 	c.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -1482,6 +1558,7 @@ func (m *Manager) spawn(c *conv) (*proc, error) {
 	if keepAll {
 		denied = append(denied, keptReads(scratch, cache)...)
 	}
+	m.summaryIfSessionMissing(c)
 	c.mu.Lock()
 	o := spawnOpts{steps: m.App.Cfg.Assistant.Steps(), model: c.data.Model, effort: c.data.Effort,
 		sessionID: c.data.ClaudeSessionID, resume: c.data.SessionStarted, autoCompact: m.App.Cfg.Assistant.AutoCompact()}
@@ -1923,7 +2000,7 @@ func (m *Manager) onExit(c *conv, p *proc) {
 	c.mu.Unlock()
 	m.afterTurn(c, f)
 	if !f.ended {
-		m.release(c)
+		m.releaseIfIdle(c)
 	}
 }
 
@@ -1936,6 +2013,11 @@ func (m *Manager) exitReason(c *conv, p *proc) (string, string) {
 		return TurnTimedOut, m.timedOutText()
 	case c.interrupting:
 		return TurnInterrupted, ""
+	case strings.Contains(p.stderr, "No conversation found") && c.data.Moved != nil && !c.data.Moved.Summary:
+		// A conversation from another computer whose session Claude Code
+		// didn't find here goes on from a summary (D345).
+		m.toSummaryLocked(c, "missing")
+		return TurnFailed, "Claude Code couldn't find its own record of this conversation on this computer, so MetaRush goes on from a summary of it. Send your message again."
 	case strings.Contains(p.stderr, "No conversation found"):
 		c.data.SessionLost = true
 		return TurnFailed, "This conversation's Claude Code session is no longer on this machine, so it cannot be resumed. Start a new conversation."
@@ -2327,6 +2409,11 @@ func (m *Manager) save(c *conv, immediate bool) {
 	c.saveVer++
 	v := c.saveVer
 	d := c.copyLocked(true)
+	if c.starting {
+		// A message being started is working already (mayContinue claimed it):
+		// a save meanwhile never says otherwise (D345).
+		d.State = ConvWorking
+	}
 	c.mu.Unlock()
 
 	c.saveMu.Lock()
@@ -2336,17 +2423,7 @@ func (m *Manager) save(c *conv, immediate bool) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	set := bson.M{"state": d.State, "turns": d.Turns, "queue": d.Queue, "events": d.Events, "actions": d.Actions, "costUsd": d.CostUSD,
-		"budgetUsd": d.BudgetUSD, "model": d.Model, "effort": d.Effort, "modelUsed": d.ModelUsed, "claudeVersion": d.ClaudeVersion, "contextTokens": d.ContextTokens,
-		"contextWindow": d.ContextWindow, "turnCount": d.TurnCount, "firstPrompt": d.FirstPrompt, "lastPrompt": d.LastPrompt,
-		"proposalCount": d.ProposalCount, "compacted": d.Compacted, "holderPid": d.HolderPID, "sessionStarted": d.SessionStarted,
-		"claudeSessionId": d.ClaudeSessionID, "projectId": d.ProjectID, "projectName": d.ProjectName, "updatedAt": d.UpdatedAt,
-		"sessionLost": d.SessionLost, "pendingActions": pendingCount(d.Actions), "waitingFor": d.WaitingCounts(), "watching": runningWork(d.Actions),
-		"untold": untoldCount(d.Actions), "tokens": d.Tokens, "sessionTokens": d.SessionTokens, "counting": d.Counting, "tokenLimitM": d.TokenLimitM,
-		"compactions": d.Compactions, "compactedTo": d.CompactedTo, "metarushVersion": d.MetaRushVersion}
-	if d.Account != nil {
-		set["account"] = d.Account // whose Claude answered its latest message (D239)
-	}
+	set := saveFields(d)
 	onInsert := bson.M{"workspaceId": d.WorkspaceID, "userId": d.UserID, "userName": d.UserName, "installationId": d.InstallationID,
 		"installationName": d.InstallationName, "createdAt": d.CreatedAt, "legacy": d.Legacy, "title": d.Title, "titleSource": d.TitleSource, "archived": d.Archived}
 	// Only its first save makes the record: one that is gone (its project was
@@ -2354,7 +2431,13 @@ func (m *Manager) save(c *conv, immediate bool) {
 	c.mu.Lock()
 	stored := c.stored
 	c.mu.Unlock()
-	res, err := m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx, bson.M{"_id": d.ID, "workspaceId": d.WorkspaceID},
+	filter := bson.M{"_id": d.ID, "workspaceId": d.WorkspaceID}
+	if stored {
+		// Only the computer holding it writes it (D345): once it moved to
+		// another one, this one lets it go (forget, below).
+		filter["installationId"] = d.InstallationID
+	}
+	res, err := m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx, filter,
 		bson.M{"$set": set, "$setOnInsert": onInsert}, options.UpdateOne().SetUpsert(!stored))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: MetaRush couldn't save the conversation “%s”: %v\n", d.Title, err)
@@ -2383,6 +2466,27 @@ func (m *Manager) save(c *conv, immediate bool) {
 		}
 		c.mu.Unlock()
 	}
+}
+
+// saveFields is what a save writes of a conversation: everything this
+// computer keeps of it, but who holds it and the fields people change from
+// any computer (title, archived), and the handover mark.
+func saveFields(d Conversation) bson.M {
+	set := bson.M{"state": d.State, "turns": d.Turns, "queue": d.Queue, "events": d.Events, "actions": d.Actions, "costUsd": d.CostUSD,
+		"budgetUsd": d.BudgetUSD, "model": d.Model, "effort": d.Effort, "modelUsed": d.ModelUsed, "claudeVersion": d.ClaudeVersion, "contextTokens": d.ContextTokens,
+		"contextWindow": d.ContextWindow, "turnCount": d.TurnCount, "firstPrompt": d.FirstPrompt, "lastPrompt": d.LastPrompt,
+		"proposalCount": d.ProposalCount, "compacted": d.Compacted, "holderPid": d.HolderPID, "sessionStarted": d.SessionStarted,
+		"claudeSessionId": d.ClaudeSessionID, "projectId": d.ProjectID, "projectName": d.ProjectName, "updatedAt": d.UpdatedAt,
+		"sessionLost": d.SessionLost, "pendingActions": pendingCount(d.Actions), "waitingFor": d.WaitingCounts(), "watching": runningWork(d.Actions),
+		"untold": untoldCount(d.Actions), "tokens": d.Tokens, "sessionTokens": d.SessionTokens, "counting": d.Counting, "tokenLimitM": d.TokenLimitM,
+		"compactions": d.Compactions, "compactedTo": d.CompactedTo, "metarushVersion": d.MetaRushVersion}
+	if d.Account != nil {
+		set["account"] = d.Account // whose Claude answered its latest message (D239)
+	}
+	if d.Moved != nil {
+		set["moved"] = d.Moved // it came from another computer (D345)
+	}
+	return set
 }
 
 /* ---------- Following (SSE) ---------- */
@@ -2675,6 +2779,12 @@ func composeMessage(rc TurnContext, msg message, n int, proposals string) string
 	}
 	if msg.whatsNew != "" {
 		b.WriteString("\n" + msg.whatsNew + "\n")
+	}
+	if msg.moved != "" {
+		b.WriteString("\n" + msg.moved + "\n")
+	}
+	if msg.summary != "" {
+		b.WriteString("\n" + msg.summary + "\n")
 	}
 	b.WriteString("\nContext:\n")
 	if rc.ProjectID != "" {

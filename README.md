@@ -1225,6 +1225,32 @@ server.
 - The plan names any computer whose MetaRush doesn't know about moves yet, even one that's off: update it or remove it
   first, so it can't go on changing the old database later.
 
+### Hand a computer's role to another computer
+Replacing a laptop, or moving the team onto an always-on Mac mini: everything tied to one computer moves to another
+computer of the workspace ([handing a computer's role over](docs/handover.md)).
+- **A dry run first** in Settings → Storage → *Hand over this computer's role…*, or with
+  `metarush machine handover plan --to <computer>`: the conversations in Claude's panel (and whether each one's Claude
+  Code record is here), recipe runs and planning by itself, the work waiting for this computer, the watched and linked
+  folders, remote access, paired browser extensions, the keys here (by name only: keys never travel), the background
+  role, and the steps only a person takes.
+- **The conversations travel in a private file you carry** (`metarush machine handover export`), protected by a
+  passphrase (an [age](https://age-encryption.org) file; asked for at the terminal, never on the command line; without
+  one only when you type `unprotected` to confirm), on any drive you carry, never through the shared storage or a
+  synced folder. From then on this computer no longer continues them.
+- **On the new computer** `metarush machine handover receive <file>` puts each conversation's Claude Code record where
+  Claude Code looks there, and the conversation goes on in the same session; one whose record didn't come along goes
+  on from a summary of it. Recipe runs, planning by itself and queued work move, nothing runs twice; folders go where
+  you say.
+- **The old computer steps down by itself** once its own running work is done (a post still going to YouTube
+  included): no background work or remote access for the workspace, and every page there says it is a client now.
+  Work asked for there afterwards runs on the new computer, or — when it needs the old computer's own keys or
+  sign-ins — says to start it there. Nothing is deleted there until you run `metarush machine handover clean` (which
+  also removes the handover file made there).
+- **A computer that's gone for good** is taken over with `metarush machine take-over <computer> --from <a copy of its
+  folders>`, only once it hasn't been seen (or used from a terminal there) for 30 minutes and you confirm it is off;
+  then remove it with `metarush machine revoke`.
+- Owners, and people only, at their own terminal: never Claude, Auto or another AI app.
+
 ### Plays through a database hiccup
 The dashboard remembers where each clip's and render's files are, so when the database briefly stops answering (an
 Atlas election, a dropped connection) the preview, the clip viewer and renders keep playing: a cut you opened plays
@@ -1574,6 +1600,9 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush machine invite <name> --atlas` → on the new machine `metarush machine join <bundle>` | add a machine with its own storage key and database user |
 | `metarush machine list --keys` / `machine revoke <name> --atlas` | see machines and their keys; cut off a lost one |
 | `metarush machine rekey [--dry-run]` | a machine that shares the old storage key gets its own, in place (people only; the old key is deleted by you once no machine uses it) |
+| `metarush machine handover plan --to <computer>` → `handover export --to <computer>` → on it `handover receive <file>` | hand this computer's role to another computer: the dry run, the passphrase-protected handover file, then the conversations, work and folders go on there (people only, at a terminal) |
+| `metarush machine handover status` / `handover abandon` / `handover clean [--yes]` | where this computer stands (the host, stepping down or a client); abandon a handover that wasn't received; on the old computer, remove its copies of the conversations once received |
+| `metarush machine take-over <computer> --from <copy of its folders or a handover file> [--plan]` | take over from a computer that's gone for good (unseen for 30 minutes, you confirm it is off) |
 | `metarush worker settings` / `worker configure --heavy-battery-threshold 25` | battery policy for this machine |
 | `metarush log list [--problems] [--since 2h] [--project <id>]` / `log show <entry>` / `log tail --follow` | what MetaRush did, in plain words |
 | `metarush log search "<words>"` / `log export --since 7d --out log.jsonl` | find something in the log / save entries as JSON lines |

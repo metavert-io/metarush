@@ -1413,6 +1413,57 @@
         "anchor"
       ]
     },
+    "ConvHandingOver": {
+      "properties": {
+        "toName": {
+          "type": "string",
+          "description": "The computer it is moving to."
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "toName",
+        "at"
+      ]
+    },
+    "ConvMoved": {
+      "properties": {
+        "fromName": {
+          "type": "string",
+          "description": "The computer it came from."
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "summary": {
+          "type": "boolean",
+          "description": "It goes on from a summary of the conversation: Claude Code's own record of it didn't come along."
+        },
+        "why": {
+          "type": "string",
+          "enum": [
+            "missing",
+            "unreadable"
+          ]
+        },
+        "primed": {
+          "type": "boolean",
+          "description": "The summary has been given to Claude."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "fromName",
+        "at"
+      ]
+    },
     "Conversation": {
       "properties": {
         "id": {
@@ -1596,6 +1647,12 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "handingOver": {
+          "$ref": "#/$defs/ConvHandingOver"
+        },
+        "moved": {
+          "$ref": "#/$defs/ConvMoved"
         },
         "here": {
           "type": "boolean",

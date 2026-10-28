@@ -100,6 +100,7 @@
 | `internal/media` | `Store` interface; filesystem and S3-compatible drivers (resumable multipart, presign, range) |
 | `internal/cache` | Local content-addressed cache (APFS clones, resumable verified downloads, pin/prune) |
 | `internal/machines` | Per-machine credentials: Tigris IAM client (mint/list/delete keys, prefix policies), Atlas CLI users, join bundles, invite/revoke/list, rekey (a machine's own key in place) |
+| `internal/handover` | Handing a computer's role to another computer ([handover.md](handover.md)): the dry run, the passphrase-protected handover file (age's scrypt mode), receiving it (sessions where Claude Code looks, conversations re-pinned, work moved by check and set, folders), taking over from a computer that is gone, a computer's role (host, stepping down, client) and its clean-up |
 | `internal/media` | `Store` interface; filesystem, S3-compatible (resumable multipart, presign, range) and native GCS (resumable sessions that survive restarts, V4 signing, range) drivers |
 | `internal/cache` | Local content-addressed cache (APFS clones, resumable verified downloads, pin, LRU quota enforcement, cross-process in-use leases, prefetch/repair support) |
 | `internal/tools` | Allowlisted external programs (ffmpeg, ffprobe, node, whisper-cli and whisper-server from the same build, nvidia-smi for one query at studio setup, launchctl/systemctl for the service, metarush-vision and swiftc to build it, the running `metarush` itself for the transcription model server, and the person's own rclone for Google Drive folders) with typed args |

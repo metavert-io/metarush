@@ -111,6 +111,7 @@ var Catalogue = map[string]Entry{
 	store.CRecordings:             {How: AsIs, Why: "screen recordings and what each became (pieces not yet made into footage stay on the computer that received them)"},
 	store.CSpokenChanges:          {How: AsIs, Why: "words changed in a speaker's own voice, as disclosed"},
 	store.CReviewLinks:            {How: AsIs, Why: "links sent to outside reviewers, as the record of what was shared"},
+	store.CHandovers:              {How: AsIs, Why: "handovers of a computer's role to another computer and take-overs, as history: which computer took over from which, and when (never a passphrase or a key)"},
 	store.CLogEntries:             {How: AsIs, Why: "the activity log (written without keys or passwords)"},
 	store.CImprovementItems:       {How: AsIs, Why: "gaps and friction the weekly report found"},
 	store.CImprovementReports:     {How: AsIs, Why: "the weekly reports"},

@@ -1,6 +1,27 @@
 # Changelog
 
 ## Unreleased
+- **Hand a computer's role to another computer**. Replacing a laptop or moving the team onto an always-on Mac mini:
+  Settings → Storage → **Hand over this computer's role…** (owners) or `metarush machine handover plan --to
+  <computer>` lists everything tied to this computer and what happens to each — the conversations in Claude's panel,
+  recipe runs and planning by itself, the work waiting for it, the watched and linked folders, remote access, paired
+  browser extensions, the keys here (by name only) and the background role — with the steps only a person takes.
+  `metarush machine handover export` makes a private handover file you carry yourself, protected by a passphrase you
+  type at the terminal (an age file; without one only when you type "unprotected" to confirm), on any drive you carry
+  — a USB drive too — never through the shared storage; from then on this computer no longer continues those
+  conversations. `metarush machine handover receive <file>` on the new computer puts each
+  conversation's Claude Code record where Claude Code looks there, so it goes on in the same session (one whose
+  record didn't come along goes on from a summary of it), moves recipe runs, planning by itself and queued work
+  without ever running anything twice, and sets the folders where you say. The old computer then finishes its own
+  running work (a post still going to YouTube included) and steps down by itself: no background work or remote access
+  for the workspace, and every page there says it is a client now. Work asked for there afterwards runs on the new
+  computer, or — when it needs the old computer's own keys or sign-ins — says to start it there. Nothing is deleted
+  there until you run `metarush machine handover clean`, which also removes the handover file made there. A computer that's
+  gone for good is taken over with `metarush machine take-over <computer> --from <a copy of its folders>`, once it
+  hasn't been seen for 30 minutes (nor used from a terminal there) and you confirm it is off; if a computer stopped
+  part-way through receiving a handover and is gone, abandon the handover once it has been quiet that long, or take it
+  over. Owners, and people only, at their own terminal: never
+  Claude, Auto or another AI app.
 - **A screen recording's picture reaches MetaRush while you record**. In Chrome and Edge the screen and the camera
   were held back in the browser, sometimes until you stopped, so a tab that closed mid-recording could lose all of
   its picture and keep only your voice. Each two-second piece of picture is now sent within about half a second of

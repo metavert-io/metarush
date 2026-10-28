@@ -50,6 +50,10 @@ var recipeFeature = []string{
 	"internal/assistant/recipe*.go",          // its cards in Claude's panel (D211)
 	"internal/api/recipes*.go",               // its files to and from other workspaces (D219)
 	"internal/oldnames/",                     // the stored names before D210, read while computers upgrade
+	"internal/handover/",                     // a handover moves its runs and plans to another computer (item 34)
+	"internal/cli/handover.go",               // … and says so
+	"internal/app/workhost.go",               // runs asked for on a computer that handed its role over go to the new one
+	"web/src/screens/settings/Handover.tsx",  // … in Settings → Storage too
 	"internal/plainwords/recipeword_test.go", // this test
 }
 

@@ -280,7 +280,12 @@ func setTriggers(ctx context.Context, a *app.App, in *RecipeTriggersSetIn) (*Rec
 	if on && !triggersOn(old) {
 		// Turned on: it tells this person, and this computer looks.
 		t.Tells = models.Actor{UserID: a.Actor.UserID, UserName: a.Actor.UserName}
-		t.Installation, t.Computer = a.Cfg.Installation.ID, a.Cfg.Installation.Name
+		// …where this computer's background work runs (D349).
+		host, err := a.PinWork(ctx)
+		if err != nil {
+			return nil, err
+		}
+		t.Installation, t.Computer = host.ID, host.Name
 	}
 	t.By, t.At = models.Actor{UserID: a.Actor.UserID, UserName: a.Actor.UserName, Via: a.Actor.Via}, now
 	set, unset := bson.M{"updatedAt": now}, bson.M{}
@@ -667,8 +672,11 @@ func lookAt(ctx context.Context, a *app.App, r *models.Recipe, now time.Time) (b
 	if len(unset) > 0 {
 		update["$unset"] = unset
 	}
-	// Only while the settings are the ones looked at (a person may change them meanwhile).
-	res, err := a.DB.C(store.CRecipes).UpdateOne(ctx, bson.M{"_id": r.ID, "workspaceId": a.WorkspaceID(), "triggers.at": t.At}, update)
+	// Only while the settings are the ones looked at (a person may change them
+	// meanwhile) and they are still this computer's (a handover may have moved
+	// them to another one, which plans from then on: D346).
+	res, err := a.DB.C(store.CRecipes).UpdateOne(ctx, bson.M{"_id": r.ID, "workspaceId": a.WorkspaceID(), "triggers.at": t.At,
+		"triggers.installation": a.Cfg.Installation.ID}, update)
 	if err != nil || res.MatchedCount == 0 || prepared == nil {
 		return false, err
 	}

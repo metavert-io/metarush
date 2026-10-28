@@ -57,16 +57,32 @@ func lookName(a *app.App) string {
 	return leaseOwner(a) + ":" + hex.EncodeToString(b)
 }
 
+// A run's lease ends by the database server's time (D346), like a job's:
+// computers' clocks differ, and a handover moving a run to another computer
+// takes it only when no look holds it ($$NOW).
+
+// LeaseFree matches a run no look holds now, by the server's time.
+func LeaseFree() bson.M {
+	return bson.M{"$or": bson.A{bson.M{"lease": nil}, bson.M{"$expr": bson.M{"$lt": bson.A{"$lease.until", "$$NOW"}}}}}
+}
+
+// leaseFrom is the update that gives a run's lease to by until leaseFor
+// after now on the server's clock.
+func leaseFrom(by string) mongo.Pipeline {
+	return mongo.Pipeline{{{Key: "$set", Value: bson.D{{Key: "lease", Value: bson.D{
+		{Key: "by", Value: bson.D{{Key: "$literal", Value: by}}},
+		{Key: "until", Value: bson.D{{Key: "$add", Value: bson.A{"$$NOW", leaseFor.Milliseconds()}}}},
+	}}}}}}
+}
+
 // claim takes a run's lease for one look; nil when someone else is looking at
 // it, or it isn't going on any more.
 func claim(ctx context.Context, a *app.App, id string) (*models.RecipeRun, error) {
-	now := time.Now().UTC()
 	me := lookName(a)
 	var run models.RecipeRun
-	err := a.DB.C(store.CRecipeRuns).FindOneAndUpdate(ctx, bson.M{"_id": id, "workspaceId": a.WorkspaceID(),
-		"state": bson.M{"$in": bson.A{models.RunRunning, models.RunWaiting}},
-		"$or":   bson.A{bson.M{"lease": nil}, bson.M{"lease.until": bson.M{"$lt": now}}}},
-		bson.M{"$set": bson.M{"lease": models.RunLease{By: me, Until: now.Add(leaseFor)}}}, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&run)
+	filter := LeaseFree()
+	filter["_id"], filter["workspaceId"], filter["state"] = id, a.WorkspaceID(), bson.M{"$in": bson.A{models.RunRunning, models.RunWaiting}}
+	err := a.DB.C(store.CRecipeRuns).FindOneAndUpdate(ctx, filter, leaseFrom(me), options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&run)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, nil
 	}
@@ -74,7 +90,7 @@ func claim(ctx context.Context, a *app.App, id string) (*models.RecipeRun, error
 		return nil, err
 	}
 	if run.Lease == nil || run.Lease.By != me {
-		run.Lease = &models.RunLease{By: me, Until: now.Add(leaseFor)}
+		run.Lease = &models.RunLease{By: me, Until: time.Now().UTC().Add(leaseFor)}
 	}
 	return &run, nil
 }
@@ -95,10 +111,31 @@ func save(ctx context.Context, a *app.App, run *models.RecipeRun) error {
 	}
 	run.UpdatedAt = time.Now().UTC()
 	lease := run.Lease
-	run.Lease = &models.RunLease{By: lease.By, Until: time.Now().UTC().Add(leaseFor)}
-	res, err := a.DB.C(store.CRecipeRuns).ReplaceOne(ctx, bson.M{"_id": run.ID, "workspaceId": a.WorkspaceID(), "lease.by": lease.By}, run)
+	b, err := bson.Marshal(run)
 	if err != nil {
-		run.Lease = lease
+		return err
+	}
+	var doc bson.D
+	if err := bson.Unmarshal(b, &doc); err != nil {
+		return err
+	}
+	kept := doc[:0]
+	for _, e := range doc {
+		if e.Key != "lease" {
+			kept = append(kept, e)
+		}
+	}
+	// One write: the run as it is now, its lease going on from now by the
+	// server's clock.
+	res, err := a.DB.C(store.CRecipeRuns).UpdateOne(ctx, bson.M{"_id": run.ID, "workspaceId": a.WorkspaceID(), "lease.by": lease.By},
+		mongo.Pipeline{{{Key: "$replaceWith", Value: bson.D{{Key: "$mergeObjects", Value: bson.A{
+			bson.D{{Key: "$literal", Value: kept}},
+			bson.D{{Key: "lease", Value: bson.D{
+				{Key: "by", Value: bson.D{{Key: "$literal", Value: lease.By}}},
+				{Key: "until", Value: bson.D{{Key: "$add", Value: bson.A{"$$NOW", leaseFor.Milliseconds()}}}},
+			}}},
+		}}}}}})
+	if err != nil {
 		return err
 	}
 	if res.MatchedCount == 0 {

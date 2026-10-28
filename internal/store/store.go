@@ -156,6 +156,9 @@ const (
 	// (rvl_…, D314): one version's review copy, kept as a private page in
 	// the media store until it expires or is taken back.
 	CReviewLinks = "review_links"
+	// CHandovers holds handovers of a computer's role to another computer
+	// and take-overs from a computer that is gone (hov_…, item 34, D344–D348).
+	CHandovers = "handovers"
 )
 
 // ErrNotFound is returned when a document does not exist in the workspace.

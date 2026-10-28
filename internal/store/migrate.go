@@ -193,6 +193,14 @@ var Migrations = []Migration{
 			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "publications.state", Value: 1}},
 				options.Index().SetName("publications_sending").SetPartialFilterExpression(bson.M{"publications.state": "sending"})))
 	}},
+	{Version: 61, Name: "handing a computer's role to another computer", Up: func(ctx context.Context, d *DB) error {
+		// One handover in progress per computer (D346): a second is refused
+		// by the database, whichever computer starts it.
+		return createIndexes(ctx, d, CHandovers,
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "from", Value: 1}},
+				options.Index().SetName("handover_in_progress").SetUnique(true).SetPartialFilterExpression(bson.M{"active": true})),
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "settledAt", Value: -1}}))
+	}},
 }
 
 // migratePresenters indexes people's own presenters (D273: one per short

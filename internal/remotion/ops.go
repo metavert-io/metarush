@@ -397,6 +397,10 @@ func init() {
 // ---- import ----
 
 func importOp(ctx context.Context, a *app.App, in *RemotionImportIn) (*RemotionImportOut, error) {
+	// A folder on this computer, or a repository with its sign-in (D349).
+	if err := a.NeedsThisComputer(ctx, "a Remotion import"); err != nil {
+		return nil, err
+	}
 	p, err := ops.ResolveProject(ctx, a, in.ProjectID)
 	if err != nil {
 		return nil, err

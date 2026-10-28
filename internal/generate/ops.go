@@ -141,6 +141,10 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 		out.Summary = est.Summary
 		return out, nil
 	}
+	// The key checked here is this computer's (D349).
+	if err := a.NeedsThisComputer(ctx, "a generated shot"); err != nil {
+		return nil, err
+	}
 	if _, err := keyFor(a, p.provider); err != nil {
 		return nil, err
 	}

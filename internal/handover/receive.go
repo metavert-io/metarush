@@ -15,6 +15,7 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/assistant"
+	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/secretpath"
 	"github.com/metavert-io/metarush/internal/store"
@@ -135,7 +136,7 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 	// meanwhile (a receive that stops part way runs again).
 	if !in.Plan && !again {
 		r, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "state": bson.M{"$in": bson.A{StateExported, StateReceiving}}},
-			bson.M{"$set": bson.M{"state": StateReceiving}})
+			bson.M{"$set": bson.M{"state": StateReceiving}, "$currentDate": bson.M{"receivingAt": true}})
 		if err != nil {
 			return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't record that the handover is being received.")
 		}
@@ -161,6 +162,19 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 		return out, nil
 	}
 	if again {
+		// A receive that stopped after it took the role finishes here: the
+		// work and the folders (as placed before, else as placed now).
+		if rec.WorkMovedAt == nil && rec.To == a.Cfg.Installation.ID {
+			if loadReceive(a, rec.ID) == nil {
+				rememberReceive(a, rec.ID, m.Folders, choices)
+			}
+			if _, err := finishReceive(ctx, a, rec); err != nil {
+				return nil, err
+			}
+			if rec, err = getRecord(ctx, a, rec.ID); err != nil {
+				return nil, err
+			}
+		}
 		out.Handover = rec
 		if out.Waiting, err = stillThere(ctx, a, m.From.ID); err != nil {
 			return nil, err
@@ -175,29 +189,39 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 	if receiveHook != nil {
 		receiveHook(rec.ID)
 	}
-	moved, err := moveWork(ctx, a, m.From.ID, a.Cfg.Installation.ID, a.Cfg.Installation.Name, false)
-	if err != nil {
+	// The role is taken first, by check and set — and not by a computer that
+	// handed its own role away, or was taken over, while it was receiving
+	// this; the work and the folders follow (finishReceive), so nothing
+	// moves to a computer that took no role.
+	me := a.Cfg.Installation.ID
+	if rec, err = getRecord(ctx, a, rec.ID); err != nil {
 		return nil, err
 	}
-	moved.Conversations, moved.Summaries = adopt.moved, adopt.summaries
-	nf, err := applyFolders(ctx, a, m.Folders, choices)
-	if err != nil {
+	if role, err := RoleOf(ctx, a, me); err != nil {
 		return nil, err
+	} else if role.Role != RoleHost && role.Latest != nil && role.Latest.SettledAt != nil && rec.ReceivingAt != nil && role.Latest.SettledAt.After(*rec.ReceivingAt) {
+		return nil, apperr.New(apperr.Conflict, "%s That happened while this computer was receiving “%s”'s role, so it doesn't take it: nothing more moves here.", role.Says, m.From.Name).
+			WithCommand("metarush machine handover status").WithDetails(map[string]any{"reason": "not_host"})
 	}
-	moved.Folders = nf
+	// Where the person said the folders go stays on this computer until
+	// the folders are set (its MetaRush in the background finishes them if
+	// this stops).
+	rememberReceive(a, rec.ID, m.Folders, choices)
 	now := time.Now().UTC()
 	r, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "state": StateReceiving},
-		bson.M{"$set": bson.M{"state": StateReceived, "receivedAt": now, "receivedBy": a.Actor, "moved": addMoved(rec.Moved, moved)},
+		bson.M{"$set": bson.M{"state": StateReceived, "receivedAt": now, "receivedBy": a.Actor,
+			"moved": addMoved(rec.Moved, HandoverMoved{Conversations: adopt.moved, Summaries: adopt.summaries})},
 			"$currentDate": bson.M{"settledAt": true}})
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't record that the handover was received.").
 			WithHint("Receive the same file again: what came already stays, and the rest comes.")
 	}
 	if r.MatchedCount == 0 {
-		// Another receive here may have just finished it; anything else ended
+		// Another receive here may have just taken it; anything else ended
 		// it meanwhile, and what came here stays here (each conversation is
-		// held by one computer all the same).
+		// held by one computer all the same), but no work moves.
 		if again, gerr := getRecord(ctx, a, rec.ID); gerr != nil || again.State != StateReceived {
+			forgetReceive(a, rec.ID)
 			return nil, changedMeanwhile(ctx, a, rec.ID)
 		}
 	}
@@ -206,7 +230,18 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 	}
 	// The role came back here before this computer had stepped down from
 	// handing it away: that earlier handover ends now.
-	if err := settleOvertaken(ctx, a, a.Cfg.Installation.ID, rec); err != nil {
+	if err := settleOvertaken(ctx, a, me, rec); err != nil {
+		return nil, err
+	}
+	if stopAfterReceived != nil && stopAfterReceived() {
+		return nil, errors.New("stopped after the role was taken (test)")
+	}
+	moved, err := finishReceive(ctx, a, rec)
+	if err != nil {
+		return nil, err
+	}
+	moved.Conversations, moved.Summaries = adopt.moved, adopt.summaries
+	if rec, err = getRecord(ctx, a, rec.ID); err != nil {
 		return nil, err
 	}
 	a.Audit(ctx, "machine.handover.receive", "handover", rec.ID, "", map[string]any{"from": m.From.Name, "conversations": moved.Conversations,
@@ -233,8 +268,122 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 }
 
 // receiveHook runs (in tests) once the conversations came, before the
-// handover is recorded as received.
-var receiveHook func(handover string)
+// handover is recorded as received; stopAfterReceived (tests) stops a receive
+// right after it took the role, before the work moved.
+var (
+	receiveHook       func(handover string)
+	stopAfterReceived func() bool
+)
+
+/* ---------- The work and the folders, after the role ---------- */
+
+// pendingReceive is what a receive still has to do once it took the role:
+// the folders the person placed (kept on this computer only: their paths
+// are this computer's).
+type pendingReceive struct {
+	Folders []HandoverFolder                `json:"folders"`
+	Choices map[string]HandoverFolderChoice `json:"choices"`
+}
+
+func pendingPath(a *app.App, handover string) string {
+	return filepath.Join(a.Cfg.StateDir(), "handover", "received", handover+".json")
+}
+
+func rememberReceive(a *app.App, handover string, folders []HandoverFolder, choices map[string]HandoverFolderChoice) {
+	if !ids.Valid(ids.Handover, handover) {
+		return
+	}
+	b, err := json.Marshal(pendingReceive{Folders: folders, Choices: choices})
+	if err != nil || os.MkdirAll(filepath.Dir(pendingPath(a, handover)), 0o700) != nil {
+		return
+	}
+	_ = os.WriteFile(pendingPath(a, handover), b, 0o600)
+}
+
+func forgetReceive(a *app.App, handover string) {
+	if ids.Valid(ids.Handover, handover) {
+		_ = os.Remove(pendingPath(a, handover))
+	}
+}
+
+// finishReceive moves the old computer's work here and sets the folders, for
+// a handover this computer received: only while the handover is still the
+// newest settled one of both computers (this one the host, the old one
+// stepping down or a client because of it) — after a take-over or a later
+// handover nothing moves (the hosts' looks re-pin what a client was left).
+// Every step is a check and set, so it can run again; workMovedAt records it
+// done.
+func finishReceive(ctx context.Context, a *app.App, rec *HandoverRecord) (HandoverMoved, error) {
+	var moved HandoverMoved
+	if rec.WorkMovedAt != nil || rec.To != a.Cfg.Installation.ID || (rec.State != StateReceived && rec.State != StateDone) {
+		return moved, nil
+	}
+	mine, err := RoleOf(ctx, a, rec.To)
+	if err != nil {
+		return moved, err
+	}
+	theirs, err := RoleOf(ctx, a, rec.From)
+	if err != nil {
+		return moved, err
+	}
+	current := mine.Role == RoleHost && mine.Latest != nil && mine.Latest.ID == rec.ID && theirs.Latest != nil && theirs.Latest.ID == rec.ID
+	if current {
+		if moved, err = moveWork(ctx, a, rec.From, rec.To, rec.ToName, false); err != nil {
+			return moved, err
+		}
+		if p := loadReceive(a, rec.ID); p != nil {
+			if moved.Folders, err = applyFolders(ctx, a, p.Folders, p.Choices); err != nil {
+				return moved, err
+			}
+		}
+	}
+	set := bson.M{}
+	if current {
+		set["moved"] = addMoved(rec.Moved, moved)
+	} else {
+		set["workSkipped"] = true // overtaken before the work moved: nothing moved here
+	}
+	r, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID(), "workMovedAt": nil},
+		bson.M{"$set": set, "$currentDate": bson.M{"workMovedAt": true}})
+	if err != nil {
+		return moved, apperr.Wrap(apperr.Database, err, "MetaRush couldn't record that the work came here.")
+	}
+	if r.MatchedCount == 1 {
+		forgetReceive(a, rec.ID)
+	}
+	return moved, nil
+}
+
+func loadReceive(a *app.App, handover string) *pendingReceive {
+	if !ids.Valid(ids.Handover, handover) {
+		return nil
+	}
+	b, err := os.ReadFile(pendingPath(a, handover))
+	if err != nil {
+		return nil
+	}
+	var p pendingReceive
+	if json.Unmarshal(b, &p) != nil {
+		return nil
+	}
+	return &p
+}
+
+// finishReceived finishes, in the background, the work and folders of every
+// handover this computer received whose receive stopped after taking the role.
+func finishReceived(ctx context.Context, a *app.App, me string) error {
+	var recs []HandoverRecord
+	if err := a.DB.Find(ctx, store.CHandovers, a.WorkspaceID(), bson.M{"to": me, "kind": KindHandover, "state": bson.M{"$in": bson.A{StateReceived, StateDone}},
+		"workMovedAt": nil}, &recs); err != nil {
+		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't read the handovers.")
+	}
+	for i := range recs {
+		if _, err := finishReceive(ctx, a, &recs[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // changedMeanwhile says, plainly, that the handover was ended while this
 // computer was receiving it.

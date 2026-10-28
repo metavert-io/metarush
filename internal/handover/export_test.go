@@ -28,3 +28,11 @@ func AfterMarking(f func(handover string)) func() {
 	markedHook = f
 	return func() { markedHook = nil }
 }
+
+// StopAfterReceiving stops a receive right after it took the role, before the
+// work moved (as a computer going to sleep there would), until the returned
+// func puts things back.
+func StopAfterReceiving() func() {
+	stopAfterReceived = func() bool { return true }
+	return func() { stopAfterReceived = nil }
+}

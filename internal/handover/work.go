@@ -161,6 +161,19 @@ func pinnedWork(ctx context.Context, a *app.App, from string, gone bool) ([]Hand
 // piece by check and set; what stays (running now, started link imports
 // and generated shots, the old computer's own files) is left where it is.
 func moveWork(ctx context.Context, a *app.App, from, to, toName string, gone bool) (HandoverMoved, error) {
+	return moveWorkWith(ctx, a, from, to, toName, gone, false)
+}
+
+// ownKinds are the kinds of work that need the computer they were asked on
+// (D349 refuses them on a computer that handed its role over): its keys and
+// models, its sign-ins, its set-up programs or its folders. The safety net
+// never moves them (rehomeWork).
+var ownKinds = []string{jobs.TypeGenerate, jobs.TypeRemotionImport, jobs.TypeRemotionRefresh, jobs.TypeRemotionPush, jobs.TypeAbilityRun}
+
+// moveWorkWith is moveWork; own leaves the kinds that need their computer's
+// own keys, sign-ins, set-up or files where they are (a link import with the
+// browser's sign-in too).
+func moveWorkWith(ctx context.Context, a *app.App, from, to, toName string, gone, own bool) (HandoverMoved, error) {
 	var m HandoverMoved
 	now := time.Now().UTC()
 	// Jobs: queued, or running with a lease that ended by the server's clock.
@@ -168,14 +181,20 @@ func moveWork(ctx context.Context, a *app.App, from, to, toName string, gone boo
 		bson.M{"state": models.JobQueued},
 		bson.M{"state": models.JobRunning, "$expr": bson.M{"$lt": bson.A{"$lease.expiresAt", "$$NOW"}}},
 	}}
-	filter := bson.M{"workspaceId": a.WorkspaceID(), "installation": from, "type": bson.M{"$nin": stayKinds}, "$and": bson.A{notLive}}
+	stay := stayKinds
+	and := bson.A{notLive}
+	if own {
+		stay = append(append([]string{}, stayKinds...), ownKinds...)
+		and = append(and, bson.M{"$or": bson.A{bson.M{"type": bson.M{"$ne": jobs.TypeImport}}, bson.M{"payload.browser": bson.M{"$in": bson.A{nil, ""}}}}})
+	}
 	if !gone {
 		// Link imports and generated shots that started finish where they started.
-		filter["$and"] = bson.A{notLive, bson.M{"$or": bson.A{
+		and = append(and, bson.M{"$or": bson.A{
 			bson.M{"type": bson.M{"$nin": inFlightKinds}},
 			bson.M{"attemptCount": bson.M{"$in": bson.A{0, nil}}},
-		}}}
+		}})
 	}
+	filter := bson.M{"workspaceId": a.WorkspaceID(), "installation": from, "type": bson.M{"$nin": stay}, "$and": and}
 	res, err := a.DB.C(store.CJobs).UpdateMany(ctx, filter, bson.M{"$set": bson.M{"installation": to, "updatedAt": now}})
 	if err != nil {
 		return m, apperr.Wrap(apperr.Database, err, "MetaRush couldn't move the work pinned to the old computer.")
@@ -219,4 +238,68 @@ func stillThere(ctx context.Context, a *app.App, from string) ([]HandoverWork, e
 func addMoved(a, b HandoverMoved) HandoverMoved {
 	return HandoverMoved{Conversations: a.Conversations + b.Conversations, Summaries: a.Summaries + b.Summaries, Runs: a.Runs + b.Runs,
 		Triggers: a.Triggers + b.Triggers, Jobs: a.Jobs + b.Jobs, Folders: a.Folders + b.Folders}
+}
+
+// rehomeWork is the hosts' safety net (D351): work left pinned to a computer
+// that handed its role over and stepped down (or was taken over) — which runs
+// no worker, recipe engine or triggers — goes, each piece by check and set on
+// the database server's clock, to the computer that has that computer's role
+// now (followed through later handovers). Running work with a live lease is
+// left alone, and so are the kinds that need that computer's own keys,
+// sign-ins, set-up or files (they wait for it, as the activity says). It
+// returns how much moved.
+func rehomeWork(ctx context.Context, a *app.App) (HandoverMoved, error) {
+	var total HandoverMoved
+	seen := map[string]bool{}
+	var pinned []string
+	for _, q := range []struct {
+		coll, field string
+		filter      bson.M
+	}{
+		{store.CJobs, "installation", bson.M{"state": bson.M{"$in": bson.A{models.JobQueued, models.JobRunning}}}},
+		{store.CRecipeRuns, "installation", bson.M{"state": bson.M{"$in": bson.A{models.RunPlanned, models.RunRunning, models.RunWaiting}}}},
+		{store.CRecipes, "triggers.installation", bson.M{"archived": bson.M{"$ne": true}}},
+	} {
+		f := bson.M{"workspaceId": a.WorkspaceID(), q.field: bson.M{"$nin": bson.A{nil, ""}}}
+		for k, v := range q.filter {
+			f[k] = v
+		}
+		var ids []string
+		if err := a.DB.C(q.coll).Distinct(ctx, q.field, f).Decode(&ids); err != nil {
+			return total, apperr.Wrap(apperr.Database, err, "MetaRush couldn't read where work is pinned.")
+		}
+		for _, id := range ids {
+			if !seen[id] {
+				seen[id] = true
+				pinned = append(pinned, id)
+			}
+		}
+	}
+	for _, id := range pinned {
+		role, err := RoleOf(ctx, a, id)
+		if err != nil {
+			return total, err
+		}
+		if role.Role != RoleClient {
+			continue // it does its own work, or is still finishing it
+		}
+		host, err := a.WorkHostOf(ctx, id, "")
+		if err != nil {
+			return total, err
+		}
+		if host.ID == id {
+			continue
+		}
+		moved, err := moveWorkWith(ctx, a, id, host.ID, host.Name, true, true)
+		if err != nil {
+			return total, err
+		}
+		if moved.Jobs+moved.Runs+moved.Triggers > 0 {
+			b := *a
+			b.Actor.Via = "daemon"
+			b.Audit(ctx, "machine.handover.rehome", "installation", id, "", map[string]any{"to": host.Name, "jobs": moved.Jobs, "runs": moved.Runs, "triggers": moved.Triggers})
+		}
+		total = addMoved(total, moved)
+	}
+	return total, nil
 }

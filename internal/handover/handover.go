@@ -91,10 +91,13 @@ type HandoverRecord struct {
 	// ExportedAt: the file was written; ReceivedAt: the new computer took the
 	// role; SettledAt is that moment by the database server's clock (the
 	// latest settled handover says which computer has the role).
-	ExportedAt    *time.Time    `bson:"exportedAt,omitempty" json:"exportedAt,omitempty"`
-	ReceivedAt    *time.Time    `bson:"receivedAt,omitempty" json:"receivedAt,omitempty"`
-	ReceivedBy    *models.Actor `bson:"receivedBy,omitempty" json:"receivedBy,omitempty"`
-	SettledAt     *time.Time    `bson:"settledAt,omitempty" json:"settledAt,omitempty"`
+	ExportedAt *time.Time    `bson:"exportedAt,omitempty" json:"exportedAt,omitempty"`
+	ReceivedAt *time.Time    `bson:"receivedAt,omitempty" json:"receivedAt,omitempty"`
+	ReceivedBy *models.Actor `bson:"receivedBy,omitempty" json:"receivedBy,omitempty"`
+	SettledAt  *time.Time    `bson:"settledAt,omitempty" json:"settledAt,omitempty"`
+	// ReceivingAt is when the new computer last began receiving it (the
+	// database server's clock).
+	ReceivingAt   *time.Time    `bson:"receivingAt,omitempty" json:"receivingAt,omitempty"`
 	SteppedDownAt *time.Time    `bson:"steppedDownAt,omitempty" json:"steppedDownAt,omitempty"`
 	AbandonedAt   *time.Time    `bson:"abandonedAt,omitempty" json:"abandonedAt,omitempty"`
 	AbandonedBy   *models.Actor `bson:"abandonedBy,omitempty" json:"abandonedBy,omitempty"`
@@ -102,6 +105,11 @@ type HandoverRecord struct {
 	// OvertakenBy is the newer handover that gave the role back to the old
 	// computer before it had stepped down (this one ended then).
 	OvertakenBy string `bson:"overtakenBy,omitempty" json:"overtakenBy,omitempty"`
+	// WorkMovedAt: the new computer moved the old one's work and set the
+	// folders, after it took the role (WorkSkipped: overtaken first, so
+	// nothing moved).
+	WorkMovedAt *time.Time `bson:"workMovedAt,omitempty" json:"workMovedAt,omitempty"`
+	WorkSkipped bool       `bson:"workSkipped,omitempty" json:"workSkipped,omitempty"`
 	// Moved counts what moved to the new computer.
 	Moved HandoverMoved `bson:"moved" json:"moved"`
 	// ConfirmedOff is the person who confirmed a computer that is gone was

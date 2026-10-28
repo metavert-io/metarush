@@ -122,13 +122,30 @@ func Look(ctx context.Context, a *app.App) (HandoverRole, []HandoverWork, error)
 	role, err := RoleOf(ctx, a, me)
 	if err == nil && role.Role == RoleHost {
 		err = settleOvertaken(ctx, a, me, role.Latest)
+		if err == nil {
+			// A receive here that stopped after taking the role finishes;
+			// work left on a computer that no longer does its own goes to
+			// the one that has its role.
+			err = finishReceived(ctx, a, me)
+		}
+		if err == nil {
+			_, err = rehomeWork(ctx, a)
+		}
 	}
 	if err != nil || role.Role != RoleSteppingDown {
 		return role, nil, err
 	}
 	rec := role.Latest
-	if _, err := moveWork(ctx, a, me, rec.To, rec.ToName, false); err != nil {
+	// To the computer that has the role now (the one that received it, or
+	// whoever took over from that one since).
+	host, err := a.WorkHostOf(ctx, rec.To, rec.ToName)
+	if err != nil {
 		return role, nil, err
+	}
+	if host.ID != me {
+		if _, err := moveWork(ctx, a, me, host.ID, host.Name, false); err != nil {
+			return role, nil, err
+		}
 	}
 	waiting, err := stillThere(ctx, a, me)
 	if err != nil || len(waiting) > 0 {

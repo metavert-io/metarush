@@ -230,6 +230,7 @@ func exportHandover(ctx context.Context, a *app.App, in *HandoverExportIn) (*Han
 	a.Audit(ctx, "machine.handover.export", "handover", rec.ID, "", map[string]any{"to": to.Name, "conversations": res.Conversations, "sessions": res.Sessions,
 		"summaries": res.Summaries, "encrypted": res.Encrypted, "folders": res.Folders})
 	res.Handover, res.File, res.Bytes = *rec, out, size
+	rememberFile(a, rec.ID, out, size) // for clean, on this computer only
 	if !res.Encrypted {
 		res.Warnings = append(res.Warnings, NoPassphraseWarning)
 	}

@@ -360,8 +360,12 @@ func TestHandoverCarriesConversations(t *testing.T) {
 		t.Fatalf("the new computer is the host: %+v", r)
 	}
 	t.Setenv("CLAUDE_CONFIG_DIR", old.claude) // clean runs on the old computer
+	// Something else now at the second file's place is never removed.
+	if err := os.WriteFile(out+"2", []byte("my notes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	cp := call[handover.HandoverCleanOut](t, ctx, old.a, "machine.handover.clean", handover.HandoverCleanIn{})
-	if cp.Removed || cp.Files < 2 {
+	if cp.Removed || cp.Files < 3 || cp.HandoverFiles != 1 || !strings.Contains(cp.Summary, "handover file made here") {
 		t.Fatalf("clean plan %+v", cp)
 	}
 	if _, err := os.Stat(oldSession); err != nil {
@@ -379,6 +383,12 @@ func TestHandoverCarriesConversations(t *testing.T) {
 	}
 	if _, err := os.Stat(newSession); err != nil {
 		t.Fatal("clean touched the new computer's session")
+	}
+	if _, err := os.Stat(out); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("the handover file made here stayed")
+	}
+	if b, err := os.ReadFile(out + "2"); err != nil || string(b) != "my notes" {
+		t.Fatal("clean removed something that isn't the handover file")
 	}
 }
 

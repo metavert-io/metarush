@@ -2,7 +2,9 @@ package handover
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,6 +16,7 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/assistant"
+	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/store"
 )
 
@@ -39,6 +42,9 @@ type HandoverCleanOut struct {
 	Files   int      `json:"files"`
 	Bytes   int64    `json:"bytes"`
 	Kept    []string `json:"kept,omitempty" jsonschema:"description=Conversations still held here, whose files stay."`
+	// HandoverFiles are the handover files this computer made for it that are
+	// still where it wrote them (removed too).
+	HandoverFiles int `json:"handoverFiles"`
 	Summary string   `json:"summary"`
 }
 
@@ -91,6 +97,10 @@ func cleanHandover(ctx context.Context, a *app.App, in *HandoverCleanIn) (*Hando
 		}
 		paths = append(paths, assistant.ConversationFolder(a, id))
 	}
+	// The handover files this computer made for it, where they still are.
+	made := madeFiles(a, rec.ID)
+	paths = append(paths, made...)
+	out.HandoverFiles = len(made)
 	for _, p := range paths {
 		n, b := sizeOf(p)
 		out.Files += n
@@ -108,9 +118,15 @@ func cleanHandover(ctx context.Context, a *app.App, in *HandoverCleanIn) (*Hando
 		a.Audit(ctx, "machine.handover.clean", "handover", rec.ID, "", map[string]any{"files": out.Files, "bytes": out.Bytes})
 		out.Removed = true
 		out.Summary = fmt.Sprintf("Removed this computer's copies of %s handed to “%s” (%s).", plural(len(rec.Conversations)-len(out.Kept), "conversation"), rec.ToName, plural(out.Files, "file"))
+		if out.HandoverFiles > 0 {
+			out.Summary += fmt.Sprintf(" The handover %s made here went too.", map[bool]string{true: "file", false: "files"}[out.HandoverFiles == 1])
+		}
 	} else {
 		out.Summary = fmt.Sprintf("Cleaning up would remove this computer's copies of %s handed to “%s”: %s. They live on “%s” now; nothing else is touched.",
 			plural(len(rec.Conversations)-len(out.Kept), "conversation"), rec.ToName, plural(out.Files, "file"), rec.ToName)
+		if out.HandoverFiles > 0 {
+			out.Summary += fmt.Sprintf(" That includes the handover %s made here.", map[bool]string{true: "file", false: "files"}[out.HandoverFiles == 1])
+		}
 	}
 	out.Handover = *rec
 	return out, nil
@@ -196,4 +212,77 @@ func abandonHandover(ctx context.Context, a *app.App, in *HandoverAbandonIn) (*H
 	}
 	return &HandoverAbandonOut{Handover: *rec, Conversations: n, Summary: fmt.Sprintf("Abandoned the handover to “%s”: %s go on on “%s” as before. Delete the handover file if you made one.",
 		rec.ToName, plural(n, "conversation"), rec.FromName)}, nil
+}
+
+/* ---------- The handover files this computer made ---------- */
+
+// madeFile is a handover file this computer wrote, as it wrote it.
+type madeFile struct {
+	Path  string    `json:"path"`
+	Bytes int64     `json:"bytes"`
+	At    time.Time `json:"at"`
+}
+
+func madeFilesPath(a *app.App, handover string) string {
+	return filepath.Join(a.Cfg.StateDir(), "handover", "made", handover+".json")
+}
+
+// rememberFile notes, on this computer only, where a handover file was
+// written, so clean can remove it once the handover was received (its place
+// never goes into the database).
+func rememberFile(a *app.App, handover, path string, size int64) {
+	if !ids.Valid(ids.Handover, handover) {
+		return
+	}
+	p := madeFilesPath(a, handover)
+	var list []madeFile
+	if b, err := os.ReadFile(p); err == nil {
+		_ = json.Unmarshal(b, &list)
+	}
+	list = append(list, madeFile{Path: path, Bytes: size, At: time.Now().UTC()})
+	b, err := json.Marshal(list)
+	if err != nil || os.MkdirAll(filepath.Dir(p), 0o700) != nil {
+		return
+	}
+	_ = os.WriteFile(p, b, 0o600)
+}
+
+// madeFiles are the handover files this computer made for a handover that
+// are still there as they were written: the same size, still a handover
+// file (encrypted, or the gzip'd archive) — never anything else at that path.
+func madeFiles(a *app.App, handover string) []string {
+	if !ids.Valid(ids.Handover, handover) {
+		return nil
+	}
+	b, err := os.ReadFile(madeFilesPath(a, handover))
+	if err != nil {
+		return nil
+	}
+	var list []madeFile
+	if json.Unmarshal(b, &list) != nil {
+		return nil
+	}
+	var out []string
+	for _, f := range list {
+		st, err := os.Lstat(f.Path)
+		if err != nil || !st.Mode().IsRegular() || st.Size() != f.Bytes || !looksLikeHandoverFile(f.Path) {
+			continue
+		}
+		out = append(out, f.Path)
+	}
+	return out
+}
+
+func looksLikeHandoverFile(p string) bool {
+	if enc, err := Encrypted(p); err == nil && enc {
+		return true
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	head := make([]byte, 2)
+	n, _ := io.ReadFull(f, head)
+	return n == 2 && head[0] == 0x1f && head[1] == 0x8b
 }

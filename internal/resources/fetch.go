@@ -164,8 +164,14 @@ func QueueFetch(ctx context.Context, a *app.App, r FetchRequest) (*FetchQueued, 
 	if r.PicturesOnly {
 		payload["picturesOnly"] = true
 	}
+	// Fetched where this computer's background work runs: here, or the
+	// computer that has its role now, with its network and sign-in (D349).
+	host, err := a.PinWork(ctx)
+	if err != nil {
+		return nil, err
+	}
 	j, _, err := a.Queue.Enqueue(ctx, jobs.EnqueueOptions{Type: jobs.TypeFetch, Payload: payload, IdempotencyKey: ids.New("idk"), Priority: 9, MaxAttempts: 2,
-		ProjectID: r.ProjectID, Actor: a.Actor, Installation: a.Cfg.Installation.ID})
+		ProjectID: r.ProjectID, Actor: a.Actor, Installation: host.ID})
 	if err != nil {
 		return nil, err
 	}

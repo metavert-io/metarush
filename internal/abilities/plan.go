@@ -470,6 +470,10 @@ func startRun(ctx context.Context, a *app.App, in *AbilityRunIn) (*AbilityRunOut
 	if err := in.fromEntry(); err != nil {
 		return nil, err
 	}
+	// It runs with this computer's set-up (D349).
+	if err := a.NeedsThisComputer(ctx, "an ability's run"); err != nil {
+		return nil, err
+	}
 	if len(strings.TrimSpace(in.Plan)) < 16 {
 		return nil, apperr.New(apperr.InvalidInput, "Say which plan to start: the fingerprint ability.plan gave for this run.").
 			WithCommand("metarush ability plan " + in.Ref)

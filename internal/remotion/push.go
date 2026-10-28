@@ -676,6 +676,10 @@ func lastPushTo(ctx context.Context, a *app.App, s *models.RemotionSource, targe
 // ---- starting ----
 
 func startPush(ctx context.Context, a *app.App, in *RemotionPushStartIn) (*RemotionPushStartOut, error) {
+	// With this computer's git and gh sign-in (D349).
+	if err := a.NeedsThisComputer(ctx, "sending changes back to the repository"); err != nil {
+		return nil, err
+	}
 	p, st, err := planPush(ctx, a, &in.RemotionPushIn)
 	if err != nil {
 		return nil, err

@@ -75,8 +75,13 @@ type ImportConfigureIn struct {
 
 // Running reports whether this installation's worker runs imports right now.
 func Running(ctx context.Context, a *app.App) bool {
+	return runningOn(ctx, a, a.Cfg.Installation.ID)
+}
+
+// runningOn reports whether a computer's worker runs imports right now.
+func runningOn(ctx context.Context, a *app.App, installation string) bool {
 	var w models.WorkerDevice
-	if err := a.DB.GetByID(ctx, store.CWorkers, a.WorkspaceID(), a.Cfg.Installation.ID, &w); err != nil {
+	if err := a.DB.GetByID(ctx, store.CWorkers, a.WorkspaceID(), installation, &w); err != nil {
 		return false
 	}
 	if !jobs.Online(w, time.Now()) {
@@ -120,6 +125,18 @@ func init() {
 		if in.BrowserSignIn != "" && !ValidBrowser(in.BrowserSignIn) {
 			return nil, apperr.New(apperr.InvalidInput, "The browser sign-in can come from Chrome, Safari, Firefox, Brave or Edge.").WithDetails(map[string]any{"browsers": Browsers})
 		}
+		// Imported where this computer's background work runs: here, or the
+		// computer that has its role now — except with this browser's
+		// sign-in, which is only here (D349).
+		host, err := a.PinWork(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if in.BrowserSignIn != "" && !in.DryRun {
+			if err := a.NeedsThisComputer(ctx, "a link import with your browser's sign-in"); err != nil {
+				return nil, err
+			}
+		}
 		if in.Playlist < 0 || in.Playlist > 200 {
 			return nil, apperr.New(apperr.InvalidInput, "From a playlist, import between 1 and 200 videos.")
 		}
@@ -141,7 +158,7 @@ func init() {
 			}
 			projectName = p.Name
 		}
-		out := &ImportOut{Imports: []ImportRow{}, JobIDs: []string{}, Machine: a.Cfg.Installation.Name, DryRun: in.DryRun}
+		out := &ImportOut{Imports: []ImportRow{}, JobIDs: []string{}, Machine: host.Name, DryRun: in.DryRun}
 		via := a.Actor.Via
 		if via == "" {
 			via = "cli"
@@ -205,8 +222,8 @@ func init() {
 				}
 			}
 			p := Payload{URL: l.URL, Input: row.Input, Platform: l.Platform, Kind: l.Kind, VideoID: l.VideoID, ListID: l.ListID, Browser: in.BrowserSignIn, Via: via, Limit: in.Playlist}
-			j, created, err := a.Queue.Enqueue(ctx, jobs.EnqueueOptions{Type: jobs.TypeImport, Payload: p.asMap(), IdempotencyKey: IdempotencyKey(a.Cfg.Installation.ID, l, in.ProjectID),
-				Priority: 9, MaxAttempts: 3, ProjectID: in.ProjectID, Actor: a.Actor, Installation: a.Cfg.Installation.ID})
+			j, created, err := a.Queue.Enqueue(ctx, jobs.EnqueueOptions{Type: jobs.TypeImport, Payload: p.asMap(), IdempotencyKey: IdempotencyKey(host.ID, l, in.ProjectID),
+				Priority: 9, MaxAttempts: 3, ProjectID: in.ProjectID, Actor: a.Actor, Installation: host.ID})
 			if err != nil {
 				return nil, err
 			}
@@ -260,13 +277,15 @@ func init() {
 				a.Cfg.Imports.Browser = in.BrowserSignIn
 			}
 		}
-		out.Running = Running(ctx, a)
+		out.Running = runningOn(ctx, a, host.ID)
 		switch {
 		case out.Queued == 0:
 		case out.Running:
-			out.Note = "The import runs on " + a.Cfg.Installation.Name + "; follow it in the activity bar."
+			out.Note = "The import runs on " + host.Name + "; follow it in the activity bar."
+		case !host.Here:
+			out.Note = "It starts as soon as MetaRush is running on " + host.Name + ", which has this computer's role now."
 		default:
-			out.Note = "It starts as soon as MetaRush is running on " + a.Cfg.Installation.Name + " (open MetaRush to start it)."
+			out.Note = "It starts as soon as MetaRush is running on " + host.Name + " (open MetaRush to start it)."
 		}
 		if out.Queued+out.Already > 0 {
 			a.Audit(ctx, "import.url", "workspace", a.WorkspaceID(), in.ProjectID, map[string]any{"queued": out.Queued, "already": out.Already, "refused": out.Refused,

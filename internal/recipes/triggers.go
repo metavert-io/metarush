@@ -280,7 +280,12 @@ func setTriggers(ctx context.Context, a *app.App, in *RecipeTriggersSetIn) (*Rec
 	if on && !triggersOn(old) {
 		// Turned on: it tells this person, and this computer looks.
 		t.Tells = models.Actor{UserID: a.Actor.UserID, UserName: a.Actor.UserName}
-		t.Installation, t.Computer = a.Cfg.Installation.ID, a.Cfg.Installation.Name
+		// …where this computer's background work runs (D349).
+		host, err := a.PinWork(ctx)
+		if err != nil {
+			return nil, err
+		}
+		t.Installation, t.Computer = host.ID, host.Name
 	}
 	t.By, t.At = models.Actor{UserID: a.Actor.UserID, UserName: a.Actor.UserName, Via: a.Actor.Via}, now
 	set, unset := bson.M{"updatedAt": now}, bson.M{}

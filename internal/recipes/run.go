@@ -89,6 +89,12 @@ func startRun(ctx context.Context, a *app.App, in planIn, fingerprint string, ma
 	} else {
 		agreed = &models.RecipeAgreement{By: a.Actor, At: now, Skipped: true}
 	}
+	// The run goes on where this computer's background work runs: here, or
+	// the computer that has its role now (D349).
+	host, err := a.PinWork(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var r models.Recipe
 	if err := a.DB.C(store.CRecipes).FindOneAndUpdate(ctx, bson.M{"_id": p.Recipe.ID, "workspaceId": a.WorkspaceID()},
 		bson.M{"$inc": bson.M{"runs": 1}}, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&r); err != nil {
@@ -97,7 +103,7 @@ func startRun(ctx context.Context, a *app.App, in planIn, fingerprint string, ma
 	run := &models.RecipeRun{ID: ids.New(ids.RecipeRun), WorkspaceID: a.WorkspaceID(), RecipeID: r.ID, RecipeName: r.Name, RecipeTitle: p.Doc.Title,
 		Number: r.Runs, Version: p.Version.Hash, VersionNumber: p.Version.Number, Inputs: p.Inputs, Note: p.Note, Settings: p.Settings,
 		Fingerprint: p.Fingerprint, Estimate: p.Estimate, Agreed: agreed, Steps: steps, State: models.RunRunning, Outputs: p.Outputs, Sample: sample,
-		Installation: a.Cfg.Installation.ID, CreatedBy: a.Actor, CreatedAt: now, UpdatedAt: now}
+		Installation: host.ID, CreatedBy: a.Actor, CreatedAt: now, UpdatedAt: now}
 	switch {
 	case p.Prev != nil:
 		run.Repeats, run.ProjectID, run.ProjectName, run.Branch = p.Prev.ID, p.Project.ID, p.Project.Name, p.Branch

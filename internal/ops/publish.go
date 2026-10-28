@@ -618,6 +618,10 @@ func init() {
 			if err := notByAgents(a); err != nil {
 				return nil, err
 			}
+			// Posting set-up and its recovery are the role's computer's (D349).
+			if err := a.NeedsThisComputer(ctx, "a post to "+firstNonEmpty(PublishPlatforms[in.Platform], "a video platform")); err != nil {
+				return nil, err
+			}
 			plan, video, render, err := publishPlan(ctx, a, in, true)
 			if err != nil {
 				return nil, err

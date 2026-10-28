@@ -36,6 +36,10 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 	if p.adapter == nil {
 		return nil, apperr.New(apperr.NotConfigured, "%s", p.problems[0])
 	}
+	// The keys and models checked here are this computer's (D349).
+	if err := a.NeedsThisComputer(ctx, "AI work"); err != nil {
+		return nil, err
+	}
 	if _, err := keyFor(a, p.model.Provider); err != nil {
 		return nil, err
 	}

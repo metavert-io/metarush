@@ -250,8 +250,17 @@ func init() {
 			if len(assets) == 0 {
 				return nil, apperr.New(apperr.InvalidInput, "There's no clip with a picture to describe.")
 			}
-			if st := For(a).Status(ctx, false); !st.Available {
-				return nil, apperr.New(apperr.NotConfigured, "%s", st.Reason).WithHint(st.Hint).WithDetails(map[string]any{"reason": "claude_unavailable"})
+			// Claude Code where this computer's background work runs: here, or
+			// the computer that has its role now (D349; its Claude Code answers
+			// for the role, as it does the panel's conversations).
+			host, err := a.PinWork(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if host.Here {
+				if st := For(a).Status(ctx, false); !st.Available {
+					return nil, apperr.New(apperr.NotConfigured, "%s", st.Reason).WithHint(st.Hint).WithDetails(map[string]any{"reason": "claude_unavailable"})
+				}
 			}
 			for _, as := range assets {
 				pid := in.ProjectID
@@ -271,7 +280,7 @@ func init() {
 					key += ":" + time.Now().UTC().Format("20060102T150405.000")
 				}
 				j, _, err := a.Queue.Enqueue(ctx, jobs.EnqueueOptions{Type: jobs.TypeDescribe, IdempotencyKey: key, Priority: 4, AssetID: as.ID, ProjectID: pid,
-					Payload: map[string]any{"assetId": as.ID, "projectId": pid, "requested": true}, Actor: a.Actor, Installation: a.Cfg.Installation.ID, MaxAttempts: 1})
+					Payload: map[string]any{"assetId": as.ID, "projectId": pid, "requested": true}, Actor: a.Actor, Installation: host.ID, MaxAttempts: 1})
 				if err != nil {
 					return nil, err
 				}

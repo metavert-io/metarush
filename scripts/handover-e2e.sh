@@ -114,8 +114,18 @@ J '"exported: %s" % d["data"]["summary"]' <"$BASE/export.json" || { cat "$BASE/e
 [ "$(stat -f '%Lp' "$BASE/teaser.age" 2>/dev/null || stat -c '%a' "$BASE/teaser.age")" = "600" ] || die "the handover file isn't private (0600)"
 [ "$(head -c 21 "$BASE/teaser.age")" = "age-encryption.org/v1" ] || die "the handover file isn't an age file"
 
-step "the browser: Studio Mac while the conversation is moving"
+step "the browser: Studio Mac while the conversation is moving, then Abandon…"
 browser moving
+if AS_PERSON env HOME="$USERHOME" CLAUDE_CONFIG_DIR="$CB" MR_BIN="$MR_BIN" HB="$HB" FILE="$BASE/teaser.age" \
+  sh -c 'printf "%s\n" "$HANDOVER_PASS" | "$MR_BIN" --home "$HB" machine handover receive "$FILE" --skip-folders --passphrase-stdin --json' >"$BASE/abandoned.json"; then :; fi
+[ "$(J 'd["error"]["code"]' <"$BASE/abandoned.json")" = E_CONFLICT ] || { cat "$BASE/abandoned.json"; die "an abandoned handover was received"; }
+echo "an abandoned handover's file: refused"
+
+step "the handover file again, and Studio Mac refuses the conversation"
+AS_PERSON env HOME="$USERHOME" CLAUDE_CONFIG_DIR="$CA" MR_BIN="$MR_BIN" HA="$HA" OUT="$BASE/teaser-2.age" \
+  sh -c 'printf "%s\n" "$HANDOVER_PASS" | "$MR_BIN" --home "$HA" machine handover export --to "Edit mini" --out "$OUT" --passphrase-stdin --json' >"$BASE/export-2.json"
+J '"exported again: %s" % d["data"]["summary"]' <"$BASE/export-2.json" || { cat "$BASE/export-2.json"; die "the second export failed"; }
+mv "$BASE/teaser-2.age" "$BASE/teaser.age"
 if A assistant continue "$CONV" "One more thing" --wait --json >"$BASE/refused.json" 2>&1; then die "Studio Mac continued a conversation it is handing over"; fi
 
 step "Edit mini receives the file (the folder set where the person says)"

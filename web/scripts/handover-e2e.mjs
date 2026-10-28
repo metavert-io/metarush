@@ -223,6 +223,19 @@ try {
     check('D the conversation is marked as moving', conv.ok && conv.data.handingOver?.toName === 'Edit mini' && conv.data.resumable === false, JSON.stringify(conv).slice(0, 300));
     const sent = await api(page, 'assistant.continue', { id: CONV, prompt: 'One more thing' });
     check('D the old computer refuses a message to it', !sent.ok && sent.error?.details?.reason === 'handing_over', JSON.stringify(sent).slice(0, 300));
+    // Abandon… asks in a styled dialog and puts the conversation back here.
+    await card.locator('[data-handover-abandon]').click();
+    const ask = page.getByRole('alertdialog'); // a danger-toned confirm
+    await ask.waitFor({ timeout: 10_000 });
+    const askText = await ask.innerText();
+    check('D Abandon… asks in a styled dialog', /Abandon the handover\?/.test(askText) && /go on on/.test(askText), askText);
+    await shot(page, 'D-abandon');
+    await ask.getByRole('button', { name: 'Abandon' }).click();
+    await ask.waitFor({ state: 'detached', timeout: 10_000 });
+    const gone = await waitFor(async () => ((await card.locator('[data-handover-row]').count()) === 0 ? true : null), 20_000);
+    check('D the handover is abandoned', !!gone);
+    const back = await api(page, 'assistant.show', { id: CONV, events: false });
+    check('D the conversation goes on here again', back.ok && !back.data.handingOver && back.data.resumable, JSON.stringify(back).slice(0, 300));
   } else if (MODE === 'new') {
     // E — the new computer.
     const page = await newPage(browser, { theme: 'dark', next: '/settings/storage' });

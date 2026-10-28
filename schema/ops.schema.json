@@ -14101,6 +14101,57 @@
         "anchor"
       ]
     },
+    "ConvHandingOver": {
+      "properties": {
+        "toName": {
+          "type": "string",
+          "description": "The computer it is moving to."
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "toName",
+        "at"
+      ]
+    },
+    "ConvMoved": {
+      "properties": {
+        "fromName": {
+          "type": "string",
+          "description": "The computer it came from."
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "summary": {
+          "type": "boolean",
+          "description": "It goes on from a summary of the conversation: Claude Code's own record of it didn't come along."
+        },
+        "why": {
+          "type": "string",
+          "enum": [
+            "missing",
+            "unreadable"
+          ]
+        },
+        "primed": {
+          "type": "boolean",
+          "description": "The summary has been given to Claude."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "fromName",
+        "at"
+      ]
+    },
     "Conversation": {
       "properties": {
         "id": {
@@ -14284,6 +14335,12 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "handingOver": {
+          "$ref": "#/$defs/ConvHandingOver"
+        },
+        "moved": {
+          "$ref": "#/$defs/ConvMoved"
         },
         "here": {
           "type": "boolean",
@@ -25322,6 +25379,905 @@
       "type": "object",
       "required": [
         "word"
+      ]
+    },
+    "HandoverAbandonIn": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^hov_[0-9a-z]{26}$",
+          "description": "Default: the one in progress from this computer."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HandoverAbandonOut": {
+      "properties": {
+        "handover": {
+          "$ref": "#/$defs/HandoverRecord"
+        },
+        "conversations": {
+          "type": "integer"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "handover",
+        "conversations",
+        "summary"
+      ]
+    },
+    "HandoverCleanIn": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^hov_[0-9a-z]{26}$"
+        },
+        "yes": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HandoverCleanOut": {
+      "properties": {
+        "handover": {
+          "$ref": "#/$defs/HandoverRecord"
+        },
+        "removed": {
+          "type": "boolean"
+        },
+        "files": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "kept": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Conversations still held here"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "handover",
+        "removed",
+        "files",
+        "bytes",
+        "summary"
+      ]
+    },
+    "HandoverComputer": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "HandoverConversation": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "projectName": {
+          "type": "string"
+        },
+        "userName": {
+          "type": "string"
+        },
+        "session": {
+          "type": "string",
+          "enum": [
+            "here",
+            "missing",
+            "lost",
+            "none",
+            "legacy"
+          ]
+        },
+        "busy": {
+          "type": "boolean",
+          "description": "Claude is working on it now."
+        },
+        "words": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "session",
+        "words"
+      ]
+    },
+    "HandoverExportIn": {
+      "properties": {
+        "to": {
+          "type": "string",
+          "maxLength": 120,
+          "minLength": 1,
+          "description": "The computer taking the role over (its name)."
+        },
+        "out": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "noPassphrase": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "to"
+      ]
+    },
+    "HandoverExportOut": {
+      "properties": {
+        "handover": {
+          "$ref": "#/$defs/HandoverRecord"
+        },
+        "file": {
+          "type": "string"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "encrypted": {
+          "type": "boolean"
+        },
+        "conversations": {
+          "type": "integer"
+        },
+        "sessions": {
+          "type": "integer"
+        },
+        "summaries": {
+          "type": "integer"
+        },
+        "folders": {
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "next": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "handover",
+        "file",
+        "bytes",
+        "encrypted",
+        "conversations",
+        "sessions",
+        "summaries",
+        "folders",
+        "summary",
+        "next"
+      ]
+    },
+    "HandoverFolder": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "watched",
+            "linked"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "off": {
+          "type": "boolean"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "moveProcessed": {
+          "type": "boolean"
+        },
+        "stableSeconds": {
+          "type": "integer"
+        },
+        "words": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "path",
+        "words"
+      ]
+    },
+    "HandoverFolderChoice": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1
+        },
+        "to": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "skip": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path"
+      ]
+    },
+    "HandoverItem": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "words": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "words"
+      ]
+    },
+    "HandoverMoved": {
+      "properties": {
+        "conversations": {
+          "type": "integer"
+        },
+        "summaries": {
+          "type": "integer"
+        },
+        "runs": {
+          "type": "integer"
+        },
+        "triggers": {
+          "type": "integer"
+        },
+        "jobs": {
+          "type": "integer"
+        },
+        "folders": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "conversations",
+        "summaries",
+        "runs",
+        "triggers",
+        "jobs",
+        "folders"
+      ]
+    },
+    "HandoverPlan": {
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/HandoverComputer"
+        },
+        "to": {
+          "$ref": "#/$defs/HandoverComputer"
+        },
+        "computers": {
+          "items": {
+            "$ref": "#/$defs/HandoverComputer"
+          },
+          "type": "array"
+        },
+        "role": {
+          "$ref": "#/$defs/HandoverRole"
+        },
+        "inProgress": {
+          "$ref": "#/$defs/HandoverRecord"
+        },
+        "conversations": {
+          "items": {
+            "$ref": "#/$defs/HandoverConversation"
+          },
+          "type": "array"
+        },
+        "work": {
+          "items": {
+            "$ref": "#/$defs/HandoverWork"
+          },
+          "type": "array"
+        },
+        "folders": {
+          "items": {
+            "$ref": "#/$defs/HandoverFolder"
+          },
+          "type": "array"
+        },
+        "remote": {
+          "$ref": "#/$defs/HandoverRemote"
+        },
+        "extensions": {
+          "items": {
+            "$ref": "#/$defs/HandoverItem"
+          },
+          "type": "array"
+        },
+        "keys": {
+          "items": {
+            "$ref": "#/$defs/HandoverItem"
+          },
+          "type": "array"
+        },
+        "abilities": {
+          "items": {
+            "$ref": "#/$defs/HandoverItem"
+          },
+          "type": "array"
+        },
+        "background": {
+          "$ref": "#/$defs/HandoverItem"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/HandoverStep"
+          },
+          "type": "array"
+        },
+        "blocking": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "next": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "computers",
+        "role",
+        "conversations",
+        "work",
+        "folders",
+        "remote",
+        "extensions",
+        "keys",
+        "abilities",
+        "background",
+        "steps",
+        "ready",
+        "summary",
+        "next"
+      ]
+    },
+    "HandoverPlanIn": {
+      "properties": {
+        "to": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "The computer taking the role over (its name as the workspace's computers list it); empty says what would move without naming one."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HandoverReceiveIn": {
+      "properties": {
+        "file": {
+          "type": "string",
+          "maxLength": 4096,
+          "minLength": 1,
+          "description": "The handover file made on the old computer."
+        },
+        "plan": {
+          "type": "boolean"
+        },
+        "folders": {
+          "items": {
+            "$ref": "#/$defs/HandoverFolderChoice"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "file"
+      ]
+    },
+    "HandoverReceiveOut": {
+      "properties": {
+        "plan": {
+          "type": "boolean"
+        },
+        "handover": {
+          "$ref": "#/$defs/HandoverRecord"
+        },
+        "from": {
+          "$ref": "#/$defs/HandoverComputer"
+        },
+        "conversations": {
+          "items": {
+            "$ref": "#/$defs/HandoverConversation"
+          },
+          "type": "array"
+        },
+        "folders": {
+          "items": {
+            "$ref": "#/$defs/HandoverFolder"
+          },
+          "type": "array"
+        },
+        "work": {
+          "items": {
+            "$ref": "#/$defs/HandoverWork"
+          },
+          "type": "array"
+        },
+        "moved": {
+          "$ref": "#/$defs/HandoverMoved"
+        },
+        "waiting": {
+          "items": {
+            "$ref": "#/$defs/HandoverWork"
+          },
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/HandoverStep"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "conversations",
+        "folders",
+        "work",
+        "moved",
+        "waiting",
+        "steps",
+        "summary"
+      ]
+    },
+    "HandoverRecord": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "handover",
+            "takeover"
+          ]
+        },
+        "from": {
+          "type": "string"
+        },
+        "fromName": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "toName": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "exporting",
+            "exported",
+            "received",
+            "done",
+            "abandoned"
+          ]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "conversations": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "file": {
+          "type": "string"
+        },
+        "startedBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "exportedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "receivedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "receivedBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "settledAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "steppedDownAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "abandonedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "abandonedBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "cleanedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "moved": {
+          "$ref": "#/$defs/HandoverMoved"
+        },
+        "confirmedOff": {
+          "$ref": "#/$defs/Actor"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "from",
+        "fromName",
+        "to",
+        "toName",
+        "state",
+        "active",
+        "startedBy",
+        "startedAt",
+        "moved"
+      ]
+    },
+    "HandoverRemote": {
+      "properties": {
+        "on": {
+          "type": "boolean"
+        },
+        "address": {
+          "type": "string"
+        },
+        "logins": {
+          "type": "integer"
+        },
+        "words": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "on",
+        "words"
+      ]
+    },
+    "HandoverRole": {
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": [
+            "host",
+            "stepping-down",
+            "client"
+          ]
+        },
+        "latest": {
+          "$ref": "#/$defs/HandoverRecord"
+        },
+        "says": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "role",
+        "says"
+      ]
+    },
+    "HandoverStatusIn": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HandoverStatusOut": {
+      "properties": {
+        "computer": {
+          "$ref": "#/$defs/HandoverComputer"
+        },
+        "role": {
+          "$ref": "#/$defs/HandoverRole"
+        },
+        "inProgress": {
+          "items": {
+            "$ref": "#/$defs/HandoverRecord"
+          },
+          "type": "array"
+        },
+        "recent": {
+          "items": {
+            "$ref": "#/$defs/HandoverRecord"
+          },
+          "type": "array"
+        },
+        "waiting": {
+          "items": {
+            "$ref": "#/$defs/HandoverWork"
+          },
+          "type": "array"
+        },
+        "clean": {
+          "$ref": "#/$defs/HandoverRecord"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "computer",
+        "role",
+        "inProgress",
+        "recent",
+        "waiting",
+        "summary"
+      ]
+    },
+    "HandoverStep": {
+      "properties": {
+        "where": {
+          "type": "string",
+          "enum": [
+            "new",
+            "old"
+          ]
+        },
+        "words": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "click": {
+          "type": "string",
+          "description": "Where in the dashboard (Settings → …)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "where",
+        "words"
+      ]
+    },
+    "HandoverTakeoverIn": {
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 120,
+          "minLength": 1,
+          "description": "The computer that is gone (its name)."
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "plan": {
+          "type": "boolean"
+        },
+        "confirmedOff": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "folders": {
+          "items": {
+            "$ref": "#/$defs/HandoverFolderChoice"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from"
+      ]
+    },
+    "HandoverTakeoverOut": {
+      "properties": {
+        "plan": {
+          "type": "boolean"
+        },
+        "handover": {
+          "$ref": "#/$defs/HandoverRecord"
+        },
+        "from": {
+          "$ref": "#/$defs/HandoverComputer"
+        },
+        "lastSeen": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "allowed": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        },
+        "conversations": {
+          "items": {
+            "$ref": "#/$defs/HandoverConversation"
+          },
+          "type": "array"
+        },
+        "work": {
+          "items": {
+            "$ref": "#/$defs/HandoverWork"
+          },
+          "type": "array"
+        },
+        "folders": {
+          "items": {
+            "$ref": "#/$defs/HandoverFolder"
+          },
+          "type": "array"
+        },
+        "moved": {
+          "$ref": "#/$defs/HandoverMoved"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/HandoverStep"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "next": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "allowed",
+        "conversations",
+        "work",
+        "folders",
+        "moved",
+        "steps",
+        "summary",
+        "next"
+      ]
+    },
+    "HandoverWork": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "job",
+            "run",
+            "trigger"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "words": {
+          "type": "string",
+          "description": "What it is"
+        },
+        "state": {
+          "type": "string"
+        },
+        "moves": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind",
+        "id",
+        "words",
+        "state",
+        "moves"
       ]
     },
     "HereFile": {
@@ -76100,6 +77056,108 @@
       ],
       "description": "Change a look; a change to what it shows needs approving again (people only)"
     },
+    "machine.handover.abandon": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/HandoverAbandonIn"
+        },
+        "output": {
+          "$ref": "#/$defs/HandoverAbandonOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Abandon a handover that hasn't been received: its conversations go on on the old computer (owners, people only)"
+    },
+    "machine.handover.clean": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/HandoverCleanIn"
+        },
+        "output": {
+          "$ref": "#/$defs/HandoverCleanOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "On the old computer, after the new one received its role: remove this computer's copies of the handed-over conversations (owners, people only, in a terminal; says what it would remove unless yes)"
+    },
+    "machine.handover.export": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/HandoverExportIn"
+        },
+        "output": {
+          "$ref": "#/$defs/HandoverExportOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Make the handover file on the old computer: the panel conversations with their Claude Code sessions and folders, the pinned-work list and the folder settings, encrypted with a passphrase given at the terminal (owners, people only, in a terminal)"
+    },
+    "machine.handover.plan": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/HandoverPlanIn"
+        },
+        "output": {
+          "$ref": "#/$defs/HandoverPlan"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Say what handing this computer's role to another computer would do: its panel conversations and whether each session is here, recipe runs and planning by itself, pinned work, watched and linked folders, remote access, extension pairings, which keys are here (names only), the background role, and the steps only a person takes (owners, people only; nothing changes)"
+    },
+    "machine.handover.receive": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/HandoverReceiveIn"
+        },
+        "output": {
+          "$ref": "#/$defs/HandoverReceiveOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Receive a handover file on the new computer: sessions put where Claude Code looks, conversations held here from now on, pinned work moved, folders set where the person says (owners, people only, in a terminal; plan first)"
+    },
+    "machine.handover.status": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/HandoverStatusIn"
+        },
+        "output": {
+          "$ref": "#/$defs/HandoverStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Where this computer stands — the host, stepping down or a client since it handed its role over — and the handovers in progress (people only)"
+    },
     "machine.invite": {
       "properties": {
         "input": {
@@ -76184,6 +77242,23 @@
         "output"
       ],
       "description": "Delete a machine's storage key (and optionally its database user) and mark it revoked; owners"
+    },
+    "machine.takeover": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/HandoverTakeoverIn"
+        },
+        "output": {
+          "$ref": "#/$defs/HandoverTakeoverOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Take over the role of a computer that is gone: only when it hasn't been seen for a while and a person confirms it is off; its conversations from a plain copy of its folders or a handover file, its pinned work and folders move here (owners, people only, in a terminal; plan first)"
     },
     "mix.preview": {
       "properties": {
@@ -80982,11 +82057,18 @@
     "looks.show",
     "looks.test",
     "looks.update",
+    "machine.handover.abandon",
+    "machine.handover.clean",
+    "machine.handover.export",
+    "machine.handover.plan",
+    "machine.handover.receive",
+    "machine.handover.status",
     "machine.invite",
     "machine.list",
     "machine.rekey",
     "machine.rekeyPlan",
     "machine.revoke",
+    "machine.takeover",
     "mix.preview",
     "mix.set",
     "mix.show",

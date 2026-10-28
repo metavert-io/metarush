@@ -1048,6 +1048,8 @@ actions?: AssistantAction[]
 events?: AssistantEvent[]
 createdAt: string
 updatedAt: string
+handingOver?: ConvHandingOver
+moved?: ConvMoved
 /**
  * This machine holds the session (it can be continued here).
  */
@@ -3123,6 +3125,37 @@ why?: string
 words?: string
 state: ("first" | "standin" | "kept" | "changed" | "dropped")
 changes?: boolean
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "ConvHandingOver".
+ */
+export interface ConvHandingOver {
+/**
+ * The computer it is moving to.
+ */
+toName: string
+at: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "ConvMoved".
+ */
+export interface ConvMoved {
+/**
+ * The computer it came from.
+ */
+fromName: string
+at: string
+/**
+ * It goes on from a summary of the conversation: Claude Code's own record of it didn't come along.
+ */
+summary?: boolean
+why?: ("missing" | "unreadable")
+/**
+ * The summary has been given to Claude.
+ */
+primed?: boolean
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema

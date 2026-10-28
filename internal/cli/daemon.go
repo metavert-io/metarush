@@ -409,12 +409,7 @@ func serveClient(c *cobra.Command, a *app.App, ctx context.Context, cancel conte
 	srv.Log = logf
 	srv.RemoteOff()
 	var restart atomic.Bool
-	go handover.Watch(ctx, a, true, logf, func(handover.HandoverRole) {
-		if !restart.Swap(true) {
-			logf("this computer has a role in the workspace again: starting again")
-			cancel()
-		}
-	})
+	clientWatch(ctx, a, logf, &restart, cancel)
 	go func() {
 		t := time.NewTicker(time.Minute)
 		defer t.Stop()
@@ -442,6 +437,40 @@ func serveClient(c *cobra.Command, a *app.App, ctx context.Context, cancel conte
 		err = srv.Listen(ctx)
 	}
 	return restartIfMoved(restart.Load(), a, srv, err)
+}
+
+// clientWatch is what a client follows while it runs (D346): its role (a
+// role that came back starts it again as a host), a move of the database and
+// config.yaml. Each sets restart and cancels once.
+func clientWatch(ctx context.Context, a *app.App, logf func(string, ...any), restart *atomic.Bool, cancel context.CancelFunc) {
+	go handover.Watch(ctx, a, true, logf, func(handover.HandoverRole) {
+		if !restart.Swap(true) {
+			logf("this computer has a role in the workspace again: starting again")
+			cancel()
+		}
+	})
+	// A move of the database started (D335): start again holding, as a host
+	// does — a client changes things too (its dashboard and its panel).
+	go watchForMove(ctx, a, func(m *store.MoveMarker) {
+		if !restart.Swap(true) {
+			logf("%s: pausing (MetaRush starts again, reading only)", ops.MovedWords(m))
+			cancel()
+		}
+	})
+	// config.yaml changed in a terminal: the log's settings apply at once; a
+	// new media storage or storage key means starting again with it.
+	go followConfig(ctx, a, logf, func(cfg *config.Config) {
+		a.Log.SetSettings(cfg.Log)
+		if st, err := app.NewMediaStore(cfg); err != nil {
+			logf("config.yaml names a media storage this machine cannot open (keeping %s): %v", a.Media.Locator(), err)
+		} else if st.Locator() != a.Media.Locator() && !restart.Swap(true) {
+			logf("the media storage is now %s: restarting to use it", st.Locator())
+			cancel()
+		} else if storageKeyChanged(a.Cfg.Media, cfg.Media) && !restart.Swap(true) {
+			logf("this machine's storage key changed: restarting to use it")
+			cancel()
+		}
+	})
 }
 
 // storageKeyChanged reports whether config.yaml now gives this machine another

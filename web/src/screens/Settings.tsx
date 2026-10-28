@@ -30,6 +30,7 @@ import { StorageMove } from './settings/StorageMove';
 import { TrashSettings } from './settings/TrashSettings';
 import { WorkspaceExport } from './settings/WorkspaceExport';
 import { DatabaseMove } from './settings/DatabaseMove';
+import { Handover } from './settings/Handover';
 import { ShipGateSettings } from './settings/ShipGateSettings';
 import { ReviewLinkSettings } from './settings/ReviewLinkSettings';
 import { LogPage, LogSettingsCard } from './Log';
@@ -463,6 +464,7 @@ function StorageSection() {
       </div>
       <StorageMove />
       <DatabaseMove />
+      <Handover />
       <WorkspaceExport />
       <ReviewLinkSettings />
       <TrashSettings />

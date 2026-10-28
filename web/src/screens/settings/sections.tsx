@@ -73,8 +73,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: 'storage',
     label: 'Storage',
-    line: 'Where footage and the database are kept, exports, review links, Trash',
-    intro: 'Where your footage and renders are kept and moving them, moving the database, exporting the whole workspace, this computer and its battery, review links for people outside the workspace, and the Trash.',
+    line: 'Where footage and the database are kept, handing over, exports, review links, Trash',
+    intro: 'Where your footage and renders are kept and moving them, moving the database, handing this computer’s role to another computer, exporting the whole workspace, this computer and its battery, review links for people outside the workspace, and the Trash.',
     icon: (s) => <HardDrives size={s} />,
   },
   {

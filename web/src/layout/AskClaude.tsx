@@ -741,7 +741,9 @@ function ComposerArea({
     return <ArchivedConversationLine projectId={conv.projectId} projectName={conv.projectName} />;
   }
   if (conv && (!conv.here || !conv.resumable)) {
-    const why = !conv.here
+    const why = conv.handingOver
+      ? `This conversation is moving to ${conv.handingOver.toName}. Continue it there once that computer has received it, or start a new one here.`
+      : !conv.here
       ? `This conversation lives on ${conv.installationName}, where Claude Code has its session. Continue it there, or start a new one here.`
       : conv.legacy
         ? 'This was a single request from an older MetaRush, so it cannot be continued. Start a new conversation instead.'
@@ -756,7 +758,19 @@ function ComposerArea({
       </div>
     );
   }
-  return <Composer conversation={conv} status={status} sel={sel} pending={pending} setPending={setPending} onTyped={onTyped} fill={fill} autoFocus />;
+  const composer = <Composer conversation={conv} status={status} sel={sel} pending={pending} setPending={setPending} onTyped={onTyped} fill={fill} autoFocus />;
+  if (conv?.moved?.summary && !conv.moved.primed) {
+    // A conversation from another computer whose session didn't come along (D345).
+    return (
+      <>
+        <p className="mb-2 rounded-[10px] bg-panel px-3 py-2 text-[12px] leading-relaxed text-muted hairline" data-conversation-summary>
+          This conversation came from {conv.moved.fromName}. Claude Code’s own record of it didn’t come along, so your next message continues from a summary of it.
+        </p>
+        {composer}
+      </>
+    );
+  }
+  return composer;
 }
 
 /**

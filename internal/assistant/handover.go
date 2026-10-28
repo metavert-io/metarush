@@ -147,15 +147,35 @@ func (m *Manager) holderNow(ctx context.Context, c *conv) (moved *Conversation, 
 	return nil, nil
 }
 
-// claimCards marks cards as running before they run, in one write that holds
-// only while this computer holds the conversation, it isn't on its way to
-// another computer, and none of the cards was decided already (pending in the
-// database, or not saved yet): a card runs once, on one computer, and a
-// handover never takes a conversation while one runs (D345). The cards are
-// running in memory from then on; release puts them back.
+// claimCards marks cards as running before they run, in one write of only
+// their states that holds only while this computer holds the conversation, it
+// isn't on its way to another computer, and every card is in the database,
+// still waiting (from): a card runs once, on one computer, and a handover
+// never takes a conversation while one runs (D345). The cards are running in
+// memory from then on; release puts them back.
 func (m *Manager) claimCards(ctx context.Context, c *conv, ids []string, from ...string) (release func(), err error) {
 	if len(from) == 0 {
 		from = []string{ActionPending}
+	}
+	// Cards made since the last save go in first (the claim looks for them);
+	// otherwise nothing but the cards' states is written.
+	var stored struct {
+		Actions []struct {
+			ID string `bson:"id"`
+		} `bson:"actions"`
+	}
+	if err := m.App.DB.C(store.CAssistantConversations).FindOne(ctx, bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID()},
+		options.FindOne().SetProjection(bson.M{"actions.id": 1})).Decode(&stored); err == nil || errors.Is(err, mongo.ErrNoDocuments) {
+		have := map[string]bool{}
+		for _, a := range stored.Actions {
+			have[a.ID] = true
+		}
+		for _, id := range ids {
+			if !have[id] {
+				m.save(c, true)
+				break
+			}
+		}
 	}
 	c.mu.Lock()
 	before := map[string]AssistantAction{}
@@ -183,12 +203,17 @@ func (m *Manager) claimCards(ctx context.Context, c *conv, ids []string, from ..
 		c.touch()
 		c.mu.Unlock()
 	}
+	each := bson.A{}
+	for _, id := range ids {
+		each = append(each, bson.M{"$elemMatch": bson.M{"id": id, "state": bson.M{"$in": from}}})
+	}
 	filter := bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID(), "installationId": d.InstallationID, "handingOver": bson.M{"$exists": false},
-		"actions": bson.M{"$not": bson.M{"$elemMatch": bson.M{"id": bson.M{"$in": ids}, "state": bson.M{"$nin": from}}}}}
+		"actions": bson.M{"$all": each}}
 	// In turn with this conversation's saves: one that read it before the
 	// claim never puts the cards back to waiting.
 	c.saveMu.Lock()
-	res, err := m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx, filter, bson.M{"$set": saveFields(d)})
+	res, err := m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx, filter, bson.M{"$set": bson.M{"actions.$[card].state": ActionRunning}},
+		options.UpdateOne().SetArrayFilters([]any{bson.M{"card.id": bson.M{"$in": ids}}}))
 	if err == nil && res.MatchedCount == 1 && v > c.savedVer {
 		c.savedVer = v
 	}
@@ -198,9 +223,6 @@ func (m *Manager) claimCards(ctx context.Context, c *conv, ids []string, from ..
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't reach its database to run this change. Try again in a moment.")
 	}
 	if res.MatchedCount == 1 {
-		c.mu.Lock()
-		c.stored = true
-		c.mu.Unlock()
 		return func() { undo(); m.save(c, true) }, nil
 	}
 	undo()

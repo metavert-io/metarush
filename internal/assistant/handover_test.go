@@ -262,3 +262,39 @@ func TestACardIsClaimedOnce(t *testing.T) {
 		t.Fatal("a released card isn't pending again")
 	}
 }
+
+// Claiming a card writes only the cards' states: it never puts this process's
+// copy of the rest of the conversation over a newer one in the database (a
+// save does that in its turn, by version).
+func TestACardClaimWritesOnlyItsCards(t *testing.T) {
+	m, c, id, _ := cardConversation(t)
+	ctx := context.Background()
+	if _, err := m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": bson.M{"lastPrompt": "written since"}}); err != nil {
+		t.Fatal(err)
+	}
+	release, err := m.claimCards(ctx, c, []string{"act_rename"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var d Conversation
+	if err := m.App.DB.GetByID(ctx, store.CAssistantConversations, m.App.WorkspaceID(), id, &d); err != nil {
+		t.Fatal(err)
+	}
+	if d.LastPrompt != "written since" || storedCard(t, m, id, "act_rename") != ActionRunning {
+		t.Fatalf("the claim wrote more than the card: %q, card %s", d.LastPrompt, storedCard(t, m, id, "act_rename"))
+	}
+	// A card made since the last save is saved first, then claimed.
+	c.mu.Lock()
+	c.data.Actions = append(c.data.Actions, AssistantAction{ID: "act_new", Turn: 1, Kind: "project update", Title: "Another", Op: "project.update", Input: "{}", State: ActionPending})
+	c.touch()
+	c.mu.Unlock()
+	release2, err := m.claimCards(ctx, c, []string{"act_new"})
+	if err != nil || storedCard(t, m, id, "act_new") != ActionRunning {
+		t.Fatalf("an unsaved card: %v, %s", err, storedCard(t, m, id, "act_new"))
+	}
+	release()
+	release2()
+	if storedCard(t, m, id, "act_rename") != ActionPending || storedCard(t, m, id, "act_new") != ActionPending {
+		t.Fatal("released cards wait again")
+	}
+}

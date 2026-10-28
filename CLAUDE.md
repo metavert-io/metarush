@@ -1083,6 +1083,29 @@ Read `docs/architecture.md` before structural changes.
   progress is `<state>/database-move/<id>.json`; the dashboard starts `database move --dashboard-move <id>` with
   `tools.Start` and a one-time grant like the media's move. Never deletes either database. Browser run
   `scripts/database-move-e2e.sh` (ports 5690–5699).
+- **Handing a computer's role to another computer** (D344–D348, `internal/handover`, `internal/assistant/handover.go`,
+  `claudepaths.go`, `web/src/screens/settings/Handover.tsx`, docs/handover.md): `machine.handover.plan|status|export|
+  receive|abandon|clean` and `machine.takeover` (`metarush machine handover …`, `machine take-over`), OwnerOnly +
+  HumanOnly + `peopleOnly` (never Auto, Claude, MCP, AI apps or drafts); export/receive/clean/take-over LocalOnly and the
+  CLI a person's terminal (`handoverAtTerminal`). Records `handovers` (`hov_`, migration 61: one `active` per `from`).
+  The handover file is a gzip'd tar in age's scrypt mode (`age -d` opens it; `--no-passphrase` warns), 0600, never in a
+  sync folder or repository; the passphrase only through `handover.WithPassphrase` (never an op input, argv or log).
+  Sessions go where Claude Code looks: `ClaudeConfigDir` (`CLAUDE_CONFIG_DIR`, else `$HOME/.claude`; under go test only
+  `CLAUDE_CONFIG_DIR`) + `projects/<ClaudeProjectKey(real working folder)>/<session>.jsonl` and its folder. **One
+  history**: a message claims its conversation first (`mayContinue`: held here, no `handingOver`, set working in one
+  write); `MarkHandingOver` marks only idle ones; `save` matches `installationId` once stored (a computer lets go of a
+  conversation that moved); inbox notes wait for the holder. Receive/take-over `AdoptConversation` by check and set;
+  `Conversation.moved` tells Claude once where files are now, and `moved.summary` (session missing or unreadable, also
+  found at spawn) starts a new session primed with `summaryOf`. Work moves by check and set on `$$NOW`
+  (`moveWork`: queued and lease-ended jobs, never started `import`/`generate` while their computer runs, never
+  `storage_move`/`resource-upload`; recipe runs free by `recipes.LeaseFree` — run leases are `$$NOW` + 5 min, saved in
+  one write; triggers write only while still their computer's). `RoleOf` (the newest settled handover involving a
+  computer) → host | stepping-down | client; the daemon `Look`s at start and `Watch`es, and a client runs
+  `serveClient` (`api.Server.RemoteOff`, no worker or loops; doctor and every page say so). Take-over only when the
+  gone computer's `lastSeenAt` is older than `TakeOverQuiet` (30 min, `SeenWithin`) with no live lease and a person
+  types its name; it reads a plain copy (`scanCopy`: session files, `conversations/<id>`, only folder fields of
+  `config.yaml`) or a handover file. `clean` removes only after a confirmed receive. Tests: `go test
+  ./internal/handover/`, browser run `scripts/handover-e2e.sh` (ports 5710–5719).
 - **Testing and coverage** (D194, D195, docs/testing.md): five layers (static → Go tests on a real MongoDB → several
   machines in one process (`tests/e2e`) → browser runs with fakes → Mac-only and live services); `scripts/check.sh
   --quick|--full|--release` runs them; test databases are copies of a per-process template and stale ones are swept
@@ -1139,6 +1162,7 @@ scripts/workspace-export-e2e.sh                           # Settings → Storage
 scripts/database-move-e2e.sh                              # Settings → Storage → Move the database with a second computer: the plan, changes refused while it moves, the switch on both (D334–D338; ports 5690–5699)
 scripts/components-e2e.sh                                 # only the required components, then Settings → Components and Getting started's Add it with a stand-in Homebrew (D324–D327; ports 5650–5659)
 scripts/resources-e2e.sh                                  # the Add box, Inbox clips dragged onto project cards, the Sources "…" menu, Delete…, a nested cut (D79–D84; ports 5660–5669)
+scripts/handover-e2e.sh                                   # two computers: the dry run in Settings → Storage, the handover file at a terminal, receive, the conversation going on in the same session, the old computer stepping down to a client, clean (D344–D348; ports 5710–5719)
 ```
 
 ## Conventions

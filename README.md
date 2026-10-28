@@ -1234,18 +1234,21 @@ computer of the workspace ([handing a computer's role over](docs/handover.md)).
   folders, remote access, paired browser extensions, the keys here (by name only: keys never travel), the background
   role, and the steps only a person takes.
 - **The conversations travel in a private file you carry** (`metarush machine handover export`), protected by a
-  passphrase (an [age](https://age-encryption.org) file; asked for at the terminal, never on the command line), never
-  through the shared storage or a synced folder. From then on this computer no longer continues them.
+  passphrase (an [age](https://age-encryption.org) file; asked for at the terminal, never on the command line; without
+  one only when you type `unprotected` to confirm), on any drive you carry, never through the shared storage or a
+  synced folder. From then on this computer no longer continues them.
 - **On the new computer** `metarush machine handover receive <file>` puts each conversation's Claude Code record where
   Claude Code looks there, and the conversation goes on in the same session; one whose record didn't come along goes
   on from a summary of it. Recipe runs, planning by itself and queued work move, nothing runs twice; folders go where
   you say.
-- **The old computer steps down by itself** once its own running work is done: no background work or remote access
-  for the workspace, and every page there says it is a client now. Nothing is deleted there until you run
-  `metarush machine handover clean`.
+- **The old computer steps down by itself** once its own running work is done (a post still going to YouTube
+  included): no background work or remote access for the workspace, and every page there says it is a client now.
+  Work asked for there afterwards runs on the new computer, or — when it needs the old computer's own keys or
+  sign-ins — says to start it there. Nothing is deleted there until you run `metarush machine handover clean` (which
+  also removes the handover file made there).
 - **A computer that's gone for good** is taken over with `metarush machine take-over <computer> --from <a copy of its
-  folders>`, only once it hasn't been seen for 30 minutes and you confirm it is off; then remove it with
-  `metarush machine revoke`.
+  folders>`, only once it hasn't been seen (or used from a terminal there) for 30 minutes and you confirm it is off;
+  then remove it with `metarush machine revoke`.
 - Owners, and people only, at their own terminal: never Claude, Auto or another AI app.
 
 ### Plays through a database hiccup

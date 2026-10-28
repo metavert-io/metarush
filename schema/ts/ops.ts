@@ -22726,7 +22726,7 @@ from: string
 fromName: string
 to: string
 toName: string
-state: ("exporting" | "exported" | "received" | "done" | "abandoned")
+state: ("exporting" | "exported" | "receiving" | "received" | "done" | "abandoned")
 active: boolean
 conversations?: string[]
 file?: string
@@ -22740,6 +22740,7 @@ steppedDownAt?: string
 abandonedAt?: string
 abandonedBy?: Actor
 cleanedAt?: string
+overtakenBy?: string
 moved: HandoverMoved
 confirmedOff?: Actor
 }
@@ -22776,6 +22777,7 @@ bytes: number
  * Conversations still held here
  */
 kept?: string[]
+handoverFiles: number
 summary: string
 }
 /**
@@ -22879,7 +22881,7 @@ words: string
  * via the `definition` "HandoverWork".
  */
 export interface HandoverWork {
-kind: ("job" | "run" | "trigger")
+kind: ("job" | "run" | "trigger" | "post")
 id: string
 /**
  * What it is
@@ -36893,6 +36895,7 @@ version: string
 userId: string
 createdAt: string
 lastSeenAt: string
+lastUsedAt?: string
 commit?: string
 built?: string
 knowsMoves?: string

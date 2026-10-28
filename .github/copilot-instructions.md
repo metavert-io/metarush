@@ -46,8 +46,11 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
   moves and restores never delete the original.
 - Jobs use leases timed by the database server (`$$NOW`), not a computer's own clock; a pinned job runs only on its
   computer. Work moved to another computer (a handover) moves by check and set on those leases, so nothing runs twice.
+  New work pinned to "this computer" goes through `app.PinWork` (a computer that handed its role over runs no worker)
+  or is refused there with `NeedsThisComputer` when it needs this computer's own keys, sign-ins or files.
 - A panel conversation is continued only by the computer that holds it: a message claims it in the database first,
-  and a computer never continues one it is handing over (its Claude Code session would split into two histories).
+  its cards are claimed by check and set before they run, and a computer never continues one it is handing over (its
+  Claude Code session would split into two histories). Check the match count of every check-and-set write.
 
 ## Code that isn't MetaRush's
 - Motion graphics, Remotion projects and abilities run only after a person approves that exact version, by hash.

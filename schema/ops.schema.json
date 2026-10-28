@@ -25446,6 +25446,9 @@
           "type": "array",
           "description": "Conversations still held here"
         },
+        "handoverFiles": {
+          "type": "integer"
+        },
         "summary": {
           "type": "string"
         }
@@ -25457,6 +25460,7 @@
         "removed",
         "files",
         "bytes",
+        "handoverFiles",
         "summary"
       ]
     },
@@ -25940,6 +25944,7 @@
           "enum": [
             "exporting",
             "exported",
+            "receiving",
             "received",
             "done",
             "abandoned"
@@ -25993,6 +25998,9 @@
         "cleanedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "overtakenBy": {
+          "type": "string"
         },
         "moved": {
           "$ref": "#/$defs/HandoverMoved"
@@ -26250,7 +26258,8 @@
           "enum": [
             "job",
             "run",
-            "trigger"
+            "trigger",
+            "post"
           ]
         },
         "id": {
@@ -27753,6 +27762,10 @@
           "format": "date-time"
         },
         "lastSeenAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastUsedAt": {
           "type": "string",
           "format": "date-time"
         },

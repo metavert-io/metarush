@@ -188,10 +188,15 @@ func takeOver(ctx context.Context, a *app.App, in *HandoverTakeoverIn) (*Handove
 	for _, c := range out.Conversations {
 		rec.Conversations = append(rec.Conversations, c.ID)
 	}
-	if err := a.DB.Insert(ctx, store.CHandovers, rec); err != nil {
+	// One write: the record, settled by the database server's clock.
+	doc, err := toDoc(rec)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID()},
+		bson.M{"$setOnInsert": doc, "$currentDate": bson.M{"settledAt": true, "steppedDownAt": true}}, options.UpdateOne().SetUpsert(true)); err != nil {
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't record the take-over.")
 	}
-	_, _ = a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID}, bson.M{"$currentDate": bson.M{"settledAt": true, "steppedDownAt": true}})
 	if rec, err = getRecord(ctx, a, rec.ID); err != nil {
 		return nil, err
 	}
@@ -205,6 +210,21 @@ func takeOver(ctx context.Context, a *app.App, in *HandoverTakeoverIn) (*Handove
 	}
 	out.Summary += " Last, remove it from the workspace so its storage key stops working."
 	return out, nil
+}
+
+// toDoc is a record as fields to insert (its ID and workspace come from the filter).
+func toDoc(rec *HandoverRecord) (bson.M, error) {
+	b, err := bson.Marshal(rec)
+	if err != nil {
+		return nil, err
+	}
+	var doc bson.M
+	if err := bson.Unmarshal(b, &doc); err != nil {
+		return nil, err
+	}
+	delete(doc, "_id")
+	delete(doc, "workspaceId")
+	return doc, nil
 }
 
 // quietEnough: the gone computer hasn't been seen for TakeOverQuiet by the

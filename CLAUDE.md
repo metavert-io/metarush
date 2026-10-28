@@ -1099,9 +1099,11 @@ Read `docs/architecture.md` before structural changes.
   (`mayContinue`: held here, no `handingOver`, set working with `holderPid` in one write); `MarkHandingOver` marks only
   idle ones with no card running; cards run only where their conversation is, claimed pending → running by check and
   set (`claimCards`); `save` matches `installationId` once stored (a computer lets go of a conversation that moved);
-  inbox notes wait for the holder. States exporting → exported → receiving (receive's claim; abandon refuses it) →
-  received → done | abandoned; every final write's match is checked; a role that came back ends the computer's own
-  earlier handover (`settleOvertaken`). Receive/take-over `AdoptConversation` by check and set;
+  inbox notes wait for the holder. States exporting → exported → receiving (receive's claim; abandon only once the
+  receiver passes `quietEnough`, or a take-over of it ends it: `endHandoversTo`) → received → done | abandoned; every
+  final write's match is checked; a role that came back ends the computer's own earlier handover (`settleOvertaken`).
+  A mark never outlives its handover (export's `putBack` on every stop and a look again after marking, abandon always
+  unmarks, `Look`'s `repairMarks`); cards are claimed by writing only their states. Receive/take-over `AdoptConversation` by check and set;
   `Conversation.moved` tells Claude once where files are now, and `moved.summary` (session missing or unreadable, also
   found at spawn) starts a new session primed with `summaryOf`. Work moves by check and set on `$$NOW`
   (`moveWork`: queued and lease-ended jobs, never started `import`/`generate` while their computer runs, never

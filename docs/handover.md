@@ -76,7 +76,10 @@ this computer and the folder settings. It never holds a key.
   It refuses while Claude is working on one, or one of its cards is running: wait until it finishes (or stop it), then
   run it again.
 - Running it again makes another file for the same handover. Changed your mind? `metarush machine handover abandon`
-  (or **Abandon…** in Settings → Storage) puts everything back here, before the file is received.
+  (or **Abandon…** in Settings → Storage) puts everything back here, before the file is received. Abandoning a
+  handover that was abandoned already puts back anything still marked as moving, so it is always safe to run again.
+- If making the file stops part-way (or the handover is abandoned meanwhile), every conversation it marked goes on
+  here again; a handover whose file was made before keeps the conversations that file carries.
 
 ## Receiving it
 
@@ -104,7 +107,11 @@ before; every file in it must be one the list names, of the size and fingerprint
 - **sets the folders** where you said (the watched folder then takes only new files: the old computer added the rest).
 
 `--plan` says what it would do and changes nothing. While a file is being received the handover can't be abandoned; if
-receiving stopped part-way, receive the same file again (what came already stays). Once it was received, receiving the
+receiving stopped part-way, receive the same file again (what came already stays). If the computer receiving it
+stopped part-way and is gone, abandon the handover on the old computer once that computer has been quiet for 30 minutes
+(as for a take-over: by the database server's clock, running no work) — what it already took stays with it, the rest
+goes on here — or take that computer over, which ends the handover too: what it took comes with the rest of its work,
+and the conversations it never took go on with the computer that sent them. Once it was received, receiving the
 same file again changes nothing. If the handover was ended on the other side meanwhile, it says so instead of saying it
 worked.
 
@@ -161,8 +168,10 @@ metarush machine handover clean [--yes]
 ```
 
 Only on the old computer, only after the new computer received the file, and only when you ask: it removes this
-computer's copies of the handed-over conversations' Claude Code records and folders (never one that came back here),
-and the handover files made here when they are still where they were written, as they were written.
+computer's copies of the handed-over conversations' Claude Code records and folders — of every handover from here not
+cleaned up yet, one a later handover overtook included — never of a conversation held here now (one that came back,
+through any computer), and the handover files made here when they are still where they were written, as they were
+written.
 It says what it removes and asks first (`--yes` doesn't ask again). Settings → Storage offers it.
 
 ## Taking over from a computer that's gone
@@ -178,8 +187,9 @@ metarush machine revoke "Old MacBook"     # last: its storage key stops working
 
 - **Only when it is off.** It must not have been seen for 30 minutes — neither MetaRush in the background nor a command
   in a terminal there (by the database server's clock: the computer's own clock doesn't matter) — it must be running no
-  work, and you confirm it is off by typing its name. A computer
-  still running would do the same work twice.
+  work, and you confirm it is off by typing its name. A computer still running would do the same work twice.
+- A handover to it that it never finished receiving ends: the conversations it never took go on with the computer that
+  sent them.
 - **Its conversations come from `--from`**: a plain copy of its folders — Claude Code's `projects` folder
   (`~/.claude/projects` there) and MetaRush's `assistant/conversations` folder, with its `config.yaml` for the folder
   settings (nothing else in it is read: never a key) — or a handover file it made. Conversations whose record isn't in
@@ -221,8 +231,12 @@ Every command takes `--json`; `--details` adds the computers' and conversations'
   each entry held to its listed size and hash), moving the work (`work.go`; a post this computer is sending counts as
   its own running work) and the role (`RoleOf`: the newest settled handover involving a computer says whether it is a
   host, stepping down or a client; `Look`/`Watch` step it down, and `settleOvertaken` ends a computer's own handover
-  once the role came back to it). States: exporting → exported → receiving (claimed by check and set; not abandonable)
-  → received → done, or abandoned. The passphrase reaches an operation only through its context
+  once the role came back to it). States: exporting → exported → receiving (claimed by check and set; abandoned only
+  once the receiver passes the take-over's quiet check, or by a take-over of the receiver: `endHandoversTo`) →
+  received → done, or abandoned. A mark never outlives its handover: an export looks at its record again after marking
+  and puts back what it marked on every way it stops (`putBack`), abandon always unmarks (also when abandoned
+  already), and `Look` takes off the marks of handovers that ended (`repairMarks`). Clean covers every received
+  handover from here not cleaned up yet (`cleanOffer` for the status), skipping conversations held here now. The passphrase reaches an operation only through its context
   (`handover.WithPassphrase`), never its input.
 - `internal/assistant/claudepaths.go` — where Claude Code keeps a session: `$CLAUDE_CONFIG_DIR`, else `$HOME/.claude`
   — for placing, the folder the background MetaRush's Claude Code uses (`RecordClaudeConfig` at its start,

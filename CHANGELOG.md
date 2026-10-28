@@ -18,7 +18,9 @@
   computer, or — when it needs the old computer's own keys or sign-ins — says to start it there. Nothing is deleted
   there until you run `metarush machine handover clean`, which also removes the handover file made there. A computer that's
   gone for good is taken over with `metarush machine take-over <computer> --from <a copy of its folders>`, once it
-  hasn't been seen for 30 minutes (nor used from a terminal there) and you confirm it is off. Owners, and people only, at their own terminal: never
+  hasn't been seen for 30 minutes (nor used from a terminal there) and you confirm it is off; if a computer stopped
+  part-way through receiving a handover and is gone, abandon the handover once it has been quiet that long, or take it
+  over. Owners, and people only, at their own terminal: never
   Claude, Auto or another AI app.
 - **A screen recording's picture reaches MetaRush while you record**. In Chrome and Edge the screen and the camera
   were held back in the browser, sometimes until you stopped, so a tab that closed mid-recording could lose all of

@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: no likely secrets in tracked files
         run: scripts/secret-scan.sh
 
@@ -23,8 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.27" }
       - name: gofmt
         run: |
@@ -54,12 +54,12 @@ jobs:
       matrix:
         group: [assistant, ops, heavy, rest]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.27" }
       # Ubuntu's mirror is sometimes very slow (scripts/ci-apt.sh): the package files an earlier run kept.
       - id: apt-cache
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with: { path: ~/apt-debs, key: apt-debs-, restore-keys: apt-debs- }
       # bubblewrap: the abilities' sandbox on Linux (D232). Ubuntu's AppArmor blocks the user
       # namespaces it needs unless the limit is lifted (docs/abilities.md, Linux).
@@ -70,7 +70,7 @@ jobs:
       - id: apt
         run: scripts/ci-apt.sh keep
       - if: steps.apt.outputs.key != steps.apt-cache.outputs.cache-matched-key
-        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with: { path: ~/apt-debs, key: "${{ steps.apt.outputs.key }}" }
       # Like the dev database (scripts/dev-mongo.sh): a replica set, as the dashboard's live updates
       # are change streams, with the dev one's settings for many test databases at once.
@@ -90,7 +90,7 @@ jobs:
         run: scripts/ci-mongo.sh report
       - name: MongoDB's whole log and the watch's samples (after a failure)
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mongo-${{ matrix.group }}
           path: ${{ runner.temp }}/mongo
@@ -104,7 +104,7 @@ jobs:
           go run ./scripts/covreport table go-unit.cov | tail -1
       - name: coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           use_oidc: true
           files: go-unit.cov
@@ -120,11 +120,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.27" }
       - id: apt-cache
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with: { path: ~/apt-debs, key: apt-debs-, restore-keys: apt-debs- }
       - run: scripts/ci-apt.sh install bubblewrap
       - name: as the runner is
@@ -156,9 +156,9 @@ jobs:
       HAS_LIVE_BUCKET: ${{ secrets.METARUSH_TEST_S3_BUCKET != '' && secrets.METARUSH_TEST_S3_SECRET_ACCESS_KEY != '' }}
       HAS_LIVE_GCS: ${{ secrets.METARUSH_TEST_GCS_BUCKET != '' && secrets.METARUSH_TEST_GCS_CREDENTIALS_JSON != '' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: env.HAS_LIVE_BUCKET == 'true' || env.HAS_LIVE_GCS == 'true'
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: env.HAS_LIVE_BUCKET == 'true' || env.HAS_LIVE_GCS == 'true'
         with: { go-version: "1.27" }
       - name: live bucket test (real S3-compatible bucket; key limited to ci-test/)
@@ -190,8 +190,8 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 22 }
       - run: npm ci
       - run: npm run typecheck
@@ -202,7 +202,7 @@ jobs:
       - run: npm run build -w web
       - name: coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           use_oidc: true
           files: web/coverage/lcov.info

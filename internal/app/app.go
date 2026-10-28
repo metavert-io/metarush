@@ -255,8 +255,11 @@ func (a *App) sayBuild(ctx context.Context) {
 		return
 	}
 	b := version.Current()
+	// lastUsedAt: a terminal's command on this computer changes things too,
+	// so a take-over from elsewhere waits (by the server's clock).
 	_, _ = a.DB.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": a.Cfg.Installation.ID, "workspaceId": a.WorkspaceID()},
-		bson.M{"$set": bson.M{"version": b.Version, "commit": b.Commit, "built": b.Date, "knowsMoves": MovesMark(b.Version, b.Commit)}})
+		bson.M{"$set": bson.M{"version": b.Version, "commit": b.Commit, "built": b.Date, "knowsMoves": MovesMark(b.Version, b.Commit)},
+			"$currentDate": bson.M{"lastUsedAt": true}})
 }
 
 // MovesMark is what a MetaRush that knows about moving the database records

@@ -619,9 +619,26 @@ func TestTakeOverFromAComputerThatIsGone(t *testing.T) {
 	go1.Plan, go1.ConfirmedOff = false, "Old MacBook"
 	_, err := ops.CallTyped[handover.HandoverTakeoverOut](ctx, nu.a, "machine.takeover", go1, person())
 	refused(t, err, apperr.Conflict, "seen_recently")
-	// Off for an hour (by the server's clock), but running work under a live lease: not yet.
-	_, _ = nu.a.DB.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": gone.a.Cfg.Installation.ID}, mongo.Pipeline{{{Key: "$set", Value: bson.D{
-		{Key: "lastSeenAt", Value: bson.D{{Key: "$subtract", Value: bson.A{"$$NOW", int64(time.Hour / time.Millisecond)}}}}}}}})
+	// Its MetaRush in the background off for an hour (by the server's clock),
+	// but a command ran in a terminal there a moment ago: not yet.
+	hourAgo := func(field string) {
+		_, _ = nu.a.DB.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": gone.a.Cfg.Installation.ID}, mongo.Pipeline{{{Key: "$set", Value: bson.D{
+			{Key: field, Value: bson.D{{Key: "$subtract", Value: bson.A{"$$NOW", int64(time.Hour / time.Millisecond)}}}}}}}})
+	}
+	hourAgo("lastSeenAt")
+	terminal, err := app.OpenWith(ctx, gone.a.Cfg, "cli")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(terminal.Close)
+	if _, err := terminal.DB.C(store.CNotifications).InsertOne(ctx, bson.M{"_id": ids.New("ntf"), "workspaceId": w.id}); err != nil {
+		t.Fatal(err)
+	}
+	if p = call[handover.HandoverTakeoverOut](t, ctx, nu.a, "machine.takeover", in); p.Allowed || !strings.Contains(p.Why, "less than a minute ago") {
+		t.Fatalf("a command in a terminal there %+v", p)
+	}
+	// Off for an hour, but running work under a live lease: not yet.
+	hourAgo("lastUsedAt")
 	busy := jobs.Worker{ID: gone.a.Cfg.Installation.ID, Name: "Old MacBook", JobTypes: []string{jobs.TypeImport}, AcceptsHeavy: true}
 	if lj, _ := gone.a.Queue.LeaseAmong(ctx, busy, []string{j.ID}); lj == nil {
 		t.Fatal("lease")
@@ -868,7 +885,8 @@ func TestTakeOverFromAHandoverFile(t *testing.T) {
 	ex := call[handover.HandoverExportOut](t, pctx, gone.a, "machine.handover.export", handover.HandoverExportIn{To: "desk", Out: out})
 	// Then it went away for good.
 	_, _ = nu.a.DB.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": gone.a.Cfg.Installation.ID}, mongo.Pipeline{{{Key: "$set", Value: bson.D{
-		{Key: "lastSeenAt", Value: bson.D{{Key: "$subtract", Value: bson.A{"$$NOW", int64(2 * time.Hour / time.Millisecond)}}}}}}}})
+		{Key: "lastSeenAt", Value: bson.D{{Key: "$subtract", Value: bson.A{"$$NOW", int64(2 * time.Hour / time.Millisecond)}}}},
+		{Key: "lastUsedAt", Value: bson.D{{Key: "$subtract", Value: bson.A{"$$NOW", int64(2 * time.Hour / time.Millisecond)}}}}}}}})
 	m := nu.at(t, remembers())
 	_, err := ops.CallTyped[handover.HandoverTakeoverOut](ctx, nu.a, "machine.takeover", handover.HandoverTakeoverIn{From: "laptop", Source: out, Plan: true}, person())
 	refused(t, err, apperr.InvalidInput, "needs_passphrase")

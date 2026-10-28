@@ -87,6 +87,10 @@ func takeOver(ctx context.Context, a *app.App, in *HandoverTakeoverIn) (*Handove
 		t := gone.LastSeenAt
 		out.LastSeen = &t
 	}
+	if gone.LastUsedAt != nil && (out.LastSeen == nil || gone.LastUsedAt.After(*out.LastSeen)) {
+		t := *gone.LastUsedAt
+		out.LastSeen = &t // a command in a terminal there counts too
+	}
 	out.Allowed, out.Why, err = quietEnough(ctx, a, gone)
 	if err != nil {
 		return nil, err
@@ -231,18 +235,21 @@ func toDoc(rec *HandoverRecord) (bson.M, error) {
 }
 
 // quietEnough: the gone computer hasn't been seen for TakeOverQuiet by the
-// database server's clock, and runs nothing under a live lease.
+// database server's clock — neither its MetaRush in the background nor a
+// command in a terminal there — and runs nothing under a live lease.
 func quietEnough(ctx context.Context, a *app.App, gone *models.Installation) (bool, string, error) {
-	f := store.SeenWithin("lastSeenAt", TakeOverQuiet)
-	f["_id"], f["workspaceId"] = gone.ID, a.WorkspaceID()
+	f := bson.M{"_id": gone.ID, "workspaceId": a.WorkspaceID(), "$or": bson.A{store.SeenWithin("lastSeenAt", TakeOverQuiet), store.SeenWithin("lastUsedAt", TakeOverQuiet)}}
 	n, err := a.DB.C(store.CInstallations).CountDocuments(ctx, f)
 	if err != nil {
 		return false, "", apperr.Wrap(apperr.Database, err, "MetaRush couldn't read when that computer was last seen.")
 	}
 	if n > 0 {
-		ago := "recently"
-		if !gone.LastSeenAt.IsZero() {
-			mins := int(time.Since(gone.LastSeenAt).Minutes())
+		ago, last := "recently", gone.LastSeenAt
+		if gone.LastUsedAt != nil && gone.LastUsedAt.After(last) {
+			last = *gone.LastUsedAt
+		}
+		if !last.IsZero() {
+			mins := int(time.Since(last).Minutes())
 			if mins < 1 {
 				ago = "less than a minute ago"
 			} else {

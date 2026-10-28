@@ -126,6 +126,12 @@ type Installation struct {
 	UserID      string    `bson:"userId" json:"userId"`
 	CreatedAt   time.Time `bson:"createdAt" json:"createdAt"`
 	LastSeenAt  time.Time `bson:"lastSeenAt" json:"lastSeenAt"`
+	// LastUsedAt is when a MetaRush command that changes something last
+	// started there (the database server's time; a terminal too, which never
+	// moves lastSeenAt: a move of the database waits only for computers whose
+	// MetaRush runs in the background). Taking over from a computer looks at
+	// both (D347).
+	LastUsedAt *time.Time `bson:"lastUsedAt,omitempty" json:"lastUsedAt,omitempty"`
 	// Version above is the MetaRush it runs (0.2.0, 0.2.0-dev.3); Commit and
 	// Built are that build's commit and build time (D130). Set when it joins,
 	// and kept current by its daemon (background service or dashboard).

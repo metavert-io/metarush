@@ -80,11 +80,7 @@ func handoverStatus(ctx context.Context, a *app.App, _ *HandoverStatusIn) (*Hand
 			out.Waiting = []HandoverWork{}
 		}
 	}
-	var c HandoverRecord
-	if a.DB.C(store.CHandovers).FindOne(ctx, bson.M{"workspaceId": a.WorkspaceID(), "from": me, "kind": KindHandover, "state": bson.M{"$in": bson.A{StateReceived, StateDone}},
-		"cleanedAt": nil, "overtakenBy": nil}, options.FindOne().SetSort(bson.D{{Key: "settledAt", Value: -1}})).Decode(&c) == nil {
-		out.Clean = &c
-	}
+	out.Clean = cleanOffer(ctx, a, me)
 	switch {
 	case len(out.InProgress) > 0:
 		r := out.InProgress[0]

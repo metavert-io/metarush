@@ -238,3 +238,71 @@ func TestAFailedSecondFileKeepsOnlyTheFirstFilesConversations(t *testing.T) {
 	}
 }
 
+// Receiving another computer's role ends this computer's own step-down; the
+// copies its earlier handover left here are still offered to clean — but
+// never those of a conversation held here now, one that came back to it
+// through that other computer.
+func TestCleanAfterAnOvertakenHandoverSparesWhatCameBack(t *testing.T) {
+	w := newWorkspace(t)
+	a, b, c, d := w.computer(t, "laptop"), w.computer(t, "desk"), w.computer(t, "studio"), w.computer(t, "phone")
+	ctx := context.Background()
+	pctx := handover.WithPassphrase(ctx, pass)
+	mA := a.at(t, remembers())
+	back, _ := talk(t, mA, "", "This one comes back.")
+	gone, _ := talk(t, mA, "", "This one goes on elsewhere.")
+	backSID, goneSID := conv(t, a.a, back).ClaudeSessionID, conv(t, a.a, gone).ClaudeSessionID
+	backSession, goneSession := sessionAt(t, a, backSID), sessionAt(t, a, goneSID)
+	hand := func(from, to *computer) {
+		t.Helper()
+		out := filepath.Join(t.TempDir(), "h.age")
+		from.at(t, remembers())
+		call[handover.HandoverExportOut](t, pctx, from.a, "machine.handover.export", handover.HandoverExportIn{To: to.name, Out: out})
+		to.at(t, remembers())
+		call[handover.HandoverReceiveOut](t, pctx, to.a, "machine.handover.receive", handover.HandoverReceiveIn{File: out})
+	}
+	hand(a, b) // the laptop hands its role to the desk and is stepping down…
+	hand(b, c) // …the desk hands it on to the studio…
+	// …where one of the conversations goes on elsewhere…
+	if _, err := w.db.C(store.CAssistantConversations).UpdateOne(ctx, bson.M{"_id": gone},
+		bson.M{"$set": bson.M{"installationId": d.a.Cfg.Installation.ID, "installationName": "phone"}}); err != nil {
+		t.Fatal(err)
+	}
+	hand(c, a) // …and the studio hands its role to the laptop: the other comes back.
+	if role, _ := handover.RoleOf(ctx, a.a, a.a.Cfg.Installation.ID); role.Role != handover.RoleHost {
+		t.Fatalf("the laptop is a host again: %+v", role)
+	}
+	if conv(t, a.a, back).InstallationID != a.a.Cfg.Installation.ID || conv(t, a.a, gone).InstallationID == a.a.Cfg.Installation.ID {
+		t.Fatal("where the conversations are")
+	}
+	if _, err := os.Stat(backSession); err != nil {
+		t.Fatalf("the session that came back is where Claude Code looks: %v", err)
+	}
+	st := call[handover.HandoverStatusOut](t, ctx, a.a, "machine.handover.status", handover.HandoverStatusIn{})
+	if st.Clean == nil {
+		t.Fatal("clean isn't offered for the overtaken handover's leftovers")
+	}
+	t.Setenv("CLAUDE_CONFIG_DIR", a.claude)
+	plan := call[handover.HandoverCleanOut](t, ctx, a.a, "machine.handover.clean", handover.HandoverCleanIn{})
+	if plan.Removed || len(plan.Kept) != 1 || plan.Files == 0 {
+		t.Fatalf("clean plan %+v", plan)
+	}
+	done := call[handover.HandoverCleanOut](t, ctx, a.a, "machine.handover.clean", handover.HandoverCleanIn{Yes: true})
+	if !done.Removed {
+		t.Fatalf("clean %+v", done)
+	}
+	if _, err := os.Stat(goneSession); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("the leftover copy of the conversation held elsewhere stayed")
+	}
+	if _, err := os.Stat(assistant.ConversationFolder(a.a, gone)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("the leftover folder of the conversation held elsewhere stayed")
+	}
+	if _, err := os.Stat(backSession); err != nil {
+		t.Fatal("clean removed the session of a conversation held here")
+	}
+	if _, err := os.Stat(assistant.ConversationFolder(a.a, back)); err != nil {
+		t.Fatal("clean removed the folder of a conversation held here")
+	}
+	if _, reply := talk(t, mA, back, "Still here?"); !strings.HasPrefix(reply, "I remember") {
+		t.Fatalf("it goes on here: %q", reply)
+	}
+}

@@ -3,14 +3,18 @@ package handover
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/app"
@@ -53,59 +57,91 @@ func cleanHandover(ctx context.Context, a *app.App, in *HandoverCleanIn) (*Hando
 		return nil, err
 	}
 	me := a.Cfg.Installation.ID
-	var rec *HandoverRecord
+	var recs []HandoverRecord
 	if in.ID != "" {
 		r, err := getRecord(ctx, a, in.ID)
 		if err != nil {
 			return nil, err
 		}
-		rec = r
+		if r.From != me {
+			return nil, apperr.New(apperr.InvalidInput, "That handover wasn't made on this computer: clean runs on the computer that handed its role over.")
+		}
+		if r.State != StateReceived && r.State != StateDone {
+			return nil, apperr.New(apperr.Conflict, "“%s” hasn't received this handover yet: nothing is removed before it has.", r.ToName).
+				WithCommand("metarush machine handover status")
+		}
+		recs = []HandoverRecord{*r}
 	} else {
-		var r HandoverRecord
-		err := a.DB.C(store.CHandovers).FindOne(ctx, bson.M{"workspaceId": a.WorkspaceID(), "from": me, "kind": KindHandover,
-			"state": bson.M{"$in": bson.A{StateReceived, StateDone}}, "overtakenBy": nil}, options.FindOne().SetSort(bson.D{{Key: "settledAt", Value: -1}})).Decode(&r)
-		if err != nil {
+		// Every handover from here that was received and not cleaned up yet —
+		// one a later handover overtook too (its copies are left here all the
+		// same) — or else the latest, to say nothing is left.
+		var all []HandoverRecord
+		if err := a.DB.Find(ctx, store.CHandovers, a.WorkspaceID(), bson.M{"from": me, "kind": KindHandover, "state": bson.M{"$in": bson.A{StateReceived, StateDone}}}, &all,
+			options.Find().SetSort(bson.D{{Key: "settledAt", Value: -1}})); err != nil {
+			return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't read the handovers.")
+		}
+		if len(all) == 0 {
 			return nil, apperr.New(apperr.NotFound, "No handover from this computer has been received yet, so nothing is removed.").
 				WithCommand("metarush machine handover status")
 		}
-		rec = &r
-	}
-	if rec.From != me {
-		return nil, apperr.New(apperr.InvalidInput, "That handover wasn't made on this computer: clean runs on the computer that handed its role over.")
-	}
-	if rec.State != StateReceived && rec.State != StateDone {
-		return nil, apperr.New(apperr.Conflict, "“%s” hasn't received this handover yet: nothing is removed before it has.", rec.ToName).
-			WithCommand("metarush machine handover status")
+		for _, r := range all {
+			if r.CleanedAt == nil {
+				recs = append(recs, r)
+			}
+		}
+		if len(recs) == 0 {
+			recs = all[:1]
+		}
 	}
 	out := &HandoverCleanOut{}
 	var paths []string
-	for _, id := range rec.Conversations {
-		var d struct {
-			InstallationID string `bson:"installationId"`
-			Title          string `bson:"title"`
-		}
-		err := a.DB.C(store.CAssistantConversations).FindOne(ctx, bson.M{"_id": id, "workspaceId": a.WorkspaceID()},
-			options.FindOne().SetProjection(bson.M{"installationId": 1, "title": 1})).Decode(&d)
-		if err == nil && d.InstallationID == me {
-			out.Kept = append(out.Kept, d.Title) // it came back here: its files stay
-			continue
-		}
-		if sid := rec.Sessions[id]; sid != "" {
-			if place, ok := assistant.FindSession(a, sid); ok {
-				paths = append(paths, place.File, place.Dir)
+	seen := map[string]bool{}
+	moved, toNames := 0, []string{}
+	for _, rec := range recs {
+		for _, id := range rec.Conversations {
+			var d struct {
+				InstallationID string `bson:"installationId"`
+				Title          string `bson:"title"`
 			}
+			err := a.DB.C(store.CAssistantConversations).FindOne(ctx, bson.M{"_id": id, "workspaceId": a.WorkspaceID()},
+				options.FindOne().SetProjection(bson.M{"installationId": 1, "title": 1})).Decode(&d)
+			if err == nil && d.InstallationID == me {
+				// It is held here now (it came back, through any computer):
+				// its files are the ones it goes on with.
+				if !seen[id] {
+					out.Kept = append(out.Kept, d.Title)
+				}
+				seen[id] = true
+				continue
+			}
+			if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
+				return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't read where a conversation is now.")
+			}
+			if sid := rec.Sessions[id]; sid != "" {
+				if place, ok := assistant.FindSession(a, sid); ok {
+					paths = append(paths, place.File, place.Dir)
+				}
+			}
+			if !seen[id] {
+				paths = append(paths, assistant.ConversationFolder(a, id))
+				moved++
+			}
+			seen[id] = true
 		}
-		paths = append(paths, assistant.ConversationFolder(a, id))
+		// The handover files this computer made for it, where they still are.
+		made := madeFiles(a, rec.ID)
+		paths = append(paths, made...)
+		out.HandoverFiles += len(made)
+		if !slices.Contains(toNames, "“"+rec.ToName+"”") {
+			toNames = append(toNames, "“"+rec.ToName+"”")
+		}
 	}
-	// The handover files this computer made for it, where they still are.
-	made := madeFiles(a, rec.ID)
-	paths = append(paths, made...)
-	out.HandoverFiles = len(made)
 	for _, p := range paths {
 		n, b := sizeOf(p)
 		out.Files += n
 		out.Bytes += b
 	}
+	to := strings.Join(toNames, " and ")
 	if in.Yes {
 		for _, p := range paths {
 			if err := os.RemoveAll(p); err != nil {
@@ -113,23 +149,50 @@ func cleanHandover(ctx context.Context, a *app.App, in *HandoverCleanIn) (*Hando
 			}
 		}
 		now := time.Now().UTC()
-		_, _ = a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID()}, bson.M{"$set": bson.M{"cleanedAt": now}})
-		rec.CleanedAt = &now
-		a.Audit(ctx, "machine.handover.clean", "handover", rec.ID, "", map[string]any{"files": out.Files, "bytes": out.Bytes})
+		for i := range recs {
+			_, _ = a.DB.C(store.CHandovers).UpdateOne(ctx, bson.M{"_id": recs[i].ID, "workspaceId": a.WorkspaceID()}, bson.M{"$set": bson.M{"cleanedAt": now}})
+			recs[i].CleanedAt = &now
+			a.Audit(ctx, "machine.handover.clean", "handover", recs[i].ID, "", map[string]any{"files": out.Files, "bytes": out.Bytes})
+		}
 		out.Removed = true
-		out.Summary = fmt.Sprintf("Removed this computer's copies of %s handed to “%s” (%s).", plural(len(rec.Conversations)-len(out.Kept), "conversation"), rec.ToName, plural(out.Files, "file"))
+		out.Summary = fmt.Sprintf("Removed this computer's copies of %s handed to %s (%s).", plural(moved, "conversation"), to, plural(out.Files, "file"))
 		if out.HandoverFiles > 0 {
 			out.Summary += fmt.Sprintf(" The handover %s made here went too.", map[bool]string{true: "file", false: "files"}[out.HandoverFiles == 1])
 		}
 	} else {
-		out.Summary = fmt.Sprintf("Cleaning up would remove this computer's copies of %s handed to “%s”: %s. They live on “%s” now; nothing else is touched.",
-			plural(len(rec.Conversations)-len(out.Kept), "conversation"), rec.ToName, plural(out.Files, "file"), rec.ToName)
+		out.Summary = fmt.Sprintf("Cleaning up would remove this computer's copies of %s handed to %s: %s. They live elsewhere now; nothing else is touched.",
+			plural(moved, "conversation"), to, plural(out.Files, "file"))
 		if out.HandoverFiles > 0 {
 			out.Summary += fmt.Sprintf(" That includes the handover %s made here.", map[bool]string{true: "file", false: "files"}[out.HandoverFiles == 1])
 		}
 	}
-	out.Handover = *rec
+	if len(out.Kept) > 0 {
+		out.Summary += fmt.Sprintf(" %s held here now %s as %s.", upperFirst(plural(len(out.Kept), "conversation")), map[bool]string{true: "stays", false: "stay"}[len(out.Kept) == 1],
+			map[bool]string{true: "it is", false: "they are"}[len(out.Kept) == 1])
+	}
+	out.Handover = recs[0]
 	return out, nil
+}
+
+// cleanOffer is the newest handover from this computer whose copies are
+// still here for a conversation held elsewhere now (nil: nothing to clean).
+func cleanOffer(ctx context.Context, a *app.App, me string) *HandoverRecord {
+	var recs []HandoverRecord
+	if a.DB.Find(ctx, store.CHandovers, a.WorkspaceID(), bson.M{"from": me, "kind": KindHandover, "state": bson.M{"$in": bson.A{StateReceived, StateDone}}, "cleanedAt": nil}, &recs,
+		options.Find().SetSort(bson.D{{Key: "settledAt", Value: -1}}).SetLimit(20)) != nil {
+		return nil
+	}
+	for i := range recs {
+		if len(recs[i].Conversations) == 0 {
+			continue
+		}
+		n, err := a.DB.C(store.CAssistantConversations).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "_id": bson.M{"$in": recs[i].Conversations},
+			"installationId": bson.M{"$ne": me}})
+		if err == nil && n > 0 {
+			return &recs[i]
+		}
+	}
+	return nil
 }
 
 func sizeOf(p string) (int, int64) {

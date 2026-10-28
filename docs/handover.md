@@ -132,7 +132,7 @@ turned down with a note, say) wait for the new computer.
 Once the new computer has received the file, the old one (while MetaRush runs there in the background) moves what can
 still move, finishes its own running work — a post still being sent to YouTube included — and then **steps down**: its background work and remote access for the
 workspace stop, it starts again as a **client** and every page says so ("This computer is no longer the host: it
-handed its role to “Edit mini” …"). It still works as a client: open projects and edit there; it follows a move of the
+handed its role to “Edit mini” …", or "“Edit mini” took over its role …" after a take-over). It still works as a client: open projects and edit there; it follows a move of the
 database and changes to its `config.yaml` as a host does. Nothing is deleted there. If it is off at the time, it steps
 down the next time MetaRush starts.
 

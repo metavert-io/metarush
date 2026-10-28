@@ -253,6 +253,10 @@ func ClientWords(r *HandoverRecord) string {
 	} else if r.SettledAt != nil {
 		at = " on " + r.SettledAt.Local().Format("2 Jan 2006")
 	}
-	return "This computer is no longer the host: it handed its role to “" + r.ToName + "”" + at +
+	how := "it handed its role to “" + r.ToName + "”"
+	if r.Kind == KindTakeover {
+		how = "“" + r.ToName + "” took over its role"
+	}
+	return "This computer is no longer the host: " + how + at +
 		". It works as a client — open projects, edit and use the panel here — but its background work and remote access for this workspace are off."
 }

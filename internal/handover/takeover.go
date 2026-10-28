@@ -220,7 +220,7 @@ func takeOver(ctx context.Context, a *app.App, in *HandoverTakeoverIn) (*Handove
 	out.Summary = fmt.Sprintf("This computer took over from “%s”: %s, %s and %s came here.", gone.Name, plural(moved.Conversations, "conversation"),
 		plural(moved.Jobs+moved.Runs+moved.Triggers, "piece of work", "pieces of work"), plural(moved.Folders, "folder"))
 	if moved.Summaries > 0 {
-		out.Summary += fmt.Sprintf(" %s go on from a summary.", plural(moved.Summaries, "conversation"))
+		out.Summary += fmt.Sprintf(" %s on from a summary.", goOn(moved.Summaries))
 	}
 	if backHome > 0 {
 		out.Summary += fmt.Sprintf(" A handover to it that it never finished receiving ended: %s it never took %s on with the computer that sent %s.",

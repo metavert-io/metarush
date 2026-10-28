@@ -408,6 +408,14 @@ func countMoves(ws []HandoverWork) int {
 	return n
 }
 
+// goOn is "1 conversation goes" or "3 conversations go", for "… on from a summary".
+func goOn(n int) string {
+	if n == 1 {
+		return "1 conversation goes"
+	}
+	return fmt.Sprintf("%d conversations go", n)
+}
+
 func plural(n int, one string, many ...string) string {
 	if n == 1 {
 		return "1 " + one

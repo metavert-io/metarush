@@ -257,7 +257,7 @@ func receiveHandover(ctx context.Context, a *app.App, in *HandoverReceiveIn) (*H
 	out.Summary = fmt.Sprintf("This computer now has “%s”'s role: %s, %s and %s came here.", m.From.Name,
 		plural(moved.Conversations, "conversation"), plural(moved.Jobs+moved.Runs+moved.Triggers, "piece of work", "pieces of work"), plural(moved.Folders, "folder"))
 	if moved.Summaries > 0 {
-		out.Summary += fmt.Sprintf(" %s go on from a summary: Claude Code's own record didn't come along.", plural(moved.Summaries, "conversation"))
+		out.Summary += fmt.Sprintf(" %s on from a summary: Claude Code's own record didn't come along.", goOn(moved.Summaries))
 	}
 	if len(out.Waiting) > 0 {
 		out.Summary += fmt.Sprintf(" “%s” finishes %s first, then steps down by itself.", m.From.Name, plural(len(out.Waiting), "piece of work", "pieces of work"))

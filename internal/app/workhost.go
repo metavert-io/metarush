@@ -93,7 +93,7 @@ func (a *App) NeedsThisComputer(ctx context.Context, what string) error {
 	if err != nil || h.Here {
 		return err
 	}
-	return apperr.New(apperr.Conflict, "This computer handed its role to “%s”, so %s isn't started here.", h.Name, what).
+	return apperr.New(apperr.Conflict, "“%s” does this workspace's work now, so %s isn't started here.", h.Name, what).
 		WithHint("Start it on “" + h.Name + "” (its dashboard, or a terminal there): its keys, sign-ins and set-up are the ones used now.").
 		WithDetails(map[string]any{"reason": "handed_over", "host": h.Name, "hostId": h.ID})
 }

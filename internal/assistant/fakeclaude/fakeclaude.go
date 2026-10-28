@@ -23,6 +23,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unicode"
+	"unicode/utf16"
 )
 
 const scriptEnv = "METARUSH_FAKECLAUDE_SCRIPT"
@@ -48,6 +50,14 @@ type Script struct {
 	Default *Turn  `json:"default,omitempty"`
 	// NoModels makes the initialize control request fail (an older Claude Code).
 	NoModels bool `json:"noModels,omitempty"`
+	// Sessions "claude" keeps each session where Claude Code does:
+	// $CLAUDE_CONFIG_DIR/projects/<the working folder's key>/<session>.jsonl,
+	// one line per message, appended on every turn (a resume finds it only
+	// there; the fake refuses to run without CLAUDE_CONFIG_DIR, so a test never
+	// writes into the real ~/.claude). Replies may then say {{remembered}} (how
+	// many earlier messages the session holds) and {{first}} (its first one).
+	// Default: a marker file in the conversation folder.
+	Sessions string `json:"sessions,omitempty"`
 }
 
 // Turn is one scripted reply.
@@ -189,6 +199,76 @@ func Spawns(t testing.TB, runDir string) [][]string {
 	return out
 }
 
+// Spawn is one start of the fake: its arguments, the folder it worked in
+// and where Claude Code's own folder was.
+type Spawn struct {
+	Argv      []string `json:"argv"`
+	Cwd       string   `json:"cwd"`
+	ConfigDir string   `json:"configDir,omitempty"`
+	Home      string   `json:"home,omitempty"`
+}
+
+// SpawnLog reads every start of a conversation's fake, in order.
+func SpawnLog(t testing.TB, runDir string) []Spawn {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(runDir, "spawns.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []Spawn
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		var s Spawn
+		if json.Unmarshal([]byte(line), &s) == nil {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// Resumed is the session a spawn resumed ("" when it started a new one).
+func (s Spawn) Resumed() string {
+	for i, a := range s.Argv {
+		if a == "--resume" && i+1 < len(s.Argv) {
+			return s.Argv[i+1]
+		}
+	}
+	return ""
+}
+
+// ProjectKey is Claude Code's name for a working folder's sessions folder
+// (the fake's own copy of the rule, so a test catches MetaRush getting it
+// wrong): every UTF-16 unit but ASCII letters and digits becomes "-"; past
+// 200 the key is cut and gets the base-36 of the string's hash.
+func ProjectKey(cwd string) string {
+	units := utf16.Encode([]rune(cwd))
+	b := make([]byte, len(units))
+	var h int32
+	for i, u := range units {
+		h = h*31 + int32(u)
+		if u < 128 && (unicode.IsLetter(rune(u)) || unicode.IsDigit(rune(u))) {
+			b[i] = byte(u)
+		} else {
+			b[i] = '-'
+		}
+	}
+	if len(b) <= 200 {
+		return string(b)
+	}
+	n := int64(h)
+	if n < 0 {
+		n = -n
+	}
+	return string(b[:200]) + "-" + strconv.FormatInt(n, 36)
+}
+
+// SessionLine is one line of a session file the fake keeps (claude mode).
+type SessionLine struct {
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	Cwd       string `json:"cwd"`
+	Text      string `json:"text"`
+}
+
 // Received reads every stdin line the fake got (all spawns).
 func Received(t testing.TB, runDir string) []string {
 	t.Helper()
@@ -230,6 +310,10 @@ type fake struct {
 	lines     chan string
 	interrupt chan struct{}
 	turnBusy  bool
+	// sessionFile is where the session is kept in claude mode; cwd the
+	// folder the fake works in.
+	sessionFile string
+	cwd         string
 }
 
 type state struct {
@@ -288,6 +372,12 @@ func run(scriptPath string) int {
 		lf.Close()
 	}
 	_ = os.WriteFile(filepath.Join(f.run, "env.txt"), []byte(strings.Join(os.Environ(), "\n")+"\n"), 0o600)
+	f.cwd, _ = os.Getwd()
+	if lf, err := os.OpenFile(filepath.Join(f.run, "spawns.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
+		sb, _ := json.Marshal(Spawn{Argv: args, Cwd: f.cwd, ConfigDir: os.Getenv("CLAUDE_CONFIG_DIR"), Home: os.Getenv("HOME")})
+		lf.Write(append(sb, '\n'))
+		lf.Close()
+	}
 	resume := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -307,7 +397,27 @@ func run(scriptPath string) int {
 	}
 	sessions := filepath.Join(f.run, "fake-sessions")
 	_ = os.MkdirAll(sessions, 0o700)
-	if resume != "" {
+	if f.script.Sessions == "claude" {
+		cfg := os.Getenv("CLAUDE_CONFIG_DIR")
+		if cfg == "" {
+			fmt.Fprintln(os.Stderr, "fake claude: claude sessions need CLAUDE_CONFIG_DIR (never the real home folder)")
+			return 2
+		}
+		id := f.session
+		if resume != "" {
+			id = resume
+		}
+		if id != "" {
+			f.sessionFile = filepath.Join(cfg, "projects", ProjectKey(f.cwd), id+".jsonl")
+		}
+		if resume != "" {
+			if _, err := os.Stat(f.sessionFile); err != nil {
+				fmt.Fprintf(os.Stderr, "No conversation found with session ID: %s\n", resume)
+				return 1
+			}
+			f.session = resume
+		}
+	} else if resume != "" {
 		if _, err := os.Stat(filepath.Join(sessions, resume)); err != nil {
 			fmt.Fprintf(os.Stderr, "No conversation found with session ID: %s\n", resume)
 			return 1
@@ -316,6 +426,9 @@ func run(scriptPath string) int {
 	}
 	if f.session == "" {
 		f.session = "fake-session-" + strconv.Itoa(os.Getpid())
+	}
+	if f.script.Sessions == "claude" && f.sessionFile == "" {
+		f.sessionFile = filepath.Join(os.Getenv("CLAUDE_CONFIG_DIR"), "projects", ProjectKey(f.cwd), f.session+".jsonl")
 	}
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT)
@@ -473,6 +586,7 @@ func (f *fake) turn(text string) bool {
 		proposals = m[1]
 	}
 	_ = os.WriteFile(filepath.Join(f.run, "fake-sessions", f.session), []byte("1"), 0o600)
+	remembered, first := f.remember(text)
 	f.mu.Lock()
 	f.turnBusy = true
 	f.mu.Unlock()
@@ -505,7 +619,8 @@ func (f *fake) turn(text string) bool {
 		head = m[1]
 	}
 	repl := func(s string) string {
-		return strings.NewReplacer("{{session}}", f.session, "{{proposals}}", proposals, "{{head}}", head).Replace(s)
+		return strings.NewReplacer("{{session}}", f.session, "{{proposals}}", proposals, "{{head}}", head,
+			"{{remembered}}", strconv.Itoa(remembered), "{{first}}", first).Replace(s)
 	}
 	stt := f.loadState()
 	ctxTokens := t.Context
@@ -545,15 +660,17 @@ func (f *fake) turn(text string) bool {
 		case st.Text != "":
 			n++
 			f.emit(map[string]any{"type": "stream_event", "event": map[string]any{"type": "content_block_start", "index": i, "content_block": map[string]any{"type": "text"}}, "parent_tool_use_id": nil, "session_id": f.session})
-			parts := chunks(st.Text, 3)
+			parts := chunks(repl(st.Text), 3)
 			for _, p := range parts {
 				f.emit(map[string]any{"type": "stream_event", "event": map[string]any{"type": "content_block_delta", "index": i, "delta": map[string]any{"type": "text_delta", "text": p}}, "parent_tool_use_id": nil, "session_id": f.session})
 				if sleep(15) {
 					return f.interrupted()
 				}
 			}
-			f.emit(map[string]any{"type": "assistant", "message": msg([]map[string]any{{"type": "text", "text": st.Text}}), "parent_tool_use_id": nil, "session_id": f.session})
+			text := repl(st.Text)
+			f.emit(map[string]any{"type": "assistant", "message": msg([]map[string]any{{"type": "text", "text": text}}), "parent_tool_use_id": nil, "session_id": f.session})
 			f.emit(map[string]any{"type": "stream_event", "event": map[string]any{"type": "content_block_stop", "index": i}, "parent_tool_use_id": nil, "session_id": f.session})
+			f.keep("assistant", text)
 		case st.Write != nil:
 			n++
 			path := filepath.Join(proposals, st.Write.Name) // may name a subfolder (motion/<name>/index.tsx)
@@ -597,6 +714,44 @@ func (f *fake) turn(text string) bool {
 	}
 	f.emit(f.result(t, stt.Cost, n, stt, turnUse))
 	return t.ExitAfter
+}
+
+// remember reads what the session file holds before this message (claude
+// mode) — how many messages and the first one — and appends the message.
+func (f *fake) remember(text string) (int, string) {
+	if f.sessionFile == "" {
+		return 0, ""
+	}
+	n, first := 0, ""
+	if b, err := os.ReadFile(f.sessionFile); err == nil {
+		for _, line := range strings.Split(string(b), "\n") {
+			var l SessionLine
+			if json.Unmarshal([]byte(line), &l) == nil && l.Type == "user" {
+				if n == 0 {
+					first = l.Text
+				}
+				n++
+			}
+		}
+	}
+	if r := []rune(first); len(r) > 40 {
+		first = string(r[:40])
+	}
+	f.keep("user", text)
+	return n, first
+}
+
+// keep appends one line to the session file (claude mode).
+func (f *fake) keep(kind, text string) {
+	if f.sessionFile == "" {
+		return
+	}
+	_ = os.MkdirAll(filepath.Dir(f.sessionFile), 0o700)
+	b, _ := json.Marshal(SessionLine{Type: kind, SessionID: f.session, Cwd: f.cwd, Text: text})
+	if lf, err := os.OpenFile(f.sessionFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
+		lf.Write(append(b, '\n'))
+		lf.Close()
+	}
 }
 
 // interruptedResult is the result of a turn stopped midway: its replies so far are in the totals.

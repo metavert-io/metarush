@@ -1466,6 +1466,25 @@ func (m *Manager) release(c *conv) {
 		bson.M{"$set": bson.M{"holderPid": 0}})
 }
 
+// releaseIfIdle lets go of the conversation after its process ended — unless
+// a message has claimed it again meanwhile (D345: its claim, in turn with this
+// under saveMu, carries the same process ID, and must stand).
+func (m *Manager) releaseIfIdle(c *conv) {
+	c.saveMu.Lock()
+	defer c.saveMu.Unlock()
+	c.mu.Lock()
+	if c.starting || c.proc != nil {
+		c.mu.Unlock()
+		return
+	}
+	c.data.HolderPID = 0
+	c.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, _ = m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx, bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID(), "holderPid": os.Getpid()},
+		bson.M{"$set": bson.M{"holderPid": 0}})
+}
+
 // makeRoom keeps at most liveLimit processes: the least recently used idle one
 // is ended (its conversation resumes later).
 func (m *Manager) makeRoom(c *conv) error {
@@ -1981,7 +2000,7 @@ func (m *Manager) onExit(c *conv, p *proc) {
 	c.mu.Unlock()
 	m.afterTurn(c, f)
 	if !f.ended {
-		m.release(c)
+		m.releaseIfIdle(c)
 	}
 }
 

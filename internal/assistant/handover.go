@@ -83,18 +83,27 @@ func (m *Manager) mayContinue(c *conv) error {
 		for k, v := range holder {
 			filter[k] = v
 		}
+		// In turn with this conversation's saves: one that read it before
+		// this claim is older, and never written over it (its state and
+		// holder would say idle, and a handover could mark it).
+		c.saveMu.Lock()
 		res, err := coll.UpdateOne(ctx, filter, bson.M{"$set": bson.M{"state": ConvWorking, "holderPid": pid}})
-		if err != nil {
-			return apperr.Wrap(apperr.Database, err, "MetaRush couldn't reach its database to send this message. Try again in a moment.")
-		}
-		if res.MatchedCount == 1 {
+		if err == nil && res.MatchedCount == 1 {
 			c.mu.Lock()
 			c.data.State, c.data.HolderPID = ConvWorking, pid
 			if c.data.HandingOver != nil { // a handover that was abandoned
 				c.data.HandingOver = nil
 			}
+			c.saveVer++
+			c.savedVer = c.saveVer
 			c.touch()
 			c.mu.Unlock()
+		}
+		c.saveMu.Unlock()
+		if err != nil {
+			return apperr.Wrap(apperr.Database, err, "MetaRush couldn't reach its database to send this message. Try again in a moment.")
+		}
+		if res.MatchedCount == 1 {
 			return nil
 		}
 		// It changed between the look and the write: look again.
@@ -160,6 +169,8 @@ func (m *Manager) claimCards(ctx context.Context, c *conv, ids []string, from ..
 		}
 	}
 	d := c.copyLocked(true)
+	c.saveVer++
+	v := c.saveVer
 	c.touch()
 	c.mu.Unlock()
 	undo := func() {
@@ -174,7 +185,14 @@ func (m *Manager) claimCards(ctx context.Context, c *conv, ids []string, from ..
 	}
 	filter := bson.M{"_id": c.id, "workspaceId": m.App.WorkspaceID(), "installationId": d.InstallationID, "handingOver": bson.M{"$exists": false},
 		"actions": bson.M{"$not": bson.M{"$elemMatch": bson.M{"id": bson.M{"$in": ids}, "state": bson.M{"$nin": from}}}}}
+	// In turn with this conversation's saves: one that read it before the
+	// claim never puts the cards back to waiting.
+	c.saveMu.Lock()
 	res, err := m.App.DB.C(store.CAssistantConversations).UpdateOne(ctx, filter, bson.M{"$set": saveFields(d)})
+	if err == nil && res.MatchedCount == 1 && v > c.savedVer {
+		c.savedVer = v
+	}
+	c.saveMu.Unlock()
 	if err != nil {
 		undo()
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't reach its database to run this change. Try again in a moment.")

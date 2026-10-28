@@ -52,6 +52,7 @@ var recipeFeature = []string{
 	"internal/oldnames/",                     // the stored names before D210, read while computers upgrade
 	"internal/handover/",                     // a handover moves its runs and plans to another computer (item 34)
 	"internal/cli/handover.go",               // … and says so
+	"web/src/screens/settings/Handover.tsx",  // … in Settings → Storage too
 	"internal/plainwords/recipeword_test.go", // this test
 }
 

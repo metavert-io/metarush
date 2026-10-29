@@ -75,10 +75,14 @@ placeholder = re.compile(r"@(?:[a-z0-9-]+\.)*(example(\.(com|org|net))?|test|inv
                          r"(?:resource|group)\.calendar\.google\.com)$|@[a-z]\.[a-z]{2,3}$", re.I)
 system_sender = re.compile(r"^(no-?reply|notifications?|orders?|order-status|reservations?|"
                            r"support|billing|mailer-daemon|postmaster|reply\+[^@]*)@", re.I)
+# Home folders that belong to no one: placeholders in docs, the account GitHub's CI runners use on Linux and
+# macOS, Homebrew on Linux's own folder, and the default users of cloud and container images.
+not_people = ["you", "me", "user", "username", "yourname", "your-name", "your_name", "someone", "somebody", "example",
+              "runner", "linuxbrew", "ubuntu", "vscode", "node"]
 rules = [
     ("email", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b")),
     ("phone", re.compile(r"(?<![\w.])(?:\+?1[ .-]?)?\(?[2-9]\d{2}\)?[ .-][2-9]\d{2}[ .-]\d{4}(?![\w])|\b1[2-9]\d{9}\.\d{11}\b")),
-    ("home-path", re.compile(r"/(?:Users|home)/(?!you\b|me\b|user\b|username\b|<)[a-z][a-z0-9_-]+")),
+    ("home-path", re.compile(r"/(?:Users|home)/(?!(?:" + "|".join(not_people) + r")(?![a-z0-9_])|<)[a-z][a-z0-9_-]+")),
     ("fly-machine-id", re.compile(r"(?<![0-9a-f])[0-9a-f]{14}(?![0-9a-f])")),
 ]
 def ok_email(e):
@@ -91,6 +95,13 @@ def hits_in(text, where):
             if name == "email" and ok_email(m.group(0)):
                 continue
             if name == "phone" and re.search(r"555[ .-]?01\d\d|555[ .-]\d{4}", m.group(0)):
+                continue
+            # Three numbers among others, separated by spaces only ("330 660 990 1320"), are a list, not a phone number.
+            if name == "phone" and re.fullmatch(r"\d{3} \d{3} \d{4}", m.group(0)) and (
+                    re.search(r"\d[ \t]+$", text[:m.start()]) or re.match(r"[ \t]+\d", text[m.end():])):
+                continue
+            # A Fly.io machine id has letters; fourteen digits alone are a number (a timestamp, a long decimal).
+            if name == "fly-machine-id" and m.group(0).isdigit():
                 continue
             hits.append(f"{name}: {m.group(0)}")
     low = text.lower()

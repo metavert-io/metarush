@@ -77,8 +77,31 @@ sink.on('connect', (_req, socket) => {
   seen.push('CONNECT');
   socket.end('HTTP/1.1 200 OK\r\n\r\n');
 });
-await new Promise((r) => sink.listen(0, '::', r)); // both 127.0.0.1 and ::1
-const port = sink.address().port;
+// The sink answers on both loopbacks (127.0.0.1 and ::1), on one port: two listeners. One on '::'
+// would be dual-stack, but it would also answer on every other interface — the house network,
+// whoever is on it — for as long as the test runs.
+const sink6 = http.createServer(sink.listeners('request')[0]);
+sink6.on('connect', sink.listeners('connect')[0]);
+const listenOn = (srv, p, host) =>
+  new Promise((resolve, reject) => {
+    srv.once('error', reject);
+    srv.listen(p, host, () => {
+      srv.off('error', reject);
+      resolve();
+    });
+  });
+let port = 0;
+for (let tries = 0; ; tries++) {
+  await listenOn(sink, 0, '127.0.0.1');
+  port = sink.address().port;
+  try {
+    await listenOn(sink6, port, '::1'); // the same port on ::1, unless something has it there
+    break;
+  } catch (e) {
+    await new Promise((r) => sink.close(r));
+    if (tries === 9) throw e;
+  }
+}
 
 const viaProxy = (proxyPort, target) =>
   new Promise((resolve) => {
@@ -282,5 +305,6 @@ check(fromDataURL(`data:image/png;base64,${PNG.toString('base64')}`)?.ext === 'p
 }
 
 sink.close();
+sink6.close();
 process.stderr.write(`[web-test] ${failures === 0 ? 'all passed' : `${failures} failed`}\n`);
 process.exit(failures === 0 ? 0 : 1);

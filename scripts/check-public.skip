@@ -1,14 +1,2 @@
 # Paths scripts/check-public.sh and scripts/publish-check.sh leave out (globs, one per line). Fix a false positive here only
 # when the file must keep the text; prefer an invented value.
-#
-# Numbers the generic check reads as Fly.io machine ids (14 hex digits):
-# the studio golden file's generated random edits and times,
-internal/editspec/testdata/studio-ops.golden.json
-# Go's pseudo-versions (a commit time and hash per dependency),
-go.mod
-# and whisper-server's recorded answer (word probabilities to 14 places).
-internal/transcribe/testdata/whisper/zh.server.json
-# Clip lengths the Windows run makes (330 … 1320 s), which read as a phone number.
-scripts/windows-e2e.sh
-# Homebrew on Linux has its own folder under /home: the one system folder there MetaRush names, kept in this file alone.
-internal/tools/linuxbrew.go

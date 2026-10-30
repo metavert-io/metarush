@@ -41,9 +41,11 @@ Read `docs/architecture.md` before structural changes.
   update (`store.SeenWithin|StaleBefore|DueBy|ServerTimeIn`, `$currentDate`), else `store.DB.Now`/`NowOrLocal` (an offset
   to this computer's clock, measured a round trip a minute behind the callers; only the first measurement and a moment
   after the clock jumps are waited for), never `time.Now()`; displays that read those stamps use it too. Tests skew with
-  `testutil.SkewClock`. `TestNothingComparesWithThisComputersClock` (`internal/store/clockguard_test.go`, reads the code
-  only) fails on a new comparison or write by this computer's clock: a place only this computer ever reads goes in its
-  `clockAllowed` by file and function, with how many places and why; an entry that no longer matches fails too. D360, D368–D370);
+  `testutil.SkewClock` (this computer's clock, what `$$NOW` paths are tested with) or `testutil.ServerOff` (the server's
+  answer, so a Go-side read of `time.Now()` fails). `TestNothingComparesWithThisComputersClock` (`internal/store/clockguard_test.go`, reads the code
+  only) fails on a new comparison or write by this computer's clock, or this clock passed as a `now` parameter or field: a
+  place only this computer ever reads goes in its
+  `clockAllowed` by file and function, with how many places and why; an entry that no longer matches fails too. D360, D368–D370, D372);
   workers coordinate only via the DB;
   heavy jobs defer on low battery (threshold, override) — never silently. A stopping worker releases its job (attempt
   not counted, never failed); a terminal's `--wait` runs only the jobs it waits for (`LeaseAmong`) and keeps them

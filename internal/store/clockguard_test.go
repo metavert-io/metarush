@@ -22,8 +22,9 @@ import (
 //     from the clock itself (that is a duration within one process);
 //   - x.Before, x.After and x.Sub with this computer's clock on one side only;
 //   - this computer's clock under $lt, $lte, $gt or $gte;
-//   - this computer's clock passed to what judges a stored time by it
-//     (jobs.Online, jobs.Why, a consent's Active…: judgesATime);
+//   - this computer's clock passed to what judges a stored time by it: any
+//     function with a parameter `now time.Time`, a struct's now field, and
+//     jobs.Online, jobs.Why, a consent's Active… (judgesATime);
 //   - this computer's clock written to a field other computers judge
 //     (serverStamped).
 //
@@ -67,7 +68,6 @@ var clockAllowed = map[string]struct {
 	"internal/aiwork/presenter_retire.go linkServer.add":            {1, "the link server's own memory, in one process"},
 	"internal/aiwork/presenter_retire.go linkServer.serve":          {1, "the link server's own memory, in one process"},
 	"internal/aiwork/presenters.go askWords":                        {1, "turns the adapter's end by this computer's clock into time left; what is stored is the server's now plus that"},
-	"internal/aiwork/run.go runner.wait":                            {2, "first poll's delay and progress only; the job is pinned to the computer that asked"},
 	"internal/abilities/listener.go localChecks.Check":              {1, "an in-memory cache"},
 	"internal/aiservices/elevenlabs/kinds.go Adapter.pollDub":       {1, "a progress estimate while this process waits"},
 	"internal/cache/quota.go Cache.ReadQuotaStatus":                 {1, "this computer's cache"},
@@ -80,9 +80,9 @@ var clockAllowed = map[string]struct {
 	"internal/logbook/events.go ranFor":                             {1, "only when the job's end isn't known; the attempt ran in this process"},
 	"internal/logbook/hookrun.go cleanStaleSessions":                {1, "local files' times"},
 	"internal/logbook/logger.go OpRecord.End":                       {1, "how long an operation took, in one process"},
-	"internal/logbook/logops/ops.go init":                           {1, "checks a date a person typed"},
+	"internal/logbook/logops/ops.go init":                           {5, "a person's time window over the log, whose entries keep their writer's clock"},
 	"internal/logbook/spool.go Logger.FlushSpool":                   {1, "local files' times"},
-	"internal/providers/vertex.go VertexAccessToken":                {1, "a token kept in memory"},
+	"internal/providers/vertex.go VertexAccessToken":                {2, "a token kept in memory, signed for Google's service"},
 	"internal/renderer/install.go Env.prune":                        {1, "local files' times"},
 	"internal/storagemove/storagemove.go journal.add":               {1, "an in-process throttle"},
 	"internal/storagemove/storagemove.go tracker.emit":              {2, "progress rates, in one process"},
@@ -90,10 +90,39 @@ var clockAllowed = map[string]struct {
 	"internal/tools/tools.go Set.report":                            {1, "how long a program took, in one process"},
 	"internal/uploads/uploads.go Store.List":                        {2, "upload records are files on this computer"},
 	"internal/uploads/uploads.go Store.persist":                     {1, "an in-process throttle"},
-	"internal/api/access.go Server.signedIn":                        {1, "a session's last use, in this computer's session file"},
+	"internal/api/access.go Server.signedIn":                        {3, "sessions live in this computer's session file"},
+	"internal/activity/activity.go builder.uploadItem":              {1, "an upload's record is a file on this computer, kept by its clock"},
+	"internal/aiservices/aiconformance/conformance.go Run":          {1, "a test's check of an adapter, not a stored time"},
+	"internal/api/access.go Server.signInTailscale":                 {1, "a session's end and idle time, in this computer's session file"},
+	"internal/api/access.go Server.whileSignedIn":                   {1, "sessions live in this computer's session file"},
+	"internal/api/extension.go extAPI.createUpload":                 {1, "a record's stamp"},
+	"internal/api/extension.go extAPI.pair":                         {1, "pairing codes live in a file on this computer"},
+	"internal/api/extension.go extAPI.requireToken":                 {1, "pairing tokens live in a file on this computer"},
+	"internal/api/signin.go Server.signInGuard":                     {1, "an in-memory rate limit"},
+	"internal/api/signin.go Server.startSession":                    {1, "a session's end and idle time, in this computer's session file"},
+	"internal/api/uploads.go uploadAPI.ingest":                      {2, "upload records are files on this computer"},
+	"internal/api/uploads.go uploadAPI.patch":                       {2, "upload records are files on this computer"},
+	"internal/browserext/ops.go init":                               {1, "pairing codes live in a file on this computer"},
+	"internal/browserext/ops.go status":                             {1, "pairing codes live in a file on this computer"},
+	"internal/cli/log.go logPurgeCmd":                               {1, "reads a person's words for a date"},
+	"internal/cli/logbundle.go logBundleCmd":                        {1, "a file's name"},
+	"internal/cli/logbundle.go writeBundle":                         {1, "reads a person's words for a date"},
+	"internal/improve/ops.go init":                                  {1, "a date in a printed list"},
+	"internal/intake/folders.go folderRow":                          {1, "a linked folder's state file on this computer"},
+	"internal/linkimport/job.go Run":                                {1, "a record's stamp"},
+	"internal/linkimport/ops.go dryRun":                             {1, "a record's stamp"},
+	"internal/recipes/run.go stopRun":                               {1, "a sample's end, a record's stamp"},
+	"internal/recipes/steps.go engine.fail":                         {1, "a sample's end, a record's stamp"},
+	"internal/recorder/finish.go Finish":                            {1, "which message to show; other computers are refused right after"},
+	"internal/recorder/finish.go takeOver":                          {1, "a recording's lease: only its own computer writes and judges it"},
+	"internal/recorder/ops.go discard":                              {1, "which message to show; other computers are refused right after"},
+	"internal/recorder/sweep.go Sweep":                              {1, "only a recording's own computer sweeps it"},
+	"internal/remote/ops.go people":                                 {1, "sessions live in this computer's session file"},
+	"internal/speakers/assign.go AssignWords":                       {1, "a record's stamp"},
+	"internal/speakers/restore.go RestoreWords":                     {1, "a record's stamp"},
 	"internal/api/events.go Broker.pollMark":                        {1, "picks the earlier of this computer's clock and the server's on purpose: changes carry either"},
 	"internal/api/extension.go extAPI.limited":                      {1, "an in-memory rate limit"},
-	"internal/api/server.go Server.auth":                            {1, "a one-time sign-in nonce in this process's memory"},
+	"internal/api/server.go Server.auth":                            {2, "a one-time sign-in nonce in this process's memory; a session's end and idle time, in this computer's session file"},
 	"internal/api/uploads.go uploadAPI.changed":                     {1, "an in-memory throttle"},
 	"internal/api/uploads.go uploadAPI.sweep":                       {1, "upload records are files on this computer"},
 	"internal/assistant/manager.go Manager.finishTurnLocked":        {1, "a turn's length on the computer that ran it"},
@@ -110,10 +139,8 @@ var clockAllowed = map[string]struct {
 	"internal/cli/cache.go progressPrinter.update":                  {1, "an in-process throttle"},
 	"internal/cli/log.go dayLabel":                                  {1, "a date's words in this person's zone"},
 	"internal/cli/log.go logTailCmd":                                {2, "the log's lines shown as they come; a window, not a decision"},
-	"internal/generate/run.go runner.sayLimited":                    {1, "first poll's delay and progress only; the job is pinned to the computer that asked"},
-	"internal/generate/run.go runner.wait":                          {2, "first poll's delay and progress only; the job is pinned to the computer that asked"},
 	"internal/improve/ops.go Add":                                   {2, "an improvement item's lastSeenAt, another field of that name; nothing compares it"},
-	"internal/improve/ops.go Signals":                               {1, "the period of a report, over the log"},
+	"internal/improve/ops.go Signals":                               {4, "a report's period over the log, whose entries keep their writer's clock"},
 	"internal/ingest/ops.go init":                                   {1, "an unfinished upload's start is the storage service's time, with a margin of hours"},
 	"internal/ingest/watch.go Watcher.publish":                      {1, "an in-process throttle"},
 	"internal/ingest/watch.go Watcher.scan":                         {2, "local files' times"},
@@ -159,29 +186,19 @@ type clockFinding struct {
 func TestNothingComparesWithThisComputersClock(t *testing.T) {
 	found := map[string][]clockFinding{}
 	root := filepath.Join("..")
-	err := filepath.WalkDir(root, func(path string, e os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if e.IsDir() {
-			if e.Name() == "testutil" || e.Name() == "testdata" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		fset := token.NewFileSet()
-		f, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			return err
-		}
+	takesNow := map[string]map[int]bool{}
+	if err := eachSource(root, func(_ string, _ *token.FileSet, f *ast.File) error {
+		collectNowParams(f, takesNow)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	err := eachSource(root, func(path string, fset *token.FileSet, f *ast.File) error {
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
-		for _, fi := range scanClock(fset, "internal/"+filepath.ToSlash(rel), f) {
+		for _, fi := range scanClock(fset, "internal/"+filepath.ToSlash(rel), f, takesNow) {
 			found[fi.key] = append(found[fi.key], fi)
 		}
 		return nil
@@ -234,7 +251,15 @@ func flagged() {
 	_ = models.Job{NextRunAt: now}
 	j.LastHeartbeat = time.Now().UTC()
 	set["beat"] = now
+	FollowLatest(ctx, a, time.Now().UTC())
+	_ = live(l, now)
+	_ = b.look(now)
+	_ = builder{now: time.Now()}
+	b.now = now
 }
+func FollowLatest(ctx context.Context, a *app.App, now time.Time) {}
+func live(l *Link, now time.Time) bool { return true }
+func (b *builder) look(now time.Time) bool { return true }
 func fine() {
 	start := time.Now()
 	_ = time.Since(start)
@@ -260,7 +285,9 @@ func fine() {
 		t.Fatal(err)
 	}
 	var flagged, fine int
-	for _, fi := range scanClock(fset, "x.go", f) {
+	takesNow := map[string]map[int]bool{}
+	collectNowParams(f, takesNow)
+	for _, fi := range scanClock(fset, "x.go", f, takesNow) {
 		switch fi.key {
 		case "x.go flagged":
 			flagged++
@@ -269,13 +296,72 @@ func fine() {
 			fine++
 		}
 	}
-	if flagged != 14 {
-		t.Errorf("flagged %d places, want 14", flagged)
+	if flagged != 19 {
+		t.Errorf("flagged %d places, want 19", flagged)
+	}
+}
+
+// eachSource parses every non-test Go file under root (tests' helpers aside).
+func eachSource(root string, fn func(path string, fset *token.FileSet, f *ast.File) error) error {
+	return filepath.WalkDir(root, func(path string, e os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if e.IsDir() {
+			if e.Name() == "testutil" || e.Name() == "testdata" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+		return fn(path, fset, f)
+	})
+}
+
+// collectNowParams notes the functions and methods, by name, with a parameter
+// `now time.Time`, and where it is: what they are given they judge stored times
+// by, or pass on to what does.
+func collectNowParams(f *ast.File, takesNow map[string]map[int]bool) {
+	for _, decl := range f.Decls {
+		d, ok := decl.(*ast.FuncDecl)
+		if !ok || d.Type.Params == nil {
+			continue
+		}
+		i := 0
+		for _, field := range d.Type.Params.List {
+			isTime := false
+			if sel, ok := field.Type.(*ast.SelectorExpr); ok {
+				if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "time" && sel.Sel.Name == "Time" {
+					isTime = true
+				}
+			}
+			names := field.Names
+			if len(names) == 0 {
+				i++
+				continue
+			}
+			for _, n := range names {
+				if isTime && n.Name == "now" {
+					if takesNow[d.Name.Name] == nil {
+						takesNow[d.Name.Name] = map[int]bool{}
+					}
+					takesNow[d.Name.Name][i] = true
+				}
+				i++
+			}
+		}
 	}
 }
 
 // scanClock finds the places in one file.
-func scanClock(fset *token.FileSet, path string, f *ast.File) []clockFinding {
+func scanClock(fset *token.FileSet, path string, f *ast.File, takesNow map[string]map[int]bool) []clockFinding {
 	var out []clockFinding
 	for _, decl := range f.Decls {
 		name := ""
@@ -293,7 +379,7 @@ func scanClock(fset *token.FileSet, path string, f *ast.File) []clockFinding {
 		default:
 			continue
 		}
-		s := &clockScan{fset: fset, key: path + " " + name, local: map[*ast.Object]bool{}}
+		s := &clockScan{fset: fset, key: path + " " + name, local: map[*ast.Object]bool{}, takesNow: takesNow}
 		s.findLocals(decl)
 		s.check(decl)
 		out = append(out, s.found...)
@@ -317,7 +403,9 @@ type clockScan struct {
 	fset  *token.FileSet
 	key   string
 	local map[*ast.Object]bool // variables that hold this computer's clock
-	found []clockFinding
+	// takesNow: functions and methods by name, with where a now parameter is.
+	takesNow map[string]map[int]bool
+	found    []clockFinding
 }
 
 func (s *clockScan) add(n ast.Node, what string) {
@@ -408,6 +496,8 @@ func (s *clockScan) check(decl ast.Node) {
 					s.add(x, "under "+key)
 				case serverStamped[key]:
 					s.add(x, "writes "+key)
+				case key == "now":
+					s.add(x, "a now field by this computer's clock")
 				}
 			}
 		case *ast.CompositeLit:
@@ -442,6 +532,9 @@ func (s *clockScan) check(decl ast.Node) {
 				if serverStamped[name] && s.isLocal(x.Rhs[i]) {
 					s.add(x, "writes "+name)
 				}
+				if _, isField := l.(*ast.SelectorExpr); isField && name == "now" && s.isLocal(x.Rhs[i]) {
+					s.add(x, "a now field by this computer's clock")
+				}
 			}
 		}
 		return true
@@ -449,6 +542,18 @@ func (s *clockScan) check(decl ast.Node) {
 }
 
 func (s *clockScan) checkCall(c *ast.CallExpr) {
+	name := ""
+	switch f := c.Fun.(type) {
+	case *ast.Ident:
+		name = f.Name
+	case *ast.SelectorExpr:
+		name = f.Sel.Name
+	}
+	for i := range s.takesNow[name] {
+		if i < len(c.Args) && s.isLocal(c.Args[i]) {
+			s.add(c, "local time as the now of "+name)
+		}
+	}
 	fn, ok := c.Fun.(*ast.SelectorExpr)
 	if !ok {
 		if id, isID := c.Fun.(*ast.Ident); isID && judgesATime[id.Name] {

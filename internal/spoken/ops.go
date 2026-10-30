@@ -2,7 +2,6 @@ package spoken
 
 import (
 	"context"
-	"time"
 
 	"github.com/metavert-io/metarush/internal/aiservices"
 	"github.com/metavert-io/metarush/internal/aiwork"
@@ -52,7 +51,12 @@ func makeSay(ctx context.Context, a *app.App, in *SayIn) (*SayMakeOut, error) {
 		}
 		return nil, apperr.New(code, "%s", p.est.Problems[0]).WithDetails(map[string]any{"problems": p.est.Problems, "reason": p.est.Code})
 	}
-	now := time.Now().UTC()
+	// The database server's time (D360): the sweep on any computer compares
+	// updatedAt while the change is being made.
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	c := models.SpokenChange{ID: ids.New(ids.SpokenChange), GenerationID: ids.New(ids.Generation), WorkspaceID: a.WorkspaceID(), ProjectID: p.project.ID, Branch: p.est.Branch,
 		AssetID: p.asset.ID, From: p.est.From, To: p.est.To, Before: p.est.Before, Words: p.est.Words, Context: p.est.Context,
 		Speaker: *p.est.Speaker, VoiceGeneration: p.copyGen.ID, VoiceName: p.est.Voice.Name, ConsentID: p.est.ConsentID,

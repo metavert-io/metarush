@@ -174,7 +174,12 @@ func recordConsent(ctx context.Context, a *app.App, in *ConsentRecordIn) (*Conse
 				WithDetails(map[string]any{"reason": "recording_video"})
 		}
 	}
-	now := time.Now().UTC()
+	// The database server's time (D360): a consent's year runs from it, and
+	// every computer says whether it is in force by the same clock.
+	now, err := Now(ctx, a)
+	if err != nil {
+		return nil, err
+	}
 	c := models.Consent{ID: ids.New(ids.Consent), WorkspaceID: a.WorkspaceID(), PersonID: p.ID, PersonName: p.Name, Self: in.Self, Statement: statement,
 		RecordingID: in.Recording, Scope: models.ConsentScope{AllProjects: len(in.Projects) == 0, Projects: in.Projects, Note: strings.TrimSpace(in.Note)},
 		Uses: uses, Providers: providers, Adult: true, RecordedBy: a.Actor, RecordedAt: now, Machine: a.Cfg.Installation.Name}

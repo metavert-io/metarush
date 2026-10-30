@@ -325,7 +325,10 @@ func lookClips(ctx context.Context, a *app.App, l *models.GenLook, in []LookClip
 }
 
 func createLook(ctx context.Context, a *app.App, in *LookCreateIn) (*LookOut, error) {
-	now := time.Now().UTC()
+	now, err := Now(ctx, a) // consent in force by the server's clock (D360)
+	if err != nil {
+		return nil, err
+	}
 	l := &models.GenLook{ID: ids.New(ids.Look), WorkspaceID: a.WorkspaceID(), Title: strings.TrimSpace(in.Title), Style: in.Style, StyleNote: strings.TrimSpace(in.StyleNote),
 		Description: strings.TrimSpace(in.Description), State: models.LookDraft, CreatedBy: a.Actor, CreatedAt: now, UpdatedAt: now,
 		Defaults: models.LookDefaults{AspectRatio: in.AspectRatio, Seconds: in.Seconds, Quality: in.Quality}, Clips: []models.LookClip{}}
@@ -358,7 +361,6 @@ func createLook(ctx context.Context, a *app.App, in *LookCreateIn) (*LookOut, er
 		}
 		l.ConsentID = c.ID
 	}
-	var err error
 	if l.Stills, err = lookStills(ctx, a, l, in.Stills, in.NoRealPeople); err != nil {
 		return nil, err
 	}
@@ -466,7 +468,10 @@ func decideLook(ctx context.Context, a *app.App, in *LookDecideIn, approve bool)
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now().UTC()
+	now, err := Now(ctx, a) // consent in force by the server's clock (D360)
+	if err != nil {
+		return nil, err
+	}
 	actor := a.Actor
 	if approve {
 		if l.State == models.LookRevoked {

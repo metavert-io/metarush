@@ -593,9 +593,11 @@ func inputUSD(g *models.Generation, pr *aiservices.Price) float64 {
 	return float64(g.Estimate.InputTokens) * pr.InputPerMillion / 1e6
 }
 
-// end writes the outcome once.
+// end writes the outcome once, at the database server's time (D360): how
+// long a lost clip is looked for, and whether a presenter was deleted before
+// it was made, are read from it on any computer.
 func (r *runner) end(ctx context.Context, oc *models.GenOutcome, actual *models.GenCost) {
-	oc.At = time.Now().UTC()
+	oc.At = generate.StampNow(ctx, r.a)
 	if actual != nil && actual.Basis != "" {
 		oc.Actual = actual
 	}
@@ -781,10 +783,11 @@ func RunSweep(ctx context.Context, a *app.App) {
 // Sweep closes AI work whose job ended without an outcome and lets go of the
 // money held for it, and queues again the deletion of withdrawn voice copies
 // whose job is gone. The daemon runs it with generated video's sweep, when it
-// starts and every five minutes.
+// starts and every five minutes. A record's age is the database server's
+// (D360): every computer sweeps.
 func Sweep(ctx context.Context, a *app.App) int {
 	var gs []models.Generation
-	_ = a.DB.Find(ctx, store.CGenerations, a.WorkspaceID(), bson.M{"outcome": bson.M{"$exists": false}, "createdAt": bson.M{"$lt": time.Now().Add(-time.Minute)},
+	_ = a.DB.Find(ctx, store.CGenerations, a.WorkspaceID(), bson.M{"outcome": bson.M{"$exists": false}, "$and": bson.A{store.StaleBefore("createdAt", time.Minute)},
 		"kind": bson.M{"$nin": models.VideoKinds}}, &gs)
 	n := 0
 	for i := range gs {

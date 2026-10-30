@@ -22,7 +22,10 @@ import (
 // sweepPause runs between the sweep's reading and its writing (tests only).
 var sweepPause = func() {}
 
-// staleAfter is how long a change may be "being made" before its job is looked at.
+// staleAfter is how long a change may be "being made" before its job is
+// looked at, by the database server's clock (D360): every daemon sweeps, and a
+// computer whose clock runs ahead must not look at a change another computer
+// is just making.
 const staleAfter = 2 * time.Minute
 
 func init() {
@@ -35,7 +38,7 @@ func Sweep(ctx context.Context, a *app.App) int {
 	var cs []models.SpokenChange
 	_ = a.DB.Find(ctx, store.CSpokenChanges, a.WorkspaceID(), bson.M{"$or": bson.A{
 		bson.M{"state": models.SpokenMaking}, bson.M{"mouth.state": models.SpokenMaking}},
-		"updatedAt": bson.M{"$lt": time.Now().Add(-staleAfter)}}, &cs)
+		"$and": bson.A{store.StaleBefore("updatedAt", staleAfter)}}, &cs)
 	sweepPause()
 	n := 0
 	for i := range cs {
@@ -44,7 +47,7 @@ func Sweep(ctx context.Context, a *app.App) int {
 			if why := stopped(ctx, a, c.GenerationID, c.JobID, c.Sound != ""); why != "" {
 				// Only as it was read: another computer may have finished it meanwhile.
 				res, err := a.DB.C(store.CSpokenChanges).UpdateOne(ctx, bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID(), "state": models.SpokenMaking, "updatedAt": c.UpdatedAt},
-					bson.M{"$set": bson.M{"state": models.SpokenFailed, "why": why, "updatedAt": time.Now().UTC()}})
+					bson.M{"$set": bson.M{"state": models.SpokenFailed, "why": why}, "$currentDate": bson.M{"updatedAt": true}})
 				if err == nil && res.MatchedCount == 1 {
 					tell(ctx, a, c, false, why)
 					n++
@@ -54,7 +57,7 @@ func Sweep(ctx context.Context, a *app.App) int {
 		if m := c.Mouth; m != nil && m.State == models.SpokenMaking {
 			if why := stopped(ctx, a, m.GenerationID, m.JobID, m.AssetID != ""); why != "" {
 				res, err := a.DB.C(store.CSpokenChanges).UpdateOne(ctx, bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID(), "mouth.state": models.SpokenMaking, "mouth.generationId": m.GenerationID},
-					bson.M{"$set": bson.M{"mouth.state": models.SpokenFailed, "mouth.why": why, "updatedAt": time.Now().UTC()}})
+					bson.M{"$set": bson.M{"mouth.state": models.SpokenFailed, "mouth.why": why}, "$currentDate": bson.M{"updatedAt": true}})
 				if err == nil && res.MatchedCount == 1 {
 					n++
 				}

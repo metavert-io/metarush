@@ -23,7 +23,10 @@ import (
 // requests still running; every hold names its generation, so settling twice
 // or after a restart never counts twice. A hold is taken only while the new
 // total stays within the limit — one conditional update, so two machines
-// asking at once can't both go over.
+// asking at once can't both go over. The day is the database server's UTC
+// day and a hold's time the server's (D360): computers whose clocks differ
+// near midnight still count against one day's limit, and none lets go of a
+// hold another computer took a moment ago.
 
 func micros(usd float64) int64 { return int64(math.Round(usd * 1e6)) }
 
@@ -64,12 +67,16 @@ func loadLedger(ctx context.Context, a *app.App, scope, key string) ledger {
 
 // take holds amount in one ledger when the total stays within limit (limit < 0: no limit).
 func take(ctx context.Context, a *app.App, id, genID string, amount, limit int64) (bool, error) {
+	at, err := Now(ctx, a) // ReleaseOrphans on any computer compares it
+	if err != nil {
+		return false, err
+	}
 	filter := bson.M{"_id": id, "holds.id": bson.M{"$ne": genID}}
 	if limit >= 0 {
 		filter["$expr"] = bson.M{"$lte": bson.A{bson.M{"$add": bson.A{"$spentMicros", "$heldMicros", amount}}, limit}}
 	}
 	res, err := a.DB.C(store.CGenSpend).UpdateOne(ctx, filter, bson.M{"$inc": bson.M{"heldMicros": amount},
-		"$push": bson.M{"holds": hold{ID: genID, Micros: amount, At: time.Now().UTC()}}, "$set": bson.M{"updatedAt": time.Now().UTC()}})
+		"$push": bson.M{"holds": hold{ID: genID, Micros: amount, At: at}}, "$set": bson.M{"updatedAt": at}})
 	if err != nil {
 		return false, err
 	}
@@ -111,7 +118,8 @@ type limits struct {
 
 // Reserve sets money aside for a generation before it is sent: against the
 // day's cap and the project's budget. It refuses, in plain words, when either
-// would be exceeded.
+// would be exceeded. now is the database server's time (Now): its UTC day is
+// the ledger's.
 func Reserve(ctx context.Context, a *app.App, projectID, genID string, usd float64, now time.Time) (*models.GenBudget, error) {
 	st, err := loadSettings(ctx, a, projectID)
 	if err != nil {
@@ -126,7 +134,8 @@ func reserveWith(ctx context.Context, a *app.App, st *settings, projectID, genID
 
 // ReserveWork sets money aside for AI work of another kind than video
 // (D226): against the same day's limit and project budget as generated
-// video. what names the kind of work for the refusal ("AI music").
+// video. what names the kind of work for the refusal ("AI music"); now is
+// the database server's time (Now).
 func ReserveWork(ctx context.Context, a *app.App, projectID, genID string, usd float64, now time.Time, what string) (*models.GenBudget, error) {
 	st, err := loadSettings(ctx, a, projectID)
 	if err != nil {
@@ -208,6 +217,7 @@ func Settle(ctx context.Context, a *app.App, g *models.Generation, usd float64, 
 
 // BudgetView is a project's budget and today's limit with what counts
 // against them (generated video and every other kind of AI work, D226).
+// now is the database server's time (Now): today is its UTC day.
 func BudgetView(ctx context.Context, a *app.App, projectID string, now time.Time) (GenBudgetView, error) {
 	st, err := loadSettings(ctx, a, projectID)
 	if err != nil {
@@ -239,16 +249,22 @@ func budgetView(ctx context.Context, a *app.App, st *settings, projectID string,
 // ReleaseOrphans lets go of holds older than an hour whose generation was
 // never saved (the process stopped between the reservation and the record),
 // so a crash never keeps money set aside for ever. Holds of saved
-// generations are settled by their jobs.
+// generations are settled by their jobs. An hour by the database server's
+// clock (D360): a computer whose clock runs ahead never lets go of a hold
+// another computer took for a generation it is still saving.
 func ReleaseOrphans(ctx context.Context, a *app.App) (int, error) {
+	now, err := Now(ctx, a)
+	if err != nil {
+		return 0, err
+	}
 	var ls []ledger
-	if err := a.DB.Find(ctx, store.CGenSpend, a.WorkspaceID(), bson.M{"holds.at": bson.M{"$lt": time.Now().Add(-time.Hour)}}, &ls); err != nil {
+	if err := a.DB.Find(ctx, store.CGenSpend, a.WorkspaceID(), bson.M{"holds.at": bson.M{"$lt": now.Add(-time.Hour)}}, &ls); err != nil {
 		return 0, err
 	}
 	n := 0
 	for _, l := range ls {
 		for _, h := range l.Holds {
-			if time.Since(h.At) < time.Hour {
+			if now.Sub(h.At) < time.Hour {
 				continue
 			}
 			var g models.Generation

@@ -379,7 +379,16 @@ func textState(ctx context.Context, a *app.App, assetID string) (textNow, error)
 		return textNow{}, nil
 	}
 	l := d.TextFixes.Lock
-	return textNow{rev: d.TextFixes.Rev, busy: l != nil && l.Until.After(time.Now())}, nil
+	if l == nil {
+		return textNow{rev: d.TextFixes.Rev}, nil
+	}
+	// The lease ends by the database server's clock (lock): another
+	// computer's fix is under way until then, whatever this clock says.
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return textNow{}, err
+	}
+	return textNow{rev: d.TextFixes.Rev, busy: l.Until.After(now)}, nil
 }
 
 // settleRev says which transcript revision the words a version is saved with

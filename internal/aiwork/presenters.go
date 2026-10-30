@@ -176,7 +176,10 @@ func startPresenter(ctx context.Context, a *app.App, in *PresenterStartIn) (*Pre
 	if err != nil {
 		return nil, err
 	}
-	now := nowFn()
+	now, err := planNow(ctx, a)
+	if err != nil {
+		return nil, err
+	}
 	c, err := choose(ctx, a, in.ProjectID, aiservices.KindPresenterMake, in.Model, now)
 	if err != nil {
 		return nil, err
@@ -235,7 +238,19 @@ func askWords(ctx context.Context, a *app.App, ad aiservices.Adapter, key, name,
 	if err != nil {
 		return nil, providerErr(err)
 	}
-	return &models.PresenterChallenge{ID: ch.ID, Words: ch.Words(name), Language: ch.Language, AskedAt: now, ExpiresAt: ch.ExpiresAt, Machine: a.Cfg.Installation.Name}, nil
+	// The words' end is kept in the database server's time (D360): the
+	// adapter says it by this computer's clock, and whichever computer makes
+	// the presenter or shows the words compares it with the server's.
+	exp := ch.ExpiresAt
+	if exp != nil {
+		srv, err := generate.Now(ctx, a)
+		if err != nil {
+			return nil, err
+		}
+		e := srv.Add(time.Until(*exp))
+		exp = &e
+	}
+	return &models.PresenterChallenge{ID: ch.ID, Words: ch.Words(name), Language: ch.Language, AskedAt: now, ExpiresAt: exp, Machine: a.Cfg.Installation.Name}, nil
 }
 
 // providerErr says a provider's error in MetaRush's terms.
@@ -268,7 +283,10 @@ func presenterWords(ctx context.Context, a *app.App, pr *models.Presenter, langu
 	if err != nil {
 		return nil, err
 	}
-	now := nowFn()
+	now, err := planNow(ctx, a)
+	if err != nil {
+		return nil, err
+	}
 	ch, err := askWords(ctx, a, ad, key, pr.PersonName, firstNonEmpty(language, langOf(pr.Challenge)), now)
 	if err != nil {
 		return nil, err
@@ -358,7 +376,11 @@ func makePresenter(ctx context.Context, a *app.App, in *PresenterMakeIn) (*Prese
 		return nil, apperr.New(apperr.Conflict, "“%s” is made already (%s).", pr.Title, pr.State)
 	}
 	k, _ := aiservices.KindOf(aiservices.KindPresenterMake)
-	p := &plan{kind: k, projectID: in.ProjectID, now: nowFn(), personID: pr.PersonID}
+	now, err := planNow(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	p := &plan{kind: k, projectID: in.ProjectID, now: now, personID: pr.PersonID}
 	if err := p.base(ctx, a, pr.Provider+"/"+pr.Model); err != nil {
 		return nil, err
 	}
@@ -517,8 +539,7 @@ func makePresenter(ctx context.Context, a *app.App, in *PresenterMakeIn) (*Prese
 		return out, nil
 	}
 	// What it was made from; the state stays as the job left it.
-	now := time.Now().UTC()
-	set := bson.M{"consentId": p.consentIDs[0], "take": pr.Take, "trainingId": run.Work.ID, "updatedAt": now}
+	set := bson.M{"consentId": p.consentIDs[0], "take": pr.Take, "trainingId": run.Work.ID, "updatedAt": time.Now().UTC()}
 	if pr.Reading != nil {
 		set["reading"] = pr.Reading
 	}
@@ -567,14 +588,18 @@ func approvePresenter(ctx context.Context, a *app.App, in *PresenterDecideIn) (*
 	if err != nil {
 		return nil, err
 	}
+	now, err := planNow(ctx, a)
+	if err != nil {
+		return nil, err
+	}
 	switch pr.State {
 	case models.PresenterApproved:
 		return &PresenterOut{Presenter: presenterView(ctx, a, pr, false), Summary: "It was approved already."}, nil
 	case models.PresenterDraft:
 	default:
-		return nil, apperr.New(apperr.Conflict, "“%s” can't be approved: %s", pr.Title, lowerFirst(stateWords(pr)))
+		return nil, apperr.New(apperr.Conflict, "“%s” can't be approved: %s", pr.Title, lowerFirst(stateWords(pr, now)))
 	}
-	if c, why := presenterConsent(ctx, a, pr, pr.ConsentID, "", nowFn()); c == nil {
+	if c, why := presenterConsent(ctx, a, pr, pr.ConsentID, "", now); c == nil {
 		return nil, apperr.New(apperr.ConsentRequired, "%s", why)
 	}
 	tested := false
@@ -586,7 +611,6 @@ func approvePresenter(ctx context.Context, a *app.App, in *PresenterDecideIn) (*
 	if !tested {
 		return nil, apperr.New(apperr.Conflict, "Test “%s” first: make a test clip of it reading a line (priced first) and watch it.", pr.Title).WithCommand("metarush presenter test " + pr.Name + " --clip <clip>")
 	}
-	now := time.Now().UTC()
 	actor := a.Actor
 	res, err := a.DB.C(store.CPresenters).UpdateOne(ctx, bson.M{"_id": pr.ID, "workspaceId": a.WorkspaceID(), "state": models.PresenterDraft},
 		bson.M{"$set": bson.M{"state": models.PresenterApproved, "approvedAt": now, "approvedBy": actor, "updatedAt": now}})
@@ -601,10 +625,12 @@ func approvePresenter(ctx context.Context, a *app.App, in *PresenterDecideIn) (*
 	return &PresenterOut{Presenter: presenterView(ctx, a, pr, false), Summary: fmt.Sprintf("Approved “%s”. It can read lines in clips now, priced first like any AI work.", pr.Title)}, nil
 }
 
-func stateWords(pr *models.Presenter) string {
+// stateWords says where a presenter stands; now is the database server's
+// time, as the consent words' end is (askWords).
+func stateWords(pr *models.Presenter, now time.Time) string {
 	switch pr.State {
 	case models.PresenterWaiting:
-		if pr.Challenge != nil && pr.Challenge.ExpiresAt != nil && time.Now().After(*pr.Challenge.ExpiresAt) {
+		if pr.Challenge != nil && pr.Challenge.ExpiresAt != nil && now.After(*pr.Challenge.ExpiresAt) {
 			return fmt.Sprintf("Waiting for %s's training take; %s's consent words have expired, so ask for new ones first.", pr.PersonName, pr.ProviderTitle)
 		}
 		return fmt.Sprintf("Waiting for %s's training take.", pr.PersonName)
@@ -631,9 +657,9 @@ func stateWords(pr *models.Presenter) string {
 
 // presenterView is a presenter with what people read about it.
 func presenterView(ctx context.Context, a *app.App, pr *models.Presenter, detail bool) PresenterView {
-	v := PresenterView{Presenter: *pr, Summary: fmt.Sprintf("“%s”, %s's presenter at %s. %s", pr.Title, pr.PersonName, pr.ProviderTitle, stateWords(pr)), Link: links.Person(pr.PersonID)}
+	now := generate.StampNow(ctx, a) // the consent words end by the server's clock (askWords)
+	v := PresenterView{Presenter: *pr, Summary: fmt.Sprintf("“%s”, %s's presenter at %s. %s", pr.Title, pr.PersonName, pr.ProviderTitle, stateWords(pr, now)), Link: links.Person(pr.PersonID)}
 	_, terms, _ := presenterTerms(pr.Provider)
-	now := time.Now().UTC()
 	switch pr.State {
 	case models.PresenterWaiting, models.PresenterFailed:
 		if terms != nil {

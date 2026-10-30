@@ -183,7 +183,12 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 	// money set aside without a generation, or a generation without its job.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
-	now := time.Now().UTC()
+	// The server's time (D360): the sweeps on every computer compare
+	// createdAt, and the day's limit is the server's day.
+	now, err := Now(ctx, a)
+	if err != nil {
+		return nil, err
+	}
 	group, take := "", 1
 	if p.parent != nil && (p.op == models.GenAgain || p.op == models.GenVariation) {
 		group = p.parent.GroupID
@@ -194,7 +199,7 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 		for i := range made {
 			g := &made[i]
 			_, _ = a.Queue.RequestCancel(context.WithoutCancel(ctx), g.JobID)
-			_ = setOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenCanceled, At: time.Now().UTC(), Message: "Stopped: the other takes didn't fit the budget.",
+			_ = setOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenCanceled, At: StampNow(ctx, a), Message: "Stopped: the other takes didn't fit the budget.",
 				Actual: &models.GenCost{Basis: "none"}})
 			_ = Settle(context.WithoutCancel(ctx), a, g, 0, "")
 		}
@@ -243,7 +248,7 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 			ProjectID: p.projectID, Actor: a.Actor, Installation: a.Cfg.Installation.ID,
 			Payload: map[string]any{"generationId": g.ID, "what": what(&g), "seconds": g.Params.Seconds, "resolution": g.Params.Resolution, "provider": g.ProviderTitle, "costUsd": g.Estimate.USD, "take": g.Take}})
 		if err != nil {
-			_ = setOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenFailed, At: time.Now().UTC(), Message: "MetaRush couldn't queue it.", Actual: &models.GenCost{Basis: "none"}})
+			_ = setOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenFailed, At: StampNow(ctx, a), Message: "MetaRush couldn't queue it.", Actual: &models.GenCost{Basis: "none"}})
 			_ = Settle(context.WithoutCancel(ctx), a, &g, 0, "")
 			undo()
 			return nil, err
@@ -331,7 +336,10 @@ func testLook(ctx context.Context, a *app.App, in *LookTestIn) (*GenRunOut, erro
 	if err != nil {
 		return nil, err
 	}
-	now := nowFn()
+	now, err := Now(ctx, a)
+	if err != nil {
+		return nil, err
+	}
 	var plans []*plan
 	total := 0.0
 	for _, pr := range prompts {

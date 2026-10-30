@@ -81,7 +81,10 @@ type plan struct {
 	now      time.Time
 }
 
-var nowFn = func() time.Time { return time.Now().UTC() }
+// planNow is the time a plan is made by: the database server's (D360), so a
+// consent in force, a price's date and today's limit read the same on every
+// computer.
+func planNow(ctx context.Context, a *app.App) (time.Time, error) { return generate.Now(ctx, a) }
 
 func (p *plan) addConsent(c *models.Consent) {
 	for _, id := range p.consentIDs {
@@ -124,7 +127,11 @@ func planMake(ctx context.Context, a *app.App, in *MakeIn) (*plan, error) {
 	case aiservices.KindPresenter:
 		return planPresenter(ctx, a, in, false)
 	}
-	p := &plan{kind: k, projectID: in.ProjectID, noPeople: in.NoPeople, use: in.Use, feature: in.Feature, genID: in.ID, now: nowFn()}
+	now, err := planNow(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	p := &plan{kind: k, projectID: in.ProjectID, noPeople: in.NoPeople, use: in.Use, feature: in.Feature, genID: in.ID, now: now}
 	if err := p.base(ctx, a, in.Model); err != nil {
 		return nil, err
 	}
@@ -409,7 +416,11 @@ func (p *plan) mayLeave(ctx context.Context, a *app.App) error {
 // planCopy works out a voice copy (D227).
 func planCopy(ctx context.Context, a *app.App, in *CopyIn) (*plan, error) {
 	k, _ := aiservices.KindOf(aiservices.KindVoiceCopy)
-	p := &plan{kind: k, projectID: in.ProjectID, now: nowFn()}
+	now, err := planNow(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	p := &plan{kind: k, projectID: in.ProjectID, now: now}
 	if err := p.base(ctx, a, in.Model); err != nil {
 		return nil, err
 	}

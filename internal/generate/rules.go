@@ -2,7 +2,6 @@ package generate
 
 import (
 	"context"
-	"time"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
@@ -57,9 +56,17 @@ func TouchedBy(ctx context.Context, a *app.App, projectID string, refs []models.
 }
 
 // ConsentsHold reports whether every consent a request relies on is still in
-// force for its project (D126, D227).
+// force for its project (D126, D227), by the database server's clock (D360):
+// the computer sending or keeping it says the same as the one that asked.
+// Without the server's time it is Unreadable, never a refusal.
 func ConsentsHold(ctx context.Context, a *app.App, g *models.Generation) error {
-	now := time.Now().UTC()
+	if len(g.ConsentIDs) == 0 {
+		return nil
+	}
+	now, err := Now(ctx, a)
+	if err != nil {
+		return err
+	}
 	for _, id := range g.ConsentIDs {
 		c, err := loadConsent(ctx, a, id)
 		if err != nil && !ConsentGone(err) {

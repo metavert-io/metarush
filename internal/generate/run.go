@@ -588,9 +588,10 @@ func fileName(title string) string {
 	return n + ".mp4"
 }
 
-// end writes the outcome once (and the actual cost).
+// end writes the outcome once (and the actual cost), at the database
+// server's time (D360): other computers compare it.
 func (r *runner) end(ctx context.Context, oc *models.GenOutcome, actual *models.GenCost) {
-	oc.At = time.Now().UTC()
+	oc.At = StampNow(ctx, r.a)
 	if actual != nil && actual.Basis != "" {
 		oc.Actual = actual
 	}
@@ -736,10 +737,11 @@ func firstLine(s string) string {
 
 // Sweep closes generations whose job ended without an outcome (stopped while
 // still waiting to start, or given up on) and lets go of money held for
-// requests that were never saved. The daemon runs it every few minutes.
+// requests that were never saved. The daemon runs it every few minutes. A
+// generation's age is the database server's (D360): every computer sweeps.
 func Sweep(ctx context.Context, a *app.App) int {
 	var gs []models.Generation
-	_ = a.DB.Find(ctx, store.CGenerations, a.WorkspaceID(), bson.M{"outcome": bson.M{"$exists": false}, "createdAt": bson.M{"$lt": time.Now().Add(-time.Minute)},
+	_ = a.DB.Find(ctx, store.CGenerations, a.WorkspaceID(), bson.M{"outcome": bson.M{"$exists": false}, "$and": bson.A{store.StaleBefore("createdAt", time.Minute)},
 		"kind": bson.M{"$in": models.VideoKinds}}, &gs)
 	n := 0
 	for i := range gs {

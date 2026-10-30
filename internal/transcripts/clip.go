@@ -73,17 +73,19 @@ var ErrNoTranscript = errors.New("no transcript")
 const lockFor = 30 * time.Second
 
 // lock takes the clip's short lease (waiting up to ~15 s for another change
-// to finish) and returns the asset as it is now.
+// to finish) and returns the asset as it is now. The lease ends and is looked
+// at by the database server's clock (D360): a computer whose clock runs
+// ahead would otherwise take a lease another still holds, and one behind
+// would write a lease that has already ended.
 func lock(ctx context.Context, a *app.App, assetID string) (*models.Asset, string, error) {
 	token := ids.New(ids.FixBatch)
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		now := time.Now().UTC()
 		var as models.Asset
 		err := a.DB.C(store.CAssets).FindOneAndUpdate(ctx,
 			bson.M{"_id": assetID, "workspaceId": a.WorkspaceID(), "$or": bson.A{
-				bson.M{"textFixes.lock": bson.M{"$exists": false}}, bson.M{"textFixes.lock": nil}, bson.M{"textFixes.lock.until": bson.M{"$lt": now}}}},
-			bson.M{"$set": bson.M{"textFixes.lock": models.TranscriptLock{Token: token, Until: now.Add(lockFor)}}},
+				bson.M{"textFixes.lock": bson.M{"$exists": false}}, bson.M{"textFixes.lock": nil}, store.StaleBefore("textFixes.lock.until", 0)}},
+			bson.A{bson.M{"$set": bson.M{"textFixes.lock": bson.M{"token": bson.M{"$literal": token}, "until": store.ServerTimeIn(lockFor)}}}},
 			options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&as)
 		if err == nil {
 			return &as, token, nil

@@ -35,12 +35,15 @@ const GreenScreen = "#00b140"
 // approved (its test clips, people only).
 func planPresenter(ctx context.Context, a *app.App, in *MakeIn, test bool) (*plan, error) {
 	k, _ := aiservices.KindOf(aiservices.KindPresenter)
-	p := &plan{kind: k, projectID: in.ProjectID, now: nowFn()}
+	now, err := planNow(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	p := &plan{kind: k, projectID: in.ProjectID, now: now}
 	// The sound it reads.
 	var as *models.Asset
 	var from, to float64
 	voice := ""
-	var err error
 	switch {
 	case in.Line > 0:
 		if in.Clip != "" {
@@ -108,7 +111,7 @@ func planPresenter(ctx context.Context, a *app.App, in *MakeIn, test bool) (*pla
 		case pr.State == models.PresenterRetired:
 			return nil, apperr.New(apperr.ConsentRequired, "“%s” was retired, so nothing more is made with it.", pr.Title)
 		case !pr.Usable(test):
-			msg := fmt.Sprintf("“%s” isn't approved yet: %s", pr.Title, lowerFirst(stateWords(pr)))
+			msg := fmt.Sprintf("“%s” isn't approved yet: %s", pr.Title, lowerFirst(stateWords(pr, p.now)))
 			return nil, apperr.New(apperr.Conflict, "%s", msg).WithCommand("metarush presenter show " + pr.Name)
 		}
 		var look models.GenLook

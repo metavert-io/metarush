@@ -1081,8 +1081,19 @@ Read `docs/architecture.md` before structural changes.
   `dbmove.Recheck` under the freeze (late collections, source hashes again) → marker `moved` **before** `switchDatabase` (keychain/.env, previous kept aside, config.yaml's
   `database` section, checked as loaded) → `recordMove` into the new database. No job (the old database is frozen):
   progress is `<state>/database-move/<id>.json`; the dashboard starts `database move --dashboard-move <id>` with
-  `tools.Start` and a one-time grant like the media's move. Never deletes either database. Browser run
-  `scripts/database-move-e2e.sh` (ports 5690–5699).
+  `tools.Start` and a one-time grant like the media's move. Never deletes either database. **Something written late**
+  (D352–D358, `internal/dbmove/late.go`, `internal/ops/databasemove_late.go`, `web/src/screens/settings/DatabaseLateWrites.tsx`):
+  the last look's read keeps every record's fingerprint (`RecheckPrinting` → `<state>/database-move/<move>.prints`)
+  and the move keeps the old address (`keepLookAddress`: keychain `database-late-<move>` / `database/late-<move>.secret`,
+  never `forgetUnneededAddress`'s); the moving computer looks right after its switch (`startLateLooks`, also after a
+  `database.switch` of its own), then at `LateLookAfter` (15 min, 1 h, 24 h; the daemon's `RunLateLooks` →
+  `LookDueLate`, retries, ends `LateLookGrace` after) and on demand (`database.late.writes` `look`, owners, any
+  surface, "-" in readsShow); `dbmove.Look` only reads (`dbHash` per kind, changed kinds in `_id` ranges + a count);
+  records `late_looks`/`late_writes` (migration 62; `late_writes` left out of exports), bell `late_writes` only when
+  something is found; `database.late.show|carry|leave` OwnerOnly + HumanOnly + `databasePeopleOnly`, the CLI
+  `lateAtTerminal`; carry = check and set on the whole record (`$$ROOT` vs `$literal`), gone records never removed;
+  the address and prints dropped after the last look (`endLateLooks`). Browser run
+  `scripts/database-move-e2e.sh` (ports 5690–5699; a late write by `scripts/latewrite`).
 - **Handing a computer's role to another computer** (D344–D348, `internal/handover`, `internal/assistant/handover.go`,
   `claudepaths.go`, `web/src/screens/settings/Handover.tsx`, docs/handover.md): `machine.handover.plan|status|export|
   receive|abandon|clean` and `machine.takeover` (`metarush machine handover …`, `machine take-over`), OwnerOnly +
@@ -1173,7 +1184,7 @@ scripts/ship-gate-e2e.sh                                  # the ship gate and pr
 scripts/windows-e2e.sh                                    # the dashboard as Windows 11 uses it: Windows file names, folders, downloads, line endings, Ctrl (D247; ports 5440–5449; Edge when installed)
 scripts/presenters-e2e.sh                                 # presenters with the fake D-ID and HeyGen: a test clip, approve, a clip, a stock clip, consent words, No presenters, retire (D273–D277; ports 5510–5519)
 scripts/workspace-export-e2e.sh                           # Settings → Storage → Export the workspace, then a CLI restore into a fresh home and the dashboard on the copy (D329–D333; ports 5670–5679)
-scripts/database-move-e2e.sh                              # Settings → Storage → Move the database with a second computer: the plan, changes refused while it moves, the switch on both (D334–D338; ports 5690–5699)
+scripts/database-move-e2e.sh                              # Settings → Storage → Move the database with a second computer: the plan, changes refused while it moves, the switch on both, a late write found and carried over (D334–D338, D352–D358; ports 5690–5699)
 scripts/components-e2e.sh                                 # only the required components, then Settings → Components and Getting started's Add it with a stand-in Homebrew (D324–D327; ports 5650–5659)
 scripts/resources-e2e.sh                                  # the Add box, Inbox clips dragged onto project cards, the Sources "…" menu, Delete…, a nested cut (D79–D84; ports 5660–5669)
 scripts/handover-e2e.sh                                   # two computers: the dry run in Settings → Storage, the handover file at a terminal, receive, the conversation going on in the same session, the old computer stepping down to a client, clean (D344–D348; ports 5710–5719)

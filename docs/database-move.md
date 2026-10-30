@@ -31,7 +31,9 @@ its `database` folder), so `--to saved` uses it again: to continue a move, or af
 needs it: a plan that can't go ahead, a move refused before anything paused and an abandoned move forget it (a move
 that stopped part-way keeps it to continue; the sign-in MetaRush made for the database on this computer is that
 computer's own and stays). Once the computer switches it moves to where MetaRush keeps the database's address (`mongodb-uri` in the keychain, or the home's `.env`), and the old
-address is kept aside (`mongodb-uri-previous`, or `database/previous.secret`).
+address is kept aside (`mongodb-uri-previous`, or `database/previous.secret`). The computer that moved also keeps the
+old database's address for its looks at it afterwards (below) — `database-late-<move>` in the keychain, or
+`database/late-<move>.secret` — only until the last look, then drops it.
 
 Each computer uses **its own** sign-in: a database user of its own (in Atlas: Database Access → Add New Database User),
 never another computer's. Sign-ins are never copied between computers.
@@ -140,6 +142,47 @@ metarush database move-status                         # what this computer uses,
 or type its address into the card's switch form. MetaRush checks the address reaches the very copy the move made (the
 new database's lock names the move), switches, and starts again with it.
 
+## Something written late
+
+Closing the old database for good at the very moment it is marked moved would take a transaction around every
+change MetaRush makes. Without one there is a small gap: a change a computer sent just before it went to sleep for
+more than about 15 seconds (longer than the move waits for a running change to say it still runs) can still land in
+the old database after the move marked it moved — and nobody would ever see it there. So the computer that moved the database looks at the old
+one again and says what it finds:
+
+- **when**: right after it switched (the move itself), then about **15 minutes, an hour and a day** after the move
+  (MetaRush running in the background on that computer; a computer asleep at those times looks when it wakes), and
+  whenever an owner asks (`metarush database late-writes`, or *Look again now* in the card). A look that can't reach
+  the old database is tried again every ten minutes; a day after the last look was due, the looks end anyway.
+- **what**: every kind of record, compared with fingerprints of every record that the move's last look took under the
+  freeze (kept on the computer that moved, in its `state/database-move` folder, until the last look): records
+  **added** there since, **changed** and **removed**. The old database server's own hash of each kind of record says
+  first whether anything changed at all, without sending anything over the network; only a kind that changed is read
+  again, in ranges of record IDs, and counted to be sure nothing was missed. Sign-in links, which end by themselves,
+  are never reported as removed. **A look only reads the old database**: it never writes to it.
+- **what you see**: nothing at all when nothing was found. Otherwise owners' bells ring once (refreshed as more is
+  found): which kinds of record were added, changed or removed, about when (as the record says), and on which computer
+  when the record says. Settings → Storage → Move the database lists them, numbered; `metarush database late-writes`
+  too, and `move-status` and the card say when the next look is.
+- **deciding** (owners, and a person: never Auto, Claude, an app connected through MCP or a draft on the review desk;
+  in a terminal, a person at their own): *Carry it over* puts the old database's version into this database — only
+  while this database's own record is still exactly the one the move copied (checked and set in one step). When it
+  changed here too, or another record took its place, nothing changes: both versions are shown side by side (*Compare*,
+  `late-writes show <n>`) and you decide. *Leave it* keeps this database's own. A record **removed** from the old
+  database is never removed here by MetaRush: if it should go, remove it here yourself, then leave it. Each decision is
+  in the change history and the activity log.
+
+```bash
+metarush database late-writes            # look again now (on the computer that moved, while it keeps the address) and list
+metarush database late-writes show 2     # the old database's version beside this database's
+metarush database late-writes carry 2    # carry it over (asks first; --yes)
+metarush database late-writes leave --all
+```
+
+After the last look MetaRush drops the old database's address and the fingerprints; what was found stays in the list
+(and its copies stay to carry over). A workspace export leaves those copies out: they may be any kind of record,
+passwords included.
+
 ## Client rules
 
 The database holds clients' words — transcripts, names, notes — and the **voice and face prints** MetaRush knows their
@@ -160,9 +203,12 @@ your network are fine.
 | `metarush database switch --to address\|env:NAME\|saved\|here [--name]` | Switch this computer after another one moved the workspace, or after its own switch didn't hold (owners, a person at this computer) |
 | `metarush database abandon [--yes]` | Lift the pause of a move that stopped (owners, a person) |
 | `metarush database move-status` | Which database this computer uses; a move under way or done; what to do here |
+| `metarush database late-writes [--no-look]` | Look at the old database again for anything written there after the move (on the computer that moved), and list what was found (owners) |
+| `metarush database late-writes show\|carry\|leave <n>… [--all]` | Compare both versions of one / carry it over (only while this database's own is the one the move copied) / leave it (owners, a person at a terminal) |
 
 Every command takes `--json` and `--details`. The operations are `database.plan`, `database.move`, `database.switch`,
-`database.abandon` and `database.move.status`; MCP's admin toolset offers the plan and the status.
+`database.abandon`, `database.move.status`, `database.late.writes`, `database.late.show`, `database.late.carry` and
+`database.late.leave`; MCP's admin toolset offers the plan, the status and the list of what was written late.
 
 ## For developers
 
@@ -195,6 +241,16 @@ Every command takes `--json` and `--details`. The operations are `database.plan`
   build after the record's (`olderBuildLogged`).
 - `internal/cli/daemon.go` — `watchForMove` and `serveHeld` (`api.NewHeld`: reads only, `heldGuard` refuses other
   changes); the terminal worker stops.
-- Tests: `go test ./internal/dbmove/ ./internal/ops/ -run 'TestDatabaseMove|TestCopy'`, `./internal/cli -run
+- `internal/dbmove/late.go`, `internal/ops/databasemove_late.go` — something written late: `RecheckPrinting` takes
+  every record's fingerprint (`_id` and the first 16 bytes of the SHA-256 of its export line, per kind the server's
+  `dbHash`, in a gzip'd file `<state>/database-move/<move>.prints`) in the same read as the last look; `Look` reads only
+  the old database (`dbHash` per kind, then the changed kinds in `_id` ranges of 1,000 fingerprints, one range per
+  type of `_id`, the rest past them, and a count; a count that doesn't add up reads the whole kind against every
+  fingerprint); the old database's address for the looks (`keepLookAddress`: keychain `database-late-<move>` or
+  `database/late-<move>.secret`), dropped with the fingerprints after the last look (`endLateLooks`). Records:
+  `late_looks` (per move: due times by the moving computer's clock, looks taken) and `late_writes` (`lwr_…`, per
+  record found: the old version up to 8 MB, its fingerprint and the move's); bell `late_writes`; `RunLateLooks` in the
+  daemon; carry-over by check and set (`$expr: {$eq: ["$$ROOT", {$literal: <the record read>}]}`).
+- Tests: `go test ./internal/dbmove/ ./internal/ops/ -run 'TestDatabaseMove|TestCopy|TestLook|TestLate'`, `./internal/cli -run
   TestDatabaseMove` (with a second computer's home; into this computer's own database with a real `mongod`), and the
   browser run `scripts/database-move-e2e.sh` (ports 5690–5699).

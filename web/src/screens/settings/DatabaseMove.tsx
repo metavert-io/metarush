@@ -17,6 +17,7 @@ import type {
   DatabaseSwitchOut,
 } from '../../api/types';
 import { useDialog } from '../../ui/Dialog';
+import { LateWrites } from './DatabaseLateWrites';
 import { useToast } from '../../ui/Toast';
 import { Badge, Button, CopyBlock, cx, Details, ErrorPanel, Spinner, Theirs } from '../../ui/primitives';
 
@@ -84,6 +85,7 @@ export function DatabaseMove() {
             onContinue={host.remote || !s.run ? undefined : () => setOpen({ initial: formOf(s) })}
             onChanged={() => void st.refetch()}
           />
+          {s.late ? <LateWrites late={s.late} onChanged={() => void st.refetch()} /> : null}
           {host.remote ? (
             <p className="mt-3 max-w-[78ch] text-[13px] leading-relaxed text-muted" data-database-elsewhere="">
               Moving the database starts on <Theirs>{host.machine}</Theirs> itself, where MetaRush runs and keeps its sign-ins.

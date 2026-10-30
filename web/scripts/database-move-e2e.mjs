@@ -12,11 +12,15 @@
 //   3. on the other computer the page says the workspace moved, a change is
 //      refused ("switch this computer too"), and switching with its own
 //      address (typed once, never shown again) brings it to the new database;
-//   4. no native dialogs, page errors or horizontal overflow; the cards in
+//   4. a project written straight into the old database after the move (a
+//      computer that slept through it) is found by the studio's next look,
+//      shown on its card in plain words with the bell, compared, and carried
+//      over after a styled dialog (D352–D358);
+//   5. no native dialogs, page errors or horizontal overflow; the cards in
 //      plain words. Screenshots: desktop dark and light, phone, in
 //      DATABASE_SHOTS.
 // It CHANGES both installations, so point it only at throwaway ones.
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +29,7 @@ import { checkShown } from './plainwords.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..');
-const need = ['METARUSH_DASHBOARD_A', 'METARUSH_MINT_A', 'METARUSH_DASHBOARD_B', 'METARUSH_MINT_B', 'DATABASE_ADDRESS', 'DATABASE_NEW', 'DATABASE_SHOTS'];
+const need = ['METARUSH_DASHBOARD_A', 'METARUSH_MINT_A', 'METARUSH_DASHBOARD_B', 'METARUSH_MINT_B', 'DATABASE_ADDRESS', 'DATABASE_NEW', 'DATABASE_OLD', 'DATABASE_LATE_WRITER', 'DATABASE_SHOTS'];
 for (const k of need) {
   if (!process.env[k]) {
     console.error(`set ${need.join(', ')} (scripts/database-move-e2e.sh does)`);
@@ -249,6 +253,36 @@ async function main() {
   await shot(a, 'database-done-desktop-dark');
   const made = await op(a, 'project.create', { name: 'Summer after the move' });
   check('a change on the studio works in the new database', made.ok, made.error?.message);
+
+  /* ---------- something written into the old database late ---------- */
+  const late = sec.locator('[data-database-late]');
+  await late.waitFor({ timeout: 30_000 });
+  check('the card says MetaRush looks at the old database again', /looks at the old database|Nothing was written/.test(await late.innerText()), (await late.innerText()).split('\n')[1]);
+  // A computer that slept through the move: one project lands in the old database now.
+  execFileSync(process.env.DATABASE_LATE_WRITER, [address, process.env.DATABASE_OLD, 'Written after the move'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  await late.getByRole('button', { name: 'Look again now' }).click();
+  const item = sec.locator('[data-database-late-item="waiting"]');
+  await item.waitFor({ timeout: 60_000 });
+  const itemText = await item.innerText();
+  check('the late write is on the card in plain words', itemText.includes('A project was added to the old database after the move'), itemText.split('\n').slice(0, 3).join(' '));
+  check('the card says it waits for a person', (await late.getAttribute('data-database-late')) === 'waiting');
+  await plain(a, 'the late write');
+  await late.scrollIntoViewIfNeeded();
+  await shot(a, 'database-late-write-desktop-dark');
+  const bell = await op(a, 'notification.list', {});
+  check('owners hear of it once, on the bell', bell.ok && bell.data.notifications.filter((n) => n.kind === 'late_writes').length === 1);
+  await item.getByRole('button', { name: 'Compare' }).click();
+  await item.locator('[data-database-late-both]').waitFor({ timeout: 20_000 });
+  check('both versions side by side', (await item.locator('[data-database-late-both]').innerText()).includes('Written after the move'));
+  await item.getByRole('button', { name: 'Carry it over' }).click();
+  const lateDlg = a.locator('[data-mr-dialog="open"]');
+  await lateDlg.waitFor();
+  check('a styled dialog asks before carrying it over', (await lateDlg.innerText()).includes('Carry it over?'));
+  await lateDlg.locator('button[type="submit"]').click();
+  await sec.locator('[data-database-late-item="carried"]').waitFor({ timeout: 30_000 });
+  const projects = await op(a, 'project.list', {});
+  check('the project written late is in the new database now', projects.ok && projects.data.projects.some((p) => p.name === 'Written after the move'));
+  await shot(a, 'database-late-carried-desktop-dark');
   {
     const { ctx, page } = await newPage(browser, { theme: 'light', state: stateA, label: 'studio light' });
     await open(page, `${process.env.METARUSH_DASHBOARD_A}/settings/storage#database`);

@@ -20,6 +20,7 @@ import (
 
 func databaseLateWritesCmd() *cobra.Command {
 	var noLook bool
+	var skip, limit int
 	cmd := &cobra.Command{
 		Use:   "late-writes",
 		Short: "Look at the old database again for anything written there after the workspace moved, and list what was found (owners)",
@@ -28,7 +29,10 @@ something into the old database, where nobody would see it. The computer that mo
 database again right after the move, then about 15 minutes, an hour and a day later, and says what it
 finds: records added, changed or removed there after the move. This command looks again now (on that
 computer, while it keeps the old database's address; --no-look only lists) and lists what was found,
-numbered. A look only reads the old database.
+numbered, the records of one clip's transcript or one fix as one. A look only reads the old database.
+
+Passwords, sign-in links and upload addresses are only reported: MetaRush keeps no copy of them, never
+shows them and never carries them over. Other copies are kept for 30 days for someone to decide.
 
 Then, a person at their own terminal:
   metarush database late-writes show 1     # the old database's version beside this database's
@@ -36,10 +40,12 @@ Then, a person at their own terminal:
   metarush database late-writes leave 1    # this database keeps its own`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
-			return runOp(c, "database.late.writes", ops.DatabaseLateWritesIn{Look: !noLook}, func(o any) { printLateWrites(c, o.(*ops.DatabaseLateWritesOut)) })
+			return runOp(c, "database.late.writes", ops.DatabaseLateWritesIn{Look: !noLook, Skip: skip, Limit: limit}, func(o any) { printLateWrites(c, o.(*ops.DatabaseLateWritesOut)) })
 		},
 	}
 	cmd.Flags().BoolVar(&noLook, "no-look", false, "only list what was found before; don't look at the old database now")
+	cmd.Flags().IntVar(&skip, "skip", 0, "a long list: start after this many")
+	cmd.Flags().IntVar(&limit, "limit", 0, "a long list: show at most this many (200 unless you say; at most 1,000)")
 	cmd.AddCommand(databaseLateShowCmd(), databaseLateCarryCmd(), databaseLateLeaveCmd())
 	return cmd
 }
@@ -72,8 +78,10 @@ func databaseLateCarryCmd() *cobra.Command {
 		Short: "Carry records written into the old database after the move over into this one — only while this database's own record is still the one the move copied (owners, a person at a terminal)",
 		Long: `Carries the old database's version of each record over into this database, only while this database's
 own record is still exactly the one the move copied. When it changed here too (or another record took
-its place), nothing changes: both versions are shown, and you decide. A record removed from the old
-database is never removed here by MetaRush: remove it yourself if it should go, then leave it.`,
+its place), nothing changes: both versions are shown, and you decide. The records of one clip's
+transcript or one fix go over together or not at all. A record removed from the old database is never
+removed here by MetaRush: remove it yourself if it should go, then leave it. Passwords, sign-in links
+and upload addresses are never carried over.`,
 		RunE: func(c *cobra.Command, args []string) error {
 			if len(args) == 0 && !all {
 				return fail(c, apperr.InvalidInput, "Say which ones: their numbers in the list (metarush database late-writes), or --all.", "")
@@ -106,7 +114,7 @@ database is never removed here by MetaRush: remove it yourself if it should go, 
 				r := out.(*ops.DatabaseLateCarryOut)
 				fmt.Println(r.Summary)
 				for _, f := range r.Refused {
-					fmt.Printf("  %d. %s %s\n", f.Found.N, f.Found.Says, f.Why)
+					fmt.Printf("  %d. %s\n", f.Found.N, f.Why)
 				}
 			})
 		},
@@ -183,8 +191,17 @@ func printLateWrites(c *cobra.Command, o *ops.DatabaseLateWritesOut) {
 
 func printLateShow(s *ops.DatabaseLateShowOut) {
 	fmt.Println(s.Summary)
+	if s.Found.ReportOnly {
+		return // nothing of a kind that holds sign-in secrets is ever shown
+	}
+	if s.Found.GroupSize > 1 {
+		fmt.Printf("This is the first of the %d records of %s.\n", s.Found.GroupSize, s.Found.GroupWhat)
+	}
 	if len(s.Differs) > 0 {
 		fmt.Println("They differ in: " + strings.Join(s.Differs, ", ") + ".")
+	}
+	if len(s.Hidden) > 0 {
+		fmt.Println("Left out, as MetaRush never shows them: " + strings.Join(s.Hidden, ", ") + ".")
 	}
 	side := func(title string, raw json.RawMessage) {
 		fmt.Println(title)

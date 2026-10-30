@@ -266,6 +266,7 @@ async function main() {
   const itemText = await item.innerText();
   check('the late write is on the card in plain words', itemText.includes('A project was added to the old database after the move'), itemText.split('\n').slice(0, 3).join(' '));
   check('the card says it waits for a person', (await late.getAttribute('data-database-late')) === 'waiting');
+  check('the card says how long its copy is kept', /keeps its copies for 30 days/.test(await late.innerText()) && /Its copy is kept until/.test(itemText));
   await plain(a, 'the late write');
   await late.scrollIntoViewIfNeeded();
   await shot(a, 'database-late-write-desktop-dark');

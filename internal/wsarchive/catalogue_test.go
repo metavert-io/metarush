@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/wsarchive"
 )
@@ -116,6 +117,27 @@ func TestEveryCollectionIsClassified(t *testing.T) {
 	for _, c := range wsarchive.Classify() {
 		if !strings.Contains(string(doc), "| `"+c.Name+"` |") {
 			t.Errorf("docs/workspace-export.md's table doesn't say what an export does with %s", c.Name)
+		}
+	}
+}
+
+// What an archive leaves out, what holds sign-in secrets and what MetaRush
+// doesn't know is only ever reported (something written into an old database
+// after a move): no copy, nothing shown, never carried over.
+func TestReportOnly(t *testing.T) {
+	for _, name := range []string{store.CUserCredentials, store.CAuthTokens, store.CAuthFailures, store.CIngest, store.CAbilitySetups, store.CLateWrites, "a_kind_nobody_knows"} {
+		if !wsarchive.ReportOnly(name) {
+			t.Errorf("%s isn't report-only", name)
+		}
+	}
+	for _, name := range []string{store.CComments, store.CProjects, store.CSegments, store.CReviewLinks, store.CUsers} {
+		if wsarchive.ReportOnly(name) {
+			t.Errorf("%s is report-only", name)
+		}
+	}
+	for name, e := range wsarchive.Catalogue {
+		if e.How == wsarchive.LeftOut && !wsarchive.ReportOnly(name) {
+			t.Errorf("%s is left out of an archive but carried over", name)
 		}
 	}
 }

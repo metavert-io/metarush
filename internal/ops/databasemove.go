@@ -663,6 +663,9 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 	if t.place.Cloud && !kept {
 		out.Notes = append(out.Notes, "The new database is elsewhere on the internet, which clients' What may leave rules count as cloud storage: it holds the workspace's transcripts, names and notes, and the voice and face prints MetaRush knows people by.")
 	}
+	if !lateServerHashesWork(ctx, a.DB) {
+		out.Notes = append(out.Notes, lateReadsAllNote())
+	}
 	if t.place.Kind == "server" && t.place.Words == "a MongoDB server on this computer" && others > 0 {
 		out.Notes = append(out.Notes, "The new database's address is on this computer: your other computers reach it only if the same address works on theirs (a tunnel, say).")
 	}

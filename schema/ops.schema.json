@@ -17394,6 +17394,12 @@
           },
           "type": "array"
         },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "summary": {
           "type": "string"
         }
@@ -17403,6 +17409,7 @@
       "required": [
         "carried",
         "refused",
+        "warnings",
         "summary"
       ]
     },
@@ -17472,6 +17479,12 @@
           },
           "type": "array"
         },
+        "hidden": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "summary": {
           "type": "string"
         }
@@ -17481,6 +17494,7 @@
       "required": [
         "found",
         "differs",
+        "hidden",
         "summary"
       ]
     },
@@ -17489,6 +17503,15 @@
         "look": {
           "type": "boolean",
           "description": "Look at the old database again now (on the computer that moved it, while it keeps the old database's address)."
+        },
+        "skip": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "maximum": 1000,
+          "minimum": 0
         }
       },
       "additionalProperties": false,
@@ -17514,6 +17537,9 @@
           },
           "type": "array"
         },
+        "total": {
+          "type": "integer"
+        },
         "waiting": {
           "type": "integer"
         },
@@ -17533,6 +17559,7 @@
         "looked",
         "moves",
         "found",
+        "total",
         "waiting",
         "summary",
         "steps"
@@ -29283,6 +29310,18 @@
         },
         "found": {
           "type": "integer"
+        },
+        "more": {
+          "type": "integer"
+        },
+        "settled": {
+          "type": "integer"
+        },
+        "partial": {
+          "type": "boolean"
+        },
+        "stopped": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -29342,6 +29381,21 @@
         "waiting": {
           "type": "integer"
         },
+        "more": {
+          "type": "integer"
+        },
+        "partial": {
+          "type": "boolean"
+        },
+        "stopped": {
+          "type": "string"
+        },
+        "readsAll": {
+          "type": "boolean"
+        },
+        "copyDays": {
+          "type": "integer"
+        },
         "summary": {
           "type": "string"
         }
@@ -29358,6 +29412,10 @@
         "ended",
         "found",
         "waiting",
+        "more",
+        "partial",
+        "readsAll",
+        "copyDays",
         "summary"
       ]
     },
@@ -29374,9 +29432,12 @@
           "enum": [
             "changed_here",
             "gone",
-            "too_large",
+            "report_only",
+            "no_copy",
             "decided",
-            "clash"
+            "clash",
+            "changed_again",
+            "not_all_listed"
           ]
         }
       },
@@ -29408,6 +29469,12 @@
             "gone"
           ]
         },
+        "groupSize": {
+          "type": "integer"
+        },
+        "groupWhat": {
+          "type": "string"
+        },
         "at": {
           "type": "string",
           "format": "date-time"
@@ -29424,14 +29491,26 @@
           "type": "string",
           "enum": [
             "waiting",
+            "carrying",
             "carried",
-            "left"
+            "left",
+            "settled"
           ]
+        },
+        "reportOnly": {
+          "type": "boolean"
         },
         "copyChanged": {
           "type": "boolean"
         },
         "canCarry": {
+          "type": "boolean"
+        },
+        "copyUntil": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "copyDropped": {
           "type": "boolean"
         },
         "says": {
@@ -29461,10 +29540,13 @@
         "id",
         "what",
         "kind",
+        "groupSize",
         "foundAt",
         "state",
+        "reportOnly",
         "copyChanged",
         "canCarry",
+        "copyDropped",
         "says",
         "collection",
         "record",
@@ -75631,7 +75713,7 @@
         "input",
         "output"
       ],
-      "description": "Carry a record written into the old database after the move over into this database — only while this database's own record is still the one the move copied (owners, people only)"
+      "description": "Carry a record written into the old database after the move (with the rest of its group) over into this database — only while this database's own is still the one the move copied (owners, people only)"
     },
     "database.late.leave": {
       "properties": {
@@ -75648,7 +75730,7 @@
         "input",
         "output"
       ],
-      "description": "Leave a record written into the old database after the move as it is here: this database keeps its own (owners, people only)"
+      "description": "Leave a record written into the old database after the move (with the rest of its group) as it is here: this database keeps its own (owners, people only)"
     },
     "database.late.show": {
       "properties": {
@@ -75665,7 +75747,7 @@
         "input",
         "output"
       ],
-      "description": "Show a record written into the old database after the move: the old database's version beside this database's (owners, people only)"
+      "description": "Show a record written into the old database after the move: the old database's version beside this database's, without what MetaRush never shows (owners, people only)"
     },
     "database.late.writes": {
       "properties": {

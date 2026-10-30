@@ -3,6 +3,7 @@ package ops_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -428,5 +429,498 @@ func TestLateLooksEndWhenTheOldDatabaseIsGone(t *testing.T) {
 	}
 	if st := ops.LateStatus(ctx, n); st == nil || !st.Ended || !strings.Contains(st.EndedWhy, "no longer keeps") {
 		t.Fatalf("ended without the fingerprints: %+v", st)
+	}
+}
+
+func lateRaw(t *testing.T, db *store.DB, id string) bson.M {
+	t.Helper()
+	var d bson.M
+	if err := db.C(store.CLateWrites).FindOne(context.Background(), bson.M{"_id": id}).Decode(&d); err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func lookNow(t *testing.T, n *app.App) *ops.DatabaseLateWritesOut {
+	t.Helper()
+	lw, err := ops.CallTyped[ops.DatabaseLateWritesOut](context.Background(), n, "database.late.writes", ops.DatabaseLateWritesIn{Look: true, Limit: 1000}, ops.Caller{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return lw
+}
+
+func entryOf(t *testing.T, lw *ops.DatabaseLateWritesOut, coll string) ops.LateWriteView {
+	t.Helper()
+	for _, f := range lw.Found {
+		if f.Collection == coll {
+			return f
+		}
+	}
+	t.Fatalf("nothing of %s in %+v", coll, lw.Found)
+	return ops.LateWriteView{}
+}
+
+// Kinds of record that hold sign-in secrets — a password, a sign-in link, an
+// upload's address — are only reported: no copy and no ID are kept, nothing is
+// shown, nothing is carried over, and the words say what to do. Any other
+// record is shown without what MetaRush never shows (a review link's key) and
+// with anything shaped like a key taken out; a copy is let go once a person
+// decided.
+func TestLateSignInSecretsAreOnlyReported(t *testing.T) {
+	w, dst, n, _ := movedForLooks(t)
+	a := w.a
+	ctx := context.Background()
+	ws := a.WorkspaceID()
+	old := a.DB.DB
+	const (
+		lateHash = "$argon2id$v=19$m=65536,t=1,p=4$c2FsdA$bGF0ZQ"
+		linkID   = "tok_thelinkitself"
+		upload   = "https://storage.example.com/upload/resumable-session-address"
+		capKey   = "capability-of-the-review-link"
+	)
+	address := "mongodb://lena:" + "hunter2" + "word@db.example.com/studio"
+	if _, err := old.Collection(store.CUserCredentials).UpdateOne(ctx, bson.M{}, bson.M{"$set": bson.M{"hash": lateHash}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Collection(store.CAuthTokens).InsertOne(ctx, bson.M{"_id": linkID, "workspaceId": ws, "kind": "reset", "purgeAt": time.Now().UTC().Add(48 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Collection(store.CIngest).InsertOne(ctx, bson.M{"_id": ids.New("ing"), "workspaceId": ws, "sessionUri": upload}); err != nil {
+		t.Fatal(err)
+	}
+	link := ids.New("rvl")
+	if _, err := old.Collection(store.CReviewLinks).InsertOne(ctx, bson.M{"_id": link, "workspaceId": ws, "key": capKey, "title": "For Sam"}); err != nil {
+		t.Fatal(err)
+	}
+	comment := ids.New("cmt")
+	if _, err := old.Collection(store.CComments).InsertOne(ctx, bson.M{"_id": comment, "workspaceId": ws, "text": "Use " + address}); err != nil {
+		t.Fatal(err)
+	}
+	lw := lookNow(t, n)
+	if len(lw.Found) != 5 {
+		t.Fatalf("found: %+v", lw.Found)
+	}
+	listed, _ := json.Marshal(lw)
+	for _, secret := range []string{lateHash, linkID, upload, capKey, "hunter2"} {
+		if strings.Contains(string(listed), secret) {
+			t.Fatalf("the list holds %q", secret)
+		}
+	}
+	for coll, words := range map[string]string{store.CUserCredentials: "never carries passwords over", store.CAuthTokens: "send the invitation or the reset again", store.CIngest: "add the file again here"} {
+		f := entryOf(t, lw, coll)
+		if !f.ReportOnly || f.CanCarry || f.Record != "" || !strings.Contains(f.Says, words) {
+			t.Fatalf("%s: %+v", coll, f)
+		}
+		raw := lateRaw(t, dst, f.ID)
+		if raw["old"] != nil || raw["key"] != nil || raw["kept"] != false {
+			t.Fatalf("%s kept something: %v", coll, raw)
+		}
+		sh, err := ops.CallTyped[ops.DatabaseLateShowOut](ctx, n, "database.late.show", ops.DatabaseLateShowIn{ID: f.ID}, ops.Caller{Human: true})
+		if err != nil || sh.Old != nil || sh.Here != nil || !strings.Contains(sh.Summary, words) {
+			t.Fatalf("%s shown: %+v %v", coll, sh, err)
+		}
+		_, err = ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{f.ID}}, ops.Caller{Human: true})
+		if code, reason := codeAndReason(err); code != apperr.Conflict || reason != "report_only" {
+			t.Fatalf("%s carried over: %v", coll, err)
+		}
+	}
+	if k, _ := dst.C(store.CUserCredentials).CountDocuments(ctx, bson.M{"hash": lateHash}); k != 0 {
+		t.Fatal("the late password went into this database")
+	}
+	if k, _ := dst.C(store.CAuthTokens).CountDocuments(ctx, bson.M{"_id": linkID}); k != 0 {
+		t.Fatal("the late sign-in link went into this database")
+	}
+	// Another kind: shown without its capability, and anything shaped like a key taken out.
+	rl := entryOf(t, lw, store.CReviewLinks)
+	sh, err := ops.CallTyped[ops.DatabaseLateShowOut](ctx, n, "database.late.show", ops.DatabaseLateShowIn{ID: rl.ID}, ops.Caller{Human: true})
+	if err != nil || strings.Contains(string(sh.Old), capKey) || !strings.Contains(string(sh.Old), "For Sam") || !slices.Contains(sh.Hidden, "key") {
+		t.Fatalf("the review link shown: %s %+v %v", sh.Old, sh, err)
+	}
+	cm := entryOf(t, lw, store.CComments)
+	sh, err = ops.CallTyped[ops.DatabaseLateShowOut](ctx, n, "database.late.show", ops.DatabaseLateShowIn{ID: cm.ID}, ops.Caller{Human: true})
+	if err != nil || strings.Contains(string(sh.Old), "hunter2") || !strings.Contains(string(sh.Old), "db.example.com") {
+		t.Fatalf("the comment shown: %s %v", sh.Old, err)
+	}
+	// A decision lets the copy go: carried or left alike.
+	if _, err := ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{rl.ID}}, ops.Caller{Human: true}); err != nil {
+		t.Fatal(err)
+	}
+	if raw := lateRaw(t, dst, rl.ID); raw["old"] != nil || raw["kept"] != false || raw["state"] != ops.LateCarried {
+		t.Fatalf("carried: %v", raw)
+	}
+	var carried bson.M
+	if err := dst.C(store.CReviewLinks).FindOne(ctx, bson.M{"_id": link}).Decode(&carried); err != nil || carried["key"] != capKey {
+		t.Fatalf("the link here: %v %v", carried, err)
+	}
+	if _, err := ops.CallTyped[ops.DatabaseLateLeaveOut](ctx, n, "database.late.leave", ops.DatabaseLateDecideIn{IDs: []string{cm.ID}}, ops.Caller{Human: true}); err != nil {
+		t.Fatal(err)
+	}
+	if raw := lateRaw(t, dst, cm.ID); raw["old"] != nil || raw["kept"] != false || raw["state"] != ops.LateLeft {
+		t.Fatalf("left: %v", raw)
+	}
+}
+
+// One late write of a clip's whole transcript is more than a look keeps: it
+// says how many more it found, later looks keep going past what is kept, and
+// the clip's lines are one entry that goes over whole or not at all — never
+// while some aren't listed, never while one changed here too.
+func TestLateManyRecordsKeepGoingAndGoOverWhole(t *testing.T) {
+	w, dst, n, _ := movedForLooks(t)
+	a := w.a
+	ctx := context.Background()
+	ws := a.WorkspaceID()
+	var lines []any
+	for i := 0; i < 120; i++ {
+		lines = append(lines, bson.M{"_id": fmt.Sprintf("seg_a%05d", i), "workspaceId": ws, "assetId": "ast_long", "text": "a line"})
+	}
+	first := "seg_a00000"
+	for i := 0; i < 3; i++ {
+		lines = append(lines, bson.M{"_id": fmt.Sprintf("seg_b%05d", i), "workspaceId": ws, "assetId": "ast_short", "text": "another"})
+	}
+	clash := "seg_b00000"
+	if _, err := a.DB.DB.Collection(store.CSegments).InsertMany(ctx, lines); err != nil {
+		t.Fatal(err)
+	}
+	undo := ops.SetLateKeepPerLook(50)
+	defer undo()
+	lw := lookNow(t, n)
+	m := lw.Moves[len(lw.Moves)-1]
+	if m.More != 73 || m.Found != 50 || !strings.Contains(m.Summary, "73 more") || len(lw.Found) != 1 || lw.Found[0].GroupSize != 50 {
+		t.Fatalf("the first look: %+v %+v", m, lw.Found)
+	}
+	if !slices.ContainsFunc(lw.Steps, func(s string) bool { return strings.Contains(s, "Not everything") }) {
+		t.Fatalf("no word that more is coming: %v", lw.Steps)
+	}
+	// Not while some of a group aren't listed: nothing goes over in part.
+	_, err := ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{"1"}}, ops.Caller{Human: true})
+	if code, reason := codeAndReason(err); code != apperr.Conflict || reason != "not_all_listed" {
+		t.Fatalf("carried part of a transcript: %v", err)
+	}
+	if k, _ := dst.C(store.CSegments).CountDocuments(ctx, bson.M{"assetId": "ast_long"}); k != 0 {
+		t.Fatalf("%d lines went over", k)
+	}
+	lw = lookNow(t, n)
+	if m := lw.Moves[len(lw.Moves)-1]; m.More != 23 || m.Found != 100 {
+		t.Fatalf("the second look: %+v", m)
+	}
+	lw = lookNow(t, n)
+	if m := lw.Moves[len(lw.Moves)-1]; m.More != 0 || m.Found != 123 {
+		t.Fatalf("the third look: %+v", m)
+	}
+	var long, short ops.LateWriteView
+	for _, f := range lw.Found {
+		if f.GroupSize == 120 {
+			long = f
+		}
+		if f.GroupSize == 3 {
+			short = f
+		}
+	}
+	if long.ID == "" || short.ID == "" || !strings.Contains(long.Says, "120 records of the same clip's transcript") || long.GroupWhat == "" {
+		t.Fatalf("the groups: %+v", lw.Found)
+	}
+	// One line of the short clip is here already, as another record: nothing of it goes over.
+	if _, err := dst.C(store.CSegments).InsertOne(ctx, bson.M{"_id": clash, "workspaceId": ws, "assetId": "ast_short", "text": "made here"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{short.ID}}, ops.Caller{Human: true})
+	if code, reason := codeAndReason(err); code != apperr.Conflict || reason != "changed_here" {
+		t.Fatalf("part of a group: %v", err)
+	}
+	if k, _ := dst.C(store.CSegments).CountDocuments(ctx, bson.M{"assetId": "ast_short"}); k != 1 {
+		t.Fatalf("%d lines of the short clip here", k)
+	}
+	// The whole transcript, at once, by the one entry.
+	c, err := ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{long.ID}}, ops.Caller{Human: true})
+	if err != nil || len(c.Carried) != 1 || c.Carried[0].GroupSize != 120 || !strings.Contains(c.Summary, "120 records") {
+		t.Fatalf("carry: %+v %v", c, err)
+	}
+	if k, _ := dst.C(store.CSegments).CountDocuments(ctx, bson.M{"assetId": "ast_long"}); k != 120 {
+		t.Fatalf("%d of 120 lines went over", k)
+	}
+	if k, _ := dst.C(store.CLateWrites).CountDocuments(ctx, bson.M{"group": bson.M{"$regex": "ast_long"}, "old": bson.M{"$exists": true}}); k != 0 {
+		t.Fatalf("%d copies kept after carrying over", k)
+	}
+	if k, _ := dst.C(store.CSegments).CountDocuments(ctx, bson.M{"_id": first}); k != 1 {
+		t.Fatal("the first line isn't here")
+	}
+	if k, _ := dst.C(store.CAudit).CountDocuments(ctx, bson.M{"action": "database.late.carry"}); k != 1 {
+		t.Fatalf("%d audit entries for one carry-over", k)
+	}
+	lf, err := ops.CallTyped[ops.DatabaseLateLeaveOut](ctx, n, "database.late.leave", ops.DatabaseLateDecideIn{IDs: []string{short.ID}}, ops.Caller{Human: true})
+	if err != nil || !strings.Contains(lf.Summary, "3 records") {
+		t.Fatalf("leave: %+v %v", lf, err)
+	}
+}
+
+// A finding that isn't true any more settles by itself: a record back to the
+// version the move copied (its whole kind's hash matching again), a new one
+// removed again. Only the version the latest look saw carries over; one found
+// again after it settled waits again. A look racing a carry-over wins: the
+// older version never goes over. One look runs at a time. Copies nobody
+// decided on are let go after their time — never while background deletions
+// are paused — and then can't be carried over.
+func TestLateFindingsSettleAndCopiesAreLetGo(t *testing.T) {
+	w, dst, n, _ := movedForLooks(t)
+	a := w.a
+	ctx := context.Background()
+	old := a.DB.DB
+	var comment bson.M
+	if err := old.Collection(store.CComments).FindOne(ctx, bson.M{}).Decode(&comment); err != nil {
+		t.Fatal(err)
+	}
+	moved := comment["text"]
+	setComment := func(text any) {
+		t.Helper()
+		if _, err := old.Collection(store.CComments).UpdateOne(ctx, bson.M{"_id": comment["_id"]}, bson.M{"$set": bson.M{"text": text}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	added := ids.New("cmt")
+	setComment("first late words")
+	if _, err := old.Collection(store.CComments).InsertOne(ctx, bson.M{"_id": added, "workspaceId": a.WorkspaceID(), "text": "new"}); err != nil {
+		t.Fatal(err)
+	}
+	lw := lookNow(t, n)
+	if lw.Waiting != 2 {
+		t.Fatalf("the look: %+v", lw.Found)
+	}
+	var f, nw ops.LateWriteView
+	for _, x := range lw.Found {
+		if x.Record == added {
+			nw = x
+		} else {
+			f = x
+		}
+	}
+	// Back as it was, and removed again: both settle, copies gone; the whole kind's hash matches.
+	setComment(moved)
+	if _, err := old.Collection(store.CComments).DeleteOne(ctx, bson.M{"_id": added}); err != nil {
+		t.Fatal(err)
+	}
+	lw = lookNow(t, n)
+	if lw.Waiting != 0 || lw.Moves[0].Looks[len(lw.Moves[0].Looks)-1].Settled != 2 {
+		t.Fatalf("settling: %+v %+v", lw.Moves, lw.Found)
+	}
+	for _, id := range []string{f.ID, nw.ID} {
+		if raw := lateRaw(t, dst, id); raw["state"] != ops.LateSettled || raw["old"] != nil || raw["kept"] != false {
+			t.Fatalf("settled: %v", raw)
+		}
+	}
+	_, err := ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{f.ID}}, ops.Caller{Human: true})
+	if code, reason := codeAndReason(err); code != apperr.Conflict || reason != "decided" {
+		t.Fatalf("carried what settled: %v", err)
+	}
+	var here bson.M
+	if err := dst.C(store.CComments).FindOne(ctx, bson.M{"_id": comment["_id"]}).Decode(&here); err != nil || here["text"] != moved {
+		t.Fatalf("the comment here: %v %v", here, err)
+	}
+	// Found again: it waits again, and only the newest version goes over.
+	setComment("second late words")
+	lw = lookNow(t, n)
+	if lw.Waiting != 1 {
+		t.Fatalf("found again: %+v", lw.Found)
+	}
+	setComment("third late words")
+	lookNow(t, n)
+	// A look that finds a newer version while a carry-over reads the one before wins.
+	undo := ops.SetLateCarryHook(func(id string) {
+		_, _ = dst.C(store.CLateWrites).UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": bson.M{"print": "a-newer-version"}})
+	})
+	_, err = ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{f.ID}}, ops.Caller{Human: true})
+	undo()
+	if code, reason := codeAndReason(err); code != apperr.Conflict || reason != "changed_again" {
+		t.Fatalf("an older version carried over: %v", err)
+	}
+	if err := dst.C(store.CComments).FindOne(ctx, bson.M{"_id": comment["_id"]}).Decode(&here); err != nil || here["text"] != moved {
+		t.Fatalf("the comment here after the race: %v %v", here, err)
+	}
+	if raw := lateRaw(t, dst, f.ID); raw["state"] != ops.LateWaiting {
+		t.Fatalf("after the race: %v", raw)
+	}
+	// One look at a time.
+	if _, err := dst.C(store.CLateLooks).UpdateOne(ctx, bson.M{}, bson.M{"$set": bson.M{"lookingUntil": time.Now().UTC().Add(time.Hour)}}); err != nil {
+		t.Fatal(err)
+	}
+	busy := lookNow(t, n)
+	if busy.Looked || !strings.Contains(busy.Problem, "right now") {
+		t.Fatalf("two looks at once: %+v", busy)
+	}
+	var rec struct {
+		Due []time.Time `bson:"due"`
+	}
+	_ = dst.C(store.CLateLooks).FindOne(ctx, bson.M{}).Decode(&rec)
+	if said := ops.LookDueLate(ctx, n, rec.Due[0].Add(time.Second)); len(said) != 0 {
+		t.Fatalf("a scheduled look beside a running one: %v", said)
+	}
+	if _, err := dst.C(store.CLateLooks).UpdateOne(ctx, bson.M{}, bson.M{"$unset": bson.M{"lookingUntil": ""}}); err != nil {
+		t.Fatal(err)
+	}
+	// The newest version, once the look has it, goes over.
+	lookNow(t, n)
+	c, err := ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{f.ID}}, ops.Caller{Human: true})
+	if err != nil || len(c.Carried) != 1 {
+		t.Fatalf("carry: %+v %v", c, err)
+	}
+	if err := dst.C(store.CComments).FindOne(ctx, bson.M{"_id": comment["_id"]}).Decode(&here); err != nil || here["text"] != "third late words" {
+		t.Fatalf("the comment here: %v %v", here, err)
+	}
+	// Copies nobody decided on: kept their time, not while deletions are paused, then let go.
+	project := w.project
+	if _, err := old.Collection(store.CProjects).UpdateOne(ctx, bson.M{"_id": project}, bson.M{"$set": bson.M{"name": "Late name"}}); err != nil {
+		t.Fatal(err)
+	}
+	lw = lookNow(t, n)
+	p := entryOf(t, lw, store.CProjects)
+	if p.CopyUntil == nil || !p.CanCarry {
+		t.Fatalf("the project: %+v", p)
+	}
+	after := p.CopyUntil.Add(time.Hour)
+	if k := ops.DropOldLateCopies(ctx, n, p.CopyUntil.Add(-time.Hour)); k != 0 {
+		t.Fatalf("%d copies let go early", k)
+	}
+	if err := dst.PauseDeletions(ctx, a.WorkspaceID(), time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if k := ops.DropOldLateCopies(ctx, n, after); k != 0 {
+		t.Fatalf("%d copies let go while deletions are paused", k)
+	}
+	if _, err := dst.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID()}, bson.M{"$unset": bson.M{"deletionsPaused": ""}}); err != nil {
+		t.Fatal(err)
+	}
+	if k := ops.DropOldLateCopies(ctx, n, after); k != 1 {
+		t.Fatalf("%d copies let go", k)
+	}
+	if raw := lateRaw(t, dst, p.ID); raw["old"] != nil || raw["copyDropped"] != true || raw["state"] != ops.LateWaiting {
+		t.Fatalf("let go: %v", raw)
+	}
+	_, err = ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{p.ID}}, ops.Caller{Human: true})
+	if code, reason := codeAndReason(err); code != apperr.Conflict || reason != "no_copy" {
+		t.Fatalf("carried without a copy: %v", err)
+	}
+	lw, err = ops.CallTyped[ops.DatabaseLateWritesOut](ctx, n, "database.late.writes", ops.DatabaseLateWritesIn{}, ops.Caller{})
+	if err != nil || !strings.Contains(entryOf(t, lw, store.CProjects).Says, "30 days") || lw.Moves[0].CopyDays != 30 {
+		t.Fatalf("the words: %+v %v", lw, err)
+	}
+}
+
+// A look in the background keeps to its bounds: it stops, says so, settles
+// nothing, isn't tried again; a person's look reads on. A last look that
+// stopped part-way keeps the address so a person can look at everything, and
+// the looks end when one does, or a day later.
+func TestLateLooksKeepToTheirBounds(t *testing.T) {
+	w, dst, n, _ := movedForLooks(t)
+	a := w.a
+	ctx := context.Background()
+	move := moveOf(t, a)
+	if _, err := a.DB.DB.Collection(store.CProjects).UpdateOne(ctx, bson.M{"_id": w.project}, bson.M{"$set": bson.M{"name": "Late name"}}); err != nil {
+		t.Fatal(err)
+	}
+	lw := lookNow(t, n)
+	if lw.Waiting != 1 {
+		t.Fatalf("the look: %+v", lw.Found)
+	}
+	// Back as it was: only a look that sees everything may say so.
+	if _, err := a.DB.DB.Collection(store.CProjects).UpdateOne(ctx, bson.M{"_id": w.project}, bson.M{"$set": bson.M{"name": "Spring launch"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.DB.DB.Collection(store.CComments).UpdateOne(ctx, bson.M{}, bson.M{"$set": bson.M{"text": "another late change"}}); err != nil {
+		t.Fatal(err)
+	}
+	var rec struct {
+		Due []time.Time `bson:"due"`
+	}
+	if err := dst.C(store.CLateLooks).FindOne(ctx, bson.M{"_id": move}).Decode(&rec); err != nil {
+		t.Fatal(err)
+	}
+	undo := ops.SetLateBackgroundBytes(1)
+	defer undo()
+	for i, due := range rec.Due {
+		said := ops.LookDueLate(ctx, n, due.Add(time.Second))
+		if len(said) != 1 || !strings.Contains(said[0], "part of it") || !strings.Contains(said[0], "after reading") {
+			t.Fatalf("look %d: %v", i, said)
+		}
+	}
+	st := ops.LateStatus(ctx, n)
+	if st == nil || !st.Partial || !strings.Contains(st.Stopped, "after reading") || !strings.Contains(st.Summary, "stopped part-way") || st.Ended || st.Waiting != 1 {
+		t.Fatalf("stopped part-way: %+v", st)
+	}
+	if !ops.KeepsLookAddress(n.Cfg, move) {
+		t.Fatal("the address was dropped after a look that didn't see everything")
+	}
+	if said := ops.LookDueLate(ctx, n, rec.Due[2].Add(time.Hour)); len(said) != 0 {
+		t.Fatalf("tried again by itself: %v", said)
+	}
+	// A person looks: all of it, within far wider bounds; what went back settles; the looks end.
+	lw = lookNow(t, n)
+	if !lw.Looked || lw.Waiting != 1 {
+		t.Fatalf("a person's look: %+v", lw)
+	}
+	if m := lw.Moves[0]; m.Partial || !m.Ended || ops.KeepsLookAddress(n.Cfg, move) {
+		t.Fatalf("after a person's look that saw everything: %+v", m)
+	}
+	if entryOf(t, lw, store.CComments).State != ops.LateWaiting || entryOf(t, lw, store.CProjects).State != ops.LateSettled {
+		t.Fatalf("what it found: %+v", lw.Found)
+	}
+}
+
+// A last look that stopped part-way, and nobody asked for another: the looks
+// end a day later, and the address goes. The plan says beforehand when every
+// look will read the old database whole.
+func TestLateLooksEndAfterAPartialLastLook(t *testing.T) {
+	w, dst, n, _ := movedForLooks(t)
+	ctx := context.Background()
+	move := moveOf(t, w.a)
+	if _, err := w.a.DB.DB.Collection(store.CProjects).UpdateOne(ctx, bson.M{"_id": w.project}, bson.M{"$set": bson.M{"name": "Late name"}}); err != nil {
+		t.Fatal(err)
+	}
+	var rec struct {
+		Due []time.Time `bson:"due"`
+	}
+	if err := dst.C(store.CLateLooks).FindOne(ctx, bson.M{"_id": move}).Decode(&rec); err != nil {
+		t.Fatal(err)
+	}
+	undo := ops.SetLateBackgroundBytes(1)
+	defer undo()
+	if said := ops.LookDueLate(ctx, n, rec.Due[2].Add(time.Second)); len(said) != 1 {
+		t.Fatalf("the last look: %v", said)
+	}
+	if !ops.KeepsLookAddress(n.Cfg, move) {
+		t.Fatal("the address went at once")
+	}
+	said := ops.LookDueLate(ctx, n, rec.Due[2].Add(ops.LateLookGrace+time.Minute))
+	if len(said) != 1 || !strings.Contains(said[0], "didn't see everything") || ops.KeepsLookAddress(n.Cfg, move) {
+		t.Fatalf("a day later: %v", said)
+	}
+	if st := ops.LateStatus(ctx, n); st == nil || !st.Ended {
+		t.Fatalf("ended: %+v", st)
+	}
+}
+
+func TestDatabasePlanSaysWhenLooksReadEverything(t *testing.T) {
+	w := newMoveWorkspace(t)
+	a := w.a
+	ctx := context.Background()
+	dst := moveDB(t)
+	if err := ops.SaveMoveAddress(a.Cfg, testutil.URI()); err != nil {
+		t.Fatal(err)
+	}
+	target := ops.DatabaseTargetIn{To: ops.MoveToSaved, Name: dst.Name}
+	says := func() bool {
+		t.Helper()
+		p, err := ops.CallTyped[ops.DatabasePlanOut](ctx, a, "database.plan", ops.DatabasePlanIn{DatabaseTargetIn: target}, ops.Caller{Human: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return slices.ContainsFunc(p.Notes, func(s string) bool { return strings.Contains(s, "reads it whole again") })
+	}
+	if says() {
+		t.Fatal("the plan warns about a server that says its own hashes")
+	}
+	undo := ops.SetServerHashesWork(false)
+	defer undo()
+	if !says() {
+		t.Fatal("the plan doesn't say every look reads the old database whole")
 	}
 }

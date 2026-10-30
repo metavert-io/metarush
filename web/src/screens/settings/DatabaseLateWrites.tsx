@@ -15,15 +15,20 @@ import { Badge, Button, cx, Details, Spinner, Theirs } from '../../ui/primitives
  * computer that was asleep wrote there late. What it finds is listed here in
  * plain words; an owner carries a record over (only while this database's
  * own record is still the one the move copied: otherwise both versions are
- * shown and nothing changes) or leaves it, after a styled dialog. A record
- * removed from the old database is never removed here.
+ * shown and nothing changes), with the rest of its group (the same clip's
+ * transcript, the same fix), or leaves it, after a styled dialog. A record
+ * removed from the old database is never removed here, and kinds of record
+ * that hold sign-in secrets are only reported. Copies are kept for a stated
+ * time, and what a later look no longer finds settles by itself.
  */
 
 const KIND: Record<string, string> = { new: 'added there', changed: 'changed there', gone: 'removed there' };
+const DONE: Record<string, string> = { carried: 'carried over', left: 'left as it is', settled: 'nothing to carry over', carrying: 'being carried over' };
 
 export function LateWrites({ late, onChanged }: { late: LateLookView; onChanged: () => void }) {
   const toast = useToast();
-  const list = useOp('database.late.writes', {}, { enabled: late.found > 0, staleTime: 5_000 });
+  const [limit, setLimit] = useState(200);
+  const list = useOp('database.late.writes', { limit }, { enabled: late.found > 0, staleTime: 5_000 });
   const look = useOpMutation('database.late.writes', { invalidate: ['database.move.status'] });
   const found = list.data?.found ?? [];
   const lastLook = late.looks.at(-1)?.at;
@@ -49,6 +54,11 @@ export function LateWrites({ late, onChanged }: { late: LateLookView; onChanged:
             {late.summary}
           </div>
           {late.problem && !late.ended ? <div className="mt-0.5 text-[12.5px] text-muted">The last look couldn’t be made: {late.problem}</div> : null}
+          {late.found > 0 && late.waiting > 0 ? (
+            <div className="mt-0.5 text-[12.5px] text-muted" data-database-late-keep>
+              MetaRush keeps its copies for {late.copyDays} days for someone to decide, then lets them go.
+            </div>
+          ) : null}
           {lastLook ? (
             <div className="tc mt-0.5 text-[11.5px] text-subtle">
               Last looked <span title={absolute(lastLook)}>{stamp(lastLook)}</span>
@@ -83,6 +93,13 @@ export function LateWrites({ late, onChanged }: { late: LateLookView; onChanged:
                 }}
               />
             ))}
+            {(list.data?.total ?? 0) > found.length ? (
+              <li>
+                <Button variant="ghost" size="sm" disabled={limit >= 1000} onClick={() => setLimit((n) => Math.min(n + 200, 1000))} data-database-late-more>
+                  {(list.data?.total ?? 0) - found.length} more
+                </Button>
+              </li>
+            ) : null}
           </ol>
         )
       ) : null}
@@ -118,7 +135,10 @@ function LateItem({ f, onDecided }: { f: LateWriteView; onDecided: () => void })
       body: (
         <div className="space-y-2">
           <p>{f.says}</p>
-          <p>The old database’s version goes into this database, in place of the one the move copied. If this database’s own changed meanwhile, nothing changes and both versions are shown.</p>
+          <p>
+            The old database’s version goes into this database, in place of the one the move copied{f.groupSize > 1 ? `, for all ${f.groupSize} records together or none at all` : ''}. If this database’s own
+            changed meanwhile, nothing changes and both versions are shown.
+          </p>
         </div>
       ),
       confirmLabel: 'Carry it over',
@@ -142,14 +162,14 @@ function LateItem({ f, onDecided }: { f: LateWriteView; onDecided: () => void })
   };
   const doLeave = async () => {
     const ok = await dialog.confirm({
-      title: 'Leave it as it is here?',
+      title: f.reportOnly ? 'Done with this?' : 'Leave it as it is here?',
       body: (
         <div className="space-y-2">
           <p>{f.says}</p>
-          <p>This database keeps its own record. What was found stays in this list as decided.</p>
+          <p>This database keeps its own{f.reportOnly ? '' : ' and MetaRush lets its copy go'}. What was found stays in this list as decided.</p>
         </div>
       ),
-      confirmLabel: 'Leave it',
+      confirmLabel: f.reportOnly ? 'Yes' : 'Leave it',
     });
     if (!ok) return;
     leave.mutate(
@@ -171,30 +191,39 @@ function LateItem({ f, onDecided }: { f: LateWriteView; onDecided: () => void })
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-medium text-fg">{f.n}.</span>
             <Badge tone={f.kind === 'gone' ? 'danger' : 'accent'}>{KIND[f.kind] ?? f.kind}</Badge>
-            {waiting ? null : <Badge tone="ok">{f.state === 'carried' ? 'carried over' : 'left as it is'}</Badge>}
+            {waiting ? null : <Badge tone={f.state === 'carried' ? 'ok' : 'neutral'}>{DONE[f.state] ?? f.state}</Badge>}
+            {f.groupSize > 1 ? <Badge tone="neutral">{f.groupSize} records together</Badge> : null}
+            {f.reportOnly ? <Badge tone="info">only reported</Badge> : null}
             {waiting && f.copyChanged ? <Badge tone="info">changed here too</Badge> : null}
           </div>
           <p className="mt-0.5 text-muted">{f.says}</p>
-          <Details compact label="Details">
-            <span className="font-mono">
-              {f.collection} {f.record}
-            </span>
-          </Details>
+          {waiting && f.copyUntil ? (
+            <p className="text-[11.5px] text-subtle">
+              Its copy is kept until <span title={absolute(f.copyUntil)}>{stamp(f.copyUntil)}</span>.
+            </p>
+          ) : null}
+          {f.record ? (
+            <Details compact label="Details">
+              <span className="font-mono">
+                {f.collection} {f.record}
+              </span>
+            </Details>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {f.kind !== 'gone' ? (
+          {f.kind !== 'gone' && !f.reportOnly && f.state === 'waiting' ? (
             <Button variant="ghost" size="sm" icon={<MagnifyingGlass size={13} />} onClick={() => void show()} loading={showing} data-database-late-show>
               {both ? 'Hide both versions' : 'Compare'}
             </Button>
           ) : null}
           {waiting && f.canCarry ? (
             <Button variant="primary" size="sm" onClick={() => void doCarry()} loading={carry.isPending} data-database-late-carry>
-              Carry it over
+              {f.groupSize > 1 ? `Carry all ${f.groupSize} over` : 'Carry it over'}
             </Button>
           ) : null}
           {waiting ? (
             <Button variant="secondary" size="sm" onClick={() => void doLeave()} loading={leave.isPending} data-database-late-leave>
-              Leave it
+              {f.reportOnly ? 'I’ve seen this' : f.groupSize > 1 ? `Leave all ${f.groupSize}` : 'Leave it'}
             </Button>
           ) : null}
         </div>
@@ -224,6 +253,7 @@ function BothVersions({ both }: { both: DatabaseLateShowOut }) {
         </div>
       ))}
       {both.differs.length ? <div className="text-[11.5px] text-subtle sm:col-span-2">They differ in: {both.differs.join(', ')}.</div> : null}
+      {both.hidden.length ? <div className="text-[11.5px] text-subtle sm:col-span-2">Left out, as MetaRush never shows them: {both.hidden.join(', ')}.</div> : null}
     </div>
   );
 }

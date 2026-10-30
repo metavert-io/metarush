@@ -1399,21 +1399,21 @@ input: DatabaseAbandonIn
 output: DatabaseAbandonOut
 }
 /**
- * Carry a record written into the old database after the move over into this database — only while this database's own record is still the one the move copied (owners, people only)
+ * Carry a record written into the old database after the move (with the rest of its group) over into this database — only while this database's own is still the one the move copied (owners, people only)
  */
 "database.late.carry": {
 input: DatabaseLateDecideIn
 output: DatabaseLateCarryOut
 }
 /**
- * Leave a record written into the old database after the move as it is here: this database keeps its own (owners, people only)
+ * Leave a record written into the old database after the move (with the rest of its group) as it is here: this database keeps its own (owners, people only)
  */
 "database.late.leave": {
 input: DatabaseLateDecideIn
 output: DatabaseLateLeaveOut
 }
 /**
- * Show a record written into the old database after the move: the old database's version beside this database's (owners, people only)
+ * Show a record written into the old database after the move: the old database's version beside this database's, without what MetaRush never shows (owners, people only)
  */
 "database.late.show": {
 input: DatabaseLateShowIn
@@ -17460,6 +17460,7 @@ all?: boolean
 export interface DatabaseLateCarryOut {
 carried: LateWriteView[]
 refused: LateRefused[]
+warnings: string[]
 summary: string
 }
 /**
@@ -17474,15 +17475,20 @@ id: string
  */
 what: string
 kind: ("new" | "changed" | "gone")
+groupSize: number
+groupWhat?: string
 at?: string
 /**
  * The computer it was written on, when the record says.
  */
 computer?: string
 foundAt: string
-state: ("waiting" | "carried" | "left")
+state: ("waiting" | "carrying" | "carried" | "left" | "settled")
+reportOnly: boolean
 copyChanged: boolean
 canCarry: boolean
+copyUntil?: string
+copyDropped: boolean
 says: string
 collection: string
 record: string
@@ -17497,7 +17503,7 @@ decidedAt?: string
 export interface LateRefused {
 found: LateWriteView
 why: string
-reason: ("changed_here" | "gone" | "too_large" | "decided" | "clash")
+reason: ("changed_here" | "gone" | "report_only" | "no_copy" | "decided" | "clash" | "changed_again" | "not_all_listed")
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -17527,6 +17533,7 @@ here?: {
 
 }
 differs: string[]
+hidden: string[]
 summary: string
 }
 /**
@@ -17538,6 +17545,8 @@ export interface DatabaseLateWritesIn {
  * Look at the old database again now (on the computer that moved it, while it keeps the old database's address).
  */
 look?: boolean
+skip?: number
+limit?: number
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -17548,6 +17557,7 @@ looked: boolean
 problem?: string
 moves: LateLookView[]
 found: LateWriteView[]
+total: number
 waiting: number
 summary: string
 steps: string[]
@@ -17576,6 +17586,11 @@ endedWhy?: string
 problem?: string
 found: number
 waiting: number
+more: number
+partial: boolean
+stopped?: string
+readsAll: boolean
+copyDays: number
 summary: string
 }
 /**
@@ -17586,6 +17601,10 @@ export interface LateLookTaken {
 at: string
 when: ("soon" | "later" | "asked")
 found: number
+more?: number
+settled?: number
+partial?: boolean
+stopped?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

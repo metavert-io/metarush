@@ -36,7 +36,11 @@ Read `docs/architecture.md` before structural changes.
   D46, docs/cut-sheet.md): print→parse keeps the spec hash; saving = minimal ops plan (`editspec.DiffOps`, merge-patch
   updates) through the same check/confirm/rebase/locks; quoted words resolve to exact times when checked.
 - **Durable jobs on MongoDB leases** (heartbeats, retries, recovery, idempotency; a lease ends by the database server's
-  time, `$$NOW` + `LeaseDuration`, and is compared with `$$NOW`); workers coordinate only via the DB;
+  time, `$$NOW` + `LeaseDuration`, and is compared with `$$NOW`, and so is when a job may run, `nextRunAt`; every time
+  compared across computers — heartbeats, claims, due times, stale markers, expiries — is the server's: in the query or
+  update (`store.SeenWithin|StaleBefore|DueBy|ServerTimeIn`, `$currentDate`), else `store.DB.Now` (one round trip a
+  minute, an offset to this computer's clock), never `time.Now()`; tests skew with `testutil.SkewClock`; D360);
+  workers coordinate only via the DB;
   heavy jobs defer on low battery (threshold, override) — never silently. A stopping worker releases its job (attempt
   not counted, never failed); a terminal's `--wait` runs only the jobs it waits for (`LeaseAmong`) and keeps them
   to the end: retries are taken in the terminal, and `waitJobsOpt` restarts a stopped terminal worker or fails
@@ -1071,7 +1075,7 @@ Read `docs/architecture.md` before structural changes.
   (`refuseWhileMoving`, `E_MOVING` reason database_moving|database_moved; the move's own ops exempt) and `Admit`s the
   rest (counted, published in the marker's `busy`; the move waits for them), job leases end by `$$NOW` + `LeaseDuration`, every
   time compared across computers is the server's (`$currentDate`, `$$NOW`: `MoveAlive`, `SeenWithin`,
-  `LiveLease`), `app.Held` keeps audit/TouchInstallation out and the log in the spool
+  `LiveLease`; `DB.Now`), `app.Held` keeps audit/TouchInstallation out and the log in the spool
   (`logbook.Options.Hold`), `Migrate` refuses, daemons `watchForMove` and restart into `serveHeld` (`api.NewHeld`,
   `heldGuard`: reads only, no background work, `HoldForMove` acks), the terminal worker stops; `waitQuiet` waits for
   every computer seen within `RunningWithin` to ack and no live leases. `dbmove.Copy` (the restore lock, kind `move`;

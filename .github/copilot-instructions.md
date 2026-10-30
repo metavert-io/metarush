@@ -44,8 +44,11 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
   removes is one write (`UpdatePipeline`), not two.
 - Nothing drops or clears a database except `store.DropTestDatabase` on `metarush-test-*`. Storage moves, database
   moves and restores never delete the original.
-- Jobs use leases timed by the database server (`$$NOW`), not a computer's own clock; a pinned job runs only on its
-  computer. Work moved to another computer (a handover) moves by check and set on those leases, so nothing runs twice.
+- Every time compared across computers is the database server's, never a computer's own clock (`time.Now()`): job
+  leases and when a job may run, heartbeats, claims, due times, stale markers and expiries are written with `$$NOW` /
+  `$currentDate` and compared in the query (`store.SeenWithin`, `StaleBefore`, `DueBy`, `LiveLease`), else with
+  `store.DB.Now`. A pinned job runs only on its computer. Work moved to another computer (a handover) moves by check
+  and set on those leases, so nothing runs twice.
   New work pinned to "this computer" goes through `app.PinWork` (a computer that handed its role over runs no worker)
   or is refused there with `NeedsThisComputer` when it needs this computer's own keys, sign-ins or files.
 - A panel conversation is continued only by the computer that holds it: a message claims it in the database first,

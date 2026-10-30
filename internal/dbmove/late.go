@@ -12,11 +12,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/store"
@@ -291,6 +294,9 @@ func ReadPrintsHeader(path string) (*PrintsHeader, error) {
 // computed there, nothing is sent; a read-only sign-in may ask). nil when it
 // doesn't answer.
 func serverHashes(ctx context.Context, db *store.DB, names []string) map[string]string {
+	if noServerHashes {
+		return nil
+	}
 	if len(names) == 0 {
 		return map[string]string{}
 	}
@@ -302,6 +308,10 @@ func serverHashes(ctx context.Context, db *store.DB, names []string) map[string]
 	}
 	return out.Collections
 }
+
+// noServerHashes plays a server that doesn't say its own hashes (tests:
+// Atlas's free and Flex clusters).
+var noServerHashes bool
 
 // RecheckPrinting is Recheck that also keeps the old database's fingerprints
 // as the same read goes (w; nil keeps none): every record's _id and print, and
@@ -329,29 +339,59 @@ type Late struct {
 	MovePrint string
 }
 
+// LookOptions say how a look goes.
+type LookOptions struct {
+	// Each gets every record found as it is found (nil: they are collected
+	// in the result, at most MaxFound of them).
+	Each func(Late) error
+	// MaxBytes and MaxTime bound how much of the old database one look reads
+	// again and for how long (0: no bound); past either it stops and says
+	// so (Partial). Pace is a pause after every PaceEvery records read, so a
+	// look never runs the old database's server flat out.
+	MaxBytes int64
+	MaxTime  time.Duration
+	Pace     time.Duration
+}
+
+// PaceEvery is how many records a look reads between two pauses.
+const PaceEvery = 1000
+
 // LookResult is what a look found.
 type LookResult struct {
 	// At is the old database server's time at the move's last look.
 	At time.Time
 	// Kinds is how many kinds of record were looked at; Read names those
 	// read again (their hash changed, the server didn't say it, or their
-	// records end by themselves).
-	Kinds int
-	Read  []string
+	// records end by themselves); Skipped those the server's own hash said
+	// are as they were.
+	Kinds   int
+	Read    []string
+	Skipped []string
+	// ServerHashes: the server said its own hash of each kind (else every
+	// kind is read again, every look).
+	ServerHashes bool
+	// BytesRead is how much of the old database the look read again.
+	BytesRead int64
+	// Partial: it stopped before it saw everything (Stopped says why, in
+	// words); what it found so far stands, but nothing can be said of what
+	// it didn't read.
+	Partial bool
+	Stopped string
+	// Found and More: without Each, the records found (at most MaxFound)
+	// and how many more there were.
 	Found []Late
-	// More counts what was found beyond MaxFound (not kept).
-	More int
+	More  int
 }
 
-// MaxFound is the most records one look keeps (the rest are counted).
+// MaxFound is the most records a look collects when no Each takes them.
 var MaxFound = 500
 
-// printChunk is how many fingerprints a look compares in one range of _ids.
-var printChunk = 1000
+// errStop stops a look past its bounds.
+var errStop = errors.New("the look reached its bounds")
 
 // Look compares the old database with the fingerprints the move kept at
 // path: what is new there, changed or gone. It only reads the old database.
-func Look(ctx context.Context, old *store.DB, path string) (*LookResult, error) {
+func Look(ctx context.Context, old *store.DB, path string, o LookOptions) (*LookResult, error) {
 	r, err := openPrints(path)
 	if err != nil {
 		return nil, err
@@ -373,9 +413,16 @@ func Look(ctx context.Context, old *store.DB, path string) (*LookResult, error) 
 			late = append(late, info.Name)
 		}
 	}
-	hashes := serverHashes(ctx, old, append(append([]string{}, names...), late...))
-	res := &LookResult{At: h.At, Kinds: len(h.Kinds) + len(late), Found: []Late{}}
-	l := &looker{ctx: ctx, old: old, path: path, at: h.At, res: res}
+	hashes := serverHashes(ctx, old, names)
+	res := &LookResult{At: h.At, Kinds: len(h.Kinds) + len(late), Found: []Late{}, ServerHashes: hashes != nil}
+	l := &looker{ctx: ctx, old: old, at: h.At, res: res, o: o, started: time.Now()}
+	done := func(err error) (*LookResult, error) {
+		if errors.Is(err, errStop) {
+			res.Partial = true
+			return res, nil
+		}
+		return nil, err
+	}
 	for {
 		e, err := r.next()
 		if err != nil {
@@ -392,6 +439,7 @@ func Look(ctx context.Context, old *store.DB, path string) (*LookResult, error) 
 			return nil, ErrPrints
 		}
 		if len(k.Ending) == 0 && k.ServerHash != "" && hashes != nil && hashes[k.Name] == k.ServerHash {
+			res.Skipped = append(res.Skipped, k.Name)
 			if err := skipKind(r); err != nil { // the server says it is as it was: nothing to read
 				return nil, err
 			}
@@ -399,7 +447,7 @@ func Look(ctx context.Context, old *store.DB, path string) (*LookResult, error) 
 		}
 		res.Read = append(res.Read, k.Name)
 		if err := l.kind(k, r); err != nil {
-			return nil, err
+			return done(err)
 		}
 	}
 	// A kind of record made in the old database since: every record is new.
@@ -411,7 +459,7 @@ func Look(ctx context.Context, old *store.DB, path string) (*LookResult, error) 
 		}
 		res.Read = append(res.Read, name)
 		if err := l.kind(PrintKind{Name: name}, nil); err != nil {
-			return nil, err
+			return done(err)
 		}
 	}
 	return res, nil
@@ -432,23 +480,51 @@ func skipKind(r *printReader) error {
 }
 
 type looker struct {
-	ctx  context.Context
-	old  *store.DB
-	path string
-	at   time.Time
-	res  *LookResult
+	ctx     context.Context
+	old     *store.DB
+	at      time.Time
+	res     *LookResult
+	o       LookOptions
+	started time.Time
+	read    int
 }
 
-func (l *looker) add(x Late) {
+func (l *looker) add(x Late) error {
+	if l.o.Each != nil {
+		return l.o.Each(x)
+	}
 	if len(l.res.Found) >= MaxFound {
 		l.res.More++
-		return
+		return nil
 	}
 	l.res.Found = append(l.res.Found, x)
+	return nil
 }
 
-// idClass is what MongoDB compares _ids within (query ranges match one type
-// only: every number is one, strings another, every other type its own).
+// account counts a record read again against the look's bounds, and paces.
+func (l *looker) account(doc bson.Raw) error {
+	l.res.BytesRead += int64(len(doc))
+	l.read++
+	if l.o.MaxBytes > 0 && l.res.BytesRead > l.o.MaxBytes {
+		l.res.Stopped = fmt.Sprintf("after reading %s of the old database, the most one look reads", wsarchive.HumanBytes(l.res.BytesRead))
+		return errStop
+	}
+	if l.o.MaxTime > 0 && time.Since(l.started) > l.o.MaxTime {
+		l.res.Stopped = fmt.Sprintf("after %d minutes, the longest one look takes", int(l.o.MaxTime.Minutes()+0.5))
+		return errStop
+	}
+	if l.o.Pace > 0 && l.read%PaceEvery == 0 {
+		select {
+		case <-l.ctx.Done():
+			return l.ctx.Err()
+		case <-time.After(l.o.Pace):
+		}
+	}
+	return nil
+}
+
+// idClass is what MongoDB compares _ids within (every number is one, strings
+// another, every other type its own).
 func idClass(t bson.Type) byte {
 	switch t {
 	case bson.TypeDouble, bson.TypeInt32, bson.TypeInt64, bson.TypeDecimal128:
@@ -460,198 +536,331 @@ func idClass(t bson.Type) byte {
 }
 
 // classTypes are the $type codes of a class.
-func classTypes(c byte) []int {
+func classTypes(c byte) bson.A {
 	switch c {
 	case 'n':
-		return []int{1, 16, 18, 19}
+		return bson.A{1, 16, 18, 19}
 	case 's':
-		return []int{2, 14}
+		return bson.A{2, 14}
 	}
-	return []int{int(c)}
+	return bson.A{int(c)}
 }
 
-// kind compares one kind of record: its fingerprints (from r, up to the next
-// kind; none for a kind made since) in ranges of _ids, then the records
-// beyond them; and a count to be sure every record was seen, else the whole
-// kind is read once against all its fingerprints.
+// kind compares one kind of record with its fingerprints (from r, up to the
+// next kind; none for a kind made since): per class of _id, the old
+// database's records and the fingerprints are both in MongoDB's _id order,
+// so one pass over each — a merge — says what is new, changed and gone,
+// holding one record at a time. Records whose _id is of a type no
+// fingerprint has are new.
 func (l *looker) kind(k PrintKind, r *printReader) error {
-	start, more := len(l.res.Found), l.res.More
 	base := bson.M{}
 	ttl := len(k.Ending) > 0
 	if ttl {
 		base = stillLive(k.limits(), l.at)
 	}
-	var (
-		chunk     = map[string]string{}
-		chunkLast []byte
-		chunkCls  byte
-		last      = map[byte][]byte{} // the last _id of each class read so far
-		order     []byte
-		seen      int64 // records of the old database accounted for
-	)
-	flush := func() error {
-		if len(chunk) == 0 {
+	var types bson.A
+	var e *printEntry
+	next := func() error {
+		e = nil
+		if r == nil {
 			return nil
 		}
-		rng := bson.M{"$lte": IDOf(chunkLast)}
-		if prev := last[chunkCls]; prev != nil {
-			rng["$gt"] = IDOf(prev)
-		}
-		n, err := l.compare(k.Name, and(base, bson.M{"_id": rng}), chunk, ttl)
+		x, err := r.next()
 		if err != nil {
 			return err
 		}
-		seen += n
-		last[chunkCls] = chunkLast
-		chunk = map[string]string{}
+		if x.tag != tagRecord {
+			r.put = x
+			return nil
+		}
+		e = x
 		return nil
 	}
-	for r != nil {
-		e, err := r.next()
-		if err != nil {
-			return err
-		}
-		if e.tag != tagRecord {
-			r.put = e
-			break
-		}
-		cls := idClass(bson.Type(e.key[0]))
-		if len(chunk) > 0 && (cls != chunkCls || len(chunk) >= printChunk) {
-			if err := flush(); err != nil {
-				return err
-			}
-		}
-		if _, ok := last[cls]; !ok {
-			last[cls], order = nil, append(order, cls)
-		}
-		chunk[string(e.key)], chunkLast, chunkCls = e.print, e.key, cls
-	}
-	if err := flush(); err != nil {
+	if err := next(); err != nil {
 		return err
 	}
-	// Beyond the last fingerprint of each class, and of a type no fingerprint
-	// has: new records.
-	var types bson.A
-	for _, cls := range order {
-		n, err := l.compare(k.Name, and(base, bson.M{"_id": bson.M{"$gt": IDOf(last[cls])}}), nil, ttl)
+	for e != nil {
+		cls := idClass(bson.Type(e.key[0]))
+		types = append(types, classTypes(cls)...)
+		cur, err := l.old.C(k.Name).Find(l.ctx, and(base, bson.M{"_id": bson.M{"$type": classTypes(cls)}}),
+			options.Find().SetSort(bson.D{{Key: "_id", Value: 1}}).SetBatchSize(wsarchive.FindBatch))
 		if err != nil {
 			return err
 		}
-		seen += n
-		for _, t := range classTypes(cls) {
-			types = append(types, t)
+		if ordered(cls) {
+			err = l.merge(k.Name, cls, cur, &e, next, ttl)
+		} else {
+			err = l.unordered(k.Name, cls, cur, &e, next, ttl)
+		}
+		cur.Close(l.ctx)
+		if err != nil {
+			return err
 		}
 	}
 	other := base
 	if len(types) > 0 {
 		other = and(base, bson.M{"_id": bson.M{"$not": bson.M{"$type": types}}})
 	}
-	n, err := l.compare(k.Name, other, nil, ttl)
+	cur, err := l.old.C(k.Name).Find(l.ctx, other, options.Find().SetSort(bson.D{{Key: "_id", Value: 1}}).SetBatchSize(wsarchive.FindBatch))
 	if err != nil {
 		return err
 	}
-	seen += n
-	// Every record of the old database seen once? (Something written during
-	// the look itself, or an _id MongoDB orders unlike these ranges, says no:
-	// then the whole kind against every fingerprint.)
-	total, err := l.old.C(k.Name).CountDocuments(l.ctx, base)
+	defer cur.Close(l.ctx)
+	for cur.Next(l.ctx) {
+		if err := l.found(k.Name, cur.Current, "", false); err != nil {
+			return err
+		}
+	}
+	return cur.Err()
+}
+
+// merge walks one class of _id on both sides, in order.
+func (l *looker) merge(coll string, cls byte, cur *mongo.Cursor, e **printEntry, next func() error, ttl bool) error {
+	have := cur.Next(l.ctx)
+	for {
+		inClass := *e != nil && idClass(bson.Type((*e).key[0])) == cls
+		if !have && !inClass {
+			return cur.Err()
+		}
+		var c int
+		var doc bson.Raw
+		var key []byte
+		if have {
+			doc = cur.Current
+			k, err := idKey(doc)
+			if err != nil {
+				return err
+			}
+			key = k
+		}
+		switch {
+		case !have:
+			c = -1 // only a fingerprint left: gone
+		case !inClass:
+			c = 1 // only the old database's record: new
+		default:
+			n, err := compareIDs((*e).key, key)
+			if err != nil {
+				return err
+			}
+			c = n
+		}
+		switch {
+		case c < 0:
+			if !ttl {
+				k := (*e).key
+				if err := l.add(Late{Collection: coll, ID: IDOf(k), Key: k, Kind: LateGone, MovePrint: (*e).print}); err != nil {
+					return err
+				}
+			}
+			if err := next(); err != nil {
+				return err
+			}
+		case c > 0:
+			if err := l.found(coll, doc, "", false); err != nil {
+				return err
+			}
+			have = cur.Next(l.ctx)
+		default:
+			if err := l.found(coll, doc, (*e).print, true); err != nil {
+				return err
+			}
+			if err := next(); err != nil {
+				return err
+			}
+			have = cur.Next(l.ctx)
+		}
+	}
+}
+
+// ordered reports a class of _id a look puts in MongoDB's order by itself
+// (all but documents, arrays, patterns and code as _ids, which MetaRush never
+// makes).
+func ordered(cls byte) bool {
+	switch cls {
+	case 'n', 's', byte(bson.TypeObjectID), byte(bson.TypeBoolean), byte(bson.TypeDateTime), byte(bson.TypeTimestamp), byte(bson.TypeBinary),
+		byte(bson.TypeNull), byte(bson.TypeMinKey), byte(bson.TypeMaxKey), byte(bson.TypeUndefined):
+		return true
+	}
+	return false
+}
+
+// MaxUnordered is how many fingerprints of a class of _id a look can't order
+// it holds at once; past it the look stops and says so.
+var MaxUnordered = 100_000
+
+// unordered compares a class of _id a look can't order by itself: its
+// fingerprints held (at most MaxUnordered), the old database's records read
+// once against them.
+func (l *looker) unordered(coll string, cls byte, cur *mongo.Cursor, e **printEntry, next func() error, ttl bool) error {
+	prints := map[string]string{}
+	for *e != nil && idClass(bson.Type((*e).key[0])) == cls {
+		if len(prints) >= MaxUnordered {
+			l.res.Stopped = "at a kind of record with unusual IDs, too many to compare"
+			return errStop
+		}
+		prints[string((*e).key)] = (*e).print
+		if err := next(); err != nil {
+			return err
+		}
+	}
+	for cur.Next(l.ctx) {
+		key, err := idKey(cur.Current)
+		if err != nil {
+			return err
+		}
+		was, known := prints[string(key)]
+		delete(prints, string(key))
+		if err := l.found(coll, cur.Current, was, known); err != nil {
+			return err
+		}
+	}
+	if err := cur.Err(); err != nil || ttl {
+		return err
+	}
+	keys := make([]string, 0, len(prints))
+	for k := range prints {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		kb := []byte(k)
+		if err := l.add(Late{Collection: coll, ID: IDOf(kb), Key: kb, Kind: LateGone, MovePrint: prints[k]}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// found compares one record of the old database with its fingerprint (known
+// false: it has none).
+func (l *looker) found(coll string, doc bson.Raw, was string, known bool) error {
+	if err := l.account(doc); err != nil {
+		return err
+	}
+	line, err := wsarchive.Line(doc)
 	if err != nil {
 		return err
 	}
-	if total == seen || r == nil {
+	now := printOfLine(line)
+	if known && was == now {
 		return nil
 	}
-	l.res.Found, l.res.More = l.res.Found[:start], more
-	all, err := l.kindPrints(k.Name)
+	key, err := idKey(doc)
 	if err != nil {
 		return err
 	}
-	_, err = l.compare(k.Name, base, all, ttl)
-	return err
+	x := Late{Collection: coll, ID: IDOf(key), Key: key, Kind: LateNew, Doc: bytes.Clone(doc), Print: now}
+	if known {
+		x.Kind, x.MovePrint = LateChanged, was
+	}
+	return l.add(x)
 }
 
-// kindPrints reads one kind's fingerprints again, all of them.
-func (l *looker) kindPrints(name string) (map[string]string, error) {
-	r, err := openPrints(l.path)
-	if err != nil {
-		return nil, err
+// ErrIDOrder is an _id MetaRush can't put in MongoDB's order by itself (a
+// document or an array as an _id).
+var ErrIDOrder = errors.New("a record's _id is of a kind a look can't order")
+
+// compareIDs orders two _ids of one class the way MongoDB sorts them.
+func compareIDs(a, b []byte) (int, error) {
+	va, vb := IDOf(a), IDOf(b)
+	switch idClass(va.Type) {
+	case 'n':
+		return compareNumbers(va, vb)
+	case 's':
+		return strings.Compare(rawString(va), rawString(vb)), nil
 	}
-	defer r.close()
-	out := map[string]string{}
-	in := false
-	for {
-		e, err := r.next()
-		if err != nil {
-			return nil, err
+	switch va.Type {
+	case bson.TypeObjectID, bson.TypeBoolean:
+		return bytes.Compare(va.Value, vb.Value), nil
+	case bson.TypeDateTime:
+		return cmpInt(va.DateTime(), vb.DateTime()), nil
+	case bson.TypeTimestamp:
+		ta, ia := va.Timestamp()
+		tb, ib := vb.Timestamp()
+		if ta != tb {
+			return cmpInt(int64(ta), int64(tb)), nil
 		}
-		switch e.tag {
-		case tagEnd:
-			return out, nil
-		case tagKind:
-			if in {
-				return out, nil
-			}
-			in = e.name == name
-		case tagRecord:
-			if in {
-				out[string(e.key)] = e.print
-			}
+		return cmpInt(int64(ia), int64(ib)), nil
+	case bson.TypeBinary:
+		sa, ba := va.Binary()
+		sb, bb := vb.Binary()
+		if len(ba) != len(bb) {
+			return cmpInt(int64(len(ba)), int64(len(bb))), nil
 		}
+		if sa != sb {
+			return cmpInt(int64(sa), int64(sb)), nil
+		}
+		return bytes.Compare(ba, bb), nil
+	case bson.TypeNull, bson.TypeMinKey, bson.TypeMaxKey, bson.TypeUndefined:
+		return 0, nil
 	}
+	return 0, ErrIDOrder
 }
 
-// compare reads the old database's records matching filter and compares each
-// with prints (taken from it as they are seen): new when it has none,
-// changed when it differs; what is left of prints is gone (never said of
-// records that end by themselves: they may have). It says how many records
-// it read.
-func (l *looker) compare(coll string, filter bson.M, prints map[string]string, ttl bool) (int64, error) {
-	cur, err := l.old.C(coll).Find(l.ctx, filter, options.Find().SetSort(bson.D{{Key: "_id", Value: 1}}).SetBatchSize(wsarchive.FindBatch))
+func rawString(v bson.RawValue) string {
+	if s, ok := v.StringValueOK(); ok {
+		return s
+	}
+	if s, ok := v.SymbolOK(); ok {
+		return s
+	}
+	return ""
+}
+
+func cmpInt(a, b int64) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	}
+	return 0
+}
+
+// compareNumbers orders two numbers by value, whatever their BSON type.
+func compareNumbers(a, b bson.RawValue) (int, error) {
+	ia, aInt := intOf(a)
+	ib, bInt := intOf(b)
+	if aInt && bInt {
+		return cmpInt(ia, ib), nil
+	}
+	fa, err := floatOf(a)
 	if err != nil {
 		return 0, err
 	}
-	defer cur.Close(l.ctx)
-	var n int64
-	for cur.Next(l.ctx) {
-		n++
-		doc := cur.Current
-		key, err := idKey(doc)
+	fb, err := floatOf(b)
+	if err != nil {
+		return 0, err
+	}
+	return fa.Cmp(fb), nil
+}
+
+func intOf(v bson.RawValue) (int64, bool) {
+	switch v.Type {
+	case bson.TypeInt32:
+		return int64(v.Int32()), true
+	case bson.TypeInt64:
+		return v.Int64(), true
+	}
+	return 0, false
+}
+
+func floatOf(v bson.RawValue) (*big.Float, error) {
+	switch v.Type {
+	case bson.TypeInt32, bson.TypeInt64:
+		i, _ := intOf(v)
+		return new(big.Float).SetInt64(i), nil
+	case bson.TypeDouble:
+		return big.NewFloat(v.Double()), nil
+	case bson.TypeDecimal128:
+		f, _, err := big.ParseFloat(v.Decimal128().String(), 10, 113, big.ToNearestEven)
 		if err != nil {
-			return n, err
+			return nil, ErrIDOrder
 		}
-		line, err := wsarchive.Line(doc)
-		if err != nil {
-			return n, err
-		}
-		now := printOfLine(line)
-		was, known := prints[string(key)]
-		if known {
-			delete(prints, string(key))
-			if was == now {
-				continue
-			}
-		}
-		x := Late{Collection: coll, ID: IDOf(key), Key: key, Kind: LateNew, Doc: bytes.Clone(doc), Print: now}
-		if known {
-			x.Kind, x.MovePrint = LateChanged, was
-		}
-		l.add(x)
+		return f, nil
 	}
-	if err := cur.Err(); err != nil {
-		return n, err
-	}
-	if !ttl {
-		gone := make([]string, 0, len(prints))
-		for key := range prints {
-			gone = append(gone, key)
-		}
-		sort.Strings(gone)
-		for _, key := range gone {
-			k := []byte(key)
-			l.add(Late{Collection: coll, ID: IDOf(k), Key: k, Kind: LateGone, MovePrint: prints[key]})
-		}
-	}
-	return n, nil
+	return nil, ErrIDOrder
 }
 
 // and joins two filters (either may be empty).
@@ -663,4 +872,12 @@ func and(a, b bson.M) bson.M {
 		return a
 	}
 	return bson.M{"$and": bson.A{a, b}}
+}
+
+// ServerHashesWork reports whether a database's server says its own hash of
+// a kind of record (dbHash; Atlas's free and Flex clusters don't): when it
+// doesn't, every look after a move reads the whole old database again. It
+// asks about a kind that doesn't exist, so the server reads nothing.
+func ServerHashesWork(ctx context.Context, db *store.DB) bool {
+	return serverHashes(ctx, db, []string{"metarush_no_such_kind"}) != nil
 }

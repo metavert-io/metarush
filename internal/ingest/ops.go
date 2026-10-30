@@ -154,8 +154,12 @@ func init() {
 				_ = a.Media.AbortIncomplete(ctx, u)
 			}
 		}
+		// Sessions are written on the computer that uploads: abandoned by the
+		// database server's time (D360).
 		var stale []models.IngestSession
-		if err := a.DB.Find(ctx, store.CIngest, a.WorkspaceID(), bson.M{"state": bson.M{"$in": bson.A{"uploading", "verifying"}}, "updatedAt": bson.M{"$lt": cutoff}}, &stale); err != nil {
+		quiet := store.StaleBefore("updatedAt", time.Duration(age*float64(time.Hour)))
+		quiet["state"] = bson.M{"$in": bson.A{"uploading", "verifying"}}
+		if err := a.DB.Find(ctx, store.CIngest, a.WorkspaceID(), quiet, &stale); err != nil {
 			return nil, err
 		}
 		for _, s := range stale {

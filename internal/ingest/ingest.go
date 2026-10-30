@@ -330,8 +330,9 @@ func File(ctx context.Context, a *app.App, path string, o Options) Result {
 	}
 	res.SessionID = sess.ID
 	setSession := func(set bson.M) {
-		set["updatedAt"] = time.Now().UTC()
-		_ = a.DB.Update(context.WithoutCancel(ctx), store.CIngest, a.WorkspaceID(), sess.ID, bson.M{"$set": set})
+		// Another computer judges a session abandoned by when it last moved
+		// (ingest.reconcile): the database server's time (D360).
+		_ = a.DB.Update(context.WithoutCancel(ctx), store.CIngest, a.WorkspaceID(), sess.ID, bson.M{"$set": set, "$currentDate": bson.M{"updatedAt": true}})
 	}
 	setSession(bson.M{"state": "uploading", "installationId": a.Cfg.Installation.ID, "error": ""})
 	resume := media.Resume{UploadID: sess.Upload.UploadID, PartSize: sess.Upload.PartSize, PartsDone: sess.Upload.PartsDone, SessionURI: sess.Upload.SessionURI, Offset: sess.Upload.Offset}

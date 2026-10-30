@@ -671,6 +671,11 @@ func TestDatabaseMoveMarksBeforeItSwitches(t *testing.T) {
 	if cfg, _ := config.Load(a.Cfg.Home()); cfg.Database.Name != dst.Name {
 		t.Fatal("not switched")
 	}
+	// The computer that moved it starts its looks at the old database once
+	// it switched (something written there late, D352).
+	if sw.Late == nil || len(sw.Late.Looks) != 1 || !sw.Late.Here || sw.Late.Next == nil {
+		t.Fatalf("the looks after the switch: %+v", sw.Late)
+	}
 }
 
 // freezeFor puts a "being moved" marker into the workspace's database, as a

@@ -17380,6 +17380,164 @@
         "count"
       ]
     },
+    "DatabaseLateCarryOut": {
+      "properties": {
+        "carried": {
+          "items": {
+            "$ref": "#/$defs/LateWriteView"
+          },
+          "type": "array"
+        },
+        "refused": {
+          "items": {
+            "$ref": "#/$defs/LateRefused"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "carried",
+        "refused",
+        "summary"
+      ]
+    },
+    "DatabaseLateDecideIn": {
+      "properties": {
+        "ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 500
+        },
+        "all": {
+          "type": "boolean",
+          "description": "Every record that waits for a person."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DatabaseLateLeaveOut": {
+      "properties": {
+        "left": {
+          "items": {
+            "$ref": "#/$defs/LateWriteView"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "left",
+        "summary"
+      ]
+    },
+    "DatabaseLateShowIn": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id"
+      ]
+    },
+    "DatabaseLateShowOut": {
+      "properties": {
+        "found": {
+          "$ref": "#/$defs/LateWriteView"
+        },
+        "old": {
+          "type": "object"
+        },
+        "here": {
+          "type": "object"
+        },
+        "differs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "found",
+        "differs",
+        "summary"
+      ]
+    },
+    "DatabaseLateWritesIn": {
+      "properties": {
+        "look": {
+          "type": "boolean",
+          "description": "Look at the old database again now (on the computer that moved it, while it keeps the old database's address)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DatabaseLateWritesOut": {
+      "properties": {
+        "looked": {
+          "type": "boolean"
+        },
+        "problem": {
+          "type": "string"
+        },
+        "moves": {
+          "items": {
+            "$ref": "#/$defs/LateLookView"
+          },
+          "type": "array"
+        },
+        "found": {
+          "items": {
+            "$ref": "#/$defs/LateWriteView"
+          },
+          "type": "array"
+        },
+        "waiting": {
+          "type": "integer"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "looked",
+        "moves",
+        "found",
+        "waiting",
+        "summary",
+        "steps"
+      ]
+    },
     "DatabaseMoveIn": {
       "properties": {
         "to": {
@@ -17461,6 +17619,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "late": {
+          "$ref": "#/$defs/LateLookView"
         },
         "summary": {
           "type": "string"
@@ -17623,6 +17784,9 @@
         },
         "run": {
           "$ref": "#/$defs/DatabaseMoveRunView"
+        },
+        "late": {
+          "$ref": "#/$defs/LateLookView"
         },
         "summary": {
           "type": "string"
@@ -17841,6 +18005,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "late": {
+          "$ref": "#/$defs/LateLookView"
         },
         "summary": {
           "type": "string"
@@ -29100,6 +29267,210 @@
         "name"
       ]
     },
+    "LateLookTaken": {
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "when": {
+          "type": "string",
+          "enum": [
+            "soon",
+            "later",
+            "asked"
+          ]
+        },
+        "found": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at",
+        "when",
+        "found"
+      ]
+    },
+    "LateLookView": {
+      "properties": {
+        "move": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string",
+          "description": "The old database, in words."
+        },
+        "movedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "computer": {
+          "type": "string"
+        },
+        "here": {
+          "type": "boolean"
+        },
+        "looks": {
+          "items": {
+            "$ref": "#/$defs/LateLookTaken"
+          },
+          "type": "array"
+        },
+        "next": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the last look is due."
+        },
+        "ended": {
+          "type": "boolean"
+        },
+        "endedWhy": {
+          "type": "string"
+        },
+        "problem": {
+          "type": "string"
+        },
+        "found": {
+          "type": "integer"
+        },
+        "waiting": {
+          "type": "integer"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "move",
+        "from",
+        "movedAt",
+        "computer",
+        "here",
+        "looks",
+        "ended",
+        "found",
+        "waiting",
+        "summary"
+      ]
+    },
+    "LateRefused": {
+      "properties": {
+        "found": {
+          "$ref": "#/$defs/LateWriteView"
+        },
+        "why": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "changed_here",
+            "gone",
+            "too_large",
+            "decided",
+            "clash"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "found",
+        "why",
+        "reason"
+      ]
+    },
+    "LateWriteView": {
+      "properties": {
+        "n": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "what": {
+          "type": "string",
+          "description": "The kind of record, in words: a comment, a clip, a version of a cut."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "new",
+            "changed",
+            "gone"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "computer": {
+          "type": "string",
+          "description": "The computer it was written on, when the record says."
+        },
+        "foundAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "waiting",
+            "carried",
+            "left"
+          ]
+        },
+        "copyChanged": {
+          "type": "boolean"
+        },
+        "canCarry": {
+          "type": "boolean"
+        },
+        "says": {
+          "type": "string"
+        },
+        "collection": {
+          "type": "string"
+        },
+        "record": {
+          "type": "string"
+        },
+        "move": {
+          "type": "string"
+        },
+        "decidedBy": {
+          "type": "string"
+        },
+        "decidedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "n",
+        "id",
+        "what",
+        "kind",
+        "foundAt",
+        "state",
+        "copyChanged",
+        "canCarry",
+        "says",
+        "collection",
+        "record",
+        "move"
+      ]
+    },
     "LayoutPack": {
       "properties": {
         "name": {
@@ -36056,7 +36427,8 @@
             "recording_expiring",
             "publish_stopped",
             "outside_comments",
-            "review_link_ended"
+            "review_link_ended",
+            "late_writes"
           ]
         },
         "groupKey": {
@@ -75244,6 +75616,74 @@
       ],
       "description": "Abandon a move of the database that stopped: changes go on in the old database, and the copy keeps its lock so nothing uses it (owners, people only)"
     },
+    "database.late.carry": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/DatabaseLateDecideIn"
+        },
+        "output": {
+          "$ref": "#/$defs/DatabaseLateCarryOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Carry a record written into the old database after the move over into this database — only while this database's own record is still the one the move copied (owners, people only)"
+    },
+    "database.late.leave": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/DatabaseLateDecideIn"
+        },
+        "output": {
+          "$ref": "#/$defs/DatabaseLateLeaveOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Leave a record written into the old database after the move as it is here: this database keeps its own (owners, people only)"
+    },
+    "database.late.show": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/DatabaseLateShowIn"
+        },
+        "output": {
+          "$ref": "#/$defs/DatabaseLateShowOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Show a record written into the old database after the move: the old database's version beside this database's (owners, people only)"
+    },
+    "database.late.writes": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/DatabaseLateWritesIn"
+        },
+        "output": {
+          "$ref": "#/$defs/DatabaseLateWritesOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "List what was written into the old database after the workspace moved to this one — records new, changed or gone there since the move — and, on the computer that moved it while it keeps the old database's address, look again now (owners)"
+    },
     "database.move": {
       "properties": {
         "input": {
@@ -81973,6 +82413,10 @@
     "cut.useFixed",
     "cut.where",
     "database.abandon",
+    "database.late.carry",
+    "database.late.leave",
+    "database.late.show",
+    "database.late.writes",
     "database.move",
     "database.move.status",
     "database.plan",

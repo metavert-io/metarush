@@ -38,6 +38,7 @@ var ownerOnlyOps = []string{
 	"share.settings.set",
 	"workspace.export", "workspace.exports", "workspace.adopt",
 	"database.plan", "database.move", "database.switch", "database.abandon",
+	"database.late.writes", "database.late.show", "database.late.carry", "database.late.leave",
 }
 
 // Every op of the list is owner-only, and every owner-only op is on the list

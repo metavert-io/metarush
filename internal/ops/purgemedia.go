@@ -110,6 +110,8 @@ var purgeCatalogue = map[string]purgeEntry{
 	store.CSpokenChanges:          {Purge: "its records of words changed in a speaker's own voice go (the new sounds are clips: they stay like footage)", Media: mediaNone, Project: "projectId"},
 	store.CReviewLinks:            {Purge: "its review links end and their pages and copies are deleted from the media store; the records of what was shared stay", Media: mediaNone},
 	store.CHandovers:              {Purge: "kept", Media: mediaNone},
+	store.CLateLooks:              {Purge: "kept", Media: mediaNone},
+	store.CLateWrites:             {Purge: "kept (copies of records written into an old database late: files they name stay)", Media: mediaScan},
 	store.CLogEntries:             {Purge: "kept (the activity log)", Media: mediaHistory},
 	store.CImprovementItems:       {Purge: "kept", Media: mediaNone},
 	store.CImprovementReports:     {Purge: "kept", Media: mediaScan},

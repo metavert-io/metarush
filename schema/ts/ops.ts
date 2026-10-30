@@ -1399,6 +1399,34 @@ input: DatabaseAbandonIn
 output: DatabaseAbandonOut
 }
 /**
+ * Carry a record written into the old database after the move over into this database — only while this database's own record is still the one the move copied (owners, people only)
+ */
+"database.late.carry": {
+input: DatabaseLateDecideIn
+output: DatabaseLateCarryOut
+}
+/**
+ * Leave a record written into the old database after the move as it is here: this database keeps its own (owners, people only)
+ */
+"database.late.leave": {
+input: DatabaseLateDecideIn
+output: DatabaseLateLeaveOut
+}
+/**
+ * Show a record written into the old database after the move: the old database's version beside this database's (owners, people only)
+ */
+"database.late.show": {
+input: DatabaseLateShowIn
+output: DatabaseLateShowOut
+}
+/**
+ * List what was written into the old database after the workspace moved to this one — records new, changed or gone there since the move — and, on the computer that moved it while it keeps the old database's address, look again now (owners)
+ */
+"database.late.writes": {
+input: DatabaseLateWritesIn
+output: DatabaseLateWritesOut
+}
+/**
  * Move the workspace's database to another one: changes pause on every computer, everything is copied and checked, this computer switches, and the old database is kept, marked as moved, never deleted (owners, people only; plan first)
  */
 "database.move": {
@@ -17413,6 +17441,154 @@ summary: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseLateDecideIn".
+ */
+export interface DatabaseLateDecideIn {
+/**
+ * @maxItems 500
+ */
+ids?: string[]
+/**
+ * Every record that waits for a person.
+ */
+all?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseLateCarryOut".
+ */
+export interface DatabaseLateCarryOut {
+carried: LateWriteView[]
+refused: LateRefused[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "LateWriteView".
+ */
+export interface LateWriteView {
+n: number
+id: string
+/**
+ * The kind of record, in words: a comment, a clip, a version of a cut.
+ */
+what: string
+kind: ("new" | "changed" | "gone")
+at?: string
+/**
+ * The computer it was written on, when the record says.
+ */
+computer?: string
+foundAt: string
+state: ("waiting" | "carried" | "left")
+copyChanged: boolean
+canCarry: boolean
+says: string
+collection: string
+record: string
+move: string
+decidedBy?: string
+decidedAt?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "LateRefused".
+ */
+export interface LateRefused {
+found: LateWriteView
+why: string
+reason: ("changed_here" | "gone" | "too_large" | "decided" | "clash")
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseLateLeaveOut".
+ */
+export interface DatabaseLateLeaveOut {
+left: LateWriteView[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseLateShowIn".
+ */
+export interface DatabaseLateShowIn {
+id: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseLateShowOut".
+ */
+export interface DatabaseLateShowOut {
+found: LateWriteView
+old?: {
+
+}
+here?: {
+
+}
+differs: string[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseLateWritesIn".
+ */
+export interface DatabaseLateWritesIn {
+/**
+ * Look at the old database again now (on the computer that moved it, while it keeps the old database's address).
+ */
+look?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DatabaseLateWritesOut".
+ */
+export interface DatabaseLateWritesOut {
+looked: boolean
+problem?: string
+moves: LateLookView[]
+found: LateWriteView[]
+waiting: number
+summary: string
+steps: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "LateLookView".
+ */
+export interface LateLookView {
+move: string
+/**
+ * The old database, in words.
+ */
+from: string
+movedAt: string
+computer: string
+here: boolean
+looks: LateLookTaken[]
+next?: string
+/**
+ * When the last look is due.
+ */
+last?: string
+ended: boolean
+endedWhy?: string
+problem?: string
+found: number
+waiting: number
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "LateLookTaken".
+ */
+export interface LateLookTaken {
+at: string
+when: ("soon" | "later" | "asked")
+found: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "DatabaseMoveIn".
  */
 export interface DatabaseMoveIn {
@@ -17448,6 +17624,7 @@ others: string[]
 seconds: number
 kept: string
 next: string[]
+late?: LateLookView
 summary: string
 }
 /**
@@ -17510,6 +17687,7 @@ steps: string[]
 command?: string
 moving: boolean
 run?: DatabaseMoveRunView
+late?: LateLookView
 summary: string
 }
 /**
@@ -17669,6 +17847,7 @@ from: DatabasePlace
 to: DatabasePlace
 switched: boolean
 next: string[]
+late?: LateLookView
 summary: string
 }
 /**
@@ -23942,7 +24121,7 @@ export interface NotificationRow {
 id: string
 workspaceId: string
 userId: string
-kind: ("file_ready" | "render_finished" | "render_failed" | "qa_done" | "assistant_proposal" | "duplicate_skipped" | "battery_paused" | "upload_interrupted" | "speakers" | "speakers_recognized" | "narration_ready" | "narration_failed" | "import_failed" | "on_screen" | "scenes_described" | "generation_ready" | "generation_failed" | "fixes_missed" | "remotion_waiting" | "signin_locked" | "content_settings" | "recipe_run" | "recipe_planned" | "ability_waiting" | "ability_run" | "auto_spent" | "recording_expiring" | "publish_stopped" | "outside_comments" | "review_link_ended")
+kind: ("file_ready" | "render_finished" | "render_failed" | "qa_done" | "assistant_proposal" | "duplicate_skipped" | "battery_paused" | "upload_interrupted" | "speakers" | "speakers_recognized" | "narration_ready" | "narration_failed" | "import_failed" | "on_screen" | "scenes_described" | "generation_ready" | "generation_failed" | "fixes_missed" | "remotion_waiting" | "signin_locked" | "content_settings" | "recipe_run" | "recipe_planned" | "ability_waiting" | "ability_run" | "auto_spent" | "recording_expiring" | "publish_stopped" | "outside_comments" | "review_link_ended" | "late_writes")
 groupKey: string
 tone: ("success" | "error" | "warning" | "info")
 title: string

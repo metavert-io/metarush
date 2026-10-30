@@ -112,6 +112,8 @@ var Catalogue = map[string]Entry{
 	store.CSpokenChanges:          {How: AsIs, Why: "words changed in a speaker's own voice, as disclosed"},
 	store.CReviewLinks:            {How: AsIs, Why: "links sent to outside reviewers, as the record of what was shared"},
 	store.CHandovers:              {How: AsIs, Why: "handovers of a computer's role to another computer and take-overs, as history: which computer took over from which, and when (never a passphrase or a key)"},
+	store.CLateLooks:              {How: AsIs, Why: "the looks at an old database after the workspace moved, as history: when, from which computer, how much each found (never an address)"},
+	store.CLateWrites:             {How: LeftOut, Why: "copies of records written into an old database after the workspace moved, kept for a person to carry over: any kind of record, passwords included, and about that old database only"},
 	store.CLogEntries:             {How: AsIs, Why: "the activity log (written without keys or passwords)"},
 	store.CImprovementItems:       {How: AsIs, Why: "gaps and friction the weekly report found"},
 	store.CImprovementReports:     {How: AsIs, Why: "the weekly reports"},

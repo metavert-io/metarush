@@ -70,7 +70,8 @@ var readsShow = map[string]string{
 	"share.list": "W", "share.plan": "-", "share.settings": "-",
 	"storage.plan": "-", "storage.status": "-", "sync.status": "-",
 	"database.plan": "-", "database.move.status": "-", // where the database is, counts, computers' names (D338)
-	"todos.counts": "-", "todos.groups": "WPA", "todos.list": "W", "todos.show": "VWA",
+	"database.late.writes": "-", // kinds of record written late, when and on which computer: never their contents (D357)
+	"todos.counts":         "-", "todos.groups": "WPA", "todos.list": "W", "todos.show": "VWA",
 	"transcript.find": "W", "transcript.history": "W", "transcript.pending": "W", "transcript.spelling.list": "-", "transcript.spelling.suggestions": "W",
 	"trash.list": "-", "trash.settings": "-", "users.list": "-", "version.show": "-",
 	"voiceover.choose": "W", "voiceover.estimate": "W", "voiceover.fit": "W", "voiceover.models": "-", "voiceover.parse": "W",

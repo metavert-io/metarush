@@ -114,7 +114,7 @@ func (m *moveTo) target(c *cobra.Command, a *app.App, switching bool) (ops.Datab
 }
 
 func databaseMoveCmds() []*cobra.Command {
-	return []*cobra.Command{databasePlanCmd(), databaseMoveCmd(), databaseSwitchCmd(), databaseAbandonCmd(), databaseMoveStatusCmd()}
+	return []*cobra.Command{databasePlanCmd(), databaseMoveCmd(), databaseSwitchCmd(), databaseAbandonCmd(), databaseMoveStatusCmd(), databaseLateWritesCmd()}
 }
 
 func databasePlanCmd() *cobra.Command {
@@ -417,6 +417,12 @@ func printDatabaseMoveStatus(c *cobra.Command, s *ops.DatabaseMoveStatusOut) {
 	}
 	for _, st := range s.Steps {
 		fmt.Println("  - " + st)
+	}
+	if s.Late != nil {
+		fmt.Println(s.Late.Summary)
+		if s.Late.Waiting > 0 {
+			fmt.Println("  - See it, carry it over or leave it: metarush database late-writes (or Settings → Storage → Move the database).")
+		}
 	}
 	if detailsMode(c) {
 		fmt.Printf("This computer: %s (%s, database %s)\n", s.This.Words, s.This.Host, s.This.Name)

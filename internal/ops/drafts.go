@@ -112,6 +112,10 @@ var notDrafted = map[string]string{
 	"database.move":    "Moving the workspace's database pauses every computer and switches where everything is kept, so only an owner does it, in person: tell them why you'd suggest it.",
 	"database.switch":  "Switching this computer to the workspace's new database takes its own sign-in, so only an owner does it, at this computer.",
 	"database.abandon": "Abandoning a move of the database is an owner's decision, in person.",
+	// Something written into the old database late (D357): which version a
+	// record keeps is a person's decision.
+	"database.late.carry": "Carrying a record written into the old database late over into this one is an owner's decision, in person: tell them what you'd carry over and why.",
+	"database.late.leave": "Leaving a record written into the old database late as it is here is an owner's decision, in person.",
 }
 
 // MaxWaitingDrafts is how many drafts one app may have waiting at once.

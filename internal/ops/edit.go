@@ -821,7 +821,13 @@ func commitRevision(ctx context.Context, a *app.App, p *prepared) (*EditApplyOut
 		return nil, err
 	}
 	_, total := editspec.Timeline(p.spec)
-	now := time.Now().UTC()
+	// The database server's time (D360): the daemons' review copies follow a
+	// version once it has been quiet a while by that clock, on whichever
+	// computer looks.
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	rev := models.Revision{ID: ids.New(ids.Revision), WorkspaceID: a.WorkspaceID(), ProjectID: p.project.ID, Branch: p.branch, Number: proj.RevisionSeq,
 		ParentID: p.parentID, Spec: *p.spec, SpecHash: editspec.Hash(p.spec), Ops: p.plan.Ops, Instruction: p.plan.Instruction, Rationale: p.plan.Rationale, Origin: p.plan.Origin,
 		Warnings: p.warnings, Duration: float64(total) / float64(p.spec.Output.FPS), Approval: models.Approval{State: models.ApprovalDraft}, CreatedBy: a.Actor, CreatedAt: now,

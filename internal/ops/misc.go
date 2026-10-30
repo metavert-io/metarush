@@ -212,8 +212,13 @@ func submitRender(ctx context.Context, a *app.App, r *models.Revision, in *Rende
 	// The render is saved before its job is queued: a worker may lease the job
 	// the moment it exists, and it must find its render (queueing first let a
 	// fast worker fail the job with "render not found"). The job's ID is chosen
-	// up front so the saved render already points at it.
-	now := time.Now().UTC()
+	// up front so the saved render already points at it. Made at the database
+	// server's time: the daemons count the review copies of the last hour by
+	// it (D360).
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	jobID := ids.New(ids.Job)
 	rd := models.Render{ID: ids.New(ids.Render), WorkspaceID: a.WorkspaceID(), ProjectID: r.ProjectID, RevisionID: r.ID, RevisionNumber: r.Number, SpecHash: r.SpecHash,
 		Preset: preset, Quality: quality, JobID: jobID, State: models.RenderQueued, CreatedBy: a.Actor, CreatedAt: now, Follow: follow}

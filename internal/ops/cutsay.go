@@ -236,7 +236,9 @@ func recordPlacing(ctx context.Context, a *app.App, c *models.SpokenChange, entr
 			state = models.SpokenUndone
 		}
 	}
-	_ = a.DB.Update(ctx, store.CSpokenChanges, a.WorkspaceID(), c.ID, bson.M{"$set": bson.M{"updatedAt": entry.At}, "$push": bson.M{list: entry}})
+	// updatedAt is the database server's time: the daemons' sweep judges a
+	// mouth still being made by it (D360).
+	_ = a.DB.Update(ctx, store.CSpokenChanges, a.WorkspaceID(), c.ID, bson.M{"$currentDate": bson.M{"updatedAt": true}, "$push": bson.M{list: entry}})
 	_, _ = a.DB.C(store.CSpokenChanges).UpdateOne(ctx, bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID(), "state": bson.M{"$ne": models.SpokenWithdrawn}},
 		bson.M{"$set": bson.M{"state": state}})
 }
@@ -263,7 +265,7 @@ func mayPlace(ctx context.Context, a *app.App, c *models.SpokenChange) error {
 		return err
 	}
 	if why != "" {
-		_ = a.DB.Update(ctx, store.CSpokenChanges, a.WorkspaceID(), c.ID, bson.M{"$set": bson.M{"state": models.SpokenWithdrawn, "why": why, "updatedAt": time.Now().UTC()}})
+		_ = a.DB.Update(ctx, store.CSpokenChanges, a.WorkspaceID(), c.ID, bson.M{"$set": bson.M{"state": models.SpokenWithdrawn, "why": why}, "$currentDate": bson.M{"updatedAt": true}})
 		return apperr.New(apperr.ConsentRequired, "%s The new words can't go in the cut.", why)
 	}
 	return nil

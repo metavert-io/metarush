@@ -38,12 +38,7 @@ func Now(ctx context.Context, a *app.App) (time.Time, error) {
 // can wait for it (an outcome, a deletion recorded once): this computer's
 // clock only while the server has never answered, when the write that
 // follows fails too.
-func StampNow(ctx context.Context, a *app.App) time.Time {
-	if now, err := a.DB.Now(ctx); err == nil {
-		return now
-	}
-	return time.Now().UTC()
-}
+func StampNow(ctx context.Context, a *app.App) time.Time { return a.DB.NowOrLocal(ctx) }
 
 // SetOnce writes a part of a generation record only while it is still empty (D125).
 func SetOnce(ctx context.Context, a *app.App, genID, field string, v any) error {

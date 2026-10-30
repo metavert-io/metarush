@@ -936,7 +936,9 @@ func (e *engine) renderChecked(ctx context.Context, st *models.RecipeStep, rende
 		}
 		return renderCheck{detail: "Checking the review copy."}, nil
 	}
-	if r.CompletedAt != nil && time.Since(*r.CompletedAt) > qaGrace {
+	// The render's completion is the database server's time, written on the
+	// computer that rendered it (D360).
+	if r.CompletedAt != nil && e.a.DB.NowOrLocal(ctx).Sub(*r.CompletedAt) > qaGrace {
 		return renderCheck{done: true, qa: "didn't run", detail: "The review copy is ready (no quality check ran)."}, nil
 	}
 	return renderCheck{detail: "Checking the review copy."}, nil

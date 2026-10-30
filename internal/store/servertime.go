@@ -67,6 +67,16 @@ func (d *DB) Now(ctx context.Context) (time.Time, error) {
 	return Clock().Round(0).Add(off).UTC(), nil
 }
 
+// NowOrLocal is Now, or this computer's clock when the server never
+// answered (nothing that needs the server's time can be decided then
+// anyway).
+func (d *DB) NowOrLocal(ctx context.Context) time.Time {
+	if now, err := d.Now(ctx); err == nil {
+		return now
+	}
+	return Clock().UTC()
+}
+
 // ClockOffset is how far the database server's time was from this
 // computer's clock when last measured (positive: the server is ahead); false
 // before the first measurement.

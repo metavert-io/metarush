@@ -244,7 +244,8 @@ func runImportsHere(ctx context.Context, c *cobra.Command, a *app.App, ids []str
 			}
 			// Run it here unless MetaRush on this machine runs it: at the start,
 			// and again once a retry's wait is over.
-			if cur.State == models.JobQueued && !time.Now().Before(cur.NextRunAt) && idle() && !linkimport.Running(ctx, a) {
+			// (nextRunAt is the database server's time: D360.)
+			if cur.State == models.JobQueued && !a.DB.NowOrLocal(ctx).Before(cur.NextRunAt) && idle() && !linkimport.Running(ctx, a) {
 				if stop != nil {
 					stop()
 				}

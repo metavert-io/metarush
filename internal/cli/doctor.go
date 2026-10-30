@@ -526,7 +526,8 @@ func componentChecks(ctx context.Context, cfg *config.Config, ts *tools.Set, add
 // technically (name and busy slots) and in plain words.
 func activeWorkers(ctx context.Context, a *app.App) (string, string, error) {
 	var ws []models.WorkerDevice
-	if err := a.DB.Find(ctx, store.CWorkers, a.WorkspaceID(), bson.M{"lastHeartbeat": bson.M{"$gt": time.Now().Add(-45 * time.Second)}}, &ws); err != nil {
+	// Online by the database server's time, as heartbeats are written (D360).
+	if err := a.DB.Find(ctx, store.CWorkers, a.WorkspaceID(), store.SeenWithin("lastHeartbeat", 45*time.Second), &ws); err != nil {
 		return "", "", err
 	}
 	if len(ws) == 0 {

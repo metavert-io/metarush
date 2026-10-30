@@ -4,7 +4,6 @@ import (
 	"context"
 	"sort"
 	"strings"
-	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -54,7 +53,7 @@ type stuckJob struct {
 // stuckJobs are the jobs among pending that no computer can run now. here is
 // looked at once, when the first job waits to start.
 func stuckJobs(ctx context.Context, a *app.App, pending []models.Job, here **hereCan) []stuckJob {
-	now := time.Now()
+	now := a.DB.NowOrLocal(ctx) // nextRunAt is the database server's time (D360)
 	me := a.Cfg.Installation.ID
 	var out []stuckJob
 	for _, j := range pending {

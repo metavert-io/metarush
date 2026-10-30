@@ -543,14 +543,17 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 		Version: version.Version, Commit: version.Commit, Built: version.Date, UserID: user.ID, CreatedAt: now, LastSeenAt: now}
 	set := bson.M{"workspaceId": inst.WorkspaceID, "name": inst.Name, "hostname": inst.Hostname, "os": inst.OS, "arch": inst.Arch,
 		"version": inst.Version, "commit": inst.Commit, "built": inst.Built, "knowsMoves": app.MovesMark(inst.Version, inst.Commit),
-		"userId": inst.UserID, "lastSeenAt": now, "state": models.InstallationActive}
+		"userId": inst.UserID, "state": models.InstallationActive}
 	if cfg.Media.Provider == "s3" && !config.IsSecretRef(cfg.Media.S3.AccessKeyID) {
 		set["storageKeyId"] = cfg.Media.S3.AccessKeyID // an identifier, not the secret
 	}
 	if hasPrior && prior.State == models.InstallationInvited {
 		set["joinedAt"] = now
 	}
-	if _, err := db.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": inst.ID}, bson.M{"$set": set, "$setOnInsert": bson.M{"createdAt": now}}, options.UpdateOne().SetUpsert(true)); err != nil {
+	// When it was last seen is compared by other computers (a take-over, a
+	// move): the database server's time (D360).
+	if _, err := db.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": inst.ID}, bson.M{"$set": set, "$setOnInsert": bson.M{"createdAt": now},
+		"$currentDate": bson.M{"lastSeenAt": true}}, options.UpdateOne().SetUpsert(true)); err != nil {
 		return nil, err
 	}
 	// Assemble and persist config (secrets to keychain or env placeholders).

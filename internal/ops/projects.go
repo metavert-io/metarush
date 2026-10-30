@@ -354,9 +354,13 @@ func init() {
 	})
 }
 
-// OnlineWorkers returns workers that heartbeated recently and can run jobType.
+// OnlineWorkers returns workers that heartbeated recently and can run
+// jobType, by the database server's time (heartbeats are written in it, and
+// a terminal decides by it whether to do the work itself: D360).
 func OnlineWorkers(ctx context.Context, a *app.App, jobType string) ([]models.WorkerDevice, error) {
 	var ws []models.WorkerDevice
-	err := a.DB.Find(ctx, store.CWorkers, a.WorkspaceID(), bson.M{"jobTypes": jobType, "lastHeartbeat": bson.M{"$gt": time.Now().Add(-45 * time.Second)}}, &ws)
+	filter := store.SeenWithin("lastHeartbeat", 45*time.Second) // jobs.OnlineWindow
+	filter["jobTypes"] = jobType
+	err := a.DB.Find(ctx, store.CWorkers, a.WorkspaceID(), filter, &ws)
 	return ws, err
 }

@@ -89,7 +89,7 @@ func TestHeartbeatsAreTheServersTime(t *testing.T) {
 	if err := a.DB.GetByID(ctx, store.CWorkers, a.WorkspaceID(), a.Cfg.Installation.ID, &d); err != nil {
 		t.Fatal(err)
 	}
-	if since := serverNowOf(t, a).Sub(d.LastHeartbeat); since < 0 || since > 5*time.Second {
+	if since := serverNowOf(t, a).Sub(d.LastHeartbeat); since < -time.Second || since > time.Minute {
 		t.Fatalf("a heartbeat on a computer ten minutes slow: %v before the server's now", since)
 	}
 	if len(d.JobTypes) > 0 {

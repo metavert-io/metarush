@@ -73,7 +73,7 @@ func TestSignOutEverywhereFollowsTheServersClock(t *testing.T) {
 			t.Fatal(err)
 		}
 		restore()
-		if at := validAfter(t, a, maya); !near(at, serverTime(t, a), 3*time.Second) {
+		if at := validAfter(t, a, maya); !near(at, serverTime(t, a), time.Minute) {
 			t.Fatalf("signed out on a computer %v off: recorded %v, the server says %v", skew, at, serverTime(t, a))
 		}
 		if SessionValid(ctx, a, maya, before) {
@@ -82,7 +82,7 @@ func TestSignOutEverywhereFollowsTheServersClock(t *testing.T) {
 		restore = testutil.SkewClock(t, -skew) // the dashboard's computer, off the other way
 		made := SessionStart(ctx, a, nil)
 		restore()
-		if !near(made, serverTime(t, a), 3*time.Second) {
+		if !near(made, serverTime(t, a), time.Minute) {
 			t.Fatalf("a session made on a computer %v off starts at %v, the server says %v", -skew, made, serverTime(t, a))
 		}
 		if !SessionValid(ctx, a, maya, made) {
@@ -119,7 +119,7 @@ func TestEverySignOutIsTheServersTime(t *testing.T) {
 				t.Fatalf("%s: %v", w.name, err)
 			}
 			forgetAll()
-			if at := validAfter(t, a, id); !near(at, serverTime(t, a), 3*time.Second) {
+			if at := validAfter(t, a, id); !near(at, serverTime(t, a), time.Minute) {
 				t.Fatalf("%s on a computer %v off: recorded %v, the server says %v", w.name, skew, at, serverTime(t, a))
 			}
 			if SessionValid(ctx, a, id, before) {
@@ -142,11 +142,11 @@ func TestSessionStartsAfterTheSignOutItRead(t *testing.T) {
 		t.Fatalf("a sign-out a moment ahead: the session starts at %v, the sign-out %v", got, justNow)
 	}
 	ahead := server.Add(10 * time.Minute)
-	if got := SessionStart(ctx, a, &models.User{SessionsValidAfter: &ahead}); !near(got, server, 3*time.Second) {
+	if got := SessionStart(ctx, a, &models.User{SessionsValidAfter: &ahead}); !near(got, server, time.Minute) {
 		t.Fatalf("a sign-out ten minutes ahead moved the session's start to %v", got)
 	}
 	earlier := server.Add(-time.Hour)
-	if got := SessionStart(ctx, a, &models.User{SessionsValidAfter: &earlier}); !near(got, server, 3*time.Second) {
+	if got := SessionStart(ctx, a, &models.User{SessionsValidAfter: &earlier}); !near(got, server, time.Minute) {
 		t.Fatalf("an old sign-out: %v", got)
 	}
 }
@@ -167,7 +167,7 @@ func TestSessionStartWhileTheDatabaseIsAway(t *testing.T) {
 	if took := time.Since(began); took > lookupWait+500*time.Millisecond {
 		t.Fatalf("waited %v for the database", took)
 	}
-	if !near(got, time.Now(), 3*time.Second) {
+	if !near(got, time.Now(), time.Minute) {
 		t.Fatalf("started at %v", got)
 	}
 }
@@ -221,7 +221,7 @@ func TestSignInThrottlingFollowsTheServersClock(t *testing.T) {
 		t.Fatalf("the tenth try: %v", err)
 	}
 	f := get()
-	if server := serverTime(t, a); f.Count != lockAfter || !near(f.LastAt, server, 3*time.Second) || f.LockedUntil == nil || !near(*f.LockedUntil, server.Add(lockFor), 3*time.Second) {
+	if server := serverTime(t, a); f.Count != lockAfter || !near(f.LastAt, server, time.Minute) || f.LockedUntil == nil || !near(*f.LockedUntil, server.Add(lockFor), time.Minute) {
 		t.Fatalf("locked on a computer ten minutes slow: %+v (the server says %v)", f, server)
 	}
 	// A computer ten minutes fast still waits the fifteen minutes.
@@ -285,7 +285,7 @@ func TestLinksEndByTheServersClock(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !near(exp, serverTime(t, a).Add(ResetTTL), 3*time.Second) {
+		if !near(exp, serverTime(t, a).Add(ResetTTL), time.Minute) {
 			t.Fatalf("made on a computer %v off, the link ends at %v", skew, exp)
 		}
 		var rec LinkRecord

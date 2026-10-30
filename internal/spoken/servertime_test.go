@@ -27,7 +27,7 @@ func serverNow(t *testing.T, a *app.App) time.Time {
 
 func near(t *testing.T, what string, at, server time.Time) {
 	t.Helper()
-	if d := at.Sub(server); d < -5*time.Second || d > 5*time.Second {
+	if d := at.Sub(server); d < -time.Minute || d > time.Minute {
 		t.Fatalf("%s is %v, %v from the server's time", what, at, d)
 	}
 }

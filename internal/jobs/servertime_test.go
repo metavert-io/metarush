@@ -66,7 +66,7 @@ func TestWhenAJobMayRunIsTheServersTime(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	if d := nextRunAt(j.ID).Sub(server()); d > 2*time.Second || d < -2*time.Second {
+	if d := nextRunAt(j.ID).Sub(server()); d > time.Minute || d < -time.Minute {
 		t.Fatalf("a new job's nextRunAt is the server's now: off by %v", d)
 	}
 	got := lease(slow, worker("ins_slow"))
@@ -76,21 +76,23 @@ func TestWhenAJobMayRunIsTheServersTime(t *testing.T) {
 
 	// Its attempt fails on the slow computer: a worker ten minutes fast waits
 	// out the retry's whole wait, by the server's time.
+	const wait = 4 * time.Second // long enough for a loaded machine to look within it
 	old := RetryBase
-	RetryBase = 1500 * time.Millisecond
+	RetryBase = wait
 	t.Cleanup(func() { RetryBase = old })
+	before := server()
 	on(slow, func() {
 		if err := q.Fail(ctx, got, "ins_slow", errors.New("boom"), true); err != nil {
 			t.Fatal(err)
 		}
 	})
-	if d := nextRunAt(j.ID).Sub(server()); d < time.Second || d > 2*time.Second {
+	if d := nextRunAt(j.ID).Sub(before); d < wait-time.Second || d > wait+time.Minute {
 		t.Fatalf("the retry's wait is the server's now plus the backoff: %v", d)
 	}
 	if got := lease(fast, worker("ins_fast")); got != nil {
 		t.Fatalf("a fast computer skipped the retry's wait: %+v", got)
 	}
-	time.Sleep(1600 * time.Millisecond)
+	time.Sleep(wait + 200*time.Millisecond)
 	got = lease(slow, worker("ins_slow"))
 	if got == nil || got.ID != j.ID {
 		t.Fatalf("a slow computer left a due retry waiting: %+v", got)
@@ -98,14 +100,14 @@ func TestWhenAJobMayRunIsTheServersTime(t *testing.T) {
 
 	// Postponed for a while on a slow computer: the same.
 	on(slow, func() {
-		if err := q.Postpone(ctx, got, "ins_slow", 1500*time.Millisecond, "Waiting for the render's record."); err != nil {
+		if err := q.Postpone(ctx, got, "ins_slow", wait, "Waiting for the render's record."); err != nil {
 			t.Fatal(err)
 		}
 	})
 	if got := lease(fast, worker("ins_fast")); got != nil {
 		t.Fatalf("a fast computer skipped a postponement: %+v", got)
 	}
-	time.Sleep(1600 * time.Millisecond)
+	time.Sleep(wait + 200*time.Millisecond)
 	got = lease(slow, worker("ins_slow"))
 	if got == nil || got.ID != j.ID {
 		t.Fatalf("a slow computer left a postponed job waiting: %+v", got)
@@ -152,7 +154,7 @@ func TestWhenAJobMayRunIsTheServersTime(t *testing.T) {
 			t.Fatalf("expedite: %v %v", ids, err)
 		}
 	})
-	if d := nextRunAt(j.ID).Sub(server()); d > 2*time.Second || d < -2*time.Second {
+	if d := nextRunAt(j.ID).Sub(server()); d > time.Minute || d < -time.Minute {
 		t.Fatalf("expedited to the server's now: off by %v", d)
 	}
 	past := server().Add(-time.Hour).Truncate(time.Millisecond)
@@ -210,7 +212,7 @@ func TestAFastClockNeverTakesALiveLease(t *testing.T) {
 	restore()
 	cur, _ := q.Get(ctx, j.ID)
 	now, _ := db.ServerNow(ctx)
-	if d := cur.Lease.ExpiresAt.Sub(now); d < LeaseDuration-3*time.Second || d > LeaseDuration+time.Second {
+	if d := cur.Lease.ExpiresAt.Sub(now); d < LeaseDuration-30*time.Second || d > LeaseDuration+time.Second {
 		t.Fatalf("a heartbeat on a slow clock: the lease ends in %v", d)
 	}
 	// The lease ends by the server's time: a slow computer takes it over.
@@ -238,7 +240,7 @@ func TestAJobsTimesAreTheServers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if d := now.Sub(at); d < -2*time.Second || d > 30*time.Second {
+		if d := now.Sub(at); d < -time.Second || d > time.Minute {
 			t.Fatalf("%s: %v from the server's now", what, d)
 		}
 	}

@@ -299,6 +299,9 @@ func (c TemplateCollection) make(ctx context.Context, db *store.DB) error {
 // unchanged.
 func SkewClock(t testing.TB, d time.Duration) (restore func()) {
 	t.Helper()
+	// A busy test machine's slow answer isn't a database that went away: what
+	// a test skews for, it waits to hear.
+	store.ServerTimeJumpWait = 30 * time.Second
 	old := store.Clock
 	store.Clock = func() time.Time { return old().Add(d) }
 	var once sync.Once

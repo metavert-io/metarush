@@ -313,6 +313,7 @@ func TestAJumpIsWaitedForAMomentAtMost(t *testing.T) {
 	f := &frozen{release: make(chan struct{}), err: errors.New("no answer")}
 	db.SetServerTimeAsk(f.ask)
 	testutil.SkewClock(t, 10*time.Minute)
+	shorten(t, &store.ServerTimeJumpWait, 2*time.Second)
 	began := time.Now()
 	if _, err := db.Now(ctx); err != nil {
 		t.Fatal(err)
@@ -419,5 +420,27 @@ func TestServerTimeFilters(t *testing.T) {
 	}
 	if err := c.FindOne(ctx, bson.M{"_id": "none"}).Decode(&d); err != nil || !near(d.At, server.Add(5*time.Minute), 3*time.Second) {
 		t.Fatalf("written as the server's now plus five minutes: %v %v", d.At, err)
+	}
+}
+
+// A caller's short deadline doesn't turn a jumped clock's wait into a wrong
+// time: the wait has its own limit, and the measurement's answer counts.
+func TestADeadlineDoesntCutAJumpsWaitShort(t *testing.T) {
+	db := testutil.DB(t)
+	ctx := context.Background()
+	db.FakeServerTime(func(context.Context) (time.Time, error) { return time.Now(), nil })
+	if _, err := db.Now(ctx); err != nil {
+		t.Fatal(err)
+	}
+	db.SetServerTimeAsk(func(context.Context) (time.Time, error) {
+		time.Sleep(100 * time.Millisecond)
+		return time.Now(), nil
+	})
+	testutil.SkewClock(t, 10*time.Minute)
+	short, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+	defer cancel()
+	got, err := db.Now(short)
+	if err != nil || !near(got, time.Now(), 2*time.Second) {
+		t.Fatalf("a clock ten minutes on and a short deadline: %v, want about %v (%v)", got, time.Now(), err)
 	}
 }

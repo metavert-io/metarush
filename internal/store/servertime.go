@@ -19,13 +19,17 @@ import (
 // (Clock) corrected by an offset measured with one round trip and measured
 // again every ServerTimeEvery, or as soon as this computer's clock jumps or
 // the computer slept. A test in clockguard_test.go keeps new comparisons with
-// this computer's clock out of the packages that share decisions.
+// this computer's clock out.
 
 // ServerTimeEvery is how long a measured offset is used before the server's
-// time is asked again; ServerTimeRetry how long after a measurement that failed.
+// time is asked again; ServerTimeRetry how long after a measurement that
+// failed; ServerTimeJumpWait how long callers wait for the measurement after
+// this computer's clock jumped (the last offset may be off by the jump, or
+// right, after a sleep) before they go on with the last offset.
 var (
-	ServerTimeEvery = time.Minute
-	ServerTimeRetry = 10 * time.Second
+	ServerTimeEvery    = time.Minute
+	ServerTimeRetry    = 10 * time.Second
+	ServerTimeJumpWait = 2 * time.Second
 )
 
 const (
@@ -33,10 +37,6 @@ const (
 	// that really passed before the offset is measured again (the clock was
 	// set, or the computer slept).
 	clockJump = time.Second
-	// jumpWait is how long callers wait for the measurement after a jump (the
-	// last offset may be off by the jump, or right after a sleep) before they
-	// go on with the last offset.
-	jumpWait = 2 * time.Second
 	// slowAnswer is the longest round trip whose middle is trusted without
 	// asking again: an answer delayed one way puts the middle off by half of it.
 	slowAnswer = 500 * time.Millisecond
@@ -76,8 +76,9 @@ type serverClock struct {
 // after that it never fails and never waits for a database that doesn't
 // answer: an offset gone old is measured again behind the caller, and when
 // that fails the last one goes on (clocks drift slowly) and the next try waits
-// ServerTimeRetry. Only a clock that jumped is waited for, jumpWait at most,
-// because the last offset may be off by the jump.
+// ServerTimeRetry. Only a clock that jumped is waited for, ServerTimeJumpWait
+// at most and whatever the caller's deadline, because the last offset may be
+// off by the jump.
 func (d *DB) Now(ctx context.Context) (time.Time, error) {
 	c := &d.clock
 	local := Clock
@@ -114,13 +115,11 @@ func (d *DB) Now(ctx context.Context) (time.Time, error) {
 			return now, nil
 		}
 		if giveUp.IsZero() {
-			giveUp = mono.Add(jumpWait)
+			giveUp = mono.Add(ServerTimeJumpWait)
 		}
 		c.mu.Unlock()
 		select {
 		case <-wait:
-		case <-ctx.Done():
-			return now, nil
 		case <-time.After(giveUp.Sub(mono)):
 			// The others go on at once from here.
 			c.mu.Lock()

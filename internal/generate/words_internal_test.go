@@ -242,12 +242,12 @@ func TestProgressNamesTheProvider(t *testing.T) {
 	(&runner{g: &models.Generation{}}).say(StageSending, 0)
 	r.g.Ticket = nil
 	got = models.Progress{}
-	r.sayLimited()
+	r.sayLimited(time.Now())
 	if got.Message != "" {
 		t.Fatalf("limited without a ticket: %+v", got)
 	}
 	r.g.Ticket = &models.GenTicket{ID: "x", SubmittedAt: time.Now()}
-	r.sayLimited()
+	r.sayLimited(time.Now())
 	if !strings.Contains(got.Message, "too busy with this key's requests") {
 		t.Fatalf("limited: %+v", got)
 	}

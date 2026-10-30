@@ -529,7 +529,9 @@ func usable(ctx context.Context, a *app.App, l *models.GenLook, projectID string
 }
 
 func lookView(ctx context.Context, a *app.App, l *models.GenLook, withTests bool) LookView {
-	now := time.Now().UTC()
+	// The server's time, as a plan's: a look that says usable isn't refused by
+	// the plan a moment later because this computer's clock is off (D360).
+	now := a.DB.NowOrLocal(ctx)
 	v := LookView{GenLook: *l, Ref: l.Name + "@" + l.Version}
 	// Projects are checked when a shot asks; here it's whether a consent is in force at all.
 	_, why := usable(ctx, a, l, "", now)

@@ -219,27 +219,6 @@ func TestConsentInForceGoesByTheServersClock(t *testing.T) {
 	look := generate.LookCreateIn{Title: "Wren", Person: "Wren Tolliver", Description: "A woman with a grey braid and a green coat.",
 		Stills: []generate.LookStillIn{{AssetID: porch.ID, At: 1}, {AssetID: porch.ID, At: 2}}}
 
-	// What a person reads about it goes by the same clock (D368).
-	status := func(off time.Duration) string {
-		t.Helper()
-		var v *generate.ConsentView
-		as(off, func() {
-			var err error
-			if v, err = call[generate.ConsentView](t, e.a, "consent.show", generate.ConsentIDIn{ID: c.Consent.ID}, false); err != nil {
-				t.Fatal(err)
-			}
-		})
-		return v.Status
-	}
-	ends(-30 * time.Second)
-	if st := status(-skew); st != "expired" {
-		t.Fatalf("a computer behind shows a consent that ended 30 s ago as %s", st)
-	}
-	ends(30 * time.Second)
-	if st := status(skew); st != "active" {
-		t.Fatalf("a computer ahead shows a consent with 30 s left as %s", st)
-	}
-
 	// Ended 30 s ago by the server's clock: a computer behind refuses all of it.
 	ends(-30 * time.Second)
 	as(-skew, func() {
@@ -279,4 +258,81 @@ func TestConsentInForceGoesByTheServersClock(t *testing.T) {
 			t.Fatalf("a computer ahead refused to approve a look whose consent has 30 s left: %v", err)
 		}
 	})
+}
+
+// What a person reads about a consent and a look near the consent's end says
+// what a plan would do, when the server's clock really differs from this
+// computer's (ServerOff; a status or a look read by time.Now() fails this: D368).
+func TestWhatAConsentAndALookSayGoesByTheServersTime(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	wren := e.person(t, "Wren Tolliver")
+	porch := e.clipWithFace(t, "porch", wren, "Wren Tolliver", true)
+	c, err := call[generate.ConsentOut](t, e.a, "consent.record", generate.ConsentRecordIn{Person: "Wren Tolliver", Recording: porch.ID, Adult: true,
+		Statement: "I, Wren Tolliver, agree to my likeness in generated video for the pond film."}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := call[generate.LookOut](t, e.a, "looks.create", generate.LookCreateIn{Title: "Wren", Person: "Wren Tolliver", Description: "A woman with a grey braid and a green coat.",
+		Stills: []generate.LookStillIn{{AssetID: porch.ID, At: 1}, {AssetID: porch.ID, At: 2}}}, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := call[generate.LookOut](t, e.a, "looks.approve", generate.LookDecideIn{Look: "wren"}, true); err != nil {
+		t.Fatal(err)
+	}
+	says := func(off, in time.Duration) (status string, usable bool) {
+		t.Helper()
+		testutil.ServerOff(t, e.a.DB, off)
+		now, err := e.a.DB.Now(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.a.DB.C(store.CConsents).UpdateOne(ctx, bson.M{"_id": c.Consent.ID}, bson.M{"$set": bson.M{"expiresAt": now.Add(in)}}); err != nil {
+			t.Fatal(err)
+		}
+		v, err := call[generate.ConsentView](t, e.a, "consent.show", generate.ConsentIDIn{ID: c.Consent.ID}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		l, err := call[generate.LookView](t, e.a, "looks.show", generate.LookRefIn{Look: "wren"}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v.Status, l.Usable
+	}
+	// By the server the consent has ended, though by this computer's real clock it runs on.
+	if st, ok := says(10*time.Minute, -30*time.Second); st != "expired" || ok {
+		t.Fatalf("ended 30 s ago by the server: %s, usable %v", st, ok)
+	}
+	// By the server it runs on, though by this computer's real clock it has ended.
+	if st, ok := says(-10*time.Minute, 30*time.Second); st != "active" || !ok {
+		t.Fatalf("30 s left by the server: %s, usable %v", st, ok)
+	}
+}
+
+// A shot's ticket says when it was sent in the server's time, which activity
+// on any computer reads for how long it has been making (D360).
+func TestATicketIsStampedInTheServersTime(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	testutil.ServerOff(t, e.a.DB, -10*time.Minute)
+	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "a heron on a post", Seconds: 3, Resolution: "360p", MaxUSD: usd(2)}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.run(t, ctx, out.JobIDs[0]); err != nil {
+		t.Fatal(err)
+	}
+	v, err := call[generate.GenView](t, e.a, "generate.show", generate.GenIDIn{ID: out.Generations[0].ID}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now, err := e.a.DB.Now(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Ticket == nil {
+		t.Fatal("no ticket")
+	}
+	near(t, "the ticket", v.Ticket.SubmittedAt, now)
 }

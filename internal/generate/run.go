@@ -217,7 +217,9 @@ func (r *runner) submit(ctx context.Context, key string) error {
 		r.end(ctx, &models.GenOutcome{State: models.GenFailed, Code: code, Message: ve.Message, Hint: ve.Hint, Detail: ve.Detail}, &models.GenCost{Basis: "none"})
 		return nil
 	}
-	tk := models.GenTicket{ID: t.ID, Files: t.Files, SubmittedAt: t.SubmittedAt}
+	// Sent at the database server's time: activity on any computer says how
+	// long it has been making by it (D360).
+	tk := models.GenTicket{ID: t.ID, Files: t.Files, SubmittedAt: r.a.DB.NowOrLocal(ctx)}
 	// The ticket first: a crash after this resumes waiting instead of sending again.
 	if err := setOnce(context.WithoutCancel(ctx), r.a, g.ID, "ticket", tk); err != nil {
 		return err
@@ -284,7 +286,7 @@ func (r *runner) wait(ctx context.Context, key string) error {
 	g := r.g
 	t := &videogen.Ticket{ID: g.Ticket.ID, Files: g.Ticket.Files, SubmittedAt: g.Ticket.SubmittedAt}
 	delay := FirstPoll
-	if time.Since(g.Ticket.SubmittedAt) > FirstPoll {
+	if r.a.DB.NowOrLocal(ctx).Sub(g.Ticket.SubmittedAt) > FirstPoll {
 		delay = 0
 	}
 	errorsInARow := 0
@@ -318,7 +320,7 @@ func (r *runner) wait(ctx context.Context, key string) error {
 					if waited >= PollLimitWait {
 						return r.limited(ctx, key, t, ve)
 					}
-					r.sayLimited()
+					r.sayLimited(r.a.DB.NowOrLocal(ctx))
 					if ve.RetryAfter > delay {
 						delay = ve.RetryAfter
 					}
@@ -337,7 +339,7 @@ func (r *runner) wait(ctx context.Context, key string) error {
 		errorsInARow, limitedSince = 0, time.Time{}
 		switch st.State {
 		case videogen.StateRunning:
-			made := time.Since(g.Ticket.SubmittedAt).Seconds()
+			made := r.a.DB.NowOrLocal(ctx).Sub(g.Ticket.SubmittedAt).Seconds()
 			r.say(StageMaking, math.Min(0.8, 0.05+made/180*0.75))
 			continue
 		case videogen.StateCanceled:
@@ -422,11 +424,11 @@ func (r *runner) limited(ctx context.Context, key string, t *videogen.Ticket, ve
 
 // sayLimited says why there is no news while the provider answers checks with
 // "too many requests" (the activity bar and job details read it).
-func (r *runner) sayLimited() {
+func (r *runner) sayLimited(now time.Time) {
 	if r.report == nil || r.g.Ticket == nil {
 		return
 	}
-	made := time.Since(r.g.Ticket.SubmittedAt).Seconds()
+	made := now.Sub(r.g.Ticket.SubmittedAt).Seconds()
 	r.report(models.Progress{Stage: StageMaking, Message: providerTitle(r.g) + " is too busy with this key's requests to say how it's going",
 		Pct: math.Min(0.8, 0.05+made/180*0.75)})
 }

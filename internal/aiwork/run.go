@@ -262,10 +262,9 @@ func (r *runner) submit(ctx context.Context, key string) (*aiservices.Status, er
 		}
 		return nil, nil
 	}
-	tk := models.GenTicket{ID: t.ID, Files: t.Files, Extra: t.Extra, SubmittedAt: t.SubmittedAt}
-	if tk.SubmittedAt.IsZero() {
-		tk.SubmittedAt = time.Now().UTC()
-	}
+	// Sent at the database server's time: activity on any computer says how
+	// long it has been making by it (D360).
+	tk := models.GenTicket{ID: t.ID, Files: t.Files, Extra: t.Extra, SubmittedAt: r.a.DB.NowOrLocal(ctx)}
 	// The ticket first: a crash after this resumes waiting instead of sending again.
 	if err := generate.SetOnce(context.WithoutCancel(ctx), r.a, g.ID, "ticket", tk); err != nil {
 		return nil, err
@@ -399,7 +398,7 @@ func (r *runner) wait(ctx context.Context, key string, ready *aiservices.Status)
 		return r.ended(ctx, key, t, ready)
 	}
 	delay := generate.FirstPoll
-	if time.Since(t.SubmittedAt) > delay {
+	if r.a.DB.NowOrLocal(ctx).Sub(t.SubmittedAt) > delay {
 		delay = 0
 	}
 	errorsInARow := 0
@@ -441,7 +440,7 @@ func (r *runner) wait(ctx context.Context, key string, ready *aiservices.Status)
 		}
 		errorsInARow = 0
 		if st.State == aiservices.StateRunning {
-			pct := 0.05 + math.Min(0.75, time.Since(t.SubmittedAt).Seconds()/600*0.75)
+			pct := 0.05 + math.Min(0.75, r.a.DB.NowOrLocal(ctx).Sub(t.SubmittedAt).Seconds()/600*0.75)
 			if st.Progress > 0 {
 				pct = 0.05 + st.Progress*0.75
 			}

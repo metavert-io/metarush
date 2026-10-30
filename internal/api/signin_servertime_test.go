@@ -103,13 +103,14 @@ func TestSessionsAndSignOutsFollowTheServersClock(t *testing.T) {
 
 // Where change streams aren't available the dashboard polls, and changes carry
 // one of two clocks: the database server's for what other computers judge
-// (a heartbeat), the writer's for plain records (a project's updatedAt). A
-// computer whose clock is off misses neither (D368).
+// (a heartbeat), the writer's for plain records (a project's updatedAt). With
+// the two a minute apart polling misses neither, and tells each change once
+// though it finds one stamped ahead on every look (D368).
 func TestPollingFindsChangesOfEitherClock(t *testing.T) {
 	d, projectID, _ := newDash(t, noClaude)
 	ctx := context.Background()
 	b := d.srv.Broker()
-	ch := make(chan Event, 1024)
+	ch := make(chan Event, 4096)
 	b.mu.Lock()
 	b.subs[ch] = true
 	b.mu.Unlock()
@@ -122,36 +123,40 @@ func TestPollingFindsChangesOfEitherClock(t *testing.T) {
 	if _, err := d.a.DB.C(store.CWorkers).ReplaceOne(ctx, bson.M{"_id": w.ID}, w, options.Replace().SetUpsert(true)); err != nil {
 		t.Fatal(err)
 	}
-	for _, skew := range []time.Duration{time.Minute, -time.Minute} {
-		restore := testutil.SkewClock(t, skew)
+	for _, off := range []time.Duration{time.Minute, -time.Minute} {
+		testutil.ServerOff(t, d.a.DB, off)
 		for len(ch) > 0 {
 			<-ch
 		}
-		server, err := d.a.DB.ServerNow(ctx)
+		server, err := d.a.DB.Now(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if _, err := d.a.DB.C(store.CWorkers).UpdateOne(ctx, bson.M{"_id": w.ID}, bson.M{"$set": bson.M{"lastHeartbeat": server}}); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := d.a.DB.C(store.CProjects).UpdateOne(ctx, bson.M{"_id": projectID}, bson.M{"$set": bson.M{"updatedAt": store.Clock().UTC()}}); err != nil {
+		if _, err := d.a.DB.C(store.CProjects).UpdateOne(ctx, bson.M{"_id": projectID}, bson.M{"$set": bson.M{"updatedAt": time.Now().UTC()}}); err != nil {
 			t.Fatal(err)
 		}
-		pctx, cancel := context.WithTimeout(ctx, 3500*time.Millisecond)
-		b.poll(pctx, 3500*time.Millisecond)
+		// Two looks, three seconds apart.
+		pctx, cancel := context.WithTimeout(ctx, 6500*time.Millisecond)
+		b.poll(pctx, 6500*time.Millisecond)
 		cancel()
-		restore()
-		heartbeat, project := false, false
+		heartbeats, projects := 0, 0
 		for len(ch) > 0 {
 			e := <-ch
-			heartbeat = heartbeat || (e.Type == store.CWorkers && e.ID == w.ID)
-			project = project || (e.Type == store.CProjects && e.ID == projectID)
+			if e.Type == store.CWorkers && e.ID == w.ID {
+				heartbeats++
+			}
+			if e.Type == store.CProjects && e.ID == projectID {
+				projects++
+			}
 		}
-		if !heartbeat {
-			t.Errorf("%v off: polling missed a change in the server's time", skew)
+		if heartbeats != 1 {
+			t.Errorf("server %v from this computer: a change in the server's time told %d times, want once", off, heartbeats)
 		}
-		if !project {
-			t.Errorf("%v off: polling missed a change by this computer's clock", skew)
+		if projects != 1 {
+			t.Errorf("server %v from this computer: a change by this computer's clock told %d times, want once", off, projects)
 		}
 	}
 }

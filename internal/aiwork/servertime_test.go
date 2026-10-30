@@ -334,3 +334,24 @@ func TestConsentWordsEndByTheServersClock(t *testing.T) {
 		}
 	})
 }
+
+// Other AI work's ticket says when it was sent in the server's time too, which
+// activity on any computer reads for how long it has been making (D360).
+func TestAWorksTicketIsStampedInTheServersTime(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	testutil.ServerOff(t, e.a.DB, -10*time.Minute)
+	out, _ := e.make(t, aiwork.MakeIn{Kind: aiservices.KindPicture, ProjectID: e.project, Model: "fake/fake-picture", Prompt: "a paper boat on a pond"})
+	if _, err := e.run(t, out.JobID); err != nil {
+		t.Fatal(err)
+	}
+	g := e.gen(t, out.Work.ID)
+	now, err := e.a.DB.Now(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Ticket == nil {
+		t.Fatal("no ticket")
+	}
+	near(t, "the ticket", g.Ticket.SubmittedAt, now)
+}

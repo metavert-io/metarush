@@ -18,19 +18,52 @@ import (
 // it already read — DB.Now gives the server's time: this computer's clock
 // (Clock) corrected by an offset measured with one round trip and measured
 // again every ServerTimeEvery, or as soon as this computer's clock jumps or
-// the computer slept.
+// the computer slept. A test in clockguard_test.go keeps new comparisons with
+// this computer's clock out of the packages that share decisions.
 
 // ServerTimeEvery is how long a measured offset is used before the server's
-// time is asked again.
-var ServerTimeEvery = time.Minute
+// time is asked again; ServerTimeRetry how long after a measurement that failed.
+var (
+	ServerTimeEvery = time.Minute
+	ServerTimeRetry = 10 * time.Second
+)
 
-// serverClock is a DB's last measurement of the server's time.
+const (
+	// clockJump is how far this computer's clock may move apart from the time
+	// that really passed before the offset is measured again (the clock was
+	// set, or the computer slept).
+	clockJump = time.Second
+	// jumpWait is how long callers wait for the measurement after a jump (the
+	// last offset may be off by the jump, or right after a sleep) before they
+	// go on with the last offset.
+	jumpWait = 2 * time.Second
+	// slowAnswer is the longest round trip whose middle is trusted without
+	// asking again: an answer delayed one way puts the middle off by half of it.
+	slowAnswer = 500 * time.Millisecond
+	// askFor bounds one measurement (a server that takes the connection and
+	// never answers).
+	askFor = 15 * time.Second
+)
+
+// serverClock is a DB's last measurement of the server's time. One caller's
+// need starts a measurement and it runs by itself, so a database that went
+// away costs no caller anything once an offset is known: only the very first
+// measurement, and the moment after this computer's clock jumped, are waited
+// for.
 type serverClock struct {
 	mu     sync.Mutex
 	ok     bool
 	offset time.Duration // the server's time − this computer's clock
-	wall   time.Time     // this computer's clock when measured (no monotonic reading)
+	rtt    time.Duration // the round trip it was measured with
+	at     time.Time     // when it was measured (monotonic; zero: measure again)
+	wall   time.Time     // this computer's clock at the last mark (no monotonic reading)
 	mono   time.Time     // the same moment by the monotonic clock
+	// failed is when a measurement last failed, or a caller stopped waiting
+	// for one (monotonic); lastErr what the last one said.
+	failed  time.Time
+	lastErr error
+	// running is closed when the measurement under way ends (nil: none).
+	running chan struct{}
 	// ask is where the server's time comes from (nil: the server; tests give
 	// a fake).
 	ask func(context.Context) (time.Time, error)
@@ -38,33 +71,64 @@ type serverClock struct {
 	asked int
 }
 
-// clockJump is how far this computer's clock may move apart from the time
-// that really passed before the offset is measured again (the clock was set,
-// or the computer slept).
-const clockJump = time.Second
-
 // Now is the database server's time now, by this computer's clock and the
 // measured offset. Before the first measurement works it returns the error;
-// when a later one fails it goes on with the last offset (clocks drift
-// slowly).
+// after that it never fails and never waits for a database that doesn't
+// answer: an offset gone old is measured again behind the caller, and when
+// that fails the last one goes on (clocks drift slowly) and the next try waits
+// ServerTimeRetry. Only a clock that jumped is waited for, jumpWait at most,
+// because the last offset may be off by the jump.
 func (d *DB) Now(ctx context.Context) (time.Time, error) {
 	c := &d.clock
-	wall, mono := Clock().Round(0), time.Now()
-	c.mu.Lock()
-	ok, offset := c.ok, c.offset
-	fresh := ok && mono.Sub(c.mono) < ServerTimeEvery && absDuration(wall.Sub(c.wall)-mono.Sub(c.mono)) < clockJump
-	c.mu.Unlock()
-	if fresh {
-		return wall.Add(offset).UTC(), nil
-	}
-	off, err := d.measure(ctx)
-	if err != nil {
-		if ok {
-			return wall.Add(offset).UTC(), nil
+	local := Clock
+	var giveUp time.Time
+	for {
+		wall, mono := local().Round(0), time.Now()
+		c.mu.Lock()
+		if !c.ok {
+			wait := c.start(d, local)
+			c.mu.Unlock()
+			select {
+			case <-wait:
+			case <-ctx.Done():
+				return time.Time{}, ctx.Err()
+			}
+			c.mu.Lock()
+			ok, err := c.ok, c.lastErr
+			c.mu.Unlock()
+			if !ok {
+				return time.Time{}, err
+			}
+			continue
 		}
-		return time.Time{}, err
+		now := wall.Add(c.offset).UTC()
+		jumped := jumpedSince(c, wall, mono)
+		waiting := !c.failed.IsZero() && mono.Sub(c.failed) < ServerTimeRetry
+		if waiting || (!jumped && mono.Sub(c.at) < ServerTimeEvery) {
+			c.mu.Unlock()
+			return now, nil
+		}
+		wait := c.start(d, local)
+		if !jumped {
+			c.mu.Unlock()
+			return now, nil
+		}
+		if giveUp.IsZero() {
+			giveUp = mono.Add(jumpWait)
+		}
+		c.mu.Unlock()
+		select {
+		case <-wait:
+		case <-ctx.Done():
+			return now, nil
+		case <-time.After(giveUp.Sub(mono)):
+			// The others go on at once from here.
+			c.mu.Lock()
+			c.failed = time.Now()
+			c.mu.Unlock()
+			return now, nil
+		}
 	}
-	return Clock().Round(0).Add(off).UTC(), nil
 }
 
 // NowOrLocal is Now, or this computer's clock when the server never
@@ -77,38 +141,88 @@ func (d *DB) NowOrLocal(ctx context.Context) time.Time {
 	return Clock().UTC()
 }
 
-// ClockOffset is how far the database server's time was from this
-// computer's clock when last measured (positive: the server is ahead); false
-// before the first measurement.
-func (d *DB) ClockOffset() (time.Duration, bool) {
-	d.clock.mu.Lock()
-	defer d.clock.mu.Unlock()
-	return d.clock.offset, d.clock.ok
+// jumpedSince reports whether this computer's clock moved apart from the time
+// that really passed since the last mark (c.mu held).
+func jumpedSince(c *serverClock, wall, mono time.Time) bool {
+	return absDuration(wall.Sub(c.wall)-mono.Sub(c.mono)) >= clockJump
 }
 
-// measure asks the server its time once and keeps the offset, taken at the
-// middle of the round trip.
-func (d *DB) measure(ctx context.Context) (time.Duration, error) {
-	c := &d.clock
-	c.mu.Lock()
+// start returns the measurement under way, or starts one (c.mu held).
+func (c *serverClock) start(d *DB, local func() time.Time) chan struct{} {
+	if c.running != nil {
+		return c.running
+	}
+	done := make(chan struct{})
+	c.running = done
 	ask := c.ask
-	c.asked++
-	c.mu.Unlock()
 	if ask == nil {
 		ask = d.ServerNow
 	}
-	before, mono := Clock().Round(0), time.Now()
-	server, err := ask(ctx)
-	if err != nil {
-		return 0, err
+	go func() {
+		defer close(done)
+		ctx, cancel := context.WithTimeout(context.Background(), askFor)
+		defer cancel()
+		m, err := c.measure(ctx, ask, local)
+		c.finish(m, err, local)
+	}()
+	return done
+}
+
+// measurement is one round trip's answer: the offset at its middle.
+type measurement struct {
+	offset time.Duration
+	rtt    time.Duration
+	wall   time.Time
+	mono   time.Time
+}
+
+// measure asks the server its time, and once more at once when the answer was
+// slow (the connection is warm by then); the quicker answer counts.
+func (c *serverClock) measure(ctx context.Context, ask func(context.Context) (time.Time, error), local func() time.Time) (measurement, error) {
+	var best measurement
+	for try := 0; try < 2; try++ {
+		c.mu.Lock()
+		c.asked++
+		c.mu.Unlock()
+		before, mono := local().Round(0), time.Now()
+		server, err := ask(ctx)
+		if err != nil {
+			if try > 0 {
+				return best, nil
+			}
+			return best, err
+		}
+		rtt := time.Since(mono)
+		middle := before.Add(rtt / 2)
+		if try == 0 || rtt < best.rtt {
+			best = measurement{offset: server.Sub(middle), rtt: rtt, wall: middle, mono: mono.Add(rtt / 2)}
+		}
+		if rtt <= slowAnswer {
+			break
+		}
 	}
-	half := time.Since(mono) / 2
-	wall := before.Add(half)
-	offset := server.Sub(wall)
+	return best, nil
+}
+
+// finish keeps what a measurement found. A slow answer doesn't replace an
+// offset measured at least as well, unless this computer's clock jumped (that
+// one may be off by the jump). A failure keeps the offset there is, and takes
+// the jump as it stands, so it is waited for once.
+func (c *serverClock) finish(m measurement, err error, local func() time.Time) {
 	c.mu.Lock()
-	c.ok, c.offset, c.wall, c.mono = true, offset, wall, mono.Add(half)
-	c.mu.Unlock()
-	return offset, nil
+	defer c.mu.Unlock()
+	c.running = nil
+	if err != nil {
+		c.failed, c.lastErr = time.Now(), err
+		c.at = time.Time{}
+		c.wall, c.mono = local().Round(0), time.Now()
+		return
+	}
+	c.failed, c.lastErr = time.Time{}, nil
+	if !c.ok || m.rtt <= slowAnswer || m.rtt <= c.rtt || jumpedSince(c, m.wall, m.mono) {
+		c.ok, c.offset, c.rtt = true, m.offset, m.rtt
+	}
+	c.at, c.wall, c.mono = m.mono, m.wall, m.mono
 }
 
 func absDuration(d time.Duration) time.Duration {
@@ -133,18 +247,24 @@ func (d *DB) ServerNow(ctx context.Context) (time.Time, error) {
 	return h.LocalTime.UTC(), nil
 }
 
+// isDate is an expression that holds when a field is a date (a comparison in
+// $expr would otherwise take a missing field for one earlier than any date).
+func isDate(field string) bson.M {
+	return bson.M{"$eq": bson.A{bson.M{"$type": "$" + field}, "date"}}
+}
+
 // DueBy is a filter for records whose time field has come by the database
 // server's clock (a due time, a retry's wait, an expiry: field ≤ $$NOW).
+// Records without the field don't match.
 func DueBy(field string) bson.M {
-	return bson.M{"$expr": bson.M{"$lte": bson.A{"$" + field, "$$NOW"}}}
+	return bson.M{"$expr": bson.M{"$and": bson.A{isDate(field), bson.M{"$lte": bson.A{"$" + field, "$$NOW"}}}}}
 }
 
 // StaleBefore is a filter for records whose time field is older than the
 // last while by the database server's clock (a claim or a marker nobody
 // renewed: field < $$NOW − within). Records without the field don't match.
 func StaleBefore(field string, within time.Duration) bson.M {
-	return bson.M{"$expr": bson.M{"$and": bson.A{
-		bson.M{"$eq": bson.A{bson.M{"$type": "$" + field}, "date"}},
+	return bson.M{"$expr": bson.M{"$and": bson.A{isDate(field),
 		bson.M{"$lt": bson.A{"$" + field, bson.M{"$subtract": bson.A{"$$NOW", within.Milliseconds()}}}},
 	}}}
 }

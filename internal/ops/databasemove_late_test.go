@@ -414,4 +414,19 @@ func TestLateLooksEndWhenTheOldDatabaseIsGone(t *testing.T) {
 	if st := ops.LateStatus(ctx, n); st == nil || !st.Ended || !strings.Contains(st.EndedWhy, "couldn't reach") {
 		t.Fatalf("ended: %+v", st)
 	}
+	// Without the fingerprints (dropped above) no look could ever be made:
+	// the looks end at once rather than being tried again for a day.
+	if _, err := dst.C(store.CLateLooks).UpdateOne(ctx, bson.M{"_id": move}, bson.M{"$set": bson.M{"ended": false}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ops.KeepLookAddressForTest(n.Cfg, move, testutil.URI()); err != nil {
+		t.Fatal(err)
+	}
+	said = ops.LookDueLate(ctx, n, rec.Due[2].Add(ops.LateLookGrace+15*time.Minute))
+	if len(said) != 1 || !strings.Contains(said[0], "stopped looking") || ops.KeepsLookAddress(n.Cfg, move) {
+		t.Fatalf("without the fingerprints: %v", said)
+	}
+	if st := ops.LateStatus(ctx, n); st == nil || !st.Ended || !strings.Contains(st.EndedWhy, "no longer keeps") {
+		t.Fatalf("ended without the fingerprints: %+v", st)
+	}
 }

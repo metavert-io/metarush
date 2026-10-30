@@ -1247,6 +1247,11 @@ func LookDueLate(ctx context.Context, a *app.App, now time.Time) []string {
 		}
 		found, err := lookAndRecord(ctx, a, a.DB, r, nil, LateLater, now)
 		switch {
+		case err != nil && apperr.From(err).Code == apperr.NotConfigured:
+			// The address or the fingerprints are gone from this computer: no
+			// later look could be made either.
+			endLateLooks(ctx, a, a.DB, r.ID, lateProblemWords(err)+" MetaRush stopped looking at the old database.")
+			said = append(said, fmt.Sprintf("stopped looking at the old database (%s): %s", r.From, lowerFirst(strings.TrimSuffix(lateProblemWords(err), "."))))
 		case err == nil && found > 0:
 			said = append(said, fmt.Sprintf("looked at the old database (%s) again: %s written there after the move", r.From, plural(found, "record")))
 		case err == nil:

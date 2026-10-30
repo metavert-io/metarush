@@ -41,11 +41,11 @@ export function LateWrites({ late, onChanged }: { late: LateLookView; onChanged:
     );
   const tone = late.waiting > 0 ? 'bg-accent-soft' : 'bg-hover';
   return (
-    <div className={cx('mt-4 rounded-[12px] px-3.5 py-3', tone)} data-database-late={late.waiting > 0 ? 'waiting' : late.ended ? 'ended' : 'looking'} role="status">
+    <div className={cx('mt-4 rounded-[12px] px-3.5 py-3', tone)} data-database-late={late.waiting > 0 ? 'waiting' : late.ended ? 'ended' : 'looking'}>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="min-w-0 flex-1 text-[13px] leading-relaxed">
           <div className="font-medium text-fg">Anything written into the old database late</div>
-          <div className="text-muted" data-database-late-summary>
+          <div className="text-muted" data-database-late-summary role="status">
             {late.summary}
           </div>
           {late.problem && !late.ended ? <div className="mt-0.5 text-[12.5px] text-muted">The last look couldn’t be made: {late.problem}</div> : null}

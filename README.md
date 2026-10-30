@@ -1226,9 +1226,11 @@ server.
   first, so it can't go on changing the old database later.
 - **Anything written into the old database late is found**: a computer asleep through the move could still land one
   last change there. The computer that moved looks at the old database again right after the move, then about 15
-  minutes, an hour and a day later (only reading it), and owners' bells ring only when it finds something. Carry each
-  record over (only while this database's own is still the one the move copied; otherwise you see both versions) or
-  leave it, in the card or with `metarush database late-writes`; a record removed there is never removed here.
+  minutes, an hour and a day later (only reading it, within limits), and owners' bells ring only when it finds
+  something. Carry each record over (only while this database's own is still the one the move copied; otherwise you see
+  both versions; one clip's transcript whole or not at all) or leave it, in the card or with `metarush database
+  late-writes`; a record removed there is never removed here. Passwords, sign-in links and upload addresses are only
+  reported, never copied, shown or carried over; other copies go once you decide, or after 30 days.
 
 ### Hand a computer's role to another computer
 Replacing a laptop, or moving the team onto an always-on Mac mini: everything tied to one computer moves to another
@@ -1599,7 +1601,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush database plan --to here\|address\|env:NAME\|saved [--name <db>] [--only-this-computer]` | what moving the workspace's database would do — to the database on this computer, or another MongoDB whose address comes on standard input — and whether the new one is empty, reachable and writable; changes nothing (owners) |
 | `metarush database move --to … [--name <db>]` | move the database: changes pause on every computer, every record copied and checked, this computer switches, the old database is kept, never deleted (owners, a person at a terminal; Settings → Storage does the same) |
 | `metarush database switch --to address\|env:NAME [--name <db>]` / `database abandon` / `database move-status` | switch this computer after another one moved the workspace, with its own sign-in / let changes go on after a move stopped / what this computer uses and what to do |
-| `metarush database late-writes [--no-look]` / `late-writes show\|carry\|leave <n>… [--all]` | look at the old database again for anything written there after the move, and list it (owners) / compare both versions, carry a record over (only while this database's own is still the one the move copied) or leave it (owners, a person at a terminal) |
+| `metarush database late-writes [--no-look] [--skip n] [--limit n]` / `late-writes show\|carry\|leave <n>… [--all]` | look at the old database again for anything written there after the move, and list it (owners) / compare both versions, carry a record over (only while this database's own is still the one the move copied) or leave it (owners, a person at a terminal) |
 | `metarush workspace export --to <folder> [--media referenced\|included] [--tar] [--plan]` / `workspace exports` | one archive of the whole workspace, footage listed or copied in; `--plan` says what it would hold and writes nothing; it only reads the database (owners, in your own terminal; another database with `--db-uri-stdin`/`--db-uri-env`) / the exports made on this computer |
 | `metarush workspace restore <archive> [--plan]` / `metarush setup --restore <archive>` | restore an export into an empty database (every file checked first; the copy checked and brought up to date; nothing deleted) / set a new computer up from one |
 | `metarush workspace adopt` | say a restored copy is now the workspace, so it deletes by itself again as set (owners, in your own terminal) |

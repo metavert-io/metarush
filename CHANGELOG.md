@@ -8,10 +8,13 @@
   record was added, changed or removed there, about when, and on which computer when the record says. Settings →
   Storage → Move the database lists it, compares the two versions, and carries a record over after a dialog — only
   while this database's own record is still the one the move copied; when it changed here too, nothing changes and
-  you see both. A record removed from the old database is never removed here by MetaRush. `metarush database
-  late-writes` looks again on demand and lists what was found; `late-writes show|carry|leave` decide, owners and
-  people only, at their own terminal. A look only reads the old database, and once the last one is made MetaRush no
-  longer keeps its address.
+  you see both. One clip's transcript goes over whole or not at all, and what a later look no longer finds settles by
+  itself. Passwords, sign-in links and upload addresses are only reported: no copy is kept, nothing is shown, nothing is
+  carried over. Other copies are let go once you decide, or after 30 days. A record removed from the old database is
+  never removed here by MetaRush. `metarush database late-writes` looks again on demand and lists what was found;
+  `late-writes show|carry|leave` decide, owners and people only, at their own terminal. A look only reads the old
+  database, within limits (Atlas's Free and Flex clusters make every look read all of it, and the plan says so), and
+  once the last one is made MetaRush no longer keeps its address.
 - **Hand a computer's role to another computer**. Replacing a laptop or moving the team onto an always-on Mac mini:
   Settings → Storage → **Hand over this computer's role…** (owners) or `metarush machine handover plan --to
   <computer>` lists everything tied to this computer and what happens to each — the conversations in Claude's panel,

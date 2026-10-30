@@ -347,16 +347,21 @@ func init() {
 			return nil, err
 		}
 		out := &WorkerListOut{Workers: []WorkerRow{}}
+		now := a.DB.NowOrLocal(ctx) // heartbeats are the database server's time (D360, D368)
 		for _, w := range ws {
-			out.Workers = append(out.Workers, WorkerRow{WorkerDevice: w, Online: time.Since(w.LastHeartbeat) < 45*time.Second})
+			out.Workers = append(out.Workers, WorkerRow{WorkerDevice: w, Online: now.Sub(w.LastHeartbeat) < 45*time.Second})
 		}
 		return out, nil
 	})
 }
 
-// OnlineWorkers returns workers that heartbeated recently and can run jobType.
+// OnlineWorkers returns workers that heartbeated recently and can run
+// jobType, by the database server's time (heartbeats are written in it, and
+// a terminal decides by it whether to do the work itself: D360).
 func OnlineWorkers(ctx context.Context, a *app.App, jobType string) ([]models.WorkerDevice, error) {
 	var ws []models.WorkerDevice
-	err := a.DB.Find(ctx, store.CWorkers, a.WorkspaceID(), bson.M{"jobTypes": jobType, "lastHeartbeat": bson.M{"$gt": time.Now().Add(-45 * time.Second)}}, &ws)
+	filter := store.SeenWithin("lastHeartbeat", 45*time.Second) // jobs.OnlineWindow
+	filter["jobTypes"] = jobType
+	err := a.DB.Find(ctx, store.CWorkers, a.WorkspaceID(), filter, &ws)
 	return ws, err
 }

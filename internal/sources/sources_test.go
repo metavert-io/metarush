@@ -9,9 +9,11 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/testutil/testapp"
 )
 
@@ -173,4 +175,41 @@ func TestRefreshAndUseAll(t *testing.T) {
 	if _, err := ops.CallTyped[ops.AssetLinkOut](ctx, a, "asset.update", ops.AssetUpdateIn{ID: later.ID, Suggested: true}, ops.Caller{Human: true}); err == nil {
 		t.Fatal("no suggestion left to take")
 	}
+}
+
+// Whether a source's first look still runs (so MetaRush may still rename it)
+// goes by the database server's clock (D360): a clip imported 23 h 55 min ago
+// whose analyses wait is in its first look for a computer ten minutes fast,
+// and one imported 24 h 5 min ago isn't for a computer ten minutes slow.
+func TestFirstLookByTheServersClock(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	as := clip(t, a, project(t, a), "f9a1c7.mp4", "", true)
+	if _, err := a.DB.C(store.CJobs).InsertOne(ctx, bson.M{"_id": ids.New(ids.Job), "workspaceId": a.WorkspaceID(), "assetId": as.ID,
+		"type": jobs.TypeTranscribe, "state": models.JobQueued}); err != nil {
+		t.Fatal(err)
+	}
+	server, err := a.DB.ServerNow(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	imported := func(at time.Time) {
+		t.Helper()
+		if err := a.DB.Update(ctx, store.CAssets, a.WorkspaceID(), as.ID, bson.M{"$set": bson.M{"createdAt": at}}); err != nil {
+			t.Fatal(err)
+		}
+		as.CreatedAt = at
+	}
+	imported(server.Add(-FirstLookWindow + 5*time.Minute))
+	restore := testutil.SkewClock(t, 10*time.Minute)
+	if !firstLookPending(ctx, a, as) {
+		t.Fatal("a computer ten minutes fast took the first look of a clip imported 23 h 55 min ago as over")
+	}
+	restore()
+	imported(server.Add(-FirstLookWindow - 5*time.Minute))
+	restore = testutil.SkewClock(t, -10*time.Minute)
+	if firstLookPending(ctx, a, as) {
+		t.Fatal("a computer ten minutes slow took a clip imported 24 h 5 min ago as still in its first look")
+	}
+	restore()
 }

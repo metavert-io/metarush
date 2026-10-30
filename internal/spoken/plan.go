@@ -459,7 +459,11 @@ func (p *plan) voiceCopy(ctx context.Context, a *app.App, asked string) {
 	}
 	p.copyGen = g
 	p.est.Voice = &SayVoice{GenerationID: g.ID, Name: nameOf(g), Provider: g.Provider, ProviderTitle: g.ProviderTitle}
-	c, err := generate.ConsentForUse(ctx, a, sp.PersonID, p.project.ID, models.ConsentUseNewWords, g.Provider, time.Now().UTC())
+	now, err := generate.Now(ctx, a) // a consent ends by the server's clock (D360)
+	var c *models.Consent
+	if err == nil {
+		c, err = generate.ConsentForUse(ctx, a, sp.PersonID, p.project.ID, models.ConsentUseNewWords, g.Provider, now)
+	}
 	if err != nil {
 		p.refuse("consent", "%s's consent doesn't cover new words in their voice with %s for %s. Record a consent that names new-words and %s.", sp.Name, g.ProviderTitle, p.project.Name, g.Provider)
 	} else {

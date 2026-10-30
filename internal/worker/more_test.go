@@ -205,10 +205,10 @@ func TestATerminalLeavesAJobAnotherMachineRuns(t *testing.T) {
 		t.Fatalf("a job that ended: %v", err)
 	}
 	// retryAt: a job that moved on has no next try here; one the database can't find waits the usual backoff.
-	if at := retryAt(ctx, a, &models.Job{ID: j.ID}); !at.IsZero() {
+	if at := retryAt(ctx, w, &models.Job{ID: j.ID}, jobs.RetryBackoff(1)); !at.IsZero() {
 		t.Fatalf("a finished job's next try: %v", at)
 	}
-	if at := retryAt(ctx, a, &models.Job{ID: ids.New(ids.Job), AttemptCount: 1}); at.Before(time.Now()) {
+	if at := retryAt(ctx, w, &models.Job{ID: ids.New(ids.Job), AttemptCount: 1}, jobs.RetryBackoff(1)); at.Before(time.Now()) {
 		t.Fatalf("an unknown job's next try: %v", at)
 	}
 }

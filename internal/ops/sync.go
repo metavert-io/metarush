@@ -298,12 +298,13 @@ func syncShared(ctx context.Context, a *app.App, in *SyncStatusIn, out *SyncStat
 	if err := a.DB.Find(ctx, store.CIngest, a.WorkspaceID(), ingFilter, &sessions, options.Find().SetSort(bson.D{{Key: "updatedAt", Value: -1}}).SetLimit(200)); err != nil {
 		return err
 	}
+	now := a.DB.NowOrLocal(ctx) // an upload's session and heartbeats are the database server's time (D360, D368)
 	for _, s := range sessions {
 		st := "active"
 		switch {
 		case s.State == "failed":
 			st = "failed"
-		case time.Since(s.UpdatedAt) > ingestActiveWith:
+		case now.Sub(s.UpdatedAt) > ingestActiveWith:
 			st = "interrupted"
 		}
 		out.Ingest = append(out.Ingest, SyncIngestSession{ID: s.ID, SourceName: s.SourceName, AssetID: s.AssetID, ProjectID: s.ProjectID, InstallationID: s.InstallationID,
@@ -336,7 +337,7 @@ func syncShared(ctx context.Context, a *app.App, in *SyncStatusIn, out *SyncStat
 		return err
 	}
 	for _, w := range ws {
-		sw := SyncWorker{ID: w.ID, Name: w.Name, Hostname: w.Hostname, ThisMachine: w.ID == a.Cfg.Installation.ID, Online: time.Since(w.LastHeartbeat) < workerOnlineFor,
+		sw := SyncWorker{ID: w.ID, Name: w.Name, Hostname: w.Hostname, ThisMachine: w.ID == a.Cfg.Installation.ID, Online: now.Sub(w.LastHeartbeat) < workerOnlineFor,
 			Running: w.Running, Concurrency: w.Concurrency, AcceptsHeavy: w.AcceptsHeavy, OnBattery: w.OnBattery, LastHeartbeat: w.LastHeartbeat}
 		if sw.ThisMachine && sw.Online {
 			out.ThisWorkerOnline = true

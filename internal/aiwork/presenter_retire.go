@@ -74,7 +74,12 @@ func retirePresenter(ctx context.Context, a *app.App, pr *models.Presenter, reas
 		v := presenterView(ctx, a, pr, true)
 		return &PresenterOut{Presenter: v, Summary: "It was retired already. " + v.Summary}, nil
 	}
-	now := time.Now().UTC()
+	// The database server's time (D360): the deletion, on any computer with
+	// the key, looks for a lost presenter for a while after it.
+	now, err := generate.Now(bg, a)
+	if err != nil {
+		return nil, err
+	}
 	actor := a.Actor
 	jobID := ids.New(ids.Job)
 	res, err := a.DB.C(store.CPresenters).UpdateOne(bg, bson.M{"_id": pr.ID, "workspaceId": a.WorkspaceID(), "state": bson.M{"$ne": models.PresenterRetired}},
@@ -177,7 +182,14 @@ func removePresenterAt(ctx context.Context, a *app.App, pr *models.Presenter, ke
 	if !ok {
 		return apperr.New(apperr.NotConfigured, "MetaRush can't delete presenters at %s.", pr.ProviderTitle)
 	}
-	f := models.GenForgotten{At: time.Now().UTC(), OK: true}
+	// The database server's time (D360): when it was retired is the
+	// server's, and presenterMade compares when it was deleted with when
+	// its making ended, written on another computer.
+	now, err := generate.Now(ctx, a)
+	if err != nil {
+		return err
+	}
+	f := models.GenForgotten{At: now, OK: true}
 	targets := []string{}
 	training := trainingOf(ctx, a, pr)
 	switch {
@@ -198,7 +210,7 @@ func removePresenterAt(ctx context.Context, a *app.App, pr *models.Presenter, ke
 		if err != nil {
 			return err
 		}
-		if len(found) == 0 && pr.RetiredAt != nil && time.Since(*pr.RetiredAt) < LostVoiceLookFor && g.Outcome.State != models.GenDone {
+		if len(found) == 0 && pr.RetiredAt != nil && now.Sub(*pr.RetiredAt) < LostVoiceLookFor && g.Outcome.State != models.GenDone {
 			return errLookAgain
 		}
 		targets = found
@@ -381,7 +393,9 @@ func (r *runner) presenterMade(ctx context.Context) error {
 		return nil
 	}
 	// Retired while it was being made: delete what was made — again, when it
-	// was counted as deleted before the service had made it.
+	// was counted as deleted before the service had made it. Both times are
+	// the database server's (removePresenterAt, end; D360), written on
+	// whichever computers deleted and made it.
 	if pr.Removed != nil && (id != "" || lost) && oc != nil && pr.Removed.At.Before(oc.At) {
 		if res, err := coll.UpdateOne(ctx, mine(nil), bson.M{"$unset": bson.M{"removed": ""}, "$set": bson.M{"updatedAt": now}}); err == nil && res.ModifiedCount > 0 {
 			pr.Removed = nil

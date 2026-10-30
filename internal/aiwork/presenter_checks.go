@@ -431,7 +431,14 @@ func (r *runner) lostClip(ctx context.Context, key string) error {
 		}
 	}
 	tc, ok := r.ad.(aiservices.TagCleaner)
-	looked := time.Since(g.Outcome.At)
+	// How long it has been looked for is by the database server's clock
+	// (D360): the outcome's time is the server's, and a look may run on a
+	// computer whose clock is ahead, which would give up early.
+	now, err := generate.Now(bg, r.a)
+	if err != nil {
+		return errLookAgain
+	}
+	looked := now.Sub(g.Outcome.At)
 	switch {
 	case !ok:
 		f.OK, f.Kept = false, true
@@ -473,7 +480,14 @@ func retireLapsed(ctx context.Context, a *app.App) int {
 	if err := a.DB.Find(ctx, store.CPresenters, a.WorkspaceID(), bson.M{"state": bson.M{"$ne": models.PresenterRetired}, "consentId": bson.M{"$nin": bson.A{nil, ""}}}, &ps); err != nil {
 		return 0
 	}
-	now := time.Now().UTC()
+	// A consent's end by the database server's clock (D360): every daemon
+	// sweeps, and one whose clock runs ahead must not retire a presenter
+	// whose consent is still in force.
+	now, err := generate.Now(ctx, a)
+	if err != nil {
+		log.Printf("aiwork: presenters kept for now: the database's time couldn't be read: %v", err)
+		return 0
+	}
 	type loaded struct {
 		c   *models.Consent
 		err error

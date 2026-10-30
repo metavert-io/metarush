@@ -36,7 +36,17 @@ Read `docs/architecture.md` before structural changes.
   D46, docs/cut-sheet.md): print→parse keeps the spec hash; saving = minimal ops plan (`editspec.DiffOps`, merge-patch
   updates) through the same check/confirm/rebase/locks; quoted words resolve to exact times when checked.
 - **Durable jobs on MongoDB leases** (heartbeats, retries, recovery, idempotency; a lease ends by the database server's
-  time, `$$NOW` + `LeaseDuration`, and is compared with `$$NOW`); workers coordinate only via the DB;
+  time, `$$NOW` + `LeaseDuration`, and is compared with `$$NOW`, and so is when a job may run, `nextRunAt`; every time
+  compared across computers — heartbeats, claims, due times, stale markers, expiries — is the server's: in the query or
+  update (`store.SeenWithin|StaleBefore|DueBy|ServerTimeIn`, `$currentDate`), else `store.DB.Now`/`NowOrLocal` (an offset
+  to this computer's clock, measured a round trip a minute behind the callers; only the first measurement and a moment
+  after the clock jumps are waited for), never `time.Now()`; displays that read those stamps use it too. Tests skew with
+  `testutil.SkewClock` (this computer's clock, what `$$NOW` paths are tested with) or `testutil.ServerOff` (the server's
+  answer, so a Go-side read of `time.Now()` fails). `TestNothingComparesWithThisComputersClock` (`internal/store/clockguard_test.go`, reads the code
+  only) fails on a new comparison or write by this computer's clock, or this clock passed as a `now` parameter or field: a
+  place only this computer ever reads goes in its
+  `clockAllowed` by file and function, with how many places and why; an entry that no longer matches fails too. D360, D368–D370, D372);
+  workers coordinate only via the DB;
   heavy jobs defer on low battery (threshold, override) — never silently. A stopping worker releases its job (attempt
   not counted, never failed); a terminal's `--wait` runs only the jobs it waits for (`LeaseAmong`) and keeps them
   to the end: retries are taken in the terminal, and `waitJobsOpt` restarts a stopped terminal worker or fails
@@ -1071,7 +1081,7 @@ Read `docs/architecture.md` before structural changes.
   (`refuseWhileMoving`, `E_MOVING` reason database_moving|database_moved; the move's own ops exempt) and `Admit`s the
   rest (counted, published in the marker's `busy`; the move waits for them), job leases end by `$$NOW` + `LeaseDuration`, every
   time compared across computers is the server's (`$currentDate`, `$$NOW`: `MoveAlive`, `SeenWithin`,
-  `LiveLease`), `app.Held` keeps audit/TouchInstallation out and the log in the spool
+  `LiveLease`; `DB.Now`), `app.Held` keeps audit/TouchInstallation out and the log in the spool
   (`logbook.Options.Hold`), `Migrate` refuses, daemons `watchForMove` and restart into `serveHeld` (`api.NewHeld`,
   `heldGuard`: reads only, no background work, `HoldForMove` acks), the terminal worker stops; `waitQuiet` waits for
   every computer seen within `RunningWithin` to ack and no live leases. `dbmove.Copy` (the restore lock, kind `move`;

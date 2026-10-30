@@ -319,7 +319,12 @@ func Save(ctx context.Context, a *app.App, md string) (*SaveOut, error) {
 	if err != nil {
 		return nil, apperr.New(apperr.InvalidInput, "%s", err.Error())
 	}
-	now := time.Now().UTC()
+	// Stamped by the database server's clock (D360): the weekly schedule on
+	// another computer asks whether a report was made since its slot.
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	rep := Report{ID: ids.New(ReportPrefix), WorkspaceID: a.WorkspaceID(), Title: firstNonEmpty(pr.Title, "Improvement report "+now.Format("2006-01-02")),
 		Markdown: md, ItemIDs: []string{}, Warnings: pr.Warnings, CreatedAt: now, CreatedBy: a.Actor}
 	out := &SaveOut{Items: []Item{}, Warnings: append([]string{}, pr.Warnings...)}

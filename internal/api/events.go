@@ -40,6 +40,9 @@ type Broker struct {
 	mu   sync.Mutex
 	subs map[chan Event]bool
 	Mode string // changestream | polling
+	// told is what polling last told of each record (its stamps), read by the
+	// one goroutine that polls.
+	told map[string]string
 }
 
 // NewBroker creates a broker.
@@ -147,8 +150,78 @@ func (b *Broker) changeStream(ctx context.Context) error {
 	return cs.Err()
 }
 
+// pollMark is where a poll starts looking from: the earlier of the database
+// server's time and this computer's. What another computer judges is stamped
+// in the server's time (D360) and plain records with their computer's clock,
+// so going by one clock alone misses the other's changes when the two differ.
+// A change stamped ahead of the mark is found on every look until the mark
+// passes it, however long that takes; poll remembers what it told, so it is
+// told once (D368).
+func (b *Broker) pollMark(ctx context.Context) time.Time {
+	server, here := b.a.DB.NowOrLocal(ctx), time.Now().UTC()
+	if here.Before(server) {
+		return here
+	}
+	return server
+}
+
+// polled is what polling looks at: records whose stamps moved past the mark,
+// and what else is told on every look (also: a render under way).
+var polled = []struct {
+	coll   string
+	stamps []string
+	also   bson.M
+}{
+	{coll: store.CJobs, stamps: []string{"updatedAt"}},
+	{coll: store.CAssets, stamps: []string{"updatedAt"}},
+	{coll: store.CProjects, stamps: []string{"updatedAt"}},
+	{coll: store.CIngest, stamps: []string{"updatedAt"}},
+	{coll: store.CRenders, stamps: []string{"createdAt", "completedAt"}},
+	{coll: store.CRenders, also: bson.M{"state": bson.M{"$in": bson.A{"queued", "rendering", "uploading"}}}},
+	{coll: store.CRevisions, stamps: []string{"createdAt", "approval.at"}},
+	{coll: store.CComments, stamps: []string{"createdAt"}},
+	{coll: store.CWorkers, stamps: []string{"lastHeartbeat"}},
+	{coll: store.CNotifications, stamps: []string{"updatedAt"}},
+	{coll: store.CQAReports, stamps: []string{"createdAt"}},
+	{coll: store.CTodos, stamps: []string{"updatedAt"}},
+	{coll: store.CSpeakers, stamps: []string{"updatedAt"}},
+	{coll: store.CPeople, stamps: []string{"updatedAt"}},
+	{coll: store.CResources, stamps: []string{"updatedAt"}},
+	{coll: store.CLinkedFolders, stamps: []string{"updatedAt"}},
+	{coll: store.CProjectLinks, stamps: []string{"updatedAt"}},
+	{coll: store.CCollections, stamps: []string{"updatedAt"}},
+	// Generation records are written once, part by part (D125): each part has its own time.
+	{coll: store.CGenerations, stamps: []string{"createdAt", "ticket.submittedAt", "outcome.at", "forgotten.at"}},
+	{coll: store.CLooks, stamps: []string{"updatedAt"}},
+	{coll: store.CConsents, stamps: []string{"recordedAt", "revokedAt"}},
+	{coll: store.CRemotionSources, stamps: []string{"updatedAt"}},
+	{coll: store.CRemotionVersions, stamps: []string{"updatedAt"}},
+	{coll: store.CRemotionRenders, stamps: []string{"updatedAt"}},
+	{coll: store.CSpelling, stamps: []string{"updatedAt"}},
+	{coll: store.CContentSettings, stamps: []string{"updatedAt"}},
+	{coll: store.CContentDefaults, stamps: []string{"setAt"}},
+	// Recipes (D201–D204): a recipe saved or changed, a version made or made current, a run's steps.
+	{coll: store.CRecipes, stamps: []string{"updatedAt"}},
+	{coll: store.CRecipeVersions, stamps: []string{"at", "madeCurrentAt"}},
+	{coll: store.CRecipeRuns, stamps: []string{"updatedAt"}},
+	// Drafts from AI apps (D248): one saved, or a person's decision.
+	{coll: store.CDrafts, stamps: []string{"createdAt", "decision.at", "tried.at"}},
+	// Review links (D314, D315): one made or ended, or comments came in.
+	{coll: store.CReviewLinks, stamps: []string{"createdAt", "endedAt", "lastCommentAt"}},
+}
+
+// stampsOf says a record's stamps, to tell whether any moved.
+func stampsOf(raw bson.Raw, stamps []string) string {
+	var b strings.Builder
+	for _, f := range stamps {
+		b.WriteString(raw.Lookup(strings.Split(f, ".")...).String())
+		b.WriteByte('|')
+	}
+	return b.String()
+}
+
 func (b *Broker) poll(ctx context.Context, d time.Duration) {
-	since := time.Now().UTC().Add(-5 * time.Second)
+	since := b.pollMark(ctx).Add(-5 * time.Second)
 	end := time.Now().Add(d)
 	t := time.NewTicker(3 * time.Second)
 	defer t.Stop()
@@ -158,59 +231,44 @@ func (b *Broker) poll(ctx context.Context, d time.Duration) {
 			return
 		case <-t.C:
 		}
-		now := time.Now().UTC()
-		polls := []struct {
-			coll   string
-			filter bson.M
-		}{
-			{store.CJobs, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CAssets, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CProjects, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CIngest, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CRenders, bson.M{"$or": bson.A{bson.M{"createdAt": bson.M{"$gte": since}}, bson.M{"completedAt": bson.M{"$gte": since}}, bson.M{"state": bson.M{"$in": bson.A{"queued", "rendering", "uploading"}}}}}},
-			{store.CRevisions, bson.M{"$or": bson.A{bson.M{"createdAt": bson.M{"$gte": since}}, bson.M{"approval.at": bson.M{"$gte": since}}}}},
-			{store.CComments, bson.M{"createdAt": bson.M{"$gte": since}}},
-			{store.CWorkers, bson.M{"lastHeartbeat": bson.M{"$gte": since}}},
-			{store.CNotifications, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CQAReports, bson.M{"createdAt": bson.M{"$gte": since}}},
-			{store.CTodos, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CSpeakers, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CPeople, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CResources, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CLinkedFolders, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CProjectLinks, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CCollections, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			// Generation records are written once, part by part (D125): each part has its own time.
-			{store.CGenerations, bson.M{"$or": bson.A{bson.M{"createdAt": bson.M{"$gte": since}}, bson.M{"ticket.submittedAt": bson.M{"$gte": since}},
-				bson.M{"outcome.at": bson.M{"$gte": since}}, bson.M{"forgotten.at": bson.M{"$gte": since}}}}},
-			{store.CLooks, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CConsents, bson.M{"$or": bson.A{bson.M{"recordedAt": bson.M{"$gte": since}}, bson.M{"revokedAt": bson.M{"$gte": since}}}}},
-			{store.CRemotionSources, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CRemotionVersions, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CRemotionRenders, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CSpelling, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CContentSettings, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CContentDefaults, bson.M{"setAt": bson.M{"$gte": since}}},
-			// Recipes (D201–D204): a recipe saved or changed, a version made or made current, a run's steps.
-			{store.CRecipes, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			{store.CRecipeVersions, bson.M{"$or": bson.A{bson.M{"at": bson.M{"$gte": since}}, bson.M{"madeCurrentAt": bson.M{"$gte": since}}}}},
-			{store.CRecipeRuns, bson.M{"updatedAt": bson.M{"$gte": since}}},
-			// Drafts from AI apps (D248): one saved, or a person's decision.
-			{store.CDrafts, bson.M{"$or": bson.A{bson.M{"createdAt": bson.M{"$gte": since}}, bson.M{"decision.at": bson.M{"$gte": since}}, bson.M{"tried.at": bson.M{"$gte": since}}}}},
-			// Review links (D314, D315): one made or ended, or comments came in.
-			{store.CReviewLinks, bson.M{"$or": bson.A{bson.M{"createdAt": bson.M{"$gte": since}}, bson.M{"endedAt": bson.M{"$gte": since}}, bson.M{"lastCommentAt": bson.M{"$gte": since}}}}},
-		}
-		for _, pq := range polls {
-			var docs []struct {
-				ID        string `bson:"_id"`
-				ProjectID string `bson:"projectId"`
-				AssetID   string `bson:"assetId"`
+		now := b.pollMark(ctx)
+		told := map[string]string{}
+		for _, pq := range polled {
+			filter := bson.M{}
+			for k, v := range pq.also {
+				filter[k] = v
 			}
-			_ = b.a.DB.Find(ctx, pq.coll, b.a.WorkspaceID(), pq.filter, &docs, options.Find().SetLimit(200))
-			for _, d := range docs {
+			if len(pq.stamps) > 0 {
+				or := bson.A{}
+				for _, f := range pq.stamps {
+					or = append(or, bson.M{f: bson.M{"$gte": since}})
+				}
+				filter["$or"] = or
+			}
+			var docs []bson.Raw
+			_ = b.a.DB.Find(ctx, pq.coll, b.a.WorkspaceID(), filter, &docs, options.Find().SetLimit(200))
+			for _, raw := range docs {
+				var d struct {
+					ID        string `bson:"_id"`
+					ProjectID string `bson:"projectId"`
+					AssetID   string `bson:"assetId"`
+				}
+				if bson.Unmarshal(raw, &d) != nil {
+					continue
+				}
+				if len(pq.stamps) > 0 {
+					// Told already, and none of its stamps moved since: it is
+					// only ahead of the mark.
+					key, seen := pq.coll+"/"+d.ID, stampsOf(raw, pq.stamps)
+					told[key] = seen
+					if b.told[key] == seen {
+						continue
+					}
+				}
 				b.publish(Event{Type: pq.coll, Op: "update", ID: d.ID, ProjectID: d.ProjectID, AssetID: d.AssetID})
 			}
 		}
+		b.told = told
 		since = now.Add(-time.Second)
 	}
 }

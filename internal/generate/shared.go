@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/app"
+	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/store"
 )
@@ -18,6 +19,20 @@ import (
 // What other kinds of AI work (internal/aiwork, D226) share with generated
 // video: write-once records, consent, the stored bytes of what is sent, and
 // the money (ReserveWork, Settle, BudgetView).
+
+// Now is the database server's time (D360). Computers sharing the database
+// compare what is decided and written with it — a consent in force or ended,
+// a generation's age the sweeps look at, the day whose limit money counts
+// against — so it is the server's, never this computer's clock. Its error
+// (E_DATABASE: Unreadable) comes only while the server has never answered:
+// nothing is decided on it.
+func Now(ctx context.Context, a *app.App) (time.Time, error) {
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return time.Time{}, apperr.Wrap(apperr.Database, err, "MetaRush couldn't reach the database just now. Try again in a moment.")
+	}
+	return now, nil
+}
 
 // SetOnce writes a part of a generation record only while it is still empty (D125).
 func SetOnce(ctx context.Context, a *app.App, genID, field string, v any) error {

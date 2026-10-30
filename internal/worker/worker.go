@@ -427,7 +427,7 @@ func (w *Worker) device() models.WorkerDevice {
 		CPUs: runtime.NumCPU(), MemoryGB: memoryGB(), Tools: tv, JobTypes: w.JobTypes(), Lacks: w.Lacks(), Concurrency: w.Concurrency, Running: running,
 		AcceptsHeavy: w.AcceptsHeavy && !p.Defer, OnBattery: p.Battery.OnBattery(), Charging: p.Battery.Charging,
 		HeavyBatteryThreshold: p.Threshold, HeavyEnabled: w.AcceptsHeavy, DeferringHeavy: p.Defer, DeferReason: p.Reason,
-		Version: version.Version, StartedAt: w.started, LastHeartbeat: time.Now().UTC(),
+		Version: version.Version, StartedAt: w.started,
 	}
 	if p.Battery.Present {
 		pct := p.Battery.Percent
@@ -455,7 +455,8 @@ func (w *Worker) resumeDeferral(ctx context.Context) {
 	if err := w.App.DB.GetByID(ctx, store.CWorkers, w.App.WorkspaceID(), w.App.Cfg.Installation.ID, &prev); err != nil {
 		return
 	}
-	if !prev.DeferringHeavy || prev.DeferSince == nil || time.Since(prev.LastHeartbeat) > resumeEpisodeWindow {
+	// The heartbeat is the database server's time (beat).
+	if !prev.DeferringHeavy || prev.DeferSince == nil || w.App.DB.NowOrLocal(ctx).Sub(prev.LastHeartbeat) > resumeEpisodeWindow {
 		return
 	}
 	since := prev.DeferSince.UTC()
@@ -502,16 +503,20 @@ func (w *Worker) trackDeferral(ctx context.Context) {
 		return
 	}
 	a := w.App
+	// Due and online by the database server's time: other computers wrote
+	// both (D360).
 	var waiting []models.Job
-	err := a.DB.Find(ctx, store.CJobs, a.WorkspaceID(), bson.M{"state": models.JobQueued, "heavy": true, "allowOnBattery": bson.M{"$ne": true},
-		"cancelRequested": false, "type": bson.M{"$in": w.JobTypes()}, "nextRunAt": bson.M{"$lte": now}}, &waiting, options.Find().SetLimit(200))
+	due := store.DueBy("nextRunAt")
+	due["state"], due["heavy"], due["allowOnBattery"], due["cancelRequested"], due["type"] = models.JobQueued, true, bson.M{"$ne": true}, false, bson.M{"$in": w.JobTypes()}
+	err := a.DB.Find(ctx, store.CJobs, a.WorkspaceID(), due, &waiting, options.Find().SetLimit(200))
 	if err != nil || len(waiting) == 0 {
 		return
 	}
 	// Another online machine that takes heavy jobs will run them: nothing is paused.
 	var others []models.WorkerDevice
-	_ = a.DB.Find(ctx, store.CWorkers, a.WorkspaceID(), bson.M{"_id": bson.M{"$ne": a.Cfg.Installation.ID}, "acceptsHeavy": true,
-		"lastHeartbeat": bson.M{"$gt": now.Add(-jobs.OnlineWindow)}}, &others)
+	online := store.SeenWithin("lastHeartbeat", jobs.OnlineWindow)
+	online["_id"], online["acceptsHeavy"] = bson.M{"$ne": a.Cfg.Installation.ID}, true
+	_ = a.DB.Find(ctx, store.CWorkers, a.WorkspaceID(), online, &others)
 	var paused []models.Job
 	for _, j := range waiting {
 		taken := false
@@ -532,6 +537,9 @@ func (w *Worker) trackDeferral(ctx context.Context) {
 
 func (w *Worker) beat(ctx context.Context) {
 	d := w.device()
+	// Other computers judge whether this one is online by its heartbeat:
+	// the database server's time (D360).
+	d.LastHeartbeat = w.App.DB.NowOrLocal(ctx)
 	_, err := w.App.DB.C(store.CWorkers).ReplaceOne(ctx, bson.M{"_id": d.ID, "workspaceId": d.WorkspaceID}, d, options.Replace().SetUpsert(true))
 	if err != nil {
 		w.Log("worker heartbeat failed (database unreachable?): %v", err)
@@ -633,7 +641,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
-				case <-time.After(time.Until(at)):
+				case <-time.After(at.Sub(w.App.DB.NowOrLocal(ctx))): // at is the server's time
 				}
 			case <-ctx.Done():
 				wg.Wait()
@@ -650,7 +658,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				if j.State != models.JobQueued && j.State != models.JobRunning {
 					return nil
 				}
-				if j.State == models.JobRunning && j.Lease != nil && j.Lease.ExpiresAt.After(time.Now()) {
+				if j.State == models.JobRunning && j.Lease != nil && j.Lease.ExpiresAt.After(w.App.DB.NowOrLocal(ctx)) {
 					return fmt.Errorf("job %s is already running on %s", j.ID, j.Lease.OwnerName)
 				}
 			}
@@ -672,9 +680,9 @@ func (w *Worker) lease(ctx context.Context) (*models.Job, error) {
 
 // execute runs one leased job to its end. When the job is back in the queue for
 // another try — the attempt failed and will be retried, or the handler
-// postponed it (it waits for something it needs) — again is when it may run;
-// otherwise (done, failed for good, canceled, released, taken over) again is
-// zero.
+// postponed it (it waits for something it needs) — again is when it may run,
+// in the database server's time; otherwise (done, failed for good, canceled,
+// released, taken over) again is zero.
 func (w *Worker) execute(parent context.Context, j *models.Job) (again time.Time) {
 	a := w.App
 	w.mu.Lock()
@@ -759,7 +767,7 @@ func (w *Worker) execute(parent context.Context, j *models.Job) (again time.Time
 		if perr := a.Queue.Postpone(fctx, j, a.Cfg.Installation.ID, wait.after, wait.reason); perr != nil {
 			w.Log("job %s %s: could not put it back in the queue to wait: %v", j.ID, j.Type, perr)
 		} else {
-			again = time.Now().Add(wait.after)
+			again = retryAt(fctx, w, j, wait.after)
 			w.Log("job %s %s: %s It starts again in %s.", j.ID, j.Type, wait.reason, wait.after)
 		}
 	case err != nil:
@@ -775,7 +783,7 @@ func (w *Worker) execute(parent context.Context, j *models.Job) (again time.Time
 			// Back in the queue for its next try: say when (a terminal running
 			// only this job takes it again then, instead of leaving it waiting
 			// for a worker that may never come).
-			again = retryAt(fctx, a, j)
+			again = retryAt(fctx, w, j, jobs.RetryBackoff(j.AttemptCount))
 		}
 		w.Log("job %s %s failed after %s: %v", j.ID, j.Type, time.Since(start).Round(time.Millisecond), err)
 	default:
@@ -793,20 +801,20 @@ func (w *Worker) execute(parent context.Context, j *models.Job) (again time.Time
 	return again
 }
 
-// retryAt is when a job that failed and went back in the queue may run again:
-// its nextRunAt as the queue saved it (jobs.RetryBackoff after the attempt).
-// It is zero when the job has moved on already (canceled, or taken by another
-// worker).
-func retryAt(ctx context.Context, a *app.App, j *models.Job) time.Time {
-	cur, err := a.Queue.Get(ctx, j.ID)
+// retryAt is when a job that went back in the queue may run again, in the
+// database server's time: its nextRunAt as the queue saved it (after a failed
+// attempt's backoff, or a postponement's wait). It is zero when the job has
+// moved on already (canceled, or taken by another worker).
+func retryAt(ctx context.Context, w *Worker, j *models.Job, wait time.Duration) time.Time {
+	cur, err := w.App.Queue.Get(ctx, j.ID)
 	switch {
 	case err != nil:
 		// The database didn't answer: the job waits as the queue saved it.
-		return time.Now().Add(jobs.RetryBackoff(j.AttemptCount))
+		return w.App.DB.NowOrLocal(ctx).Add(wait)
 	case cur.State != models.JobQueued:
 		return time.Time{}
 	case cur.NextRunAt.IsZero():
-		return time.Now()
+		return w.App.DB.NowOrLocal(ctx)
 	}
 	return cur.NextRunAt
 }

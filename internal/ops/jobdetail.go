@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -348,9 +347,11 @@ func JobDetail(ctx context.Context, a *app.App, id string) (*JobShowOut, error) 
 	} else if n := len(j.Attempts); n > 0 {
 		out.Machine = orName(j.Attempts[n-1].WorkerName, machines[j.Attempts[n-1].Worker])
 	}
+	// A job's times and the workers' heartbeats are the database server's (D360, D368).
+	now := a.DB.NowOrLocal(ctx)
 	if n := len(j.Attempts); n > 0 {
 		start := j.Attempts[n-1].StartedAt
-		end := time.Now()
+		end := now
 		if j.FinishedAt != nil {
 			end = *j.FinishedAt
 		}
@@ -361,7 +362,7 @@ func JobDetail(ctx context.Context, a *app.App, id string) (*JobShowOut, error) 
 	}
 	switch j.State {
 	case models.JobQueued:
-		out.Waiting = jobs.Why(*j, workers, time.Now().UTC())
+		out.Waiting = jobs.Why(*j, workers, now)
 		out.CanProcessNow = out.Waiting != nil && out.Waiting.CanProcessNow
 		out.CanCancel = true
 	case models.JobRunning:

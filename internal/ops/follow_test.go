@@ -16,6 +16,7 @@ import (
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/testutil/testapp"
 )
 
@@ -274,4 +275,93 @@ func TestAwaitingReviewListsWhatSomeoneShouldLookAt(t *testing.T) {
 	if len(one.Versions) != 1 || one.Versions[0].ProjectID != claude.ID {
 		t.Errorf("one project's: %+v", one.Versions)
 	}
+}
+
+// savedAt makes a cut's latest version look saved at t (the version, its
+// branch and the project).
+func savedAt(t *testing.T, a *app.App, projectID, revisionID string, at time.Time) {
+	t.Helper()
+	ctx := context.Background()
+	if err := a.DB.Update(ctx, store.CRevisions, a.WorkspaceID(), revisionID, bson.M{"$set": bson.M{"createdAt": at}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.DB.Update(ctx, store.CProjects, a.WorkspaceID(), projectID, bson.M{"$set": bson.M{"branches.main.updatedAt": at, "updatedAt": at}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The daemons look by the database server's clock (D360): a computer ten
+// minutes fast doesn't queue a copy of a version saved under a minute ago, nor
+// skip one saved within two hours; one ten minutes slow queues a version quiet
+// for a minute and skips one saved over two hours ago.
+func TestReviewCopyFollowsByTheServersClock(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	busy, older, oldest := project(t, a, "Still editing"), project(t, a, "Saved a while ago"), project(t, a, "Saved long ago")
+	vBusy := saveCut(t, a, busy.ID, "", clip(t, a, "Porch", busy.ID).ID)
+	vOlder := saveCut(t, a, older.ID, "", clip(t, a, "Dock", older.ID).ID)
+	vOldest := saveCut(t, a, oldest.ID, "", clip(t, a, "Barn", oldest.ID).ID)
+	now := byServer(t, a)
+	savedAt(t, a, busy.ID, vBusy, now.Add(-50*time.Second))
+	savedAt(t, a, older.ID, vOlder, now.Add(-ops.ReviewFollowWindow+5*time.Minute))
+
+	restore := testutil.SkewClock(t, 10*time.Minute)
+	if _, err := ops.FollowLook(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(followRenders(t, a, vBusy)); n != 0 {
+		t.Fatalf("a computer ten minutes fast made a copy of a version saved 50 seconds ago (%d)", n)
+	}
+	if n := len(followRenders(t, a, vOlder)); n != 1 {
+		t.Fatalf("a computer ten minutes fast skipped a version saved under two hours ago (%d copies)", n)
+	}
+	restore()
+
+	now = byServer(t, a)
+	savedAt(t, a, busy.ID, vBusy, now.Add(-70*time.Second))
+	savedAt(t, a, oldest.ID, vOldest, now.Add(-ops.ReviewFollowWindow-5*time.Minute))
+	restore = testutil.SkewClock(t, -10*time.Minute)
+	if _, err := ops.FollowLook(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(followRenders(t, a, vBusy)); n != 1 {
+		t.Fatalf("a computer ten minutes slow made no copy of a version quiet for 70 seconds (%d)", n)
+	}
+	if n := len(followRenders(t, a, vOldest)); n != 0 {
+		t.Fatalf("a computer ten minutes slow made a copy of a version saved over two hours ago (%d)", n)
+	}
+	restore()
+}
+
+// An AI app's draft is saved at the server's time, and its review copy waits
+// for a quiet minute by that clock, whatever the clocks of the computers that
+// saved it and look at it say.
+func TestDraftReviewCopyByTheServersClock(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	p := project(t, a, "Drafts and clocks")
+	v1 := saveCut(t, a, p.ID, "", clip(t, a, "Field", p.ID).ID)
+	restore := testutil.SkewClock(t, 10*time.Minute)
+	d := do[ops.DraftView](t, agentApp(a, "codex", "mcp"), ops.OpDraftSave, ops.DraftSaveIn{Op: "edit.apply", Input: draftInput(t, ops.EditApplyIn{Plan: clipOutPlan(t, v1, "ca", 2)})})
+	if now := byServer(t, a); !near(d.CreatedAt, now) || !near(revisionOf(t, a, d.Revision.ID).CreatedAt, now) {
+		t.Fatalf("the draft (%v) and its version (%v) weren't saved at the server's time %v", d.CreatedAt, revisionOf(t, a, d.Revision.ID).CreatedAt, now)
+	}
+	if _, err := ops.FollowLook(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(followRenders(t, a, d.Revision.ID)); n != 0 {
+		t.Fatalf("a computer ten minutes fast made a copy of a draft saved a moment ago (%d)", n)
+	}
+	restore()
+	if err := a.DB.Update(ctx, store.CDrafts, a.WorkspaceID(), d.ID, bson.M{"$set": bson.M{"createdAt": byServer(t, a).Add(-70 * time.Second)}}); err != nil {
+		t.Fatal(err)
+	}
+	restore = testutil.SkewClock(t, -10*time.Minute)
+	if _, err := ops.FollowLook(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(followRenders(t, a, d.Revision.ID)); n != 1 {
+		t.Fatalf("a computer ten minutes slow made no copy of a draft quiet for 70 seconds (%d)", n)
+	}
+	restore()
 }

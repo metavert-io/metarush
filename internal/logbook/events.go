@@ -127,7 +127,7 @@ func (l *Logger) JobEvent(ctx context.Context, ev jobs.Event) {
 		}
 	case jobs.EventSucceeded:
 		if n := len(j.Attempts); n > 0 {
-			p.e.DurationMs = ms(time.Since(j.Attempts[n-1].StartedAt))
+			p.e.DurationMs = ms(ranFor(&j, n-1))
 		}
 	case jobs.EventRetry:
 		p.e.Level = LevelWarn
@@ -145,7 +145,7 @@ func (l *Logger) JobEvent(ctx context.Context, ev jobs.Event) {
 			p.e.Error.Advice = JobAdvice(&jj)
 		}
 		if n := len(j.Attempts); n > 0 {
-			p.e.DurationMs = ms(time.Since(j.Attempts[n-1].StartedAt))
+			p.e.DurationMs = ms(ranFor(&j, n-1))
 		}
 		p.versions = "-"
 	case jobs.EventCanceled:
@@ -377,4 +377,13 @@ func (l *Logger) ConversationEvent(ctx context.Context, source, conversationID, 
 		e.Level = LevelWarn
 	}
 	l.add(&pending{e: e})
+}
+
+// ranFor is how long an attempt that just ended ran, by the job's own times
+// (the database server's, D368), whichever computer it ran on.
+func ranFor(j *models.Job, attempt int) time.Duration {
+	if j.FinishedAt != nil {
+		return j.FinishedAt.Sub(j.Attempts[attempt].StartedAt)
+	}
+	return time.Since(j.Attempts[attempt].StartedAt)
 }

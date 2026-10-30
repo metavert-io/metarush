@@ -284,7 +284,7 @@ func quietEnough(ctx context.Context, a *app.App, gone *models.Installation) (bo
 			last = *gone.LastUsedAt
 		}
 		if !last.IsZero() {
-			mins := int(time.Since(last).Minutes())
+			mins := int(a.DB.NowOrLocal(ctx).Sub(last).Minutes()) // both the database server's time
 			if mins < 1 {
 				ago = "less than a minute ago"
 			} else {

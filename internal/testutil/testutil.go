@@ -292,3 +292,31 @@ func (c TemplateCollection) make(ctx context.Context, db *store.DB) error {
 	}
 	return nil
 }
+
+// SkewClock makes this computer's clock (store.Clock, which jobs.Clock and the
+// server-time helper read) run off by d — a computer whose clock is wrong —
+// until restore is called or the test ends. The database server's time is
+// unchanged.
+func SkewClock(t testing.TB, d time.Duration) (restore func()) {
+	t.Helper()
+	// A busy test machine's slow answer isn't a database that went away: what
+	// a test skews for, it waits to hear.
+	store.ServerTimeJumpWait = 30 * time.Second
+	old := store.Clock
+	store.Clock = func() time.Time { return old().Add(d) }
+	var once sync.Once
+	restore = func() { once.Do(func() { store.Clock = old }) }
+	t.Cleanup(restore)
+	return restore
+}
+
+// ServerOff makes db take the database server's time to be off by d from this
+// computer's real clock until the test ends: what a display or any Go-side
+// check gets from store.DB.Now moves, and a bare time.Now() doesn't, so a test
+// sees which one code reads. Stamps a test writes come from db.Now then. It
+// doesn't move $$NOW or $currentDate: for those, SkewClock.
+func ServerOff(t testing.TB, db *store.DB, d time.Duration) {
+	t.Helper()
+	db.ShiftServerTime(d)
+	t.Cleanup(func() { db.ShiftServerTime(0) })
+}

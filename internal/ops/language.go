@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/jobs"
@@ -91,7 +90,12 @@ func init() {
 			out.Note = fmt.Sprintf("“%s” is already set to %s, and its words are written down in %s.", as.DisplayTitle(), name, name)
 			return out, nil
 		}
-		now := time.Now().UTC()
+		// A transcribe job running on another computer compares it with when
+		// it started: the database server's time (D360).
+		now, err := a.DB.Now(ctx)
+		if err != nil {
+			return nil, err
+		}
 		set := models.SpokenLanguage{Code: code, By: models.LanguagePerson, UserID: a.Actor.UserID, At: now}
 		if err := a.DB.Update(ctx, store.CAssets, a.WorkspaceID(), as.ID, bsonSet("language", set)); err != nil {
 			return nil, err

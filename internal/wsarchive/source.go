@@ -262,11 +262,13 @@ func otherWorkspaces(ctx context.Context, db *store.DB, coll, ws string) (int64,
 
 // runningNow names the workspace's computers that ran MetaRush in the last
 // few minutes (an export reads the database as it is: what changes meanwhile
-// may be half in the archive).
-func runningNow(ctx context.Context, db *store.DB, ws, here string, now time.Time) []string {
+// may be half in the archive), by the database server's time, as lastSeenAt
+// is written (D360).
+func runningNow(ctx context.Context, db *store.DB, ws, here string) []string {
 	var insts []models.Installation
-	cur, err := db.C(store.CInstallations).Find(ctx, bson.M{"workspaceId": ws, "_id": bson.M{"$ne": here},
-		"lastSeenAt": bson.M{"$gte": now.Add(-3 * time.Minute)}, "state": bson.M{"$ne": models.InstallationRevoked}})
+	filter := store.SeenWithin("lastSeenAt", 3*time.Minute)
+	filter["workspaceId"], filter["_id"], filter["state"] = ws, bson.M{"$ne": here}, bson.M{"$ne": models.InstallationRevoked}
+	cur, err := db.C(store.CInstallations).Find(ctx, filter)
 	if err != nil || cur.All(ctx, &insts) != nil {
 		return nil
 	}

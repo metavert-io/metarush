@@ -390,7 +390,10 @@ func (s *Server) auth(w http.ResponseWriter, r *http.Request) {
 		return
 	default:
 		u := s.App.Cfg.User
-		val, err := sessions.For(s.App.Cfg.StateDir()).New(sessions.Session{UserID: u.ID, UserName: u.Name, Public: false, From: acc.from, Method: "link"}, time.Now())
+		// Made at the database server's time, like a password session: the
+		// owner's "sign out everywhere" is compared with it (D360).
+		val, err := sessions.For(s.App.Cfg.StateDir()).New(sessions.Session{UserID: u.ID, UserName: u.Name, Public: false, From: acc.from, Method: "link",
+			CreatedAt: auth.SessionStart(r.Context(), s.App, nil)}, time.Now())
 		if err != nil {
 			http.Error(w, "MetaRush couldn't sign this browser in. Try the link again.", http.StatusInternalServerError)
 			return

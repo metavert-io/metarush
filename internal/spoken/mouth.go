@@ -83,13 +83,14 @@ func askMouth(ctx context.Context, a *app.App, in *MouthIn) (*MouthOut, error) {
 		return out, nil
 	}
 	// The change knows its lip sync before any worker can finish it (its ended hook checks the generation).
+	// updatedAt is the server's (D360): the sweep on any computer looks at a mouth being made by it.
 	m := models.SpokenMouth{GenerationID: mk.ID, State: models.SpokenMaking, By: a.Actor, At: time.Now().UTC()}
-	if err := a.DB.Update(ctx, store.CSpokenChanges, a.WorkspaceID(), c.ID, bson.M{"$set": bson.M{"mouth": m, "updatedAt": time.Now().UTC()}}); err != nil {
+	if err := a.DB.Update(ctx, store.CSpokenChanges, a.WorkspaceID(), c.ID, bson.M{"$set": bson.M{"mouth": m}, "$currentDate": bson.M{"updatedAt": true}}); err != nil {
 		return nil, err
 	}
 	mo, err := aiwork.MakeFor(ctx, a, &mk)
 	if err != nil {
-		_ = a.DB.Update(context.WithoutCancel(ctx), store.CSpokenChanges, a.WorkspaceID(), c.ID, bson.M{"$set": bson.M{"mouth": c.Mouth, "updatedAt": time.Now().UTC()}}) // nothing was sent
+		_ = a.DB.Update(context.WithoutCancel(ctx), store.CSpokenChanges, a.WorkspaceID(), c.ID, bson.M{"$set": bson.M{"mouth": c.Mouth}, "$currentDate": bson.M{"updatedAt": true}}) // nothing was sent
 		return nil, err
 	}
 	m.JobID = mo.JobID
@@ -106,7 +107,7 @@ func endedMouth(ctx context.Context, a *app.App, g *models.Generation) {
 	if err := a.DB.GetByID(ctx, store.CSpokenChanges, a.WorkspaceID(), id, &c); err != nil || c.Mouth == nil || c.Mouth.GenerationID != g.ID {
 		return // not this change's own lip sync
 	}
-	set := bson.M{"updatedAt": time.Now().UTC()}
+	set := bson.M{}
 	ok := g.Outcome != nil && g.Outcome.State == models.GenDone
 	asset := ""
 	if ok {
@@ -133,7 +134,7 @@ func endedMouth(ctx context.Context, a *app.App, g *models.Generation) {
 		n.Title = fmt.Sprintf("The mouth couldn't be matched to “%s”", generateClip(c.Words))
 		n.Body = why
 	}
-	res, err := a.DB.C(store.CSpokenChanges).UpdateOne(ctx, bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID(), "mouth.state": models.SpokenMaking, "mouth.generationId": g.ID}, bson.M{"$set": set})
+	res, err := a.DB.C(store.CSpokenChanges).UpdateOne(ctx, bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID(), "mouth.state": models.SpokenMaking, "mouth.generationId": g.ID}, bson.M{"$set": set, "$currentDate": bson.M{"updatedAt": true}})
 	if err != nil || res.MatchedCount == 0 {
 		return // moved on meanwhile (withdrawn, or a sweep): left as it is
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -363,5 +362,3 @@ func channelOf(actor models.Actor, origin string) string {
 	}
 	return actor.Via
 }
-
-var nowFn = func() time.Time { return time.Now().UTC() }

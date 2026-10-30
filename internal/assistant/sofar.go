@@ -141,7 +141,7 @@ func soFarForClaude(ctx context.Context, a *app.App, projectID, except, terms st
 				c.Title, c.Note = "a card", ""
 			}
 		}
-		out.Text, out.More = soFarLines(out, time.Now())
+		out.Text, out.More = soFarLines(out, a.DB.NowOrLocal(ctx))
 	}
 	return out, nil
 }
@@ -240,7 +240,7 @@ func ProjectSoFar(ctx context.Context, a *app.App, projectID, except string) (*P
 	for _, t := range todos {
 		out.Todos = append(out.Todos, SoFarTodo{ID: t.ID, Question: clip(strings.TrimSpace(t.Question), 160)})
 	}
-	out.Text, out.More = soFarLines(out, time.Now())
+	out.Text, out.More = soFarLines(out, a.DB.NowOrLocal(ctx))
 	return out, nil
 }
 

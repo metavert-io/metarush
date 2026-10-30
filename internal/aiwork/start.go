@@ -92,7 +92,12 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 	// money set aside without a record, or a record without its job.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
-	now := time.Now().UTC()
+	// The server's time (D360): the sweeps on every computer compare
+	// createdAt, and the day's limit is the server's day.
+	now, err := generate.Now(ctx, a)
+	if err != nil {
+		return nil, err
+	}
 	m := p.model
 	genID := p.genID
 	if genID == "" {
@@ -135,7 +140,7 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 		ProjectID: p.projectID, Actor: a.Actor, Installation: a.Cfg.Installation.ID,
 		Payload: map[string]any{"generationId": g.ID, "kind": g.Kind, "what": p.kind.What, "provider": g.ProviderTitle, "costUsd": g.Estimate.USD}})
 	if err != nil {
-		_ = generate.SetOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenFailed, At: time.Now().UTC(), Message: "MetaRush couldn't queue it.", Actual: &models.GenCost{Basis: "none"}})
+		_ = generate.SetOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenFailed, At: a.DB.NowOrLocal(ctx), Message: "MetaRush couldn't queue it.", Actual: &models.GenCost{Basis: "none"}})
 		_ = generate.Settle(context.WithoutCancel(ctx), a, &g, 0, "")
 		return nil, err
 	}

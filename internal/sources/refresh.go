@@ -28,8 +28,13 @@ var firstLookTypes = []string{jobs.TypeProxy, jobs.TypeTranscribe, jobs.TypeDiar
 var FirstLookWindow = 24 * time.Hour
 
 // firstLookPending reports whether a source's first analyses are still to run.
+// How long ago it was imported goes by the database server's clock (D360):
+// any computer may refresh its name. (Its stamp is the importing computer's;
+// a day's window leaves room for a few minutes between clocks.)
 func firstLookPending(ctx context.Context, a *app.App, as *models.Asset) bool {
-	if time.Since(as.CreatedAt) > FirstLookWindow {
+	recent := store.SeenWithin("createdAt", FirstLookWindow)
+	recent["_id"], recent["workspaceId"] = as.ID, a.WorkspaceID()
+	if n, err := a.DB.C(store.CAssets).CountDocuments(ctx, recent); err != nil || n == 0 {
 		return false
 	}
 	n, err := a.DB.C(store.CJobs).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "assetId": as.ID,

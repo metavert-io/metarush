@@ -218,7 +218,11 @@ func init() { ops.OwnerNames = OwnerNames }
 
 // SessionValid reports whether a session made at created is still good for a
 // person: the account is active (or the owner on a fresh install) and nobody
-// signed them out everywhere since.
+// signed them out everywhere since. Both times are the database server's
+// (D360): sessionsValidAfter is written with $currentDate and sessions are
+// stamped with SessionStart, so a computer whose clock is slow or fast, where
+// the session was made or where the sign-out was pressed, never decides. The
+// check reads no clock, so it costs nothing more than the person's lookup.
 func SessionValid(ctx context.Context, a *app.App, userID string, created time.Time) bool {
 	u, ok := userForSession(ctx, a, userID)
 	if !ok {
@@ -230,7 +234,9 @@ func SessionValid(ctx context.Context, a *app.App, userID string, created time.T
 	if u.State == models.UserDisabled || u.State == models.UserInvited {
 		return false
 	}
-	return u.SessionsValidAfter == nil || created.After(*u.SessionsValidAfter)
+	// To the millisecond, which is all a stored sign-out keeps: a session made in
+	// the millisecond of a sign-out is one it ends.
+	return u.SessionsValidAfter == nil || created.Truncate(time.Millisecond).After(*u.SessionsValidAfter)
 }
 
 // Why a person's paired browser stops sending (D197).
@@ -309,11 +315,47 @@ func ensureOwnerRecord(ctx context.Context, a *app.App) error {
 	return err
 }
 
+// signOutNow is the $currentDate that ends every session made before now by
+// the database server's clock (D360): another computer compares it with
+// sessions it stamped with the server's time too (SessionStart).
+func signOutNow() bson.M { return bson.M{"sessionsValidAfter": true} }
+
+// SessionStart is when a new session of a person starts by the database
+// server's clock (D360), for SessionValid to compare with a "sign out
+// everywhere" pressed on any computer (this computer's clock when the
+// database doesn't answer: serverNow). u is the person as read for this
+// sign-in (nil: not read): the session starts after a sign-out recorded just
+// before even when the measured time is a moment behind the server's (it
+// keeps milliseconds). It is moved a second at most, so a sign-out an older
+// MetaRush wrote ahead of the server's time can't carry the session past a
+// later one.
+func SessionStart(ctx context.Context, a *app.App, u *models.User) time.Time {
+	now := serverNow(ctx, a)
+	if u != nil && u.SessionsValidAfter != nil {
+		if behind := u.SessionsValidAfter.Sub(now); behind >= 0 && behind < time.Second {
+			now = u.SessionsValidAfter.Add(time.Millisecond).UTC()
+		}
+	}
+	return now
+}
+
+// serverNow is the database server's time (D360), asked at most once a
+// minute (DB.Now). When the database doesn't answer it waits no longer than a
+// sign-in check does (lookupWait) and gives this computer's clock, as before:
+// a sign-in on this computer still works through an outage (D180).
+func serverNow(ctx context.Context, a *app.App) time.Time {
+	qctx, cancel := context.WithTimeout(ctx, lookupWait)
+	defer cancel()
+	if now, err := a.DB.Now(qctx); err == nil {
+		return now
+	}
+	return store.Clock().UTC()
+}
+
 // signOutEverywhere ends every session a person has, on every computer.
 func signOutEverywhere(ctx context.Context, a *app.App, userID string) error {
 	defer forget(userID)
-	now := time.Now().UTC()
-	return a.DB.Update(ctx, store.CUsers, a.WorkspaceID(), userID, bson.M{"$set": bson.M{"sessionsValidAfter": now}})
+	return a.DB.Update(ctx, store.CUsers, a.WorkspaceID(), userID, bson.M{"$currentDate": signOutNow()})
 }
 
 // SignOutEverywhere ends every session a person has (the current one too).
@@ -351,11 +393,11 @@ func setPassword(ctx context.Context, a *app.App, userID, pw string, signOut boo
 		options.Replace().SetUpsert(true)); err != nil {
 		return err
 	}
-	set := bson.M{"passwordSetAt": now}
+	update := bson.M{"$set": bson.M{"passwordSetAt": now}}
 	if signOut {
-		set["sessionsValidAfter"] = now
+		update["$currentDate"] = signOutNow()
 	}
-	return a.DB.Update(ctx, store.CUsers, a.WorkspaceID(), userID, bson.M{"$set": set})
+	return a.DB.Update(ctx, store.CUsers, a.WorkspaceID(), userID, update)
 }
 
 // verifyCurrent checks a person's current password (changing an email, a
@@ -383,7 +425,9 @@ type failures struct {
 
 func failureID(a *app.App, key string) string { return a.WorkspaceID() + ":" + key }
 
-// throttled says whether an email must wait before its next try.
+// throttled says whether an email must wait before its next try. now is the
+// database server's time (D360): another computer counted the earlier tries
+// and set the lock with it.
 func throttled(ctx context.Context, a *app.App, key string, now time.Time) error {
 	var f failures
 	if err := a.DB.C(store.CAuthFailures).FindOne(ctx, bson.M{"_id": failureID(a, key)}).Decode(&f); err != nil {
@@ -406,7 +450,9 @@ func throttled(ctx context.Context, a *app.App, key string, now time.Time) error
 }
 
 // failed counts a wrong password for an email (known or not, so a lock says
-// nothing about whether it has an account); the tenth locks it and tells the owners.
+// nothing about whether it has an account); the tenth locks it and tells the
+// owners. now is the database server's time (D360), like throttled's: the
+// count, its last try and the lock are shared by every computer.
 func failed(ctx context.Context, a *app.App, key string, now time.Time) {
 	var f failures
 	_ = a.DB.C(store.CAuthFailures).FindOne(ctx, bson.M{"_id": failureID(a, key)}).Decode(&f)
@@ -444,7 +490,7 @@ func tellOwners(ctx context.Context, a *app.App, group, tone, title, body string
 // email and a wrong password answer the same and take the same time.
 func Authenticate(ctx context.Context, a *app.App, email, pw string) (*models.User, error) {
 	key := EmailKey(email)
-	now := time.Now().UTC()
+	now := serverNow(ctx, a)
 	if key == "" || pw == "" {
 		burn(pw)
 		return nil, ErrBadCredentials
@@ -506,7 +552,12 @@ func newLink(ctx context.Context, a *app.App, kind, userID string, ttl time.Dura
 		return "", time.Time{}, err
 	}
 	token := base64.RawURLEncoding.EncodeToString(b)
-	now := time.Now().UTC()
+	// The link ends by the database server's clock (D360): it is followed on
+	// whichever computer serves the person's browser.
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return "", time.Time{}, err
+	}
 	revokeLinks(ctx, a, userID, kind)
 	exp := now.Add(ttl)
 	rec := LinkRecord{ID: tokenHash(token), WorkspaceID: a.WorkspaceID(), Kind: kind, UserID: userID, CreatedBy: a.Actor, CreatedAt: now, ExpiresAt: exp, PurgeAt: exp.Add(30 * 24 * time.Hour)}
@@ -525,16 +576,20 @@ func revokeLinks(ctx context.Context, a *app.App, userID, kind string) {
 	_, _ = a.DB.C(store.CAuthTokens).UpdateMany(ctx, f, bson.M{"$set": bson.M{"revokedAt": time.Now().UTC()}})
 }
 
+// notExpired matches links that still work by the database server's clock
+// (D360), whatever the clock of the computer following them says.
+var notExpired = bson.M{"$gt": bson.A{"$expiresAt", "$$NOW"}}
+
 // LookupLink finds a link that still works, with its person.
 func LookupLink(ctx context.Context, a *app.App, token string) (*LinkRecord, *models.User, error) {
 	if len(token) < 20 || len(token) > 100 {
 		return nil, nil, ErrLinkGone
 	}
 	var rec LinkRecord
-	if err := a.DB.C(store.CAuthTokens).FindOne(ctx, bson.M{"_id": tokenHash(token), "workspaceId": a.WorkspaceID()}).Decode(&rec); err != nil {
+	if err := a.DB.C(store.CAuthTokens).FindOne(ctx, bson.M{"_id": tokenHash(token), "workspaceId": a.WorkspaceID(), "$expr": notExpired}).Decode(&rec); err != nil {
 		return nil, nil, ErrLinkGone
 	}
-	if rec.UsedAt != nil || rec.RevokedAt != nil || time.Now().After(rec.ExpiresAt) {
+	if rec.UsedAt != nil || rec.RevokedAt != nil {
 		return nil, nil, ErrLinkGone
 	}
 	u, err := GetUser(ctx, a, rec.UserID)
@@ -566,7 +621,7 @@ func UseLink(ctx context.Context, a *app.App, token, name, pw string) (*models.U
 		return nil, apperr.New(apperr.InvalidInput, "%s", err.Error()).WithDetails(map[string]any{"reason": "weak_password"})
 	}
 	now := time.Now().UTC()
-	res, err := a.DB.C(store.CAuthTokens).UpdateOne(ctx, bson.M{"_id": rec.ID, "usedAt": nil, "revokedAt": nil, "expiresAt": bson.M{"$gt": now}}, bson.M{"$set": bson.M{"usedAt": now}})
+	res, err := a.DB.C(store.CAuthTokens).UpdateOne(ctx, bson.M{"_id": rec.ID, "usedAt": nil, "revokedAt": nil, "$expr": notExpired}, bson.M{"$set": bson.M{"usedAt": now}})
 	if err != nil {
 		return nil, err
 	}
@@ -726,6 +781,7 @@ func SetState(ctx context.Context, a *app.App, userID, state string) (*models.Us
 	}
 	now := time.Now().UTC()
 	set := bson.M{"state": state, "updatedAt": now, "updatedBy": a.Actor}
+	update := bson.M{"$set": set}
 	switch state {
 	case models.UserActive:
 		if u.State != models.UserDisabled {
@@ -735,15 +791,15 @@ func SetState(ctx context.Context, a *app.App, userID, state string) (*models.Us
 			set["state"] = models.UserInvited // never accepted: they need an invite link
 		}
 	case models.UserDisabled:
-		set["sessionsValidAfter"] = now
+		update["$currentDate"] = signOutNow()
 		revokeLinks(ctx, a, userID, "")
 	case models.UserEarlier:
-		set["sessionsValidAfter"] = now
+		update["$currentDate"] = signOutNow()
 		set["role"] = models.RoleMember
 		revokeLinks(ctx, a, userID, "")
 		_, _ = a.DB.C(store.CUserCredentials).DeleteOne(ctx, bson.M{"_id": userID, "workspaceId": a.WorkspaceID()})
 	}
-	if err := a.DB.Update(ctx, store.CUsers, a.WorkspaceID(), userID, bson.M{"$set": set}); err != nil {
+	if err := a.DB.Update(ctx, store.CUsers, a.WorkspaceID(), userID, update); err != nil {
 		return nil, err
 	}
 	a.Audit(ctx, "users.state", "user", userID, "", map[string]any{"state": set["state"]})
@@ -895,7 +951,7 @@ func SetUpTailscale(ctx context.Context, a *app.App, ownerID, login string) erro
 func SetUpSingle(ctx context.Context, a *app.App, ownerID string) error {
 	defer forgetAll()
 	now := time.Now().UTC()
-	if _, err := a.DB.C(store.CUsers).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "_id": bson.M{"$ne": ownerID}}, bson.M{"$set": bson.M{"sessionsValidAfter": now}}); err != nil {
+	if _, err := a.DB.C(store.CUsers).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "_id": bson.M{"$ne": ownerID}}, bson.M{"$currentDate": signOutNow()}); err != nil {
 		return err
 	}
 	_, _ = a.DB.C(store.CAuthTokens).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "usedAt": nil, "revokedAt": nil}, bson.M{"$set": bson.M{"revokedAt": now}})
@@ -917,7 +973,7 @@ func Reset(ctx context.Context, a *app.App) (earlier int, err error) {
 		return 0, err
 	}
 	now := time.Now().UTC()
-	if _, err := a.DB.C(store.CUsers).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID()}, bson.M{"$set": bson.M{"sessionsValidAfter": now}}); err != nil {
+	if _, err := a.DB.C(store.CUsers).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID()}, bson.M{"$currentDate": signOutNow()}); err != nil {
 		return 0, err
 	}
 	var us []models.User

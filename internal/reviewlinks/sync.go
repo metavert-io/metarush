@@ -129,7 +129,12 @@ func syncNow(ctx context.Context, a *app.App, id string) (*ShareSyncOut, error) 
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
 	defer cancel()
 	out := &ShareSyncOut{Lines: []string{}}
-	now := time.Now().UTC()
+	// Whether a link's time is up is the database server's word: its end was
+	// written in the server's time, and every computer looks (D360).
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var ls []models.ReviewLink
 	if id != "" {
 		l, err := get(ctx, a, id)
@@ -223,7 +228,7 @@ func syncNow(ctx context.Context, a *app.App, id string) (*ShareSyncOut, error) 
 		default:
 			// Ended: its last comments come in if they haven't, and its files
 			// go (again, until its signed time is over).
-			st, err := finish(ctx, a, l.ID, now)
+			st, err := finish(ctx, a, l.ID)
 			if err != nil {
 				return nil, err
 			}
@@ -277,20 +282,27 @@ func syncLink(ctx context.Context, a *app.App, l *models.ReviewLink, last bool) 
 	// sender untold.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), lookTimeout)
 	defer cancel()
-	now := time.Now().UTC()
+	// The database server's time: the hour's count is started by one
+	// computer and judged by the next, whose clocks may differ (D360).
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, false, err
+	}
 	// One computer at a time reads a link's slots: a lease that outlasts the
 	// look, held under a token only this look knows — or one a move took
-	// already for every link it deals with (holding).
+	// already for every link it deals with (holding). It ends syncLease
+	// after the server's time and is judged by it, so two computers whose
+	// clocks differ never both hold it.
 	token, inherited := ctx.Value(leaseKey{}).(string)
 	lease := bson.M{"_id": l.ID, "workspaceId": a.WorkspaceID(), "syncBy": token}
 	if !inherited {
 		token = ids.New("lse")
-		lease = leaseFree(l.ID, a.WorkspaceID(), now)
+		lease = leaseFree(l.ID, a.WorkspaceID())
 	}
 	if !last {
 		lease["state"] = models.ReviewLinkLive
 	}
-	res, err := a.DB.C(store.CReviewLinks).UpdateOne(ctx, lease, bson.M{"$set": bson.M{"syncUntil": now.Add(syncLease), "syncBy": token}})
+	res, err := a.DB.C(store.CReviewLinks).UpdateOne(ctx, lease, takeLease(token, syncLease))
 	if err != nil {
 		return nil, false, err
 	}
@@ -325,7 +337,8 @@ func syncLink(ctx context.Context, a *app.App, l *models.ReviewLink, last bool) 
 	for i := range l.Taken {
 		taken[l.Taken[i].Writer] = &l.Taken[i]
 	}
-	// The hour's count.
+	// The hour's count (its start is the server's time, so whichever
+	// computer looks next judges it the same way).
 	hour, inHour := now, 0
 	if l.Hour != nil && now.Sub(*l.Hour) < time.Hour {
 		hour, inHour = *l.Hour, l.InHour
@@ -500,9 +513,17 @@ func syncLink(ctx context.Context, a *app.App, l *models.ReviewLink, last bool) 
 	return got, true, nil
 }
 
-// leaseFree selects a link whose slots no one is reading.
-func leaseFree(id, workspaceID string, now time.Time) bson.M {
-	return bson.M{"_id": id, "workspaceId": workspaceID, "$or": bson.A{bson.M{"syncUntil": bson.M{"$exists": false}}, bson.M{"syncUntil": nil}, bson.M{"syncUntil": bson.M{"$lt": now}}}}
+// leaseFree selects a link whose slots no one is reading: no lease, or one
+// that ended by the database server's clock (computers' clocks differ).
+func leaseFree(id, workspaceID string) bson.M {
+	return bson.M{"_id": id, "workspaceId": workspaceID, "$or": bson.A{bson.M{"syncUntil": bson.M{"$exists": false}}, bson.M{"syncUntil": nil},
+		store.DueBy("syncUntil")}}
+}
+
+// takeLease is the update that holds a link's slots under token for d by
+// the database server's clock, as leaseFree judges it.
+func takeLease(token string, d time.Duration) []bson.M {
+	return []bson.M{{"$set": bson.M{"syncUntil": store.ServerTimeIn(d), "syncBy": bson.M{"$literal": token}}}}
 }
 
 type leaseKey struct{}

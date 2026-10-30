@@ -459,7 +459,12 @@ func resumeQuestions(ctx context.Context, a *app.App, assetID string) {
 // trashAsset moves one clip to the Trash: it leaves its project (from), its
 // collections and the Archive, which are remembered for Restore.
 func trashAsset(ctx context.Context, a *app.App, as *models.Asset, from string) error {
-	now := time.Now().UTC()
+	// The database server's time (D360): "Empty the Trash after N days"
+	// counts from it on whichever computer empties the Trash.
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return err
+	}
 	t := models.AssetTrash{At: now, By: a.Actor, CollectionIDs: as.CollectionIDs, Archived: as.ArchivedAt != nil}
 	if from != "" {
 		t.ProjectIDs = []string{from}

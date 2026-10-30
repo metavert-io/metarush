@@ -21,9 +21,15 @@ import (
 // TTL is how long a sign-in lasts.
 const TTL = 30 * 24 * time.Hour
 
-// Session is one signed-in browser.
+// Session is one signed-in browser. ExpiresAt and LastUsed are this
+// computer's clock: only the computer that keeps the file reads them.
 type Session struct {
 	ExpiresAt time.Time `json:"exp"`
+	// CreatedAt is compared with the person's sessionsValidAfter ("sign out
+	// everywhere", written by any computer with the database server's time):
+	// password and one-time link sessions are made with the server's time
+	// (auth.SessionStart, D360); older sessions and the rest have this
+	// computer's.
 	CreatedAt time.Time `json:"created,omitzero"`
 	// UserID and UserName are the person it acts as.
 	UserID   string `json:"userId,omitempty"`
@@ -144,14 +150,18 @@ func (st *Store) change(fn func(m map[string]Session) bool) error {
 }
 
 // New makes a session and returns the cookie value for it (shown to the
-// browser once; only its hash is kept). Expired sessions are cleared out.
+// browser once; only its hash is kept). Expired sessions are cleared out. A
+// CreatedAt given is kept (the database server's time); otherwise it is now.
 func (st *Store) New(s Session, now time.Time) (string, error) {
 	tok := make([]byte, 32)
 	if _, err := rand.Read(tok); err != nil {
 		return "", err
 	}
 	val := hex.EncodeToString(tok)
-	s.CreatedAt, s.LastUsed = now.UTC(), now.UTC()
+	if s.CreatedAt.IsZero() {
+		s.CreatedAt = now
+	}
+	s.CreatedAt, s.LastUsed = s.CreatedAt.UTC(), now.UTC()
 	if s.ExpiresAt.IsZero() {
 		s.ExpiresAt = now.Add(TTL).UTC()
 	}

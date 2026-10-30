@@ -202,7 +202,9 @@ func transcribeHandler(ctx context.Context, w *Worker, j *models.Job, report Rep
 	if !as.Media.HasAudio {
 		return nil, permanent("asset has no audio")
 	}
-	now := time.Now().UTC()
+	// When this job started, in the database server's time: a person's
+	// choice of language on another computer is compared with it (D360).
+	now := w.App.DB.NowOrLocal(ctx)
 	// A transcript made in the cloud (opt-in, D228) is read from its record;
 	// everything after — voices, people's fixes, spelling lists — is the same.
 	txName, txModel := w.Tx.Name(), w.Tx.Model()

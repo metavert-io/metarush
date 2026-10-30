@@ -408,7 +408,11 @@ func planShot(ctx context.Context, a *app.App, in *GenShotIn) (*plan, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &plan{op: models.GenShot, projectID: in.ProjectID, prompt: strings.TrimSpace(in.Prompt), st: st, noPeople: in.NoPeople, takes: max(1, in.Takes), now: nowFn()}
+	now, err := Now(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	p := &plan{op: models.GenShot, projectID: in.ProjectID, prompt: strings.TrimSpace(in.Prompt), st: st, noPeople: in.NoPeople, takes: max(1, in.Takes), now: now}
 	if p.prompt == "" {
 		return nil, apperr.New(apperr.InvalidInput, "Say what the shot should show.")
 	}
@@ -606,8 +610,12 @@ func planAgain(ctx context.Context, a *app.App, in *GenAgainIn) (*plan, error) {
 	if err != nil {
 		return nil, err
 	}
+	now, err := Now(ctx, a)
+	if err != nil {
+		return nil, err
+	}
 	p := &plan{op: models.GenAgain, projectID: parent.ProjectID, prompt: parent.Prompt, sent: parent.SentPrompt, tmpl: parent.Template, st: st,
-		noPeople: parent.NoPeople, takes: max(1, in.Takes), parent: parent, sources: parent.SourceAssets, now: nowFn(), refWords: []string{"The same prompt and pictures as before"}}
+		noPeople: parent.NoPeople, takes: max(1, in.Takes), parent: parent, sources: parent.SourceAssets, now: now, refWords: []string{"The same prompt and pictures as before"}}
 	if p.takes > 1 {
 		p.op = models.GenVariation
 	}
@@ -715,7 +723,11 @@ func planWork(ctx context.Context, a *app.App, op, id, prompt, projectID string,
 	if err != nil {
 		return nil, err
 	}
-	p := &plan{op: op, projectID: projectID, prompt: strings.TrimSpace(prompt), st: st, noPeople: noPeople, takes: 1, now: nowFn(), sources: []string{as.ID}}
+	now, err := Now(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	p := &plan{op: op, projectID: projectID, prompt: strings.TrimSpace(prompt), st: st, noPeople: noPeople, takes: 1, now: now, sources: []string{as.ID}}
 	if gen != nil {
 		p.parent = gen
 		if gen.Look != nil {

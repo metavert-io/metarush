@@ -452,17 +452,3 @@ func (c *Coll) Drop(ctx context.Context, opts ...options.Lister[options.DropColl
 	}
 	return c.Collection.Drop(ctx, opts...)
 }
-
-// ServerNow is the database server's own time (computers' clocks differ).
-func (d *DB) ServerNow(ctx context.Context) (time.Time, error) {
-	var h struct {
-		LocalTime time.Time `bson:"localTime"`
-	}
-	if err := d.DB.RunCommand(ctx, bson.D{{Key: "hello", Value: 1}}).Decode(&h); err != nil {
-		return time.Time{}, err
-	}
-	if h.LocalTime.IsZero() {
-		return time.Time{}, errors.New("the database didn't say its time")
-	}
-	return h.LocalTime.UTC(), nil
-}

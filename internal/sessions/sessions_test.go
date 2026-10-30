@@ -96,3 +96,24 @@ func TestSessionsConcurrentWriters(t *testing.T) {
 		}
 	}
 }
+
+// A session made with the database server's time keeps it as when it was
+// made (sign-outs are compared with it); when it is used and when it ends
+// stay this computer's clock, which only this computer reads.
+func TestSessionsKeepTheServersStart(t *testing.T) {
+	st := For(t.TempDir())
+	now := time.Now()
+	server := now.Add(-10 * time.Minute) // this computer's clock is ten minutes fast
+	tok, err := st.New(Session{UserID: "usr_a", Method: "password", CreatedAt: server}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, ok := st.Get(tok, now)
+	if !ok || !s.CreatedAt.Equal(server) || !s.LastUsed.Equal(now) || !s.ExpiresAt.Equal(now.Add(TTL)) {
+		t.Fatalf("%+v %v", s, ok)
+	}
+	tok, _ = st.New(Session{UserID: "usr_b"}, now)
+	if s, _ := st.Get(tok, now); !s.CreatedAt.Equal(now) {
+		t.Fatalf("without a start given, it starts now: %+v", s)
+	}
+}

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -192,10 +191,16 @@ func saidWithdrawn(ctx context.Context, a *app.App, c *models.SpokenChange) (str
 	if c.State == models.SpokenWithdrawn {
 		return firstNonEmpty(c.Why, who+"'s consent for new words in their voice was withdrawn."), nil
 	}
+	// Whether it has ended goes by the database server's clock (D360), so
+	// every computer holds the version back from the same moment.
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return "", err
+	}
 	var cs models.Consent
 	if err := a.DB.GetByID(ctx, store.CConsents, a.WorkspaceID(), c.ConsentID, &cs); err != nil && !errors.Is(err, store.ErrNotFound) {
 		return "", err
-	} else if err != nil || !cs.HoldsNewWords(c.ProjectID, c.Provider, time.Now().UTC()) {
+	} else if err != nil || !cs.HoldsNewWords(c.ProjectID, c.Provider, now) {
 		return fmt.Sprintf("%s's consent for new words in their voice is no longer in force.", who), nil
 	}
 	var g models.Generation
@@ -228,7 +233,10 @@ func mouthWithdrawn(ctx context.Context, a *app.App, c *models.SpokenChange, pro
 		return "The matched mouth was withdrawn.", nil
 	}
 	project := firstNonEmpty(g.ProjectID, c.ProjectID)
-	now := time.Now().UTC()
+	now, err := a.DB.Now(ctx) // the server's clock, as saidWithdrawn's
+	if err != nil {
+		return "", err
+	}
 	for _, id := range g.ConsentIDs {
 		var cs models.Consent
 		if err := a.DB.GetByID(ctx, store.CConsents, a.WorkspaceID(), id, &cs); err != nil && !errors.Is(err, store.ErrNotFound) {
@@ -247,7 +255,10 @@ func mouthWithdrawn(ctx context.Context, a *app.App, c *models.SpokenChange, pro
 // one whose video plays the changed words): "" when they all do. what names
 // the consent ("" says whose consent for lip sync).
 func notCoveredHere(ctx context.Context, a *app.App, consentIDs []string, projectID, what string) (string, error) {
-	now := time.Now().UTC()
+	now, err := a.DB.Now(ctx) // the server's clock, as saidWithdrawn's
+	if err != nil {
+		return "", err
+	}
 	for _, id := range consentIDs {
 		var cs models.Consent
 		if err := a.DB.GetByID(ctx, store.CConsents, a.WorkspaceID(), id, &cs); err != nil && !errors.Is(err, store.ErrNotFound) {

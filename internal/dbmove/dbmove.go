@@ -580,17 +580,6 @@ func timeLimits(ctx context.Context, db *store.DB, coll string) []timeLimit {
 	return out
 }
 
-// serverNow is the database server's own time (every computer's clock may differ).
-func serverNow(ctx context.Context, db *store.DB) time.Time {
-	var h struct {
-		LocalTime time.Time `bson:"localTime"`
-	}
-	if err := db.DB.RunCommand(ctx, bson.D{{Key: "hello", Value: 1}}).Decode(&h); err != nil || h.LocalTime.IsZero() {
-		return time.Now().UTC()
-	}
-	return h.LocalTime.UTC()
-}
-
 // stillLive is the records of a collection with TTL indexes that won't end
 // within endingSoon (records whose field isn't a date never end).
 func stillLive(limits []timeLimit, now time.Time) bson.M {
@@ -611,7 +600,7 @@ func stillLive(limits []timeLimit, now time.Time) bson.M {
 func hashBoth(ctx context.Context, from, to *store.DB, coll string) (wsarchive.Digest, wsarchive.Digest, error) {
 	var filter bson.M
 	if limits := timeLimits(ctx, from, coll); len(limits) > 0 {
-		filter = stillLive(limits, serverNow(ctx, from))
+		filter = stillLive(limits, from.NowOrLocal(ctx))
 	}
 	a, err := wsarchive.HashWhere(ctx, from, coll, filter)
 	if err != nil {
@@ -667,7 +656,7 @@ func copyCollection(ctx context.Context, o Options, info wsarchive.CollectionInf
 // in place again. The check compares the same records on both sides.
 func copyTimeLimited(ctx context.Context, o Options, coll string, limits []timeLimit, p *CopyProgress, progress func(), stop func() error) error {
 	var n int64
-	return wsarchive.EachDocWhere(ctx, o.From, coll, stillLive(limits, serverNow(ctx, o.From)), func(doc bson.Raw) error {
+	return wsarchive.EachDocWhere(ctx, o.From, coll, stillLive(limits, o.From.NowOrLocal(ctx)), func(doc bson.Raw) error {
 		n++
 		p.DocumentsDone++
 		id, err := doc.LookupErr("_id")

@@ -220,7 +220,12 @@ func setTriggers(ctx context.Context, a *app.App, in *RecipeTriggersSetIn) (*Rec
 		return nil, apperr.New(apperr.Unauthorized, "“%s” plans runs by itself for %s: only %s or an owner changes that.", r.Title, personName(old.Tells), personName(old.Tells)).
 			WithDetails(map[string]any{"reason": "not_yours", "tells": old.Tells.UserID})
 	}
-	now := time.Now().UTC()
+	// The next weekly time is compared by the computer that looks, whose
+	// clock may differ from this one's: the database server's time (D360).
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	t := &models.RecipeTriggers{}
 	if old != nil {
 		cp := *old
@@ -565,7 +570,7 @@ func RunTriggers(ctx context.Context, a *app.App, logf func(string, ...any)) {
 				}
 			}
 		}
-		planned, err := TriggerLook(ctx, a, time.Now().UTC())
+		planned, err := triggerLookNow(ctx, a)
 		if err != nil && ctx.Err() == nil && logf != nil {
 			logf("recipes: planning by itself: %v", err)
 		}
@@ -578,9 +583,21 @@ func RunTriggers(ctx context.Context, a *app.App, logf func(string, ...any)) {
 	}
 }
 
+// triggerLookNow is TriggerLook at the database server's time now.
+func triggerLookNow(ctx context.Context, a *app.App) ([]string, error) {
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return TriggerLook(ctx, a, now)
+}
+
 // TriggerLook looks once at every recipe that plans by itself on this
 // computer: new files settled, or the weekly time came, make a plan and ring
-// the bell. It never starts a run. It returns the recipes it planned.
+// the bell. It never starts a run. It returns the recipes it planned. now is
+// the database server's time (D360): when new files arrived and the next
+// weekly time are written in it, and the computer that looks may change
+// (a handover) while its clock differs from the last one's.
 func TriggerLook(ctx context.Context, a *app.App, now time.Time) ([]string, error) {
 	var rs []models.Recipe
 	if err := a.DB.Find(ctx, store.CRecipes, a.WorkspaceID(), bson.M{"triggers.installation": a.Cfg.Installation.ID, "archived": bson.M{"$ne": true}}, &rs,
@@ -674,14 +691,25 @@ func lookAt(ctx context.Context, a *app.App, r *models.Recipe, now time.Time) (b
 	}
 	// Only while the settings are the ones looked at (a person may change them
 	// meanwhile) and they are still this computer's (a handover may have moved
-	// them to another one, which plans from then on: D346).
+	// them to another one, which plans from then on: D346), and only while the
+	// weekly time and the files waiting to settle are the ones looked at: a
+	// look that planned (or noted new files) first wins, and no other look
+	// plans the same again (D360).
 	res, err := a.DB.C(store.CRecipes).UpdateOne(ctx, bson.M{"_id": r.ID, "workspaceId": a.WorkspaceID(), "triggers.at": t.At,
-		"triggers.installation": a.Cfg.Installation.ID}, update)
+		"triggers.installation": a.Cfg.Installation.ID, "triggers.next": timeOrNil(t.Next), "triggers.pendingSince": timeOrNil(t.PendingSince)}, update)
 	if err != nil || res.MatchedCount == 0 || prepared == nil {
 		return false, err
 	}
 	ring(ctx, a, r, prepared)
 	return true, nil
+}
+
+// timeOrNil matches a stored time as it was read (nil: none stored).
+func timeOrNil(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return *t
 }
 
 func sameSet(a, b []string) bool {

@@ -23,6 +23,7 @@ import (
 	"github.com/metavert-io/metarush/internal/qa"
 	"github.com/metavert-io/metarush/internal/renderer"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/testutil/fakenode"
 	"github.com/metavert-io/metarush/internal/testutil/testapp"
 	"github.com/metavert-io/metarush/internal/tools"
@@ -309,12 +310,20 @@ func TestRenderThenItsQualityCheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Rendered on a computer whose clock is ten minutes slow: when it was
+	// done is the database server's time (others wait a while after it for
+	// the quality check, D360).
+	restore := testutil.SkewClock(t, -10*time.Minute)
 	if j := runJobs(t, w, r.Job.ID)[r.Job.ID]; j.State != models.JobSucceeded || j.Result["width"] == nil {
 		t.Fatalf("render job %+v", j)
 	}
+	restore()
 	var rd models.Render
 	if err := s.a.DB.GetByID(ctx, store.CRenders, s.a.WorkspaceID(), r.Render.ID, &rd); err != nil {
 		t.Fatal(err)
+	}
+	if now, _ := s.a.DB.ServerNow(ctx); rd.CompletedAt == nil || now.Sub(*rd.CompletedAt) < 0 || now.Sub(*rd.CompletedAt) > 2*time.Minute {
+		t.Fatalf("completed at %v, the server's now %v", rd.CompletedAt, now)
 	}
 	pkg, _ := renderer.Embedded()
 	if rd.State != models.RenderAvailable || rd.Output == nil || rd.Output.Width != 540 || rd.Output.Height != 960 || rd.Output.Duration < 1.9 || rd.Output.Duration > 2.1 ||

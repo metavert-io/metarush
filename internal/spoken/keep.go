@@ -41,10 +41,11 @@ func init() {
 // person takes it out, and the person who withdrew is told.
 func consentWithdrawn(ctx context.Context, a *app.App, c *models.Consent) []string {
 	var said []string
-	now := time.Now().UTC()
+	// updatedAt is the server's (D360): a mouth still being made is swept by it.
+	stamp := bson.M{"updatedAt": true}
 	res, err := a.DB.C(store.CSpokenChanges).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "consentId": c.ID,
 		"state": bson.M{"$in": bson.A{models.SpokenMaking, models.SpokenReady, models.SpokenPlaced, models.SpokenUndone}}},
-		bson.M{"$set": bson.M{"state": models.SpokenWithdrawn, "why": c.PersonName + "'s consent for new words in their voice was withdrawn.", "updatedAt": now}})
+		bson.M{"$set": bson.M{"state": models.SpokenWithdrawn, "why": c.PersonName + "'s consent for new words in their voice was withdrawn."}, "$currentDate": stamp})
 	if err == nil && res.ModifiedCount > 0 {
 		words := "1 change of words in their voice"
 		if n := res.ModifiedCount; n != 1 {
@@ -61,7 +62,7 @@ func consentWithdrawn(ctx context.Context, a *app.App, c *models.Consent) []stri
 		ids = append(ids, g.ID)
 	}
 	res, err = a.DB.C(store.CSpokenChanges).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "mouth.generationId": bson.M{"$in": ids}, "mouth.state": models.SpokenReady},
-		bson.M{"$set": bson.M{"mouth.state": models.SpokenWithdrawn, "mouth.why": c.PersonName + "'s consent for lip sync, which the matched mouth relied on, was withdrawn.", "updatedAt": now}})
+		bson.M{"$set": bson.M{"mouth.state": models.SpokenWithdrawn, "mouth.why": c.PersonName + "'s consent for lip sync, which the matched mouth relied on, was withdrawn."}, "$currentDate": stamp})
 	if err == nil && res.ModifiedCount > 0 {
 		mouths := "1 mouth matched to new words"
 		if n := res.ModifiedCount; n != 1 {
@@ -102,8 +103,7 @@ func keepSaid(ctx context.Context, a *app.App, g *models.Generation, path, mime 
 	defer done()
 	scratch := filepath.Dir(tmp)
 	res, why := fitAndCheck(ctx, a, &c, path, scratch)
-	now := time.Now().UTC()
-	set := bson.M{"updatedAt": now, "generationId": g.ID}
+	set := bson.M{"generationId": g.ID}
 	if res.check != nil {
 		set["check"] = res.check
 	}
@@ -141,7 +141,10 @@ func keepSaid(ctx context.Context, a *app.App, g *models.Generation, path, mime 
 
 // stillMaking writes a change's outcome only while it is still being made
 // with this generation (D310): a consent withdrawn or a sweep meanwhile wins.
+// It stamps updatedAt with the database server's time (D360), as every write
+// of a change does: the sweep compares it.
 func stillMaking(ctx context.Context, a *app.App, c *models.SpokenChange, genID string, update bson.M) bool {
+	update["$currentDate"] = bson.M{"updatedAt": true}
 	res, err := a.DB.C(store.CSpokenChanges).UpdateOne(ctx, bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID(), "state": models.SpokenMaking, "generationId": genID}, update)
 	return err == nil && res.MatchedCount == 1
 }
@@ -164,7 +167,7 @@ func endedSaid(ctx context.Context, a *app.App, g *models.Generation) {
 	if g.Outcome.State == models.GenCanceled {
 		why = "It was stopped before the speech was made."
 	}
-	if stillMaking(ctx, a, &c, g.ID, bson.M{"$set": bson.M{"state": models.SpokenFailed, "why": why, "updatedAt": time.Now().UTC()}}) && g.Outcome.State != models.GenCanceled {
+	if stillMaking(ctx, a, &c, g.ID, bson.M{"$set": bson.M{"state": models.SpokenFailed, "why": why}}) && g.Outcome.State != models.GenCanceled {
 		tell(ctx, a, &c, false, why)
 	}
 }

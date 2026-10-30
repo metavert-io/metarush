@@ -84,7 +84,7 @@ func runningOn(ctx context.Context, a *app.App, installation string) bool {
 	if err := a.DB.GetByID(ctx, store.CWorkers, a.WorkspaceID(), installation, &w); err != nil {
 		return false
 	}
-	if !jobs.Online(w, time.Now()) {
+	if !jobs.Online(w, a.DB.NowOrLocal(ctx)) { // heartbeats are the server's time (D360)
 		return false
 	}
 	for _, t := range w.JobTypes {

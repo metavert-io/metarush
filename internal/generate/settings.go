@@ -111,7 +111,10 @@ func settingsOut(ctx context.Context, a *app.App, projectID string) (*GenSetting
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now().UTC()
+	now, err := Now(ctx, a) // today's spending is the server's day's (D360)
+	if err != nil {
+		return nil, err
+	}
 	out := &GenSettingsOut{Provider: Provider, ProviderTitle: st.info.Title, KeyReady: keyReady(a, Provider), Models: modelViews(st, now), Model: st.model,
 		DraftResolution: st.draft, FinalResolution: st.final, Seconds: st.seconds, AspectRatio: st.aspect, DailyCapUSD: st.dailyCap, DailyCapDefault: st.dailyCapDefault,
 		ProjectBudgetUSD: st.projectBudget, ProjectBudgetDefault: st.projectBudgetDefault, Budget: budgetView(ctx, a, st, projectID, now),

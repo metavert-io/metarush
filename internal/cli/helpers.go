@@ -418,7 +418,7 @@ func waitJobsOpt(c *cobra.Command, a *app.App, jobIDs []string, timeout time.Dur
 			if inlineErr != nil {
 				return out, inlineErr
 			}
-		} else if err := term.keepGoing(ctx, pendingJobs, say); err != nil {
+		} else if err := term.keepGoing(ctx, pendingJobs, func() time.Time { return a.DB.NowOrLocal(ctx) }, say); err != nil {
 			return out, err
 		}
 		// Nothing left that any computer can run now: what is done is done,
@@ -501,15 +501,17 @@ func (t *terminal) stop(grace time.Duration) {
 
 // keepGoing starts the worker again when it stopped while a job the command
 // waits for still needs running here: queued and due (its retry's wait is
-// over), or left running by a worker that stopped answering (lease expired).
-// A job another machine is running is left to it. A worker that cannot run
-// jobs here at all, or keeps stopping at once, ends the wait with a plain error
-// instead of a wait that never ends.
-func (t *terminal) keepGoing(ctx context.Context, pending []models.Job, say func(string, ...any)) error {
+// over), or left running by a worker that stopped answering (lease expired),
+// both by the database server's time (now: the lease and the wait were written
+// in it, and another computer's worker may hold the lease). A job another
+// machine is running is left to it. A worker that cannot run jobs here at all,
+// or keeps stopping at once, ends the wait with a plain error instead of a
+// wait that never ends.
+func (t *terminal) keepGoing(ctx context.Context, pending []models.Job, serverNow func() time.Time, say func(string, ...any)) error {
 	if !t.stopped() {
 		return nil
 	}
-	now := time.Now()
+	now := serverNow()
 	var stuck *models.Job
 	for i := range pending {
 		if runnableHere(&pending[i], now) {
@@ -541,7 +543,8 @@ func (t *terminal) keepGoing(ctx context.Context, pending []models.Job, say func
 }
 
 // runnableHere reports whether nothing runs a job now and it may run: queued
-// and due, or running under a lease that expired.
+// and due, or running under a lease that expired (now is the database
+// server's time).
 func runnableHere(j *models.Job, now time.Time) bool {
 	switch j.State {
 	case models.JobQueued:

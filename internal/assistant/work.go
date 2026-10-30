@@ -365,7 +365,9 @@ func (m *Manager) checkRenderWork(ctx context.Context, w ActionWork, end ender) 
 		return w, false
 	}
 	if w.RenderDoneAt == nil {
-		now := time.Now().UTC()
+		// The database server's time, as the render's completion is written
+		// (checkQA compares it with the server's clock: D360).
+		now := m.App.DB.NowOrLocal(ctx)
 		if rd.CompletedAt != nil {
 			now = *rd.CompletedAt
 		}
@@ -418,7 +420,7 @@ func (m *Manager) checkQA(ctx context.Context, w ActionWork, rd *models.Render, 
 		if rd.QA != nil && rd.QA.ReportID != "" {
 			return m.qaOutcome(ctx, rd.QA.ReportID, end)
 		}
-		if w.RenderDoneAt != nil && time.Since(*w.RenderDoneAt) > qaGrace {
+		if w.RenderDoneAt != nil && m.App.DB.NowOrLocal(ctx).Sub(*w.RenderDoneAt) > qaGrace {
 			return end(WorkGone, "", "")
 		}
 		return w, false

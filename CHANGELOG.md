@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- **Computers whose clocks disagree still agree on when things happen**. A computer's clock can be a few minutes
+  off, and some of MetaRush's decisions went by the clock of whichever computer looked: one running fast could retry
+  work before its wait was over or take another computer for gone, one running slow could leave work waiting, and a
+  recipe that plans by itself could plan early or late. Every time more than one computer judges — when a job may run again, whether a
+  computer is online, when a recipe plans by itself, when a review link ends, sign-in links and lockouts, the Trash
+  emptying itself, claims on shared work — now goes by the database's own clock. Nothing changes when the clocks agree.
 - **Hand a computer's role to another computer**. Replacing a laptop or moving the team onto an always-on Mac mini:
   Settings → Storage → **Hand over this computer's role…** (owners) or `metarush machine handover plan --to
   <computer>` lists everything tied to this computer and what happens to each — the conversations in Claude's panel,

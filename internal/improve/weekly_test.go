@@ -14,6 +14,7 @@ import (
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/ops"
+	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/testutil/testapp"
 	"github.com/metavert-io/metarush/internal/tools"
 )
@@ -193,5 +194,43 @@ func TestScheduleSettingAndTick(t *testing.T) {
 	}
 	if RunIfDue(ctx, a, now.AddDate(0, 0, 7), logf) {
 		t.Fatal("ran while turned off")
+	}
+}
+
+// The weekly schedule goes by the database server's clock, like the reports'
+// stamps (D360): a report saved on a computer ten minutes fast is stamped
+// with the server's time, the tick on a computer ten minutes slow tells the
+// slot by the server's time in its own time zone, and it counts that report
+// as this week's.
+func TestWeeklyScheduleGoesByTheServersClock(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	off := func(got, want time.Time) bool { d := got.Sub(want); return d < -time.Minute || d > time.Minute }
+	restore := testutil.SkewClock(t, 10*time.Minute)
+	out, err := Save(ctx, a, strings.Replace(report, "%s", "log_01h00000000000000000000001", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := a.DB.ServerNow(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if off(out.Report.CreatedAt, server) {
+		t.Fatalf("a report saved on a computer ten minutes fast is stamped %v; the server's time is %v", out.Report.CreatedAt, server)
+	}
+	restore()
+
+	restore = testutil.SkewClock(t, -10*time.Minute)
+	defer restore()
+	now := tickNow(ctx, a)
+	if off(now, server) || now.Location() != time.Local {
+		t.Fatalf("the tick on a computer ten minutes slow goes by %v; the server's time is %v", now, server)
+	}
+	// This week's slot is the hour the report was made in: it was made since.
+	made := out.Report.CreatedAt.Local()
+	h := made.Hour()
+	cfg := config.Improve{Weekly: true, Day: made.Weekday().String(), Hour: &h}
+	if due(cfg, now, scheduleState{}, func(slot time.Time) int { return reportsSince(ctx, a, slot) }) {
+		t.Fatal("another computer's report this week wasn't counted")
 	}
 }

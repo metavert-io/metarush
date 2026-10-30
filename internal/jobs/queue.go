@@ -111,11 +111,6 @@ const (
 // LeaseDuration is how long a lease lasts without a heartbeat.
 var LeaseDuration = 45 * time.Second
 
-// Clock is this computer's clock, for what a job records of when (created,
-// started, finished). A lease's end is the database server's time instead
-// (other computers compare it: D335), never this.
-var Clock = time.Now
-
 // RetryBase is the wait before a failed job's second attempt; each later
 // attempt waits twice as long (RetryBackoff). Tests shorten it.
 var RetryBase = 10 * time.Second
@@ -210,7 +205,7 @@ func (q *Queue) Enqueue(ctx context.Context, o EnqueueOptions) (*models.Job, boo
 	if o.Payload == nil {
 		o.Payload = map[string]any{}
 	}
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	j := &models.Job{
 		ID: o.jobID(), WorkspaceID: q.WorkspaceID, Type: o.Type, SchemaVersion: 1, State: models.JobQueued,
 		Priority: o.Priority, Heavy: o.Heavy, ProjectID: o.ProjectID, AssetID: o.AssetID, RenderID: o.RenderID, Installation: o.Installation,
@@ -261,7 +256,8 @@ func heavyFilter(w Worker) bson.M {
 }
 
 // Lease atomically claims the next runnable job this worker can do: a queued job
-// whose nextRunAt has passed, or a running job whose lease expired (dead worker).
+// whose nextRunAt has passed, or a running job whose lease expired (dead worker),
+// both by the database server's time.
 func (q *Queue) Lease(ctx context.Context, w Worker) (*models.Job, error) {
 	return q.leaseWhere(ctx, w, nil)
 }
@@ -278,11 +274,11 @@ func (q *Queue) LeaseAmong(ctx context.Context, w Worker, ids []string) (*models
 }
 
 func (q *Queue) leaseWhere(ctx context.Context, w Worker, only bson.M) (*models.Job, error) {
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	runnable := bson.M{"workspaceId": q.WorkspaceID, "type": bson.M{"$in": w.JobTypes}, "cancelRequested": false,
 		"installation": pinnedTo(w.ID),
 		"$or": bson.A{
-			bson.M{"state": models.JobQueued, "nextRunAt": bson.M{"$lte": now}},
+			due(),
 			leaseOver(),
 		},
 	}
@@ -314,11 +310,22 @@ func (q *Queue) leaseWhere(ctx context.Context, w Worker, only bson.M) (*models.
 // Leases end by the database server's time (D335): computers' clocks differ,
 // and others compare a lease with now (a running job, a move of the media, the
 // database's move waiting for work to stop). Written as $$NOW + LeaseDuration
-// in a pipeline update, and compared with $$NOW.
+// in a pipeline update, and compared with $$NOW. A job's other times are the
+// server's too (DB.Now): when it may run, and when it was made, started and
+// ended, which people read beside them (D360, D368).
 
 // leaseEnd is when a lease taken or renewed now ends, in the server's time.
 func leaseEnd() bson.D {
 	return bson.D{{Key: "$add", Value: bson.A{"$$NOW", LeaseDuration.Milliseconds()}}}
+}
+
+// due matches a queued job whose wait is over (nextRunAt, written in the
+// server's time), by the server's time: a computer whose clock is fast never
+// skips a retry's wait, nor one whose clock is slow leaves a job waiting.
+func due() bson.M {
+	f := store.DueBy("nextRunAt")
+	f["state"] = models.JobQueued
+	return f
 }
 
 // leaseOver matches a running job whose lease ended (a worker that stopped
@@ -353,7 +360,7 @@ func takeLease(w Worker, now time.Time, p models.Progress) mongo.Pipeline {
 // Heartbeat extends the lease and records progress. It reports whether
 // cancellation was requested, and ErrLostLease if another worker took over.
 func (q *Queue) Heartbeat(ctx context.Context, j *models.Job, owner string, p models.Progress) (cancel bool, err error) {
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	var out models.Job
 	err = q.DB.C(store.CJobs).FindOneAndUpdate(ctx,
 		bson.M{"_id": j.ID, "workspaceId": q.WorkspaceID, "state": models.JobRunning, "lease.owner": owner},
@@ -382,11 +389,11 @@ func (q *Queue) Fail(ctx context.Context, j *models.Job, owner string, cause err
 	if !retryable || j.AttemptCount >= j.MaxAttempts {
 		return q.finish(ctx, j, owner, models.JobFailed, nil, msg)
 	}
-	now := Clock().UTC()
-	backoff := RetryBackoff(j.AttemptCount)
+	now := q.DB.NowOrLocal(ctx)
+	next := now.Add(RetryBackoff(j.AttemptCount))
 	res, err := q.DB.C(store.CJobs).UpdateOne(ctx,
 		bson.M{"_id": j.ID, "workspaceId": q.WorkspaceID, "lease.owner": owner, "state": models.JobRunning},
-		bson.M{"$set": bson.M{"state": models.JobQueued, "nextRunAt": now.Add(backoff), "error": msg, "updatedAt": now,
+		bson.M{"$set": bson.M{"state": models.JobQueued, "nextRunAt": next, "error": msg, "updatedAt": now,
 			"progress": models.Progress{Message: "retrying after error"}, "attempts.$[last].endedAt": now, "attempts.$[last].outcome": "retry", "attempts.$[last].error": msg},
 			"$unset": bson.M{"lease": ""}},
 		options.UpdateOne().SetArrayFilters([]any{bson.M{"last.worker": owner, "last.endedAt": bson.M{"$exists": false}}}),
@@ -398,8 +405,8 @@ func (q *Queue) Fail(ctx context.Context, j *models.Job, owner string, cause err
 		return ErrLostLease
 	}
 	ev := *j
-	ev.State, ev.Error, ev.NextRunAt = models.JobQueued, msg, now.Add(backoff)
-	q.emit(ctx, Event{Kind: EventRetry, Job: ev, WorkerID: owner, Error: msg, NextRunAt: now.Add(backoff)})
+	ev.State, ev.Error, ev.NextRunAt = models.JobQueued, msg, next
+	q.emit(ctx, Event{Kind: EventRetry, Job: ev, WorkerID: owner, Error: msg, NextRunAt: next})
 	return nil
 }
 
@@ -411,13 +418,14 @@ func (q *Queue) Release(ctx context.Context, j *models.Job, owner string) error 
 	// Handing a job back goes through a move's freeze: it puts the database
 	// at rest (the move waits for running work, D335).
 	ctx = store.WriteThroughFreeze(ctx)
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	res, err := q.DB.C(store.CJobs).UpdateOne(ctx,
 		bson.M{"_id": j.ID, "workspaceId": q.WorkspaceID, "lease.owner": owner, "state": models.JobRunning},
-		bson.M{"$set": bson.M{"state": models.JobQueued, "nextRunAt": now, "updatedAt": now, "progress": models.Progress{Message: "waiting (the worker running it stopped)"},
+		bson.M{"$set": bson.M{"state": models.JobQueued, "updatedAt": now, "progress": models.Progress{Message: "waiting (the worker running it stopped)"},
 			"attempts.$[last].endedAt": now, "attempts.$[last].outcome": "released"},
-			"$inc":   bson.M{"attemptCount": -1},
-			"$unset": bson.M{"lease": ""}},
+			"$currentDate": bson.M{"nextRunAt": true}, // due now by the server's time
+			"$inc":         bson.M{"attemptCount": -1},
+			"$unset":       bson.M{"lease": ""}},
 		options.UpdateOne().SetArrayFilters([]any{bson.M{"last.worker": owner, "last.endedAt": bson.M{"$exists": false}}}),
 	)
 	if err != nil {
@@ -445,7 +453,7 @@ const OutcomePostponed = "postponed"
 // the attempt and the job's progress keep the reason, in plain words, so people
 // see why it waits. Postponed counts the waits, so a handler can stop waiting.
 func (q *Queue) Postpone(ctx context.Context, j *models.Job, owner string, after time.Duration, reason string) error {
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	next := now.Add(after)
 	res, err := q.DB.C(store.CJobs).UpdateOne(ctx,
 		bson.M{"_id": j.ID, "workspaceId": q.WorkspaceID, "lease.owner": owner, "state": models.JobRunning},
@@ -493,7 +501,7 @@ func (q *Queue) Canceled(ctx context.Context, j *models.Job, owner string) error
 }
 
 func (q *Queue) finish(ctx context.Context, j *models.Job, owner, state string, result map[string]any, msg string) error {
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	set := bson.M{"state": state, "updatedAt": now, "finishedAt": now,
 		"attempts.$[last].endedAt": now, "attempts.$[last].outcome": state}
 	if result != nil {
@@ -533,7 +541,7 @@ func (q *Queue) finish(ctx context.Context, j *models.Job, owner, state string, 
 // RequestCancel asks for a job to stop. Queued jobs cancel immediately; running
 // jobs stop at the worker's next heartbeat.
 func (q *Queue) RequestCancel(ctx context.Context, id string) (*models.Job, error) {
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	coll := q.DB.C(store.CJobs)
 	_, err := coll.UpdateOne(ctx, bson.M{"_id": id, "workspaceId": q.WorkspaceID, "state": models.JobQueued},
 		bson.M{"$set": bson.M{"state": models.JobCanceled, "cancelRequested": true, "updatedAt": now, "finishedAt": now}})
@@ -561,7 +569,7 @@ func (q *Queue) RequestCancel(ctx context.Context, id string) (*models.Job, erro
 // D187, replaces an older version's copy that hasn't started, never one
 // that is rendering). It reports whether it canceled the job.
 func (q *Queue) CancelQueued(ctx context.Context, id string) (bool, error) {
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	res, err := q.DB.C(store.CJobs).UpdateOne(ctx, bson.M{"_id": id, "workspaceId": q.WorkspaceID, "state": models.JobQueued},
 		bson.M{"$set": bson.M{"state": models.JobCanceled, "cancelRequested": true, "updatedAt": now, "finishedAt": now}})
 	if err != nil || res.ModifiedCount == 0 {
@@ -580,18 +588,18 @@ func (q *Queue) Expedite(ctx context.Context, ids []string) ([]string, error) {
 	if len(ids) == 0 {
 		return []string{}, nil
 	}
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	var match []models.Job
 	if err := q.DB.Find(ctx, store.CJobs, q.WorkspaceID, bson.M{"_id": bson.M{"$in": ids}, "state": models.JobQueued}, &match); err != nil {
 		return nil, err
 	}
 	out := []string{}
 	for _, j := range match {
-		set := bson.M{"allowOnBattery": true, "updatedAt": now}
-		if j.NextRunAt.After(now) {
-			set["nextRunAt"] = now
-		}
-		res, err := q.DB.C(store.CJobs).UpdateOne(ctx, bson.M{"_id": j.ID, "workspaceId": q.WorkspaceID, "state": models.JobQueued}, bson.M{"$set": set})
+		// A retry's wait is skipped by the server's time: nextRunAt becomes
+		// now unless it has come already.
+		set := bson.D{{Key: "allowOnBattery", Value: true}, {Key: "updatedAt", Value: literal(now)},
+			{Key: "nextRunAt", Value: bson.D{{Key: "$min", Value: bson.A{"$nextRunAt", "$$NOW"}}}}}
+		res, err := q.DB.C(store.CJobs).UpdateOne(ctx, bson.M{"_id": j.ID, "workspaceId": q.WorkspaceID, "state": models.JobQueued}, mongo.Pipeline{{{Key: "$set", Value: set}}})
 		if err != nil {
 			return out, err
 		}
@@ -606,11 +614,12 @@ func (q *Queue) Expedite(ctx context.Context, ids []string) ([]string, error) {
 
 // Retry re-queues a failed or canceled job.
 func (q *Queue) Retry(ctx context.Context, id string) (*models.Job, error) {
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	res, err := q.DB.C(store.CJobs).UpdateOne(ctx,
 		bson.M{"_id": id, "workspaceId": q.WorkspaceID, "state": bson.M{"$in": bson.A{models.JobFailed, models.JobCanceled}}},
-		bson.M{"$set": bson.M{"state": models.JobQueued, "cancelRequested": false, "nextRunAt": now, "updatedAt": now, "attemptCount": 0, "progress": models.Progress{Message: "re-queued"}},
-			"$unset": bson.M{"error": "", "finishedAt": "", "lease": ""}})
+		bson.M{"$set": bson.M{"state": models.JobQueued, "cancelRequested": false, "updatedAt": now, "attemptCount": 0, "progress": models.Progress{Message: "re-queued"}},
+			"$currentDate": bson.M{"nextRunAt": true}, // due now by the server's time
+			"$unset":       bson.M{"error": "", "finishedAt": "", "lease": ""}})
 	if err != nil {
 		return nil, err
 	}
@@ -686,7 +695,7 @@ func (q *Queue) Start(ctx context.Context, o EnqueueOptions, w Worker) (*models.
 	if o.Payload == nil {
 		o.Payload = map[string]any{}
 	}
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	j := &models.Job{
 		ID: o.jobID(), WorkspaceID: q.WorkspaceID, Type: o.Type, SchemaVersion: 1, State: models.JobRunning,
 		Priority: o.Priority, Heavy: o.Heavy, ProjectID: o.ProjectID, AssetID: o.AssetID, RenderID: o.RenderID, Installation: o.Installation,
@@ -695,9 +704,8 @@ func (q *Queue) Start(ctx context.Context, o EnqueueOptions, w Worker) (*models.
 		Lease:    &models.Lease{Owner: w.ID, OwnerName: w.Name},
 		Progress: models.Progress{Message: "starting"}, NextRunAt: now, CreatedBy: o.Actor, CreatedAt: now, UpdatedAt: now,
 	}
-	// Inserted with the lease's end in the database server's time: an upsert
-	// that matches nothing (a job with that ID already there is refused, as an
-	// insert would be).
+	// Inserted with the lease's end in the database server's time: an upsert that matches nothing (a job with that ID already there
+	// is refused, as an insert would be).
 	doc, err := bson.Marshal(j)
 	if err != nil {
 		return nil, err
@@ -722,7 +730,7 @@ func (q *Queue) Start(ctx context.Context, o EnqueueOptions, w Worker) (*models.
 
 // LeaseByID claims one specific job (inline `--local` execution).
 func (q *Queue) LeaseByID(ctx context.Context, w Worker, id string) (*models.Job, error) {
-	now := Clock().UTC()
+	now := q.DB.NowOrLocal(ctx)
 	filter := bson.M{"_id": id, "workspaceId": q.WorkspaceID, "cancelRequested": false, "installation": pinnedTo(w.ID),
 		"$or": bson.A{
 			bson.M{"state": models.JobQueued},

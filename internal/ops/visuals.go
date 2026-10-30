@@ -34,8 +34,9 @@ func visualsPossible(ctx context.Context, a *app.App) bool {
 	if vision.CanRun(a.Tools) {
 		return true
 	}
-	n, err := a.DB.C(store.CWorkers).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "jobTypes": jobs.TypeVisual,
-		"lastHeartbeat": bson.M{"$gte": time.Now().UTC().Add(-30 * 24 * time.Hour)}})
+	filter := store.SeenWithin("lastHeartbeat", 30*24*time.Hour) // the server's time, as heartbeats are written
+	filter["workspaceId"], filter["jobTypes"] = a.WorkspaceID(), jobs.TypeVisual
+	n, err := a.DB.C(store.CWorkers).CountDocuments(ctx, filter)
 	return err == nil && n > 0
 }
 

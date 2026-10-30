@@ -174,10 +174,16 @@ func voiceOf(g *models.Generation) string {
 
 // withdraw records a voice copy withdrawn (once: nothing more is said with
 // it) and deletes it at the provider: here and now when this computer has the
-// key, else by the deletion job, tried again until it is done.
+// key, else by the deletion job, tried again until it is done. When it was
+// withdrawn is the database server's time (D360): the deletion, on any
+// computer with the key, looks for a lost copy for a while after it.
 func withdraw(ctx context.Context, a *app.App, g *models.Generation, reason string) (*VoiceView, error) {
 	bg := context.WithoutCancel(ctx)
-	w := models.GenWithdrawn{At: time.Now().UTC(), By: a.Actor, Reason: reason, JobID: ids.New(ids.Job)}
+	at, err := generate.Now(bg, a)
+	if err != nil {
+		return nil, err
+	}
+	w := models.GenWithdrawn{At: at, By: a.Actor, Reason: reason, JobID: ids.New(ids.Job)}
 	if err := generate.SetOnce(bg, a, g.ID, "withdrawn", w); err != nil {
 		return nil, err
 	}
@@ -301,8 +307,15 @@ func removeAtProvider(ctx context.Context, a *app.App, g *models.Generation, key
 		if err != nil {
 			return err
 		}
-		if len(found) == 0 && g.Withdrawn != nil && time.Since(g.Withdrawn.At) < LostVoiceLookFor {
-			return errLookAgain
+		if len(found) == 0 && g.Withdrawn != nil {
+			// By the server's clock, as Withdrawn.At is (withdraw).
+			now, err := generate.Now(ctx, a)
+			if err != nil {
+				return err
+			}
+			if now.Sub(g.Withdrawn.At) < LostVoiceLookFor {
+				return errLookAgain
+			}
 		}
 		voices = found
 		f.Detail = fmt.Sprintf("No answer had come back; %s found at %s under its name.", count(len(found), "voice was", "voices were"), g.ProviderTitle)

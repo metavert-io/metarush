@@ -271,3 +271,21 @@ func TestAJobsTimesAreTheServers(t *testing.T) {
 		near("changed", done.UpdatedAt)
 	}
 }
+
+// A new job is due now, but its time is a measured one, which can be ahead of
+// the server's own clock by part of a round trip: it must be due all the same,
+// or a worker asking straight away finds nothing (seen on a loaded test machine).
+func TestANewJobIsDueThoughItsTimeWasMeasured(t *testing.T) {
+	db := testutil.DB(t)
+	ctx := context.Background()
+	q := &Queue{DB: db, WorkspaceID: "ws_test"}
+	testutil.ServerOff(t, db, 400*time.Millisecond)
+	j, _, err := q.Enqueue(ctx, EnqueueOptions{Type: TypeFetch, IdempotencyKey: "due-now", MaxAttempts: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := q.LeaseAmong(ctx, Worker{ID: "w", Name: "w", JobTypes: []string{TypeFetch}}, []string{j.ID})
+	if err != nil || got == nil {
+		t.Fatalf("a job just queued wasn't due: %v %v", got, err)
+	}
+}

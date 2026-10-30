@@ -321,9 +321,11 @@ func leaseEnd() bson.D {
 
 // due matches a queued job whose wait is over (nextRunAt, written in the
 // server's time), by the server's time: a computer whose clock is fast never
-// skips a retry's wait, nor one whose clock is slow leaves a job waiting.
+// skips a retry's wait, nor one whose clock is slow leaves a job waiting. A new
+// job is written as due now by a measured time, so a second's grace keeps it
+// due when the measure runs ahead; a wait can only end that much early.
 func due() bson.M {
-	f := store.DueBy("nextRunAt")
+	f := store.DueWithin("nextRunAt", time.Second)
 	f["state"] = models.JobQueued
 	return f
 }

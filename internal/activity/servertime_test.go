@@ -79,7 +79,7 @@ func TestASummaryIsRightWhenTheServersClockDiffers(t *testing.T) {
 
 // How long a shot has been making reads right: the ticket is stamped in the
 // server's time, like the summary's now, so a computer a minute off doesn't
-// say "1 minute so far" the moment it is sent (D360, D371+).
+// say "1 minute so far" the moment it is sent (D360, D373).
 func TestAShotsTimeSoFarIsTheServers(t *testing.T) {
 	for _, off := range []time.Duration{time.Minute, -time.Minute} {
 		t.Run(off.String(), func(t *testing.T) {

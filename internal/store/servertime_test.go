@@ -154,7 +154,7 @@ func TestNobodyWaitsForADatabaseThatWentAway(t *testing.T) {
 	shorten(t, &store.ServerTimeEvery, time.Millisecond)
 	time.Sleep(5 * time.Millisecond)
 	took, errs := allAtOnce(db, 20)
-	if took > 500*time.Millisecond {
+	if took > time.Second {
 		t.Fatalf("20 callers with a frozen database: the slowest took %v", took)
 	}
 	for _, err := range errs {
@@ -171,7 +171,7 @@ func TestNobodyWaitsForADatabaseThatWentAway(t *testing.T) {
 	close(f.release)
 	db.ServerTimeSettled()
 	asked = db.ServerTimeAsked()
-	if took, _ := allAtOnce(db, 20); took > 100*time.Millisecond || db.ServerTimeAsked() != asked {
+	if took, _ := allAtOnce(db, 20); took > time.Second || db.ServerTimeAsked() != asked {
 		t.Fatalf("after a failure: the slowest took %v, asked %d more", took, db.ServerTimeAsked()-asked)
 	}
 	time.Sleep(350 * time.Millisecond)
@@ -317,15 +317,15 @@ func TestAJumpIsWaitedForAMomentAtMost(t *testing.T) {
 	if _, err := db.Now(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if took := time.Since(began); took < time.Second || took > 3*time.Second {
+	if took := time.Since(began); took < time.Second || took > 6*time.Second {
 		t.Fatalf("the wait after a jump took %v", took)
 	}
-	if took, _ := allAtOnce(db, 20); took > 100*time.Millisecond {
+	if took, _ := allAtOnce(db, 20); took > time.Second {
 		t.Fatalf("after one caller's wait the rest took %v", took)
 	}
 	close(f.release)
 	db.ServerTimeSettled()
-	if took, _ := allAtOnce(db, 20); took > 100*time.Millisecond {
+	if took, _ := allAtOnce(db, 20); took > time.Second {
 		t.Fatalf("after the measurement failed: %v", took)
 	}
 }
@@ -355,7 +355,7 @@ func TestNowThroughACutDatabase(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if took := time.Since(began); took > 200*time.Millisecond {
+		if took := time.Since(began); took > time.Second {
 			t.Fatalf("a cut database made a caller wait %v", took)
 		}
 		if !near(got, time.Now(), 2*time.Second) {

@@ -53,18 +53,19 @@ func get(ctx context.Context, a *app.App, id string) (*models.ReviewLink, error)
 	return &l, nil
 }
 
-// live reports a link that still works.
+// live reports a link that still works at now (the database server's time).
 func live(l *models.ReviewLink, now time.Time) bool {
 	return l.State == models.ReviewLinkLive && now.Before(l.ExpiresAt)
 }
 
-func outOf(l models.ReviewLink, projectName string) *ShareOut {
-	v := viewOf(l, projectName)
+func outOf(l models.ReviewLink, projectName string, now time.Time) *ShareOut {
+	v := viewOf(l, projectName, now)
 	return &ShareOut{Link: v.Link, ProjectName: v.ProjectName, Live: v.Live, StateWords: v.StateWords, Ends: v.Ends, Summary: v.Summary, Warnings: []string{}}
 }
 
-func viewOf(l models.ReviewLink, projectName string) ShareView {
-	now := time.Now()
+// viewOf says a link as people see it; now is the database server's time
+// (the link's end is the server's, so whether it works now is judged by it).
+func viewOf(l models.ReviewLink, projectName string, now time.Time) ShareView {
 	if l.Taken == nil {
 		l.Taken = []models.ReviewSeat{}
 	}
@@ -145,9 +146,15 @@ func list(ctx context.Context, a *app.App, in *ShareListIn) (*ShareListOut, erro
 	} else if in.Revision != "" {
 		filter["revisionId"] = in.Revision
 	}
+	// The links that work now by the database server's clock, which also
+	// says each one's state below (D360).
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if !in.All {
 		filter["state"] = models.ReviewLinkLive
-		filter["expiresAt"] = bson.M{"$gt": time.Now().UTC()}
+		filter["expiresAt"] = bson.M{"$gt": now}
 	}
 	var ls []models.ReviewLink
 	if err := a.DB.Find(ctx, store.CReviewLinks, a.WorkspaceID(), filter, &ls, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetLimit(500)); err != nil {
@@ -160,7 +167,7 @@ func list(ctx context.Context, a *app.App, in *ShareListIn) (*ShareListOut, erro
 		if ai { // reviewers' names are their words (D315)
 			l.Reviewers = quoted(l.Reviewers)
 		}
-		v := viewOf(l, names[l.ProjectID])
+		v := viewOf(l, names[l.ProjectID], now)
 		if v.Live {
 			out.Live++
 		}
@@ -208,7 +215,12 @@ func again(ctx context.Context, a *app.App, in *ShareIDIn) (*ShareOut, error) {
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now()
+	// The time the link has left is by the database server's clock: its end
+	// was written in the server's time (D360).
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if !live(l, now) {
 		return nil, apperr.New(apperr.Conflict, "That review link has ended, so it can't be sent again.").WithHint("Make a new link to the version.")
 	}
@@ -268,7 +280,7 @@ func again(ctx context.Context, a *app.App, in *ShareIDIn) (*ShareOut, error) {
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Storage, err, "The link couldn't be signed again.").WithHint("Check the media store (Settings → Storage).")
 	}
-	o := outOf(*l, projectName(ctx, a, l.ProjectID))
+	o := outOf(*l, projectName(ctx, a, l.ProjectID), now)
 	o.URL = u
 	return o, nil
 }
@@ -278,14 +290,18 @@ func revoke(ctx context.Context, a *app.App, in *ShareIDIn) (*ShareOut, error) {
 	if err != nil {
 		return nil, err
 	}
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	name := projectName(ctx, a, l.ProjectID)
 	if l.State != models.ReviewLinkLive {
-		st, err := finish(ctx, a, l.ID, time.Now().UTC())
+		st, err := finish(ctx, a, l.ID)
 		if err != nil {
 			return nil, err
 		}
 		l, _ = get(ctx, a, l.ID)
-		o := outOf(*l, name)
+		o := outOf(*l, name, now)
 		o.Summary, o.Warnings = endedWords(l, st, name, "That review link had already ended")
 		return o, nil
 	}
@@ -302,7 +318,7 @@ func revoke(ctx context.Context, a *app.App, in *ShareIDIn) (*ShareOut, error) {
 	if err != nil {
 		return nil, err
 	}
-	o := outOf(*l, name)
+	o := outOf(*l, name, now)
 	o.Summary, o.Warnings = endedWords(l, st, name, fmt.Sprintf("Took back the review link to version %d of “%s”", l.RevisionNumber, name))
 	return o, nil
 }
@@ -335,7 +351,7 @@ func purge(ctx context.Context, a *app.App, projectID string) (int, error) {
 		return 0, err
 	}
 	for _, l := range ls {
-		if _, err := finish(ctx, a, l.ID, now); err != nil {
+		if _, err := finish(ctx, a, l.ID); err != nil {
 			return 0, err
 		}
 	}

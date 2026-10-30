@@ -70,14 +70,14 @@ func endLink(ctx context.Context, a *app.App, l *models.ReviewLink, state string
 	if err != nil {
 		return false, nil, err
 	}
-	st, err := finish(ctx, a, l.ID, now)
+	st, err := finish(ctx, a, l.ID)
 	return res.ModifiedCount == 1, st, err
 }
 
 // finish cleans up after an ended link: its page and video, then (after a
 // last read) its slots; removed once everything is gone and its signed time
 // is over.
-func finish(ctx context.Context, a *app.App, id string, now time.Time) (*endState, error) {
+func finish(ctx context.Context, a *app.App, id string) (*endState, error) {
 	var l models.ReviewLink
 	if err := a.DB.GetByID(ctx, store.CReviewLinks, a.WorkspaceID(), id, &l); err != nil {
 		return nil, err
@@ -131,8 +131,13 @@ func finish(ctx context.Context, a *app.App, id string, now time.Time) (*endStat
 		}
 		st.SlotsGone = gone(seats...)
 	}
-	if st.PageGone && poster && st.SlotsGone && !now.Before(l.ExpiresAt) {
-		if err := a.DB.Update(ctx, store.CReviewLinks, a.WorkspaceID(), id, bson.M{"$set": bson.M{"removed": true}}); err != nil {
+	if st.PageGone && poster && st.SlotsGone {
+		// Its signed time is over by the database server's clock, as every
+		// computer judges the link's end (D360); until then a page still
+		// open could write a slot again, so the next look deletes it again.
+		over := store.DueBy("expiresAt")
+		over["_id"], over["workspaceId"] = id, a.WorkspaceID()
+		if _, err := a.DB.C(store.CReviewLinks).UpdateOne(ctx, over, bson.M{"$set": bson.M{"removed": true}}); err != nil {
 			return nil, err
 		}
 	}
@@ -305,14 +310,16 @@ func onMove(ctx context.Context, a *app.App, from media.Store, plan bool) ([]str
 	// being read right now (this computer's dashboard or another computer)
 	// stops the move before it changes anything.
 	token := ids.New("lse")
-	now := time.Now().UTC()
 	defer func() {
 		_, _ = a.DB.C(store.CReviewLinks).UpdateMany(context.WithoutCancel(ctx), bson.M{"workspaceId": a.WorkspaceID(), "syncBy": token},
 			bson.M{"$unset": bson.M{"syncUntil": "", "syncBy": ""}})
 	}()
 	for i := range ls {
 		l := &ls[i]
-		res, err := a.DB.C(store.CReviewLinks).UpdateOne(ctx, leaseFree(l.ID, a.WorkspaceID(), now), bson.M{"$set": bson.M{"syncUntil": now.Add(moveLease), "syncBy": token}})
+		// By the database server's clock, as a look takes and judges its
+		// lease: a look on a computer whose clock is off never reads through
+		// the move's hold, nor the move through a look's.
+		res, err := a.DB.C(store.CReviewLinks).UpdateOne(ctx, leaseFree(l.ID, a.WorkspaceID()), takeLease(token, moveLease))
 		if err != nil {
 			return nil, err
 		}
@@ -337,7 +344,7 @@ func onMove(ctx context.Context, a *app.App, from media.Store, plan bool) ([]str
 			}
 			out = append(out, line)
 			st = s
-		} else if st, err = finish(ctx, &b, l.ID, time.Now().UTC()); err != nil {
+		} else if st, err = finish(ctx, &b, l.ID); err != nil {
 			return out, err
 		}
 		if st == nil || !st.PageGone || !st.LastRead || !st.SlotsGone {

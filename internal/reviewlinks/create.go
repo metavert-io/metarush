@@ -89,7 +89,12 @@ func create(ctx context.Context, a *app.App, in *ShareCreateIn) (*ShareOut, erro
 	if _, err := rand.Read(pageID); err != nil {
 		return nil, err
 	}
-	now := time.Now().UTC()
+	// The database server's time, never this computer's: every computer that
+	// looks at the link compares its end with the server's time (D360).
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	ttl := time.Duration(pl.days) * 24 * time.Hour
 	link := models.ReviewLink{ID: ids.New(ids.ReviewLink), WorkspaceID: a.WorkspaceID(), ProjectID: pl.p.ID, RevisionID: pl.rev.ID, RevisionNumber: pl.rev.Number,
 		RenderID: pl.render.ID, Title: pl.out.Title, For: pl.in.For, Message: pl.in.Message, Words: pl.out.HasWords, Speakers: pl.in.Speakers,
@@ -203,7 +208,7 @@ func create(ctx context.Context, a *app.App, in *ShareCreateIn) (*ShareOut, erro
 		details["anyway"], details["holds"] = link.Anyway.Note, link.Anyway.Holds
 	}
 	a.Audit(ctx, "share.create", "review_link", link.ID, link.ProjectID, details)
-	o := outOf(link, pl.p.Name)
+	o := outOf(link, pl.p.Name, now)
 	o.URL = pageURL
 	o.Warnings = pl.out.Warnings
 	o.Summary = fmt.Sprintf("Made a review link to version %d of “%s”, %s. It shows %s. Send the link to whoever should review it.",

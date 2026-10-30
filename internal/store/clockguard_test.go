@@ -14,9 +14,9 @@ import (
 )
 
 // Every time compared across computers is the database server's (D360). This
-// test reads the Go code (no database, no build) of the packages that share
-// decisions and flags what would compare a stored time with this computer's
-// clock, or write this computer's clock where another computer judges it:
+// test reads the Go code of every package under internal/ (no database, no
+// build) and flags what would compare a stored time with this computer's clock,
+// or write this computer's clock where another computer judges it:
 //
 //   - time.Since and time.Until of anything but a time this function took
 //     from the clock itself (that is a duration within one process);
@@ -32,11 +32,6 @@ import (
 // own business goes in clockAllowed, by file and function, with how many
 // places it has and why; an entry that no longer matches fails too, so the
 // list only shrinks.
-
-// clockPackages share decisions with other computers.
-var clockPackages = []string{"activity", "aiwork", "api", "app", "assistant", "auth", "catchup", "cli", "dbmove", "generate", "handover", "improve",
-	"ingest", "jobs", "linkimport", "machines", "ops", "publish", "recipes", "recorder", "remote", "remotion", "reviewlinks", "sources", "spoken", "store",
-	"transcripts", "voiceover", "worker", "wsarchive"}
 
 // serverStamped are fields another computer compares: written in the server's
 // time, as they appear in queries (lower case) and in structs.
@@ -73,6 +68,28 @@ var clockAllowed = map[string]struct {
 	"internal/aiwork/presenter_retire.go linkServer.serve":          {1, "the link server's own memory, in one process"},
 	"internal/aiwork/presenters.go askWords":                        {1, "turns the adapter's end by this computer's clock into time left; what is stored is the server's now plus that"},
 	"internal/aiwork/run.go runner.wait":                            {2, "first poll's delay and progress only; the job is pinned to the computer that asked"},
+	"internal/abilities/listener.go localChecks.Check":              {1, "an in-memory cache"},
+	"internal/aiservices/elevenlabs/kinds.go Adapter.pollDub":       {1, "a progress estimate while this process waits"},
+	"internal/cache/quota.go Cache.ReadQuotaStatus":                 {1, "this computer's cache"},
+	"internal/cache/repair.go Cache.Repair":                         {1, "local files' times"},
+	"internal/intake/folders.go scanner.publish":                    {1, "an in-process throttle"},
+	"internal/intake/folders.go scanner.scan":                       {4, "a linked folder's scan on this computer: local files' times and its own memory"},
+	"internal/localdb/install.go counting.Read":                     {1, "an in-process throttle"},
+	"internal/localdb/upgrade.go Server.Watch":                      {1, "the database on this computer: failures in this process's memory"},
+	"internal/logbook/daemon.go Logger.sweepLocalBodies":            {1, "local folders' dates"},
+	"internal/logbook/events.go ranFor":                             {1, "only when the job's end isn't known; the attempt ran in this process"},
+	"internal/logbook/hookrun.go cleanStaleSessions":                {1, "local files' times"},
+	"internal/logbook/logger.go OpRecord.End":                       {1, "how long an operation took, in one process"},
+	"internal/logbook/logops/ops.go init":                           {1, "checks a date a person typed"},
+	"internal/logbook/spool.go Logger.FlushSpool":                   {1, "local files' times"},
+	"internal/providers/vertex.go VertexAccessToken":                {1, "a token kept in memory"},
+	"internal/renderer/install.go Env.prune":                        {1, "local files' times"},
+	"internal/storagemove/storagemove.go journal.add":               {1, "an in-process throttle"},
+	"internal/storagemove/storagemove.go tracker.emit":              {2, "progress rates, in one process"},
+	"internal/todos/scores.go Muted":                                {1, "an in-memory cache"},
+	"internal/tools/tools.go Set.report":                            {1, "how long a program took, in one process"},
+	"internal/uploads/uploads.go Store.List":                        {2, "upload records are files on this computer"},
+	"internal/uploads/uploads.go Store.persist":                     {1, "an in-process throttle"},
 	"internal/api/access.go Server.signedIn":                        {1, "a session's last use, in this computer's session file"},
 	"internal/api/events.go Broker.pollMark":                        {1, "picks the earlier of this computer's clock and the server's on purpose: changes carry either"},
 	"internal/api/extension.go extAPI.limited":                      {1, "an in-memory rate limit"},
@@ -141,26 +158,36 @@ type clockFinding struct {
 
 func TestNothingComparesWithThisComputersClock(t *testing.T) {
 	found := map[string][]clockFinding{}
-	for _, pkg := range clockPackages {
-		dir := filepath.Join("..", pkg)
-		entries, err := os.ReadDir(dir)
+	root := filepath.Join("..")
+	err := filepath.WalkDir(root, func(path string, e os.DirEntry, err error) error {
 		if err != nil {
-			t.Fatal(err)
+			return err
+		}
+		if e.IsDir() {
+			if e.Name() == "testutil" || e.Name() == "testdata" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
 		}
 		fset := token.NewFileSet()
-		for _, e := range entries {
-			name := e.Name()
-			if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-				continue
-			}
-			f, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, 0)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, fi := range scanClock(fset, "internal/"+pkg+"/"+name, f) {
-				found[fi.key] = append(found[fi.key], fi)
-			}
+		f, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
 		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		for _, fi := range scanClock(fset, "internal/"+filepath.ToSlash(rel), f) {
+			found[fi.key] = append(found[fi.key], fi)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 	var keys []string
 	for k := range found {

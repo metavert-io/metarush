@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
@@ -499,6 +500,10 @@ func lateCollections(ctx context.Context, from *store.DB, copied []wsarchive.Col
 // again, and must add up to exactly what the copy holds. A kind made since,
 // a record written or removed since, stops the move (ErrChanged).
 func Recheck(ctx context.Context, from, to *store.DB, res *Result) error {
+	return recheck(ctx, from, to, res, "", nil)
+}
+
+func recheck(ctx context.Context, from, to *store.DB, res *Result, move string, w io.Writer) error {
 	if res == nil {
 		return errors.New("nothing was copied")
 	}
@@ -513,11 +518,43 @@ func Recheck(ctx context.Context, from, to *store.DB, res *Result) error {
 	} else if late != "" {
 		return &Partial{Collection: late, Err: ErrChanged}
 	}
+	// One time for every record that ends by itself, the old database
+	// server's (the fingerprints say it: later looks compare by it too).
+	now := serverNow(ctx, from)
+	var pw *printWriter
+	if w != nil {
+		names := make([]string, 0, len(res.Collections))
+		for _, c := range res.Collections {
+			names = append(names, c.Name)
+		}
+		hashes := serverHashes(ctx, from, names)
+		h := PrintsHeader{Format: PrintsFormat, Move: move, Database: from.Name, At: now, Kinds: []PrintKind{}}
+		for _, c := range res.Collections {
+			k := PrintKind{Name: c.Name, ServerHash: hashes[c.Name]}
+			if c.TimeLimited {
+				for _, l := range timeLimits(ctx, from, c.Name) {
+					k.Ending = append(k.Ending, PrintEnding{Field: l.field, After: l.after})
+				}
+			}
+			h.Kinds = append(h.Kinds, k)
+		}
+		var err error
+		if pw, err = newPrintWriter(w, h); err != nil {
+			return err
+		}
+	}
 	for _, c := range res.Collections {
+		var each func(bson.Raw, []byte) error
+		if pw != nil {
+			if err := pw.kind(c.Name); err != nil {
+				return err
+			}
+			each = pw.record
+		}
 		if c.TimeLimited {
 			// Records that end by themselves are read again on both sides,
 			// those ending soon left out (either side may delete them by now).
-			a, b, err := hashBoth(ctx, from, to, c.Name)
+			a, b, err := hashBothAt(ctx, from, to, c.Name, now, each)
 			if err != nil {
 				return &Partial{Collection: c.Name, Err: err}
 			}
@@ -526,13 +563,16 @@ func Recheck(ctx context.Context, from, to *store.DB, res *Result) error {
 			}
 			continue
 		}
-		d, err := wsarchive.HashWhere(ctx, from, c.Name, nil)
+		d, err := wsarchive.HashWhereEach(ctx, from, c.Name, nil, each)
 		if err != nil {
 			return &Partial{Collection: c.Name, Err: err}
 		}
 		if d.Count != c.Copied || d.SHA256 != c.SHA256 {
 			return &Partial{Collection: c.Name, Err: ErrChanged}
 		}
+	}
+	if pw != nil {
+		return pw.close()
 	}
 	return nil
 }
@@ -609,11 +649,17 @@ func stillLive(limits []timeLimit, now time.Time) bson.M {
 // TTL indexes (in the old database) the records that don't end soon, by one
 // time — the old database server's.
 func hashBoth(ctx context.Context, from, to *store.DB, coll string) (wsarchive.Digest, wsarchive.Digest, error) {
+	return hashBothAt(ctx, from, to, coll, serverNow(ctx, from), nil)
+}
+
+// hashBothAt is hashBoth by a given time, handing the old database's records
+// to each as they are read (nil: none).
+func hashBothAt(ctx context.Context, from, to *store.DB, coll string, now time.Time, each func(bson.Raw, []byte) error) (wsarchive.Digest, wsarchive.Digest, error) {
 	var filter bson.M
 	if limits := timeLimits(ctx, from, coll); len(limits) > 0 {
-		filter = stillLive(limits, serverNow(ctx, from))
+		filter = stillLive(limits, now)
 	}
-	a, err := wsarchive.HashWhere(ctx, from, coll, filter)
+	a, err := wsarchive.HashWhereEach(ctx, from, coll, filter, each)
 	if err != nil {
 		return a, wsarchive.Digest{}, err
 	}

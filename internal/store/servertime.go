@@ -25,11 +25,15 @@ import (
 // time is asked again; ServerTimeRetry how long after a measurement that
 // failed; ServerTimeJumpWait how long callers wait for the measurement after
 // this computer's clock jumped (the last offset may be off by the jump, or
-// right, after a sleep) before they go on with the last offset.
+// right, after a sleep) before they go on with the last offset;
+// ServerTimeAskFor how long one measurement may take (a server that takes the
+// connection and never answers). A measurement gives up before the callers'
+// patience runs out (jump wait + retry), so a frozen database costs one wait.
 var (
 	ServerTimeEvery    = time.Minute
 	ServerTimeRetry    = 10 * time.Second
 	ServerTimeJumpWait = 2 * time.Second
+	ServerTimeAskFor   = 10 * time.Second
 )
 
 const (
@@ -40,9 +44,6 @@ const (
 	// slowAnswer is the longest round trip whose middle is trusted without
 	// asking again: an answer delayed one way puts the middle off by half of it.
 	slowAnswer = 500 * time.Millisecond
-	// askFor bounds one measurement (a server that takes the connection and
-	// never answers).
-	askFor = 15 * time.Second
 )
 
 // serverClock is a DB's last measurement of the server's time. One caller's
@@ -65,8 +66,9 @@ type serverClock struct {
 	// running is closed when the measurement under way ends (nil: none).
 	running chan struct{}
 	// ask is where the server's time comes from (nil: the server; tests give
-	// a fake).
-	ask func(context.Context) (time.Time, error)
+	// a fake). shift moves its answer (ShiftServerTime).
+	ask   func(context.Context) (time.Time, error)
+	shift time.Duration
 	// asked counts the round trips (tests).
 	asked int
 }
@@ -140,6 +142,23 @@ func (d *DB) NowOrLocal(ctx context.Context) time.Time {
 	return Clock().UTC()
 }
 
+// ShiftServerTime makes this connection take the server's time to be off by
+// by from what the server says, from the next call on (tests: a server whose
+// clock really differs from this computer's real one, which skewing Clock can't
+// show, since time.Now doesn't move; $$NOW and $currentDate aren't moved).
+func (d *DB) ShiftServerTime(by time.Duration) {
+	c := &d.clock
+	c.mu.Lock()
+	running := c.running
+	c.mu.Unlock()
+	if running != nil {
+		<-running
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.shift, c.ok, c.failed = by, false, time.Time{}
+}
+
 // jumpedSince reports whether this computer's clock moved apart from the time
 // that really passed since the last mark (c.mu held).
 func jumpedSince(c *serverClock, wall, mono time.Time) bool {
@@ -157,6 +176,7 @@ func (c *serverClock) start(d *DB, local func() time.Time) chan struct{} {
 	if ask == nil {
 		ask = d.ServerNow
 	}
+	askFor := ServerTimeAskFor
 	go func() {
 		defer close(done)
 		ctx, cancel := context.WithTimeout(context.Background(), askFor)
@@ -192,6 +212,9 @@ func (c *serverClock) measure(ctx context.Context, ask func(context.Context) (ti
 			return best, err
 		}
 		rtt := time.Since(mono)
+		c.mu.Lock()
+		server = server.Add(c.shift)
+		c.mu.Unlock()
 		middle := before.Add(rtt / 2)
 		if try == 0 || rtt < best.rtt {
 			best = measurement{offset: server.Sub(middle), rtt: rtt, wall: middle, mono: mono.Add(rtt / 2)}

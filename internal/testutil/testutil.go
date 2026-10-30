@@ -309,3 +309,14 @@ func SkewClock(t testing.TB, d time.Duration) (restore func()) {
 	t.Cleanup(restore)
 	return restore
 }
+
+// ServerOff makes db take the database server's time to be off by d from this
+// computer's real clock until the test ends: what a display or any Go-side
+// check gets from store.DB.Now moves, and a bare time.Now() doesn't, so a test
+// sees which one code reads. Stamps a test writes come from db.Now then. It
+// doesn't move $$NOW or $currentDate: for those, SkewClock.
+func ServerOff(t testing.TB, db *store.DB, d time.Duration) {
+	t.Helper()
+	db.ShiftServerTime(d)
+	t.Cleanup(func() { db.ShiftServerTime(0) })
+}

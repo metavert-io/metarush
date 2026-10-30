@@ -444,3 +444,53 @@ func TestADeadlineDoesntCutAJumpsWaitShort(t *testing.T) {
 		t.Fatalf("a clock ten minutes on and a short deadline: %v, want about %v (%v)", got, time.Now(), err)
 	}
 }
+
+// A database frozen when this computer's clock jumps costs one wait: the
+// measurement gives up before the next caller's patience runs out.
+func TestAFrozenDatabaseCostsOneWaitAfterAJump(t *testing.T) {
+	db := testutil.DB(t)
+	ctx := context.Background()
+	db.FakeServerTime(func(context.Context) (time.Time, error) { return time.Now(), nil })
+	if _, err := db.Now(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if store.ServerTimeAskFor >= store.ServerTimeJumpWait+store.ServerTimeRetry {
+		t.Fatalf("a measurement of %v outlives the wait %v and the retry %v: a frozen database would cost a second wait", store.ServerTimeAskFor, store.ServerTimeJumpWait, store.ServerTimeRetry)
+	}
+	f := &frozen{release: make(chan struct{})}
+	db.SetServerTimeAsk(f.ask)
+	testutil.SkewClock(t, 10*time.Minute)
+	shorten(t, &store.ServerTimeJumpWait, 300*time.Millisecond)
+	shorten(t, &store.ServerTimeRetry, 900*time.Millisecond)
+	shorten(t, &store.ServerTimeAskFor, 1000*time.Millisecond)
+	waits := 0
+	for began := time.Now(); time.Since(began) < 2*time.Second; time.Sleep(20 * time.Millisecond) {
+		at := time.Now()
+		if _, err := db.Now(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if time.Since(at) > 150*time.Millisecond {
+			waits++
+		}
+	}
+	close(f.release)
+	if waits != 1 {
+		t.Fatalf("a frozen database made callers wait %d times, want once", waits)
+	}
+}
+
+// ShiftServerTime moves what the helper hears from the server: a server whose
+// clock really differs from this computer's.
+func TestAShiftedServerIsTheServersTime(t *testing.T) {
+	db := testutil.DB(t)
+	ctx := context.Background()
+	testutil.ServerOff(t, db, -7*time.Minute)
+	got, err := db.Now(ctx)
+	if err != nil || !near(got, time.Now().Add(-7*time.Minute), 30*time.Second) {
+		t.Fatalf("a server seven minutes behind: %v %v", got, err)
+	}
+	db.ShiftServerTime(0)
+	if got, _ := db.Now(ctx); !near(got, time.Now(), 30*time.Second) {
+		t.Fatalf("back: %v", got)
+	}
+}

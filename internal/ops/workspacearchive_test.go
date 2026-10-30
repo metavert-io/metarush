@@ -246,7 +246,7 @@ func TestARestoredCopyDeletesNothingByItselfUntilAdopted(t *testing.T) {
 		t.Fatal(err)
 	}
 	do[ops.TrashSettingsOut](t, a, "trash.configure", ops.TrashConfigureIn{EmptyAfterDays: 30})
-	if n, err := ops.EmptyExpiredTrash(ctx, a, time.Now().UTC()); err != nil || n != 0 {
+	if n, err := ops.EmptyExpiredTrash(ctx, a); err != nil || n != 0 {
 		t.Fatalf("a paused copy emptied its Trash: %d %v", n, err)
 	}
 	if ex := do[ops.WorkspaceExportsOut](t, a, "workspace.exports", ops.WorkspaceExportsIn{}); !strings.Contains(archiveText(ex), "paused") {
@@ -258,7 +258,7 @@ func TestARestoredCopyDeletesNothingByItselfUntilAdopted(t *testing.T) {
 	if err := doErr(a, "workspace.adopt", map[string]any{}, person); err != nil {
 		t.Fatalf("an owner lifting the pause: %v", err)
 	}
-	if n, err := ops.EmptyExpiredTrash(ctx, a, time.Now().UTC()); err != nil || n != 1 {
+	if n, err := ops.EmptyExpiredTrash(ctx, a); err != nil || n != 1 {
 		t.Fatalf("the adopted copy's Trash: %d %v", n, err)
 	}
 	if n, _ := a.DB.C(store.CAudit).CountDocuments(ctx, bson.M{"action": "workspace.adopt"}); n != 1 {

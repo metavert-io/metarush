@@ -643,7 +643,12 @@ func init() {
 				return nil, apperr.Wrap(apperr.Storage, err, "The final render couldn't be brought to this computer, so nothing was posted.").WithHint("Check the internet connection and try again.")
 			}
 			video.Path, video.Size = src, render.Output.Size
-			now := time.Now().UTC()
+			// The database server's time (D360): the daemon on any computer
+			// compares a post's heartbeat and start with it.
+			now, err := a.DB.Now(ctx)
+			if err != nil {
+				return nil, err
+			}
 			pub := models.Publication{ID: ids.New("pub"), Platform: plan.Platform, State: models.PublicationSending, Channel: plan.As.Channel, ChannelID: plan.As.ChannelID,
 				Privacy: plan.Privacy, Title: plan.Title, RenderID: render.ID, SHA256: render.Output.SHA256, Preset: render.Preset, Chapters: len(plan.Chapters), Disclosed: plan.Synthetic,
 				By: a.Actor, At: now, Size: render.Output.Size, Installation: a.Cfg.Installation.ID, Beat: &now, Claim: ids.New("clm")}
@@ -829,7 +834,7 @@ func sendPublication(ctx context.Context, a *app.App, j *publishJournal, pub mod
 			case <-stop:
 				return
 			case <-t.C:
-				res, err := revs.UpdateOne(bg, mine, bson.M{"$set": bson.M{"publications.$.beat": time.Now().UTC(), "publications.$.sent": sent.Load()}})
+				res, err := revs.UpdateOne(bg, mine, bson.M{"$set": bson.M{"publications.$.sent": sent.Load()}, "$currentDate": bson.M{"publications.$.beat": true}})
 				if err == nil && res.MatchedCount == 0 {
 					lost.Store(true) // another sender has it now: stop sending
 					cancel()
@@ -876,7 +881,8 @@ func sendPublication(ctx context.Context, a *app.App, j *publishJournal, pub mod
 		goesOn := errors.As(sendErr, &p) && p.Retry && !p.Gone && j.Session != "" && !(personStops && ctx.Err() != nil)
 		if goesOn {
 			// Its place is kept: the daemon goes on from where YouTube got to.
-			if res, err := revs.UpdateOne(bg, mine, bson.M{"$set": bson.M{"publications.$.beat": done, "publications.$.sent": sent.Load(), "publications.$.error": words}}); err == nil && res.MatchedCount == 0 {
+			if res, err := revs.UpdateOne(bg, mine, bson.M{"$set": bson.M{"publications.$.sent": sent.Load(), "publications.$.error": words},
+				"$currentDate": bson.M{"publications.$.beat": true}}); err == nil && res.MatchedCount == 0 {
 				return takenOver(bg, a, j, pub, nil)
 			}
 			a.Audit(bg, "publish.interrupted", "revision", j.Revision, j.Project, details)
@@ -994,18 +1000,29 @@ func RunPublishRecovery(ctx context.Context, a *app.App, logf func(string, ...an
 			return
 		case <-t.C:
 		}
-		for _, r := range RecoverPublications(ctx, a, time.Now().UTC()) {
+		for _, r := range recoverPublicationsNow(ctx, a) {
 			logf("%s", r)
 		}
 		t.Reset(time.Minute)
 	}
 }
 
+// recoverPublicationsNow is the daemon's look, by the database server's
+// clock (D360): a post's heartbeat comes from whichever computer sends it.
+func recoverPublicationsNow(ctx context.Context, a *app.App) []string {
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil // the next look
+	}
+	return RecoverPublications(ctx, a, now)
+}
+
 // RecoverPublications looks once at posts still marked sending whose sender
 // stopped saying so (PublishStale): this computer's go on through YouTube's
 // resumable session it kept, or are marked failed in plain words when there is
 // none (or YouTube no longer has it); another computer's are marked failed
-// after a day. It says what it did.
+// after a day. It says what it did. now is the database server's time
+// (recoverPublicationsNow), as heartbeats are.
 func RecoverPublications(ctx context.Context, a *app.App, now time.Time) []string {
 	var said []string
 	cur, err := a.DB.C(store.CRevisions).Find(ctx, PublishSendingFilter(a),
@@ -1035,7 +1052,7 @@ func RecoverPublications(ctx context.Context, a *app.App, now time.Time) []strin
 			}
 			// Claim it: only one looker goes on with (or gives up on) a post, and
 			// the sender that stopped answering no longer owns it.
-			claimed, claim := now, ids.New("clm")
+			claim := ids.New("clm")
 			was := bson.M{"id": x.ID, "state": models.PublicationSending, "beat": x.Beat}
 			if x.Claim == "" {
 				was["claim"] = bson.M{"$exists": false}
@@ -1043,7 +1060,7 @@ func RecoverPublications(ctx context.Context, a *app.App, now time.Time) []strin
 				was["claim"] = x.Claim
 			}
 			res, err := a.DB.C(store.CRevisions).UpdateOne(ctx, bson.M{"_id": rev.ID, "workspaceId": a.WorkspaceID(), "publications": bson.M{"$elemMatch": was}},
-				bson.M{"$set": bson.M{"publications.$.beat": claimed, "publications.$.claim": claim}, "$inc": bson.M{"publications.$.tries": 1}})
+				bson.M{"$set": bson.M{"publications.$.claim": claim}, "$currentDate": bson.M{"publications.$.beat": true}, "$inc": bson.M{"publications.$.tries": 1}})
 			if err != nil || res.MatchedCount == 0 {
 				continue
 			}
@@ -1090,7 +1107,6 @@ func RecoverPublications(ctx context.Context, a *app.App, now time.Time) []strin
 				continue
 			}
 			j.Video.Path, j.Video.Size = src, j.Size
-			x.Beat = &claimed
 			_, err = sendPublication(ctx, a, j, x, false)
 			var p *publish.Problem
 			switch {

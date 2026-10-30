@@ -320,8 +320,14 @@ func saveDraft(ctx context.Context, a *app.App, in *DraftSaveIn) (*DraftView, er
 	if len([]rune(note)) > 2000 {
 		note = string([]rune(note)[:2000])
 	}
+	// Saved at the database server's time (D360): the daemons' review copies
+	// wait until a draft has been quiet a minute by that clock.
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	d := &models.Draft{ID: ids.New(ids.Draft), WorkspaceID: a.WorkspaceID(), Op: op.Name, Note: note, State: models.DraftWaiting,
-		Agent: a.Actor.Agent, CreatedBy: a.Actor, CreatedAt: time.Now().UTC()}
+		Agent: a.Actor.Agent, CreatedBy: a.Actor, CreatedAt: now}
 	if n, err := a.DB.C(store.CDrafts).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "agent": d.Agent,
 		"state": bson.M{"$in": bson.A{models.DraftWaiting, models.DraftApproving}}}); err == nil && n >= MaxWaitingDrafts {
 		return nil, apperr.New(apperr.Conflict, "%s has %d drafts waiting for review already: a person needs to look at them before it saves more.", AgentWords(d.Agent), n).
@@ -340,7 +346,6 @@ func saveDraft(ctx context.Context, a *app.App, in *DraftSaveIn) (*DraftView, er
 			old, d.Replaces = o, o.ID
 		} // another app's draft stays: both wait
 	}
-	var err error
 	if versionDraftOps[op.Name] != "" {
 		err = saveVersionDraft(ctx, a, op, input, d)
 	} else {
@@ -542,10 +547,16 @@ func commitDraftRevision(ctx context.Context, a *app.App, p *prepared, draftID s
 		return nil, err
 	}
 	_, total := editspec.Timeline(p.spec)
+	// The server's time, as the draft's (a version approved as it is becomes
+	// the latest, whose review copy waits until it is quiet by that clock).
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
 	rev := models.Revision{ID: ids.New(ids.Revision), WorkspaceID: a.WorkspaceID(), ProjectID: p.project.ID, Branch: p.branch, Number: proj.RevisionSeq,
 		ParentID: p.parentID, Spec: *p.spec, SpecHash: editspec.Hash(p.spec), Ops: p.plan.Ops, Instruction: p.plan.Instruction, Rationale: p.plan.Rationale, Origin: p.plan.Origin,
 		Warnings: p.warnings, Duration: float64(total) / float64(p.spec.Output.FPS), Approval: models.Approval{State: models.ApprovalDraft}, CreatedBy: a.Actor,
-		CreatedAt: time.Now().UTC(), DraftID: draftID, Includes: p.includes}
+		CreatedAt: now, DraftID: draftID, Includes: p.includes}
 	if p.rebased && p.base != nil {
 		rev.RebasedFrom = p.base.ID
 	}
@@ -812,7 +823,13 @@ func decideDraft(ctx context.Context, a *app.App, in *DraftDecideIn) (*DraftView
 	case models.DraftReplaced:
 		return nil, apperr.New(apperr.Conflict, "A newer draft took this one's place: decide about that one.").WithDetails(map[string]any{"draftId": d.ID, "replacedBy": d.ReplacedBy})
 	case models.DraftApproving:
-		if d.ApprovingAt != nil && time.Since(*d.ApprovingAt) < approvingFor {
+		// The approval's start was stamped by the server's clock (D360): the
+		// person approving may be at another computer.
+		now, err := a.DB.Now(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if d.ApprovingAt != nil && now.Sub(*d.ApprovingAt) < approvingFor {
 			return nil, apperr.New(apperr.Conflict, "Someone is approving this draft right now.").WithDetails(map[string]any{"draftId": d.ID})
 		}
 	}
@@ -832,7 +849,12 @@ func decideDraft(ctx context.Context, a *app.App, in *DraftDecideIn) (*DraftView
 	default:
 		return nil, invalid("Decide with approve, notQuite or turnDown.")
 	}
-	res, err := a.DB.C(store.CDrafts).UpdateOne(ctx, bson.M{"_id": d.ID, "workspaceId": a.WorkspaceID(), "state": d.State},
+	same := bson.M{"_id": d.ID, "workspaceId": a.WorkspaceID(), "state": d.State}
+	if d.State == models.DraftApproving {
+		// Only an approval left unfinished: not one someone started meanwhile.
+		same["$or"] = bson.A{bson.M{"approvingAt": bson.M{"$exists": false}}, store.StaleBefore("approvingAt", approvingFor)}
+	}
+	res, err := a.DB.C(store.CDrafts).UpdateOne(ctx, same,
 		bson.M{"$set": bson.M{"state": dec.State, "decision": dec}, "$unset": bson.M{"tried": "", "approvingAt": ""}})
 	if err != nil {
 		return nil, err
@@ -860,11 +882,14 @@ const approvingFor = 5 * time.Minute
 // marked approved — or it goes back to its state, saying why.
 func approveDecided(ctx context.Context, a *app.App, d *models.Draft, dec *models.DraftDecision) (*DraftView, error) {
 	now := dec.At
+	// An approval left unfinished is taken over by the database server's
+	// clock, which stamps each one (D360): people approve at different
+	// computers.
 	claim := bson.M{"_id": d.ID, "workspaceId": a.WorkspaceID(), "$or": bson.A{
 		bson.M{"state": bson.M{"$in": bson.A{models.DraftWaiting, models.DraftNotQuite, models.DraftTurnedDown}}},
-		bson.M{"state": models.DraftApproving, "approvingAt": bson.M{"$lt": now.Add(-approvingFor)}}}}
+		bson.M{"state": models.DraftApproving, "$expr": store.StaleBefore("approvingAt", approvingFor)["$expr"]}}}
 	var before models.Draft
-	err := a.DB.C(store.CDrafts).FindOneAndUpdate(ctx, claim, bson.M{"$set": bson.M{"state": models.DraftApproving, "approvingAt": now}}).Decode(&before)
+	err := a.DB.C(store.CDrafts).FindOneAndUpdate(ctx, claim, bson.M{"$set": bson.M{"state": models.DraftApproving}, "$currentDate": bson.M{"approvingAt": true}}).Decode(&before)
 	if err != nil {
 		return nil, apperr.New(apperr.Conflict, "Someone is deciding about this draft right now, or did already; look at it again.").WithDetails(map[string]any{"draftId": d.ID})
 	}
@@ -941,7 +966,12 @@ func approveDraft(ctx context.Context, a *app.App, d *models.Draft, dec *models.
 		dec.Result = fmt.Sprintf("Its change is in the cut already, in version %d.", h.Number)
 		return true, nil
 	}
-	now := time.Now().UTC()
+	// The server's time: the latest version moves (whose review copy waits
+	// until it is quiet by that clock, D360).
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return false, err
+	}
 	actor := a.Actor
 	approval := models.Approval{State: models.ApprovalApproved, By: &actor, At: &now, Note: dec.Note}
 	put := r

@@ -117,7 +117,7 @@ func RunReviewFollow(ctx context.Context, a *app.App, logf func(string, ...any))
 			return
 		case <-t.C:
 		}
-		res, err := FollowLatest(ctx, a, time.Now().UTC())
+		res, err := followLook(ctx, a)
 		if err != nil && ctx.Err() == nil {
 			logf("making review copies of the latest versions failed: %v", err)
 		}
@@ -133,9 +133,21 @@ func RunReviewFollow(ctx context.Context, a *app.App, logf func(string, ...any))
 	}
 }
 
+// followLook is the daemon's look, by the database server's clock (D360):
+// versions are saved, and daemons look, on computers whose clocks differ, so
+// "quiet for a minute" and "saved in the last two hours" are the server's.
+func followLook(ctx context.Context, a *app.App) (*FollowResult, error) {
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return FollowLatest(ctx, a, now)
+}
+
 // FollowLatest looks once: for each cut whose latest version was saved
 // between ReviewFollowWindow and ReviewFollowQuiet ago, it queues that
-// version's review copy (D187).
+// version's review copy (D187). now is the database server's time
+// (followLook).
 func FollowLatest(ctx context.Context, a *app.App, now time.Time) (*FollowResult, error) {
 	res := &FollowResult{Queued: []models.Render{}, Superseded: []models.Render{}}
 	if !FollowOn(ctx, a) {

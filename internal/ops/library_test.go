@@ -24,6 +24,7 @@ import (
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/testutil/testapp"
 	"github.com/metavert-io/metarush/internal/tools"
 )
@@ -431,7 +432,7 @@ func TestTrashEmptiesItselfOnlyWhenAPersonSaysSo(t *testing.T) {
 	backdate(recent.ID, 1)
 
 	// Off by default: nothing goes, however old.
-	if n, err := ops.EmptyExpiredTrash(ctx, a, time.Now().UTC()); err != nil || n != 0 {
+	if n, err := ops.EmptyExpiredTrash(ctx, a); err != nil || n != 0 {
 		t.Fatalf("emptied while off: %d %v", n, err)
 	}
 	if s := do[ops.TrashSettingsOut](t, a, "trash.settings", ops.TrashSettingsIn{}); s.EmptyAfterDays != 0 || s.Summary != "Nothing in the Trash is deleted until you empty it." {
@@ -448,7 +449,7 @@ func TestTrashEmptiesItselfOnlyWhenAPersonSaysSo(t *testing.T) {
 	if l := library(t, a, ops.LibraryIn{View: ops.ViewTrash}); l.EmptyAfterDays != 30 || l.Items[0].Trash.DeletesOn == nil {
 		t.Fatalf("trash view %+v", l)
 	}
-	n, err := ops.EmptyExpiredTrash(ctx, a, time.Now().UTC())
+	n, err := ops.EmptyExpiredTrash(ctx, a)
 	if err != nil || n != 1 {
 		t.Fatalf("emptied %d %v", n, err)
 	}
@@ -463,14 +464,102 @@ func TestTrashEmptiesItselfOnlyWhenAPersonSaysSo(t *testing.T) {
 		t.Fatalf("left in the Trash: %v", titles)
 	}
 	// A second machine running at the same time finds nothing left to do.
-	if n, _ := ops.EmptyExpiredTrash(ctx, a, time.Now().UTC()); n != 0 {
+	if n, _ := ops.EmptyExpiredTrash(ctx, a); n != 0 {
 		t.Fatalf("emptied again: %d", n)
 	}
 	do[ops.TrashSettingsOut](t, a, "trash.configure", ops.TrashConfigureIn{EmptyAfterDays: 0})
 	backdate(recent.ID, 400)
-	if n, _ := ops.EmptyExpiredTrash(ctx, a, time.Now().UTC()); n != 0 {
+	if n, _ := ops.EmptyExpiredTrash(ctx, a); n != 0 {
 		t.Fatalf("emptied after turning it off: %d", n)
 	}
+}
+
+// byServer is the database server's time now (computers' clocks differ).
+func byServer(t *testing.T, a *app.App) time.Time {
+	t.Helper()
+	now, err := a.DB.ServerNow(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return now
+}
+
+// near reports whether a time stored by MetaRush is the server's time, not
+// a clock ten minutes off.
+func near(got, want time.Time) bool {
+	d := got.Sub(want)
+	return d > -time.Minute && d < time.Minute
+}
+
+// How long a clip has been in the Trash, and whether another computer's claim
+// on it went stale, go by the database server's clock (D360): a computer whose
+// clock is ten minutes fast deletes nothing early and takes no live claim, and
+// one ten minutes slow deletes what is due and takes a stale claim.
+func TestTrashEmptiesByTheServersClock(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	if err := a.DB.Insert(ctx, store.CWorkspaces, models.Workspace{ID: a.WorkspaceID(), WorkspaceID: a.WorkspaceID(), Name: "T"}); err != nil {
+		t.Fatal(err)
+	}
+	do[ops.TrashSettingsOut](t, a, "trash.configure", ops.TrashConfigureIn{EmptyAfterDays: 30})
+	month := 30 * 24 * time.Hour
+	// Moved to the Trash on a computer ten minutes fast: when, by the server.
+	restore := testutil.SkewClock(t, 10*time.Minute)
+	early, due, claimed := clip(t, a, "Five minutes early"), clip(t, a, "Five minutes due"), clip(t, a, "Claimed elsewhere")
+	do[ops.LibraryActionOut](t, a, "asset.trash", ops.LibraryActionIn{AssetIDs: []string{early.ID, due.ID, claimed.ID}})
+	if at := reload(t, a, early.ID).Trash.At; !near(at, byServer(t, a)) {
+		t.Fatalf("moved to the Trash at %v by this computer's clock, not the server's %v", at, byServer(t, a))
+	}
+	restore()
+	set := func(id string, f bson.M) {
+		t.Helper()
+		if err := a.DB.Update(ctx, store.CAssets, a.WorkspaceID(), id, bson.M{"$set": f}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := byServer(t, a)
+	set(early.ID, bson.M{"trash.at": now.Add(-month + 5*time.Minute)})
+	set(due.ID, bson.M{"trash.at": now.Add(-month - 5*time.Minute)})
+	set(claimed.ID, bson.M{"trash.at": now.Add(-month - time.Hour), "trash.claim": models.TrashClaim{By: "ins_other", At: now.Add(-59 * time.Minute)}})
+	left := func(id string) bool { // still in the Trash, not deleted
+		var as models.Asset
+		return a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), id, &as) == nil && as.Trash != nil
+	}
+
+	// Ten minutes fast: nothing early, and the other computer's claim holds.
+	restore = testutil.SkewClock(t, 10*time.Minute)
+	if n, err := ops.EmptyExpiredTrash(ctx, a); err != nil || n != 1 || left(due.ID) {
+		t.Fatalf("a computer ten minutes fast emptied %d (%v); the one due is gone: %v", n, err, !left(due.ID))
+	}
+	if !left(early.ID) || !left(claimed.ID) {
+		t.Fatalf("a computer ten minutes fast deleted early (%v) or took a live claim (%v)", !left(early.ID), !left(claimed.ID))
+	}
+	restore()
+
+	// Ten minutes slow: the claim went stale an hour after it was made, and
+	// what became due is deleted.
+	now = byServer(t, a)
+	set(early.ID, bson.M{"trash.at": now.Add(-month - 5*time.Minute)})
+	set(claimed.ID, bson.M{"trash.claim.at": now.Add(-61 * time.Minute)})
+	restore = testutil.SkewClock(t, -10*time.Minute)
+	if n, err := ops.EmptyExpiredTrash(ctx, a); err != nil || n != 2 || left(early.ID) || left(claimed.ID) {
+		t.Fatalf("a computer ten minutes slow emptied %d (%v): due left %v, stale claim left %v", n, err, left(early.ID), left(claimed.ID))
+	}
+	restore()
+
+	// A claim is the server's time too: one just made isn't taken by a
+	// computer ten minutes fast that read the clip before it was claimed.
+	last := clip(t, a, "Being deleted")
+	do[ops.LibraryActionOut](t, a, "asset.trash", ops.LibraryActionIn{AssetIDs: []string{last.ID}})
+	set(last.ID, bson.M{"trash.at": byServer(t, a).Add(-month - time.Hour), "trash.claim.by": "ins_other"})
+	if _, err := a.DB.C(store.CAssets).UpdateOne(ctx, bson.M{"_id": last.ID}, bson.M{"$currentDate": bson.M{"trash.claim.at": true}}); err != nil {
+		t.Fatal(err)
+	}
+	restore = testutil.SkewClock(t, 10*time.Minute)
+	if n, err := ops.EmptyExpiredTrash(ctx, a); err != nil || n != 0 || !left(last.ID) {
+		t.Fatalf("a computer ten minutes fast took a claim made a moment ago: %d %v", n, err)
+	}
+	restore()
 }
 
 // Adding the same file again brings a clip back from the Trash (the person

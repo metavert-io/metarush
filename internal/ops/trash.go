@@ -308,7 +308,11 @@ func init() {
 // turned it on (never in a restored copy whose deletions are paused); clips a
 // cut uses stay. Each clip is claimed first, so two
 // machines never delete the same one. It returns how many went.
-func EmptyExpiredTrash(ctx context.Context, a *app.App, now time.Time) (int, error) {
+//
+// Every daemon runs it, on computers whose clocks differ, so how long a clip
+// has been in the Trash and whether a claim went stale are the database
+// server's (D360): its time ($$NOW) against times it stamped.
+func EmptyExpiredTrash(ctx context.Context, a *app.App) (int, error) {
 	days := trashDays(ctx, a)
 	if days <= 0 {
 		return 0, nil
@@ -318,17 +322,18 @@ func EmptyExpiredTrash(ctx context.Context, a *app.App, now time.Time) (int, err
 	if a.DB.DeletionsPaused(ctx, a.WorkspaceID()) {
 		return 0, nil
 	}
-	cutoff := now.Add(-time.Duration(days) * 24 * time.Hour)
+	expired := store.StaleBefore("trash.at", time.Duration(days)*24*time.Hour)
 	var list []models.Asset
-	if err := a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), bson.M{"trash.at": bson.M{"$lt": cutoff}}, &list, options.Find().SetProjection(bson.M{"_id": 1}).SetLimit(500)); err != nil {
+	if err := a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), bson.M{"trash": bson.M{"$exists": true}, "$expr": expired["$expr"]}, &list, options.Find().SetProjection(bson.M{"_id": 1}).SetLimit(500)); err != nil {
 		return 0, err
 	}
 	n := 0
 	for _, x := range list {
-		claim := models.TrashClaim{By: a.Cfg.Installation.ID, At: now}
-		res, err := a.DB.C(store.CAssets).UpdateOne(ctx, bson.M{"_id": x.ID, "workspaceId": a.WorkspaceID(), "trash.at": bson.M{"$lt": cutoff},
-			"$or": bson.A{bson.M{"trash.claim": bson.M{"$exists": false}}, bson.M{"trash.claim.at": bson.M{"$lt": now.Add(-time.Hour)}}}},
-			bson.M{"$set": bson.M{"trash.claim": claim}})
+		// Unclaimed, or claimed over an hour ago by a machine that stopped.
+		claimable := bson.M{"_id": x.ID, "workspaceId": a.WorkspaceID(), "$and": bson.A{expired,
+			bson.M{"$or": bson.A{bson.M{"trash.claim": bson.M{"$exists": false}}, store.StaleBefore("trash.claim.at", time.Hour)}}}}
+		res, err := a.DB.C(store.CAssets).UpdateOne(ctx, claimable,
+			bson.M{"$set": bson.M{"trash.claim.by": a.Cfg.Installation.ID}, "$currentDate": bson.M{"trash.claim.at": true}})
 		if err != nil {
 			return n, err
 		}
@@ -367,7 +372,7 @@ func RunTrashSchedule(ctx context.Context, a *app.App, logf func(string, ...any)
 			return
 		case <-t.C:
 		}
-		if n, err := EmptyExpiredTrash(ctx, a, time.Now().UTC()); err != nil && ctx.Err() == nil {
+		if n, err := EmptyExpiredTrash(ctx, a); err != nil && ctx.Err() == nil {
 			logf("emptying the Trash failed: %v", err)
 		} else if n > 0 {
 			logf("deleted %s from the Trash for good (older than the workspace's setting)", plural(n, "clip"))

@@ -27,6 +27,7 @@ import (
 	"github.com/metavert-io/metarush/internal/publish"
 	"github.com/metavert-io/metarush/internal/receipt"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/testutil/fakeyoutube"
 	"github.com/metavert-io/metarush/internal/testutil/testapp"
 )
@@ -521,6 +522,98 @@ func TestPublishGoesOnAfterADroppedConnection(t *testing.T) {
 	if len(r.SentOut) != 1 || r.SentOut[0].What != models.SentPost || len(r.SentOut[0].Overrides) != 1 || r.SentOut[0].Overrides[0] != x.Overrides[0] {
 		t.Fatalf("the version doesn't say it went out: %+v", r.SentOut)
 	}
+}
+
+// The posting daemon looks by the database server's clock, and a post's
+// start, heartbeats and claims are the server's time (D360): a computer ten
+// minutes fast leaves a post whose sender said it was sending 110 s ago and
+// another computer's post that stopped 23 h 55 min ago; one ten minutes slow
+// goes on with a post silent for 130 s — once: its claim is the server's time
+// too, so the fast one doesn't take it again — and gives up on another
+// computer's after 24 h 5 min.
+func TestPublishRecoveryGoesByTheServersClock(t *testing.T) {
+	a, yt, in, rid, rd, _ := readyToPost(t)
+	ctx := context.Background()
+	oldChunk, oldWait := publish.UploadChunk, publish.RetryWait
+	publish.UploadChunk, publish.RetryWait = 32<<10, time.Millisecond
+	t.Cleanup(func() { publish.UploadChunk, publish.RetryWait = oldChunk, oldWait })
+	in.Fingerprint = do[ops.PublishPlanOut](t, a, "publish.plan", in).Fingerprint
+	yt.HangupFrom = 32 << 10 // the second piece never gets through
+	pub := func(id string) models.Publication {
+		t.Helper()
+		var r models.Revision
+		_ = a.DB.GetByID(ctx, store.CRevisions, a.WorkspaceID(), rid, &r)
+		for _, x := range r.Publications {
+			if x.ID == id || id == "" {
+				return x
+			}
+		}
+		t.Fatalf("no post %s", id)
+		return models.Publication{}
+	}
+	beat := func(id string, at time.Time) {
+		t.Helper()
+		if _, err := a.DB.C(store.CRevisions).UpdateOne(ctx, bson.M{"_id": rid, "publications.id": id}, bson.M{"$set": bson.M{"publications.$.beat": at}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	restore := testutil.SkewClock(t, 10*time.Minute)
+	if err := doErr(a, "publish.send", in, person); err == nil || !strings.Contains(err.Error(), "goes on with it by itself") {
+		t.Fatalf("a dropped connection: %v", err)
+	}
+	x := pub("")
+	if now := byServer(t, a); !near(x.At, now) || x.Beat == nil || !near(*x.Beat, now) {
+		t.Fatalf("a post from a computer ten minutes fast started at %v, last said it was sending at %v; the server's time is %v", x.At, x.Beat, now)
+	}
+	ops.RecoverPublicationsNow(ctx, a)
+	if got := pub(x.ID); got.Tries != 0 {
+		t.Fatalf("a computer ten minutes fast took over a post that said it was sending a moment ago: %+v", got)
+	}
+	restore()
+	beat(x.ID, byServer(t, a).Add(-110*time.Second))
+	restore = testutil.SkewClock(t, 10*time.Minute)
+	ops.RecoverPublicationsNow(ctx, a)
+	if got := pub(x.ID); got.Tries != 0 || got.State != models.PublicationSending {
+		t.Fatalf("a computer ten minutes fast took over a post silent for 110 s: %+v", got)
+	}
+	restore()
+
+	beat(x.ID, byServer(t, a).Add(-130*time.Second))
+	restore = testutil.SkewClock(t, -10*time.Minute)
+	ops.RecoverPublicationsNow(ctx, a)
+	got := pub(x.ID)
+	if got.Tries != 1 || got.State != models.PublicationSending || got.Beat == nil || !near(*got.Beat, byServer(t, a)) {
+		t.Fatalf("a computer ten minutes slow going on with a post silent for 130 s: %+v", got)
+	}
+	restore()
+	restore = testutil.SkewClock(t, 10*time.Minute)
+	ops.RecoverPublicationsNow(ctx, a)
+	if got := pub(x.ID); got.Tries != 1 {
+		t.Fatalf("a computer ten minutes fast took the post again right after another look took it: %+v", got)
+	}
+	restore()
+
+	// Another computer's post, given up after a day by the server's clock.
+	elsewhere := byServer(t, a).Add(-23*time.Hour - 55*time.Minute)
+	other := models.Publication{ID: "pub_elsewhere", Platform: "youtube", State: models.PublicationSending, Channel: "Garden Club", ChannelID: "UCfake", RenderID: rd.ID,
+		SHA256: rd.Output.SHA256, Size: rd.Output.Size, Installation: "ins_other", Beat: &elsewhere, At: elsewhere, By: a.Actor}
+	if _, err := a.DB.C(store.CRevisions).UpdateOne(ctx, bson.M{"_id": rid}, bson.M{"$push": bson.M{"publications": other}}); err != nil {
+		t.Fatal(err)
+	}
+	restore = testutil.SkewClock(t, 10*time.Minute)
+	ops.RecoverPublicationsNow(ctx, a)
+	if got := pub(other.ID); got.State != models.PublicationSending {
+		t.Fatalf("a computer ten minutes fast gave up on another computer's post after 23 h 55 min: %+v", got)
+	}
+	restore()
+	beat(other.ID, byServer(t, a).Add(-24*time.Hour-5*time.Minute))
+	restore = testutil.SkewClock(t, -10*time.Minute)
+	ops.RecoverPublicationsNow(ctx, a)
+	if got := pub(other.ID); got.State != models.PublicationFailed || !strings.Contains(got.Error, "another computer") {
+		t.Fatalf("a computer ten minutes slow kept another computer's post after 24 h 5 min: %+v", got)
+	}
+	restore()
 }
 
 // The daemon's look had marked a post as not posted (it stopped saying it was

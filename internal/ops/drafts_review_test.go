@@ -21,6 +21,7 @@ import (
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/resources"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/testutil"
 	"github.com/metavert-io/metarush/internal/testutil/testapp"
 )
 
@@ -165,6 +166,60 @@ func TestOneApprovalAtATime(t *testing.T) {
 	if okN != 1 || n != 1 {
 		t.Fatalf("%d approvals went through, %d comments made", okN, n)
 	}
+}
+
+// An approval left unfinished is taken over five minutes after it started by
+// the database server's clock, which stamps each one (D360): a person at a
+// computer ten minutes fast can't take over (or turn down) an approval
+// someone started 4 min 50 s ago, or a moment ago; a person at a computer ten
+// minutes slow takes over one started 5 min 10 s ago.
+func TestAnUnfinishedApprovalGoesByTheServersClock(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	p := project(t, a, "Clocks")
+	d := do[ops.DraftView](t, agentApp(a, "codex", "mcp"), ops.OpDraftSave, ops.DraftSaveIn{Op: "comment.add", Input: draftInput(t, map[string]any{"projectId": p.ID, "body": "hello"})})
+	approving := func(at time.Time) {
+		t.Helper()
+		if err := a.DB.Update(ctx, store.CDrafts, a.WorkspaceID(), d.ID, bson.M{"$set": bson.M{"state": models.DraftApproving, "approvingAt": at}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	comments := func() int64 {
+		n, _ := a.DB.C(store.CComments).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "projectId": p.ID})
+		return n
+	}
+	pa := asPerson(a)
+	approving(byServer(t, a).Add(-4*time.Minute - 50*time.Second))
+	restore := testutil.SkewClock(t, 10*time.Minute)
+	for _, decision := range []string{ops.DecideApprove, ops.DecideTurnDown} {
+		if err := doErr(pa, "draft.decide", ops.DraftDecideIn{ID: d.ID, Decision: decision}, person); code(err) != apperr.Conflict {
+			t.Fatalf("%s at a computer ten minutes fast, while someone approves: %v", decision, err)
+		}
+	}
+	// One just started (stamped by the server, as the claim does).
+	if _, err := a.DB.C(store.CDrafts).UpdateOne(ctx, bson.M{"_id": d.ID}, bson.M{"$currentDate": bson.M{"approvingAt": true}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := doErr(pa, "draft.decide", ops.DraftDecideIn{ID: d.ID, Decision: ops.DecideApprove}, person); code(err) != apperr.Conflict || comments() != 0 {
+		t.Fatalf("a computer ten minutes fast took over an approval started a moment ago: %v (%d comments)", err, comments())
+	}
+	restore()
+
+	approving(byServer(t, a).Add(-5*time.Minute - 10*time.Second))
+	restore = testutil.SkewClock(t, -10*time.Minute)
+	if err := doErr(pa, "draft.decide", ops.DraftDecideIn{ID: d.ID, Decision: ops.DecideApprove}, person); err != nil || comments() != 1 {
+		t.Fatalf("a computer ten minutes slow didn't take over an approval left 5 min 10 s ago: %v (%d comments)", err, comments())
+	}
+	restore()
+
+	// Turning down an approval left unfinished, at a computer ten minutes slow.
+	d = do[ops.DraftView](t, agentApp(a, "codex", "mcp"), ops.OpDraftSave, ops.DraftSaveIn{Op: "comment.add", Input: draftInput(t, map[string]any{"projectId": p.ID, "body": "again"})})
+	approving(byServer(t, a).Add(-5*time.Minute - 10*time.Second))
+	restore = testutil.SkewClock(t, -10*time.Minute)
+	if v := do[ops.DraftView](t, pa, "draft.decide", ops.DraftDecideIn{ID: d.ID, Decision: ops.DecideTurnDown}); v.State != models.DraftTurnedDown {
+		t.Fatalf("turning down an approval left unfinished: %s", v.State)
+	}
+	restore()
 }
 
 // When the cut hasn't moved, approving still checks the draft against today's

@@ -317,13 +317,26 @@ func RunSchedule(ctx context.Context, a *app.App, exe string, logf func(string, 
 	t := time.NewTicker(15 * time.Minute)
 	defer t.Stop()
 	for {
-		RunIfDue(ctx, a, time.Now(), logf)
+		RunIfDue(ctx, a, tickNow(ctx, a), logf)
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		}
 	}
+}
+
+// tickNow is the time the schedule goes by: the database server's (D360),
+// like the reports' stamps, so a report another computer made since this
+// week's slot counts as made; in this computer's time zone, whose day and
+// hour the slot is. When the server doesn't answer, this computer's clock
+// (asking what was made since fails then too, and the tick waits).
+func tickNow(ctx context.Context, a *app.App) time.Time {
+	now, err := a.DB.Now(ctx)
+	if err != nil {
+		return time.Now()
+	}
+	return now.Local()
 }
 
 // RunIfDue makes the weekly report if it is due now (the schedule's tick).
@@ -382,7 +395,7 @@ func schedule(ctx context.Context, a *app.App, cfg config.Improve) (*ScheduleOut
 	out := &ScheduleOut{Weekly: cfg.Weekly, Day: strings.ToLower(cfg.ReportDay().String()), Hour: cfg.ReportHour(), BudgetUSD: cfg.Budget(), Model: cfg.Model,
 		LastRun: st.LastAttempt, LastResult: st.LastResult, Machine: a.Cfg.Installation.Name}
 	if cfg.Weekly {
-		now := time.Now()
+		now := tickNow(ctx, a)
 		next := slotBefore(now, cfg.ReportDay(), cfg.ReportHour()).AddDate(0, 0, 7)
 		if due(cfg, now, st, func(slot time.Time) int { return reportsSince(ctx, a, slot) }) {
 			next = now

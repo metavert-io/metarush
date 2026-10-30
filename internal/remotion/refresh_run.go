@@ -171,8 +171,10 @@ func (rf *refresher) run(ctx context.Context, id, jobID string, report func(floa
 	if iso.Kind != r.Isolation && r.Isolation != "" {
 		return nil, fail("This computer keeps refreshes apart in another way than the plan said; look at the plan again and start it again.", nil, nil)
 	}
-	started := time.Now().UTC()
-	_ = setRefresh(ctx, a, r.ID, bson.M{"state": models.RemotionRunRunning, "startedAt": started})
+	// Started at the database server's time (D360): another computer's
+	// refresh of the same source compares it (runningRefresh).
+	_, _ = a.DB.C(store.CRemotionRefreshes).UpdateOne(ctx, bson.M{"_id": r.ID, "workspaceId": a.WorkspaceID()},
+		bson.M{"$set": bson.M{"state": models.RemotionRunRunning, "updatedAt": time.Now().UTC()}, "$currentDate": bson.M{"startedAt": true}})
 	ctx, cancel := context.WithTimeout(ctx, refreshTotalLimit)
 	defer cancel()
 	say := func(pct float64) func(string) { return func(m string) { report(pct, m) } }
@@ -366,11 +368,14 @@ func (rf *refresher) run(ctx context.Context, id, jobID string, report func(floa
 	return map[string]any{"message": msg, "refresh": r.ID, "number": r.Number, "version": nv.Hash, "versionNumber": nv.Number, "sourceId": s.ID, "projectId": s.ProjectID}, nil
 }
 
-// runningRefresh is another refresh of the source whose steps are running now (nil when none).
+// runningRefresh is another refresh of the source whose steps are running now
+// (nil when none): started within refreshTotalLimit by the database server's
+// clock, since it may run on another computer.
 func runningRefresh(ctx context.Context, a *app.App, sourceID, except string) *models.RemotionRefresh {
 	var rs []models.RemotionRefresh
-	if err := a.DB.Find(ctx, store.CRemotionRefreshes, a.WorkspaceID(), bson.M{"sourceId": sourceID, "state": models.RemotionRunRunning, "_id": bson.M{"$ne": except},
-		"startedAt": bson.M{"$gte": time.Now().UTC().Add(-refreshTotalLimit)}}, &rs, options.Find().SetLimit(1)); err != nil || len(rs) == 0 {
+	f := store.SeenWithin("startedAt", refreshTotalLimit)
+	f["sourceId"], f["state"], f["_id"] = sourceID, models.RemotionRunRunning, bson.M{"$ne": except}
+	if err := a.DB.Find(ctx, store.CRemotionRefreshes, a.WorkspaceID(), f, &rs, options.Find().SetLimit(1)); err != nil || len(rs) == 0 {
 		return nil
 	}
 	return &rs[0]

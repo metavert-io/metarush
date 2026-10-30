@@ -16,6 +16,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/dbmove"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
@@ -423,6 +424,14 @@ func TestLateLooksEndWhenTheOldDatabaseIsGone(t *testing.T) {
 	if st == nil || st.Ended || st.Problem == "" {
 		t.Fatalf("after a look that couldn't be made: %+v", st)
 	}
+	if !strings.Contains(st.Summary, "MetaRush couldn't reach") || strings.Contains(st.Summary, "metaRush") {
+		t.Fatalf("a name in the middle of a sentence: %s", st.Summary)
+	}
+	// The first try once the last look was due: a day from here.
+	said = ops.LookDueLate(ctx, n, rec.Due[2].Add(time.Second))
+	if len(said) != 1 || !strings.Contains(said[0], "couldn't look") || strings.Contains(said[0], "metaRush") || !ops.KeepsLookAddress(n.Cfg, move) {
+		t.Fatalf("the last look: %v", said)
+	}
 	said = ops.LookDueLate(ctx, n, rec.Due[2].Add(ops.LateLookGrace+time.Minute))
 	if len(said) != 1 || !strings.Contains(said[0], "stopped looking") || ops.KeepsLookAddress(n.Cfg, move) {
 		t.Fatalf("the looks' end: %v", said)
@@ -434,6 +443,10 @@ func TestLateLooksEndWhenTheOldDatabaseIsGone(t *testing.T) {
 	}
 	if k := countNotes(t, dst, "late_incomplete:"+move); k != 1 {
 		t.Fatalf("%d notes that it couldn't check everything", k)
+	}
+	var incomplete models.Notification
+	if err := dst.C(store.CNotifications).FindOne(ctx, bson.M{"groupKey": "late_incomplete:" + move}).Decode(&incomplete); err != nil || strings.Contains(incomplete.Body, "metaRush") {
+		t.Fatalf("the note: %+v %v", incomplete, err)
 	}
 	// Without the fingerprints (dropped above) no look could ever be made:
 	// the looks end at once rather than being tried again for a day.
@@ -954,6 +967,9 @@ func TestLateIncompleteLooksAreNeverAnAllClear(t *testing.T) {
 	if st.Ended || st.AllClear || !st.CanLook || !strings.Contains(st.Summary, "couldn't check everything") || strings.Contains(st.Summary, "Nothing was written") || !strings.Contains(st.Summary, "kind") {
 		t.Fatalf("after the last look: %+v", st)
 	}
+	if st.LookUntil == nil || !strings.Contains(st.Summary, "You have until") {
+		t.Fatalf("how long a person has: %+v", st)
+	}
 	if k := countNotes(t, dst, "late_incomplete:"+move); k != 1 {
 		t.Fatalf("%d notes after the last look", k)
 	}
@@ -1020,6 +1036,9 @@ func TestLateLooksGoOnFromWhereTheyStopped(t *testing.T) {
 	st := ops.LateStatus(ctx, n)
 	if foundAt < 0 || st.Waiting != 1 || st.Checked != ops.LateCheckedEverything {
 		t.Fatalf("after going on: found at %d: %+v", foundAt, st)
+	}
+	if !strings.Contains(st.Summary, "read all of it between") || !strings.Contains(st.Summary, "after it was read wouldn't show") || strings.Contains(st.Summary, "several looks") {
+		t.Fatalf("what was read and when: %s", st.Summary)
 	}
 	lw, err := ops.CallTyped[ops.DatabaseLateWritesOut](ctx, n, "database.late.writes", ops.DatabaseLateWritesIn{}, ops.Caller{})
 	if err != nil || len(lw.Found) != 1 || lw.Found[0].Record != "cmt_a00009" {
@@ -1234,12 +1253,24 @@ func TestLateOldDatabaseRemovedIsOneFinding(t *testing.T) {
 		t.Fatalf("the look: %+v", lw.Found)
 	}
 	gone := lw.Found[1]
-	if gone.Kind != "emptied" || !gone.ReportOnly || gone.CanCarry || !strings.Contains(gone.Says, "gone or empty") {
+	if gone.Kind != "emptied" || !gone.ReportOnly || gone.CanCarry || !strings.Contains(gone.Says, "no records any more") {
 		t.Fatalf("the finding: %+v", gone)
 	}
 	m := lw.Moves[0]
-	if !m.Ended || m.Checked != ops.LateCheckedGone || m.AllClear || !strings.Contains(m.Summary, "gone or empty") || m.CanLook || ops.KeepsLookAddress(n.Cfg, move) {
+	if !m.Ended || m.Checked != ops.LateCheckedGone || m.AllClear || !strings.Contains(m.Summary, "no records any more") || m.CanLook || ops.KeepsLookAddress(n.Cfg, move) {
 		t.Fatalf("the looks: %+v", m)
+	}
+	// What was found before it still waits, and the steps and the bell say so.
+	if !strings.Contains(m.Summary, "1 thing it found before that still waits") || m.Waiting != 2 || m.WaitingCopies != 1 {
+		t.Fatalf("what waits besides: %+v", m)
+	}
+	if !slices.ContainsFunc(lw.Steps, func(s string) bool { return strings.HasPrefix(s, "Carry each over") }) {
+		t.Fatalf("the steps: %v", lw.Steps)
+	}
+	var both models.Notification
+	if err := dst.C(store.CNotifications).FindOne(ctx, bson.M{"groupKey": "late_writes:" + move}).Decode(&both); err != nil ||
+		both.Title != "The old database has no records any more" || !strings.Contains(both.Body, "If you removed it") || !strings.Contains(both.Body, "carry it over") {
+		t.Fatalf("the bell: %+v %v", both, err)
 	}
 	if entryOf(t, lw, store.CProjects).State != ops.LateWaiting || !entryOf(t, lw, store.CProjects).CanCarry {
 		t.Fatalf("what was found before: %+v", lw.Found)
@@ -1253,6 +1284,399 @@ func TestLateOldDatabaseRemovedIsOneFinding(t *testing.T) {
 	if k := countNotes(t, dst, "late_writes:"+move); k != 1 {
 		t.Fatalf("%d notes", k)
 	}
+}
+
+// The old database with no records has its own words: what it means, what to
+// do if you removed it and if you didn't. Not a write, nothing to carry over,
+// no copy kept for anyone, and what leaving it says.
+func TestLateEmptiedOldDatabaseHasItsOwnWords(t *testing.T) {
+	w, dst, n, _ := movedForLooks(t)
+	a := w.a
+	ctx := context.Background()
+	move := moveOf(t, a)
+	names, err := a.DB.DB.ListCollectionNames(ctx, bson.D{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range names {
+		if name != store.CTestRun {
+			if err := a.DB.DB.Collection(name).Drop(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	lw := lookNow(t, n)
+	if lw.Waiting != 1 || len(lw.Found) != 1 || lw.AllClear {
+		t.Fatalf("the look: %+v", lw)
+	}
+	f := lw.Found[0]
+	for _, want := range []string{"no records any more", "If you removed it, there is nothing to do.", "If you didn't, find out what happened", "from a backup", "Nothing in this database changed"} {
+		if !strings.Contains(f.Says, want) {
+			t.Fatalf("the finding, without %q: %s", want, f.Says)
+		}
+	}
+	m := lw.Moves[0]
+	if m.WaitingCopies != 0 || !strings.Contains(m.Summary, "If you removed it") || strings.Contains(m.Summary, "still waits") {
+		t.Fatalf("the looks: %+v", m)
+	}
+	if !strings.Contains(lw.Summary, "no records any more") || strings.Contains(lw.Summary, "written") || strings.Contains(lw.Summary, "carry") {
+		t.Fatalf("the list says: %s", lw.Summary)
+	}
+	for _, s := range lw.Steps {
+		if strings.Contains(s, "Carry") || strings.Contains(s, "copy") || strings.Contains(s, "removed from the old database") {
+			t.Fatalf("a step that isn't about this: %v", lw.Steps)
+		}
+	}
+	var note models.Notification
+	if err := dst.C(store.CNotifications).FindOne(ctx, bson.M{"groupKey": "late_writes:" + move}).Decode(&note); err != nil {
+		t.Fatal(err)
+	}
+	if note.Title != "The old database has no records any more" || !strings.Contains(note.Body, "If you removed it") || !strings.Contains(note.Body, "If you didn't") {
+		t.Fatalf("the bell: %+v", note)
+	}
+	for _, s := range []string{"Something was written", "carry it over", "Nobody would see"} {
+		if strings.Contains(note.Title+" "+note.Body, s) {
+			t.Fatalf("the bell says %q: %+v", s, note)
+		}
+	}
+	if _, err := ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{f.ID}}, ops.Caller{Human: true}); err == nil ||
+		!strings.Contains(apperr.From(err).Message, "nothing to carry over") {
+		t.Fatalf("carrying it: %v", err)
+	}
+	left, err := ops.CallTyped[ops.DatabaseLateLeaveOut](ctx, n, "database.late.leave", ops.DatabaseLateDecideIn{IDs: []string{f.ID}}, ops.Caller{Human: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(left.Summary, "Nothing in this database changed") || strings.Contains(left.Summary, "Left ") {
+		t.Fatalf("leaving it: %s", left.Summary)
+	}
+	if st := ops.LateStatus(ctx, n); st.AllClear || st.Checked != ops.LateCheckedGone {
+		t.Fatalf("after leaving it, never an all-clear: %+v", st)
+	}
+}
+
+// looksDueInThePast moves a move's looks back, ten minutes apart, so the last
+// was due that long ago and a person's look (on the real clock) comes after it.
+func looksDueInThePast(t *testing.T, dst *store.DB, move string, ago time.Duration) []time.Time {
+	t.Helper()
+	ctx := context.Background()
+	var rec struct {
+		Due []time.Time `bson:"due"`
+	}
+	if err := dst.C(store.CLateLooks).FindOne(ctx, bson.M{"_id": move}).Decode(&rec); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	due := make([]time.Time, len(rec.Due))
+	for i := range due {
+		due[i] = now.Add(-ago - time.Duration(len(due)-1-i)*10*time.Minute)
+	}
+	if _, err := dst.C(store.CLateLooks).UpdateOne(ctx, bson.M{"_id": move}, bson.M{"$set": bson.M{"due": due}}); err != nil {
+		t.Fatal(err)
+	}
+	return due
+}
+
+// stopInComments makes the looks stop on the old database's first comment,
+// which they have then read and passed, the way a look bounded to almost
+// nothing stops; and takes back the write that sent them there, so all a later
+// look could find is what is written from here on. It returns that comment.
+func stopInComments(t *testing.T, w *moveWorkspace, dst *store.DB, n *app.App, move string, due []time.Time) string {
+	t.Helper()
+	ctx := context.Background()
+	comments := w.a.DB.DB.Collection(store.CComments)
+	var original struct {
+		Text string `bson:"text"`
+	}
+	if err := comments.FindOne(ctx, bson.M{"_id": "cmt_a00009"}).Decode(&original); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := comments.UpdateOne(ctx, bson.M{"_id": "cmt_a00009"}, bson.M{"$set": bson.M{"text": "for a moment"}}); err != nil {
+		t.Fatal(err)
+	}
+	undo := ops.SetLateBackgroundBytes(1)
+	defer undo()
+	var look struct {
+		Pass struct {
+			Position *dbmove.LookPosition `bson:"position"`
+		} `bson:"pass"`
+	}
+	for i := 0; ; i++ {
+		if i >= len(due)-1 {
+			t.Fatal("the looks never got to the comments before the last")
+		}
+		if said := ops.LookDueLate(ctx, n, due[i].Add(time.Second)); len(said) != 1 || !strings.Contains(said[0], "part of it") {
+			t.Fatalf("a look: %v", said)
+		}
+		if err := dst.C(store.CLateLooks).FindOne(ctx, bson.M{"_id": move}).Decode(&look); err != nil {
+			t.Fatal(err)
+		}
+		if look.Pass.Position != nil && look.Pass.Position.Kind == store.CComments {
+			break
+		}
+	}
+	passed, ok := dbmove.IDOf(look.Pass.Position.Key).StringValueOK()
+	if !ok || passed == "cmt_a00009" {
+		t.Fatalf("stopped at %+v", look.Pass.Position)
+	}
+	if _, err := comments.UpdateOne(ctx, bson.M{"_id": "cmt_a00009"}, bson.M{"$set": bson.M{"text": original.Text}}); err != nil {
+		t.Fatal(err)
+	}
+	return passed
+}
+
+// An all-clear needs all of it read after the last look was due. The first
+// look stopped after one record; a computer asleep until now writes into that
+// record; this one wakes 30 hours after the last look was due. Going on from
+// where it stopped would pass it by, find nothing, and say nothing was written.
+func TestLateAllClearNeedsAPassStartedAfterTheLastLook(t *testing.T) {
+	undoAfter := ops.SetLateLookAfter([]time.Duration{time.Minute, 2 * time.Minute, 3 * time.Minute, 4 * time.Minute, 5 * time.Minute, 6 * time.Minute, 7 * time.Minute, 8 * time.Minute})
+	defer undoAfter()
+	setup := func(t *testing.T) (*moveWorkspace, *store.DB, *app.App, string, string, []time.Time) {
+		t.Helper()
+		w, dst, n, _ := movedForLooksWith(t, tenComments)
+		move := moveOf(t, w.a)
+		var rec struct {
+			Due []time.Time `bson:"due"`
+		}
+		if err := dst.C(store.CLateLooks).FindOne(context.Background(), bson.M{"_id": move}).Decode(&rec); err != nil {
+			t.Fatal(err)
+		}
+		passed := stopInComments(t, w, dst, n, move, rec.Due)
+		return w, dst, n, move, passed, rec.Due
+	}
+	ctx := context.Background()
+	notClear := func(t *testing.T, dst *store.DB, n *app.App, st *ops.LateLookView, coll, record string) {
+		t.Helper()
+		if st == nil || !st.Ended || st.AllClear || st.Found != 1 || st.Waiting != 1 || strings.Contains(st.Summary, "Nothing was written") {
+			t.Fatalf("the looks: %+v", st)
+		}
+		lw, err := ops.CallTyped[ops.DatabaseLateWritesOut](ctx, n, "database.late.writes", ops.DatabaseLateWritesIn{}, ops.Caller{})
+		if err != nil || lw.AllClear || len(lw.Found) != 1 || lw.Found[0].Collection != coll || (record != "" && lw.Found[0].Record != record) {
+			t.Fatalf("the list: %+v %v", lw, err)
+		}
+	}
+
+	t.Run("a write into a record already passed", func(t *testing.T) {
+		w, dst, n, _, passed, due := setup(t)
+		if _, err := w.a.DB.DB.Collection(store.CComments).UpdateOne(ctx, bson.M{"_id": passed}, bson.M{"$set": bson.M{"text": "written while asleep"}}); err != nil {
+			t.Fatal(err)
+		}
+		ops.LookDueLate(ctx, n, due[len(due)-1].Add(30*time.Hour))
+		notClear(t, dst, n, ops.LateStatus(ctx, n), store.CComments, passed)
+	})
+
+	t.Run("a kind of record made after the look passed it", func(t *testing.T) {
+		w, dst, n, _, _, due := setup(t)
+		if _, err := w.a.DB.DB.Collection("aa_notes").InsertOne(ctx, bson.M{"_id": "aa_1", "workspaceId": w.a.WorkspaceID(), "text": "written while asleep"}); err != nil {
+			t.Fatal(err)
+		}
+		ops.LookDueLate(ctx, n, due[len(due)-1].Add(30*time.Hour))
+		notClear(t, dst, n, ops.LateStatus(ctx, n), "aa_notes", "")
+	})
+
+	// The same, asked for by a person once the last look was due.
+	t.Run("a person's look", func(t *testing.T) {
+		w, dst, n, _ := movedForLooksWith(t, tenComments)
+		move := moveOf(t, w.a)
+		passed := stopInComments(t, w, dst, n, move, looksDueInThePast(t, dst, move, time.Hour))
+		if _, err := w.a.DB.DB.Collection(store.CComments).UpdateOne(ctx, bson.M{"_id": passed}, bson.M{"$set": bson.M{"text": "written while asleep"}}); err != nil {
+			t.Fatal(err)
+		}
+		lw := lookNow(t, n)
+		if !lw.Looked || lw.AllClear || lw.Waiting != 1 || lw.Found[0].Record != passed || strings.Contains(lw.Summary, "Nothing was written") {
+			t.Fatalf("a person's look: %+v", lw)
+		}
+		notClear(t, dst, n, ops.LateStatus(ctx, n), store.CComments, passed)
+	})
+
+	// Nothing written, and all of it read afterwards: an all-clear is still
+	// what it says, and from when.
+	t.Run("nothing written at all", func(t *testing.T) {
+		_, _, n, _, _, due := setup(t)
+		wake := due[len(due)-1].Add(30 * time.Hour)
+		ops.LookDueLate(ctx, n, wake)
+		st := ops.LateStatus(ctx, n)
+		if st == nil || !st.Ended || !st.AllClear || st.Found != 0 || !strings.Contains(st.Summary, "Nothing was written") || st.CompleteFrom == nil || st.CompleteFrom.Before(due[len(due)-1]) {
+			t.Fatalf("the looks: %+v", st)
+		}
+	})
+
+	// A way through that began after the last look was due is gone on with: the
+	// bound and the rule don't fight, whatever it took.
+	t.Run("going on with a pass begun after", func(t *testing.T) {
+		w, dst, n, _ := movedForLooksWith(t, tenComments)
+		move := moveOf(t, w.a)
+		if _, err := w.a.DB.DB.Collection(store.CComments).UpdateOne(ctx, bson.M{"_id": "cmt_a00009"}, bson.M{"$set": bson.M{"text": "late"}}); err != nil {
+			t.Fatal(err)
+		}
+		due := looksDueInThePast(t, dst, move, time.Hour)
+		undoBytes := ops.SetLateBackgroundBytes(1)
+		defer undoBytes()
+		ops.LookDueLate(ctx, n, time.Now().UTC())
+		if st := ops.LateStatus(ctx, n); st.Checked != ops.LateCheckedPart || st.Ended {
+			t.Fatalf("the look that began it: %+v", st)
+		}
+		lw := lookNow(t, n)
+		m := lw.Moves[0]
+		if !m.Ended || m.Checked != ops.LateCheckedEverything || m.CompleteFrom == nil || m.CompleteFrom.Before(due[2]) || m.Waiting != 1 {
+			t.Fatalf("going on: %+v", m)
+		}
+	})
+
+	// The rule itself, in what is said about a record that doesn't keep it.
+	t.Run("a full read that began earlier is no all-clear", func(t *testing.T) {
+		_, dst, n, move, _, due := setup(t)
+		last := due[len(due)-1]
+		if _, err := dst.C(store.CLateLooks).UpdateOne(ctx, bson.M{"_id": move}, bson.M{"$set": bson.M{
+			"ended": true, "complete": true, "partial": false, "stopped": "", "unread": bson.A{}, "more": 0, "completeFrom": last.Add(-time.Hour), "completeAt": last.Add(time.Hour)}}); err != nil {
+			t.Fatal(err)
+		}
+		st := ops.LateStatus(ctx, n)
+		if st.AllClear || st.Checked != ops.LateCheckedPart || strings.Contains(st.Summary, "Nothing was written") || !strings.Contains(st.Summary, "began before the last look was due") {
+			t.Fatalf("the looks: %+v", st)
+		}
+	})
+}
+
+// A computer that was off for days: the day to act counts from the first look
+// it tries once the last one was due, not from when that was due. Neither a
+// look that fails nor one that stops part-way ends the looks and lets go of
+// the address until that day is over, and a person's look can still finish.
+func TestLateWakingLateStillGivesADay(t *testing.T) {
+	ctx := context.Background()
+	const offFor = 72 * time.Hour
+
+	t.Run("the old database can't be reached", func(t *testing.T) {
+		w, dst, n, _ := movedForLooks(t)
+		move := moveOf(t, w.a)
+		var rec struct {
+			Due []time.Time `bson:"due"`
+		}
+		if err := dst.C(store.CLateLooks).FindOne(ctx, bson.M{"_id": move}).Decode(&rec); err != nil {
+			t.Fatal(err)
+		}
+		if err := ops.KeepLookAddressForTest(n.Cfg, move, "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=300&connectTimeoutMS=300"); err != nil {
+			t.Fatal(err)
+		}
+		wake := rec.Due[2].Add(offFor)
+		said := ops.LookDueLate(ctx, n, wake)
+		st := ops.LateStatus(ctx, n)
+		if len(said) != 1 || !strings.Contains(said[0], "couldn't look") || st.Ended || !ops.KeepsLookAddress(n.Cfg, move) {
+			t.Fatalf("waking: %v %+v", said, st)
+		}
+		if st.LookUntil == nil || st.LookUntil.Sub(wake.Add(ops.LateLookGrace)).Abs() > time.Second || !strings.Contains(st.Summary, "You have until") {
+			t.Fatalf("how long a person has: %+v", st)
+		}
+		var note models.Notification
+		if err := dst.C(store.CNotifications).FindOne(ctx, bson.M{"groupKey": "late_incomplete:" + move}).Decode(&note); err != nil || !strings.Contains(note.Body, "You have until") {
+			t.Fatalf("the bell says when: %+v %v", note, err)
+		}
+		for _, after := range []time.Duration{11 * time.Minute, 23 * time.Hour} {
+			said := ops.LookDueLate(ctx, n, wake.Add(after))
+			if len(said) != 1 || !strings.Contains(said[0], "couldn't look") || !ops.KeepsLookAddress(n.Cfg, move) || ops.LateStatus(ctx, n).Ended {
+				t.Fatalf("%s after waking: %v", after, said)
+			}
+		}
+		said = ops.LookDueLate(ctx, n, wake.Add(ops.LateLookGrace+time.Minute))
+		st = ops.LateStatus(ctx, n)
+		if len(said) != 1 || !strings.Contains(said[0], "stopped looking") || ops.KeepsLookAddress(n.Cfg, move) || !st.Ended || st.AllClear ||
+			strings.Contains(st.Summary, "You have until") || strings.Contains(st.Summary, "Nothing was written") {
+			t.Fatalf("a day after waking: %v %+v", said, st)
+		}
+	})
+
+	t.Run("the look stops part-way", func(t *testing.T) {
+		w, dst, n, _ := movedForLooksWith(t, tenComments)
+		move := moveOf(t, w.a)
+		if _, err := w.a.DB.DB.Collection(store.CComments).UpdateOne(ctx, bson.M{"_id": "cmt_a00009"}, bson.M{"$set": bson.M{"text": "late"}}); err != nil {
+			t.Fatal(err)
+		}
+		looksDueInThePast(t, dst, move, offFor)
+		undo := ops.SetLateBackgroundBytes(1)
+		defer undo()
+		wake := time.Now().UTC()
+		if said := ops.LookDueLate(ctx, n, wake); len(said) != 1 || !strings.Contains(said[0], "part of it") {
+			t.Fatalf("waking: %v", said)
+		}
+		for _, after := range []time.Duration{time.Minute, 23 * time.Hour} {
+			if said := ops.LookDueLate(ctx, n, wake.Add(after)); len(said) != 0 {
+				t.Fatalf("%s after waking: %v", after, said)
+			}
+			if st := ops.LateStatus(ctx, n); st.Ended || !st.CanLook || !strings.Contains(st.Summary, "You have until") || !ops.KeepsLookAddress(n.Cfg, move) {
+				t.Fatalf("%s after waking: %+v", after, st)
+			}
+		}
+		// A person can still finish it.
+		lw := lookNow(t, n)
+		if m := lw.Moves[0]; !lw.Looked || !m.Ended || m.Checked != ops.LateCheckedEverything || m.Waiting != 1 || m.LookUntil != nil {
+			t.Fatalf("a person's look: %+v", lw)
+		}
+	})
+
+	t.Run("nobody finishes the look", func(t *testing.T) {
+		w, dst, n, _ := movedForLooksWith(t, tenComments)
+		move := moveOf(t, w.a)
+		if _, err := w.a.DB.DB.Collection(store.CComments).UpdateOne(ctx, bson.M{"_id": "cmt_a00009"}, bson.M{"$set": bson.M{"text": "late"}}); err != nil {
+			t.Fatal(err)
+		}
+		looksDueInThePast(t, dst, move, offFor)
+		undo := ops.SetLateBackgroundBytes(1)
+		defer undo()
+		wake := time.Now().UTC()
+		ops.LookDueLate(ctx, n, wake)
+		said := ops.LookDueLate(ctx, n, wake.Add(ops.LateLookGrace+time.Minute))
+		if st := ops.LateStatus(ctx, n); len(said) != 1 || !st.Ended || st.AllClear || ops.KeepsLookAddress(n.Cfg, move) {
+			t.Fatalf("a day after waking: %v %+v", said, st)
+		}
+	})
+}
+
+// With no looks on record MetaRush can't say nothing was written: after a move
+// that couldn't keep what the looks need it says it can't tell and what a
+// person can do; a database no move came into has no old database to speak of.
+func TestLateNoRecordSaysItCantTell(t *testing.T) {
+	ctx := context.Background()
+	t.Run("a move that couldn't keep what the looks need", func(t *testing.T) {
+		undo := ops.SetLateKeepFails()
+		defer undo()
+		_, _, n, out := movedForLooks(t)
+		if out.Late != nil {
+			t.Fatalf("looks after the move: %+v", out.Late)
+		}
+		lw, err := ops.CallTyped[ops.DatabaseLateWritesOut](ctx, n, "database.late.writes", ops.DatabaseLateWritesIn{}, ops.Caller{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if lw.AllClear || !strings.Contains(lw.Summary, "can't tell whether anything was written") || strings.Contains(strings.ToLower(lw.Summary), "nothing was written") {
+			t.Fatalf("the list: %+v", lw)
+		}
+		if !slices.ContainsFunc(lw.Steps, func(s string) bool { return strings.Contains(s, "look in it yourself") }) {
+			t.Fatalf("what a person can do: %v", lw.Steps)
+		}
+		asked := lookNow(t, n)
+		if asked.Looked || asked.AllClear || asked.Problem != asked.Summary || !strings.Contains(asked.Problem, "can't tell") {
+			t.Fatalf("asked to look: %+v", asked)
+		}
+		st, err := ops.CallTyped[ops.DatabaseMoveStatusOut](ctx, n, "database.move.status", ops.DatabaseMoveStatusIn{}, ops.Caller{})
+		if err != nil || st.Late != nil || !strings.Contains(st.LateNote, "can't tell") || !strings.Contains(st.LateNote, "look in it yourself") {
+			t.Fatalf("the status: %+v %v", st, err)
+		}
+	})
+	t.Run("a database no move came into", func(t *testing.T) {
+		w := newMoveWorkspace(t)
+		lw, err := ops.CallTyped[ops.DatabaseLateWritesOut](ctx, w.a, "database.late.writes", ops.DatabaseLateWritesIn{}, ops.Caller{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if lw.AllClear || !strings.Contains(lw.Summary, "No move into this database") || strings.Contains(strings.ToLower(lw.Summary), "nothing was written") || len(lw.Steps) != 0 {
+			t.Fatalf("the list: %+v", lw)
+		}
+		st, err := ops.CallTyped[ops.DatabaseMoveStatusOut](ctx, w.a, "database.move.status", ops.DatabaseMoveStatusIn{}, ops.Caller{})
+		if err != nil || st.LateNote != "" {
+			t.Fatalf("the status: %+v %v", st, err)
+		}
+	})
 }
 
 // A last look that stopped part-way, and nobody asked for another: the looks

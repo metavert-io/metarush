@@ -153,8 +153,9 @@ one again and says what it finds:
 - **when**: right after it switched (the move itself), then about **15 minutes, an hour and a day** after the move
   (MetaRush running in the background on that computer; a computer asleep at those times looks when it wakes), and
   whenever an owner asks (`metarush database late-writes`, or *Look again now* in the card). One look runs at a time. A
-  look that can't reach the old database is tried again every ten minutes; a day after the last look was due, the looks
-  end anyway.
+  look that can't reach the old database is tried again every ten minutes. **You get a day from the first look tried
+  once the last one was due**, not from when it was due: a computer off for days still leaves you that day, and the card
+  says until when. Then the looks end anyway.
 - **what**: every kind of record, compared with fingerprints of every record that the move's last look took under the
   freeze (kept on the computer that moved, in its `state/database-move` folder, until the last look): records
   **added** there since, **changed** and **removed**. Sign-in links, which end by themselves, are never reported as
@@ -165,20 +166,31 @@ one again and says what it finds:
   that hash** (the plan says so when yours doesn't): then every look reads the whole old database over the network. So
   a look keeps to bounds: one MetaRush makes by itself reads at most 256 MB, for at most 5 minutes, with a short pause
   every 1,000 records; past either it stops and says so (*"stopped part-way"*), settles nothing, and isn't tried again:
-  **the next look goes on from where it stopped**, so a large database is got through over several looks. One you ask
-  for reads up to 16 GB, for up to 2 hours. When the last look didn't get through everything, MetaRush keeps the address
-  one more day, so you can look yourself.
+  **the next look goes on from where it stopped**, so a large database is got through over several looks, and the card
+  says between when and when it read it (anything written to a part after it was read wouldn't show). Once the last look
+  is due, a way through begun earlier **starts over**. One you ask for reads up to 16 GB, for up to 2 hours. When the
+  last look didn't get through everything, MetaRush keeps the address for that same day, so you can look yourself.
+- **An all-clear needs a read of everything that began after the last look was due.** A computer asleep can write at
+  any time until then, so a read begun earlier may already have passed the record it wrote to, or a kind of record made
+  since. "Nothing was written so far" can be said along the way; the last word can't, until such a read is done.
 - **"Nothing was written" is said only after a look read everything**, every kind of record, with nothing left only
   counted. Otherwise the card, `move-status` and `late-writes` say plainly that MetaRush **couldn't check everything**,
   what it didn't get to and what you can do, and owners' bells ring once (brought up to date when the looks end). That
   holds whatever the reason: looks that stopped part-way, an old database that couldn't be reached, fingerprints lost.
   With `--json`, `checked` says how far the looks got (`everything`, `part`, `nothing`, `gone`) and **`allClear` is true
-  only once the looks are over, their last one read everything, nothing was left only counted and nothing waits for a
-  person**: that is the field for a script. Once the address is gone no look can be made, so none is offered: if
+  only once the looks are over, a read of everything begun after the last look was due finished, nothing was left only
+  counted and nothing waits for a person**: that is the field for a script. Once the address is gone no look can be made, so none is offered: if
   something may have been written there, keep the old database and look in it yourself before you remove it.
-- **An old database you removed or emptied** (you may, once every computer uses the new one) is one finding, not one per
-  record: *"The old database is gone or empty"*. The looks end there, and what they found before stays to decide. A whole
-  kind of record gone that held 50 records or more is one finding too. Other records removed count against a look's bounds.
+- **A move that couldn't keep what the looks need** (its fingerprints or the address, say the disk was full) has no looks
+  at all. The move says so, and so do the card, `move-status` and `late-writes`: MetaRush **can't tell** whether anything
+  was written there late, never that nothing was. Keep the old database and look in it yourself, with your server's own
+  tools, before you remove it.
+- **An old database with no records any more** (you may remove it, once every computer uses the new one) is one finding,
+  not one per record, with words of its own: *"The old database has no records any more. If you removed it, there is
+  nothing to do. If you didn't, find out what happened…"*, and get it back from a backup if you need anything from it.
+  Nothing here changes because of it and there is nothing to carry over. The looks end there, and what they found before
+  stays to decide. A whole kind of record gone that held 50 records or more is one finding too. Other records removed
+  count against a look's bounds.
 - **what you see**: nothing at all when nothing was found. Otherwise owners' bells ring once (refreshed as more is
   found): which kinds of record were added, changed or removed, about when (as the record says), and on which computer
   when the record says. Settings → Storage → Move the database lists them, numbered; `metarush database late-writes`

@@ -165,9 +165,11 @@ func lateAtTerminal(c *cobra.Command) error {
 }
 
 func printLateWrites(c *cobra.Command, o *ops.DatabaseLateWritesOut) {
-	if o.Problem != "" {
+	switch {
+	case o.Problem == o.Summary:
+	case o.Problem != "":
 		fmt.Println(o.Problem)
-	} else if o.Looked {
+	case o.Looked:
 		fmt.Println("Looked at the old database again just now.")
 	}
 	fmt.Println(o.Summary)

@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/oklog/ulid/v2"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -71,8 +72,10 @@ func init() {
 // asleep through the move can wake hours later.
 var (
 	LateLookAfter = []time.Duration{15 * time.Minute, time.Hour, 24 * time.Hour}
-	// LateLookGrace is how long after the last look's time a look that can't
-	// reach the old database is tried again; then the looks end.
+	// LateLookGrace is how long, from the first look tried once the last one
+	// was due, a look that couldn't be made or didn't see everything can still
+	// be finished; then the looks end. From the first try, not the due time: a
+	// computer that was off for days still leaves a person time to act.
 	LateLookGrace = 24 * time.Hour
 	// lateRetryEvery is how often a look that couldn't be made is tried again.
 	lateRetryEvery = 10 * time.Minute
@@ -173,8 +176,11 @@ type lateLookRec struct {
 	Complete     bool       `bson:"complete"`
 	CompleteAt   *time.Time `bson:"completeAt,omitempty"`
 	CompleteFrom *time.Time `bson:"completeFrom,omitempty"`
-	// Gone: the old database is gone or empty.
+	// Gone: the old database has no records any more.
 	Gone bool `bson:"gone,omitempty"`
+	// GraceFrom is when a look was first tried once the last one was due:
+	// LateLookGrace counts from then.
+	GraceFrom *time.Time `bson:"graceFrom,omitempty"`
 	// LookingUntil: a look runs now, at most until then (one at a time).
 	LookingUntil *time.Time `bson:"lookingUntil,omitempty"`
 }
@@ -406,6 +412,11 @@ func lookAndRecord(ctx context.Context, a *app.App, db *store.DB, rec *lateLookR
 	defer func() {
 		_, _ = db.C(store.CLateLooks).UpdateOne(context.WithoutCancel(ctx), bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID()}, bson.M{"$unset": bson.M{"lookingUntil": ""}})
 	}()
+	if last, ok := rec.lastDue(); ok && !now.Before(last) && rec.GraceFrom == nil {
+		at := now
+		rec.GraceFrom = &at
+		_, _ = db.C(store.CLateLooks).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID()}, bson.M{"$set": bson.M{"graceFrom": at}})
+	}
 	o, err := lookLate(ctx, a, db, rec, old, when, now)
 	if err != nil {
 		_, _ = db.C(store.CLateLooks).UpdateOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID()},
@@ -426,6 +437,8 @@ func lookAndRecord(ctx context.Context, a *app.App, db *store.DB, rec *lateLookR
 		"complete": o.complete, "pass": o.pass, "unread": o.unread, "gone": o.gone}
 	if o.complete {
 		set["completeAt"], set["completeFrom"] = now, o.pass.From
+		from := o.pass.From
+		rec.CompleteFrom = &from
 	}
 	if done > rec.Done {
 		set["done"] = done
@@ -437,11 +450,11 @@ func lookAndRecord(ctx context.Context, a *app.App, db *store.DB, rec *lateLookR
 		bson.M{"$set": set, "$push": bson.M{"looks": LateLookTaken{At: now, When: when, Found: o.found, More: o.more, Settled: o.settled, Partial: o.partial, Stopped: o.stopped, Complete: o.complete}}})
 	switch {
 	case o.gone:
-		endLateLooks(ctx, a, db, rec.ID, "The old database is gone or empty, so there is nothing left to look at.", true)
+		endLateLooks(ctx, a, db, rec.ID, "The old database has no records any more, so there is nothing left to look at.", true)
 	case o.complete:
 		quietLateBell(ctx, a, db, "late_incomplete:"+rec.ID, "info", "MetaRush checked everything in the old database after all",
 			"A later look read all of the old database.")
-		if done >= len(rec.Due) && len(rec.Due) > 0 {
+		if done >= len(rec.Due) && len(rec.Due) > 0 && lateFinal(rec) {
 			endLateLooks(ctx, a, db, rec.ID, "MetaRush made its last look at the old database.", true)
 		}
 	case done >= len(rec.Due) && len(rec.Due) > 0:
@@ -450,6 +463,39 @@ func lookAndRecord(ctx context.Context, a *app.App, db *store.DB, rec *lateLookR
 		tellOwnersIncomplete(ctx, a, db, rec.ID)
 	}
 	return o, nil
+}
+
+// lastDue is when the last look is due.
+func (r *lateLookRec) lastDue() (time.Time, bool) {
+	if len(r.Due) == 0 {
+		return time.Time{}, false
+	}
+	return r.Due[len(r.Due)-1], true
+}
+
+// lateFinal reports what an all-clear needs: a read of everything that began
+// once the last look was due. One that began earlier may already have passed
+// a record a computer waking later then wrote to.
+func lateFinal(r *lateLookRec) bool {
+	last, ok := r.lastDue()
+	return !ok || (r.CompleteFrom != nil && !r.CompleteFrom.Before(last))
+}
+
+// lateGraceOver reports that the time to finish the looks ran out (LateLookGrace).
+func lateGraceOver(r *lateLookRec, now time.Time) bool {
+	return r.GraceFrom != nil && now.After(r.GraceFrom.Add(LateLookGrace))
+}
+
+// lateLower puts a sentence's words in the middle of another: a first word
+// that is a name (MetaRush, MongoDB) keeps its capitals.
+func lateLower(s string) string {
+	first, _, _ := strings.Cut(s, " ")
+	for i, c := range first {
+		if i > 0 && unicode.IsUpper(c) {
+			return s
+		}
+	}
+	return lowerFirst(s)
 }
 
 // lateServerHashesWork asks whether a database's server says its own hash of
@@ -523,9 +569,13 @@ func lookLate(ctx context.Context, a *app.App, db *store.DB, rec *lateLookRec, o
 	if err := db.C(store.CLateLooks).FindOne(ctx, bson.M{"_id": rec.ID, "workspaceId": a.WorkspaceID()}).Decode(&cur); err == nil {
 		rec.Found, rec.Pass = cur.Found, cur.Pass
 	}
-	// Going on with a pass that stopped part-way, or beginning a new one.
+	// Going on with a pass that stopped part-way, or beginning a new one. Past
+	// the last look's time a pass begun before it starts over: it may already
+	// have passed a record a computer waking later wrote to, or a kind made
+	// since, and an all-clear needs all of it read after that time (lateFinal).
 	pass := rec.Pass
-	if pass.Position == nil {
+	last, hasLast := rec.lastDue()
+	if pass.Position == nil || (hasLast && !now.Before(last) && pass.From.Before(last)) {
 		pass = latePass{ID: ids.New("lok"), From: now}
 	}
 	opts.From = pass.Position
@@ -817,20 +867,41 @@ func tellOwnersLate(ctx context.Context, a *app.App, db *store.DB, look *lateLoo
 			"What MetaRush found in the old database after the move was decided, or a later look found it as it was at the move again.")
 		return
 	}
-	var says []string
-	for i, e := range entries {
-		if i == 3 {
-			says = append(says, plural(len(entries)-3, "more thing"))
-			break
+	var others []collapsed
+	emptied, carryable := false, false
+	for _, e := range entries {
+		if e.rec.Kind == dbmove.LateEmptied {
+			emptied = true
+			continue
 		}
-		says = append(says, lateShort(e.rec, e.size))
+		others = append(others, e)
+		carryable = carryable || lateCarryable(e.rec)
 	}
-	body := fmt.Sprintf("After the workspace moved from %s, %s written there: %s.", look.From,
-		map[bool]string{true: "something was", false: plural(len(entries), "thing") + " were"}[len(entries) == 1], strings.Join(says, "; "))
-	if look.More > 0 {
-		body += " " + lateMoreWords(look, look.Found >= lateKeepPerMove)
+	body := ""
+	if len(others) > 0 {
+		var says []string
+		for i, e := range others {
+			if i == 3 {
+				says = append(says, plural(len(others)-3, "more thing"))
+				break
+			}
+			says = append(says, lateShort(e.rec, e.size))
+		}
+		body = fmt.Sprintf("After the workspace moved from %s, %s written there: %s.", look.From,
+			map[bool]string{true: "something was", false: plural(len(others), "thing") + " were"}[len(others) == 1], strings.Join(says, "; "))
+		if look.More > 0 {
+			body += " " + lateMoreWords(look, look.Found >= lateKeepPerMove)
+		}
+		if carryable {
+			body += " Nobody would see it in this database: carry it over, or leave it, in Settings → Storage → Move the database."
+		} else {
+			body += " Settings → Storage → Move the database says what to do."
+		}
 	}
-	body += " Nobody would see it in this database: carry it over, or leave it, in Settings → Storage → Move the database."
+	if emptied {
+		title = "The old database has no records any more"
+		body = strings.TrimSpace(lateEmptiedWords + " " + body)
+	}
 	if !loud {
 		quietLateBell(ctx, a, db, group, "warning", title, body)
 		return
@@ -957,7 +1028,7 @@ func lateTime(t time.Time) string { return t.Local().Format("2 Jan 15:04") }
 func lateShort(r lateWriteRec, size int) string {
 	switch r.Kind {
 	case dbmove.LateEmptied:
-		return "the old database itself, gone or empty"
+		return "the old database, with no records any more"
 	case dbmove.LateKindGone:
 		return fmt.Sprintf("all %s records of one kind (%s), removed", thousands(int(r.Count)), lateNoun(r.Collection))
 	}
@@ -983,8 +1054,7 @@ func lateShort(r lateWriteRec, size int) string {
 func lateSays(r lateWriteRec, size int, copyChanged bool) string {
 	switch r.Kind {
 	case dbmove.LateEmptied:
-		s := "The old database is gone or empty: every record it held is no longer there. If you removed it yourself, there is nothing to do; MetaRush removes nothing here because of it."
-		return s + lateDecidedWords(r)
+		return lateEmptiedWords + lateDecidedWords(r)
 	case dbmove.LateKindGone:
 		s := fmt.Sprintf("All %s records of one kind (%s) were removed from the old database after the move. They are still here: MetaRush never removes them by itself.", thousands(int(r.Count)), lateNoun(r.Collection))
 		return s + lateDecidedWords(r)
@@ -1037,6 +1107,18 @@ func lateSays(r lateWriteRec, size int, copyChanged bool) string {
 }
 
 func lateKeepDays() int { return int(LateCopyKeep / (24 * time.Hour)) }
+
+// lateEmptiedAdvice says what to do about an old database with no records.
+const lateEmptiedAdvice = "If you removed it, there is nothing to do. If you didn't, find out what happened, with whoever runs it or in your server's own tools, and get it back from a backup if you need anything from it."
+
+// lateEmptiedWords say what an old database with no records means.
+const lateEmptiedWords = "The old database has no records any more. " + lateEmptiedAdvice + " Nothing in this database changed because of it."
+
+// lateCarryable says whether a finding can go over at all: a record removed
+// there is never removed here, and what is only reported has no copy.
+func lateCarryable(r lateWriteRec) bool {
+	return !r.ReportOnly && r.Kind != dbmove.LateGone
+}
 
 // lateDecidedWords says what became of a finding that is only reported.
 func lateDecidedWords(r lateWriteRec) string {
@@ -1128,7 +1210,7 @@ const (
 	LateCheckedEverything = "everything" // the latest attempt read every kind, and nothing is left uncounted
 	LateCheckedPart       = "part"       // some was read; the latest attempt stopped, failed or left some uncounted
 	LateCheckedNothing    = "nothing"    // no look could be made
-	LateCheckedGone       = "gone"       // the old database is gone or empty
+	LateCheckedGone       = "gone"       // the old database has no records any more
 )
 
 // LateLookView is a move's looks at the old database.
@@ -1162,6 +1244,12 @@ type LateLookView struct {
 	// CanLook: a look can be made now, from where this is asked: this computer
 	// keeps the old database's address and the move's fingerprints.
 	CanLook bool `json:"canLook"`
+	// LookUntil: the last look didn't see everything, and MetaRush keeps the
+	// old database's address until then for someone to finish it.
+	LookUntil *time.Time `json:"lookUntil,omitempty"`
+	// WaitingCopies: how many of those waiting have a copy to carry over.
+	WaitingCopies  int `json:"waitingCopies"`
+	waitingEmptied int
 	// More: found and not kept; AtLimit: the move keeps no more, so they stay
 	// only counted. Partial: the last look stopped before it saw everything
 	// (Stopped says why); ReadsAll: every look reads the old database whole
@@ -1200,7 +1288,15 @@ func viewOfLook(ctx context.Context, a *app.App, db *store.DB, r *lateLookRec) *
 	var waiting []lateWriteRec
 	_ = db.Find(ctx, store.CLateWrites, a.WorkspaceID(), bson.M{"move": r.ID, "state": LateWaiting}, &waiting,
 		options.Find().SetProjection(bson.M{"old": 0, "key": 0}))
-	v.Waiting = len(collapse(waiting))
+	for _, e := range collapse(waiting) {
+		v.Waiting++
+		if e.rec.Kind == dbmove.LateEmptied {
+			v.waitingEmptied++
+		}
+		if lateCarryable(e.rec) {
+			v.WaitingCopies++
+		}
+	}
 	if len(r.Due) > 0 {
 		last := r.Due[len(r.Due)-1]
 		v.Last = &last
@@ -1212,14 +1308,20 @@ func viewOfLook(ctx context.Context, a *app.App, db *store.DB, r *lateLookRec) *
 	switch {
 	case r.Gone:
 		v.Checked = LateCheckedGone
-	case r.Complete:
+	case r.Complete && (!r.Ended || lateFinal(r)):
 		v.Checked = LateCheckedEverything
 	case len(r.Looks) > 0:
 		v.Checked = LateCheckedPart
 	default:
 		v.Checked = LateCheckedNothing
 	}
-	v.AllClear = r.Ended && v.Checked == LateCheckedEverything && v.Waiting == 0 && r.More == 0
+	// What an all-clear takes: the looks are over, and all of it was read after
+	// the last one was due, with nothing only counted and nothing waiting.
+	v.AllClear = r.Ended && v.Checked == LateCheckedEverything && lateFinal(r) && v.Waiting == 0 && r.More == 0
+	if !r.Ended && r.GraceFrom != nil && (!r.Complete || !lateFinal(r)) {
+		until := r.GraceFrom.Add(LateLookGrace)
+		v.LookUntil = &until
+	}
 	if v.Here && !r.Ended && KeepsLookAddress(a.Cfg, r.ID) {
 		if _, err := os.Stat(latePrintsFile(a, r.ID)); err == nil {
 			v.CanLook = true
@@ -1236,9 +1338,12 @@ func lateSummary(r *lateLookRec, v *LateLookView) string {
 	var s string
 	switch {
 	case r.Gone:
-		s = fmt.Sprintf("The old database (%s) is gone or empty, so MetaRush stopped looking at it.", r.From)
+		s = fmt.Sprintf("The old database (%s) has no records any more, so MetaRush stopped looking at it. %s", r.From, lateEmptiedAdvice)
 		if r.CompleteAt != nil {
 			s += " It last read all of it " + lateTime(*r.CompleteAt) + "."
+		}
+		if others := v.Waiting - v.waitingEmptied; others > 0 {
+			s += fmt.Sprintf(" %s it found before that still %s for you.", upperFirstWord(plural(others, "thing")), map[bool]string{true: "waits", false: "wait"}[others == 1])
 		}
 	case v.Waiting == 1:
 		s = fmt.Sprintf("Something was written into the old database (%s) after the move: carry it over, or leave it as it is here.", r.From)
@@ -1264,7 +1369,7 @@ func lateSummary(r *lateLookRec, v *LateLookView) string {
 		s += " The old database's server doesn't say by itself what changed, so each look reads all of it again."
 	}
 	if v.CompleteAt != nil && !r.Gone && v.CompleteFrom != nil && v.CompleteAt.Sub(*v.CompleteFrom) > time.Minute && v.Checked == LateCheckedEverything {
-		s += " It took several looks: what it read first was read " + lateTime(*v.CompleteFrom) + "."
+		s += fmt.Sprintf(" It read all of it between %s and %s, a part at a time: anything written to a part after it was read wouldn't show.", lateTime(*v.CompleteFrom), lateTime(*v.CompleteAt))
 	}
 	return s
 }
@@ -1278,15 +1383,17 @@ func lateIncompleteWords(r *lateLookRec, v *LateLookView, who string) string {
 	}
 	switch {
 	case r.Problem != "" && len(r.Looks) == 0:
-		s += ": no look could be made (" + lowerFirst(strings.TrimSuffix(r.Problem, ".")) + ")"
+		s += ": no look could be made (" + lateLower(strings.TrimSuffix(r.Problem, ".")) + ")"
 	case r.Problem != "":
-		s += ": its last look couldn't be made (" + lowerFirst(strings.TrimSuffix(r.Problem, ".")) + ")"
+		s += ": its last look couldn't be made (" + lateLower(strings.TrimSuffix(r.Problem, ".")) + ")"
 	case r.Partial:
 		s += ": the last look stopped part-way, " + r.Stopped + ", and didn't get to " + lateKindWords(r.Unread)
 	case r.More > 0:
 		s += ": it found more than it could keep"
 	case len(r.Looks) == 0:
 		s += ": it hasn't looked yet"
+	case r.Complete:
+		s += ": its last full read began before the last look was due"
 	}
 	s += "."
 	if r.CompleteAt != nil {
@@ -1306,6 +1413,13 @@ func lateIncompleteWords(r *lateLookRec, v *LateLookView, who string) string {
 		s += " " + who + " keeps its address: look again there."
 	default:
 		s += " This computer no longer keeps what it needs to look: keep the old database and look in it yourself before you remove it."
+	}
+	switch {
+	case v.LookUntil == nil || r.Ended || (r.More > 0 && v.AtLimit):
+	case v.CanLook:
+		s += " You have until " + lateTime(*v.LookUntil) + " to look again: after that MetaRush lets go of its address."
+	case !v.Here:
+		s += " It keeps it until " + lateTime(*v.LookUntil) + "."
 	}
 	if v.Next != nil {
 		s += " " + who + " looks again " + nextWords(v.Next) + "."
@@ -1473,6 +1587,22 @@ type DatabaseLateWritesOut struct {
 	Steps    []string `json:"steps"`
 }
 
+// lateNoLooks says what can be said with no looks on record: a database a move
+// finished copying into can't tell (the move didn't keep what the looks need),
+// and says what a person can do; any other had no move to look after. Never
+// that nothing was written.
+func lateNoLooks(ctx context.Context, a *app.App) (string, string) {
+	lock, err := a.DB.ReadRestoreLock(ctx)
+	switch {
+	case err != nil:
+		return "MetaRush couldn't read this database to tell whether the workspace moved here.", ""
+	case lock == nil || lock.Kind != store.LockMove || lock.State != store.RestoreDone:
+		return "No move into this database is on record, so there is no old database for MetaRush to look at.", ""
+	}
+	return "The workspace moved to this database, but MetaRush didn't keep what it needs to look at the old database, so it can't tell whether anything was written there late.",
+		"Keep the old database and look in it yourself, with your server's own tools, before you remove it."
+}
+
 // lateLooks are the looks recorded in this database, oldest move first.
 func lateLooks(ctx context.Context, a *app.App) []lateLookRec {
 	var recs []lateLookRec
@@ -1537,7 +1667,7 @@ func DatabaseLateWrites(ctx context.Context, a *app.App, in *DatabaseLateWritesI
 		case len(recs) > 0:
 			out.Problem = "MetaRush no longer looks at the old database: it made its last look and doesn't keep its address any more."
 		default:
-			out.Problem = "No move into this database is being looked after."
+			out.Problem, _ = lateNoLooks(ctx, a)
 		}
 		recs = lateLooks(ctx, a)
 	}
@@ -1583,15 +1713,36 @@ func DatabaseLateWrites(ctx context.Context, a *app.App, in *DatabaseLateWritesI
 		v.N = nums[i]
 		out.Found = append(out.Found, v)
 	}
+	written, carryable, removed := 0, 0, 0
+	for _, e := range entries {
+		if e.rec.State != LateWaiting || e.rec.Kind == dbmove.LateEmptied {
+			continue
+		}
+		written++
+		if lateCarryable(e.rec) {
+			carryable++
+		}
+		if e.rec.Kind == dbmove.LateGone || e.rec.Kind == dbmove.LateKindGone {
+			removed++
+		}
+	}
 	switch {
 	case len(out.Moves) == 0:
-		out.Summary = "No move into this database is being looked after: nothing was written late."
-	case out.Waiting > 0:
-		out.Summary = fmt.Sprintf("%s written into the old database after the move %s for a person.", upperFirstWord(plural(out.Waiting, "thing")),
-			map[bool]string{true: "waits", false: "wait"}[out.Waiting == 1])
-		out.Steps = append(out.Steps, "Carry each over into this database (only while this database's own record is still the one the move copied; the records of one clip go over together: if any changed here, none does), or leave it as it is here.",
-			"A record removed from the old database is never removed here by MetaRush: if it should go, remove it here yourself, then leave it.",
-			fmt.Sprintf("MetaRush keeps its copy of each for %d days for someone to decide, then lets it go.", lateKeepDays()))
+		note, step := lateNoLooks(ctx, a)
+		out.Summary = note
+		if step != "" {
+			out.Steps = append(out.Steps, step)
+		}
+	case written > 0:
+		out.Summary = fmt.Sprintf("%s written into the old database after the move %s for a person.", upperFirstWord(plural(written, "thing")),
+			map[bool]string{true: "waits", false: "wait"}[written == 1])
+		if carryable > 0 {
+			out.Steps = append(out.Steps, "Carry each over into this database (only while this database's own record is still the one the move copied; the records of one clip go over together: if any changed here, none does), or leave it as it is here.",
+				fmt.Sprintf("MetaRush keeps its copy of each for %d days for someone to decide, then lets it go.", lateKeepDays()))
+		}
+		if removed > 0 {
+			out.Steps = append(out.Steps, "A record removed from the old database is never removed here by MetaRush: if it should go, remove it here yourself, then leave it.")
+		}
 	default:
 		out.Summary = out.Moves[len(out.Moves)-1].Summary
 	}
@@ -1982,7 +2133,7 @@ func DatabaseLateCarry(ctx context.Context, a *app.App, in *DatabaseLateDecideIn
 	case n > 0:
 		out.Summary = fmt.Sprintf("Carried %s over; %s not: see why, and compare both versions first.", plural(n, "record"), plural(len(out.Refused), "thing"))
 	default:
-		out.Summary = fmt.Sprintf("Nothing was carried over: %s", lowerFirst(out.Refused[0].Why))
+		out.Summary = fmt.Sprintf("Nothing was carried over: %s", lateLower(out.Refused[0].Why))
 	}
 	if len(out.Warnings) > 0 {
 		out.Summary += " " + strings.Join(out.Warnings, " ")
@@ -2017,7 +2168,9 @@ func carryEntry(ctx context.Context, a *app.App, r lateWriteRec, members []lateW
 			return "being_carried", lateBeingCarried, 0, "", nil
 		case m.State != LateWaiting:
 			return "decided", "That record was " + map[string]string{LateCarried: "carried over", LateLeft: "left as it is here", LateSettled: "settled by a later look"}[m.State] + " already.", 0, "", nil
-		case m.Kind == dbmove.LateEmptied || m.Kind == dbmove.LateKindGone:
+		case m.Kind == dbmove.LateEmptied:
+			return "gone", "There is nothing to carry over: the old database has no records any more.", 0, "", nil
+		case m.Kind == dbmove.LateKindGone:
 			return "gone", "MetaRush never removes anything here because it went from the old database: if you want it gone here too, remove it yourself, then leave this.", 0, "", nil
 		case m.ReportOnly:
 			return "report_only", upperFirstWord(lateNoun(r.Collection)) + " is a kind of record MetaRush only reports. " + lateReportAdvice(r.Collection), 0, "", nil
@@ -2044,7 +2197,7 @@ func carryEntry(ctx context.Context, a *app.App, r lateWriteRec, members []lateW
 	if changedHere > 0 {
 		if len(members) > 1 {
 			return "changed_here", fmt.Sprintf("%d of %s changed here too since the move (or another record took its place), so nothing was carried over: these go over together.",
-				changedHere, lowerFirst(what)), 0, "", nil
+				changedHere, lateLower(what)), 0, "", nil
 		}
 		return "changed_here", "This database's " + strings.TrimPrefix(strings.TrimPrefix(lateNoun(r.Collection), "a "), "an ") + " was changed too since the move (or another record took its place), so carrying the old database's version over would lose that change.", 0, "", nil
 	}
@@ -2182,7 +2335,7 @@ func DatabaseLateLeave(ctx context.Context, a *app.App, in *DatabaseLateDecideIn
 	out := &DatabaseLateLeaveOut{Left: []LateWriteView{}}
 	now := time.Now().UTC()
 	who := firstNonEmpty(a.Actor.UserName, "a person")
-	total, busy := 0, 0
+	total, busy, noted := 0, 0, 0
 	looks := map[string]*lateLookRec{}
 	counted := 0
 	for _, ref := range refs {
@@ -2213,7 +2366,11 @@ func DatabaseLateLeave(ctx context.Context, a *app.App, in *DatabaseLateDecideIn
 		if left == 0 {
 			continue
 		}
-		total += left
+		if ref.rec.Kind == dbmove.LateEmptied || ref.rec.Kind == dbmove.LateKindGone {
+			noted += left // not a record kept here: a fact seen
+		} else {
+			total += left
+		}
 		r := ref.rec
 		r.State, r.DecidedBy, r.DecidedAt, r.Old, r.Kept = LateLeft, who, &now, nil, false
 		v := viewOfLate(r, left, false)
@@ -2233,10 +2390,12 @@ func DatabaseLateLeave(ctx context.Context, a *app.App, in *DatabaseLateDecideIn
 		}
 	}
 	switch {
-	case total == 0 && busy > 0:
+	case total == 0 && noted == 0 && busy > 0:
 		return nil, apperr.New(apperr.Conflict, "%s", lateBeingCarried).WithDetails(map[string]any{"reason": "being_carried"})
-	case total == 0:
+	case total == 0 && noted == 0:
 		out.Summary = "Nothing was waiting: those were decided already."
+	case total == 0:
+		out.Summary = "Noted. Nothing in this database changed because of it."
 	default:
 		out.Summary = fmt.Sprintf("Left %s as %s here: this database keeps its own.", plural(total, "record"), map[bool]string{true: "it is", false: "they are"}[total == 1])
 		if counted > 0 {
@@ -2307,10 +2466,15 @@ func LookDueLate(ctx context.Context, a *app.App, now time.Time) []string {
 		if r.Done >= len(r.Due) {
 			// The last look didn't see everything: a person can still look, for
 			// a while.
+			if r.GraceFrom == nil {
+				at := now
+				r.GraceFrom = &at
+				_, _ = a.DB.C(store.CLateLooks).UpdateOne(ctx, bson.M{"_id": r.ID, "workspaceId": a.WorkspaceID()}, bson.M{"$set": bson.M{"graceFrom": at}})
+			}
 			switch {
-			case r.Complete:
+			case r.Complete && lateFinal(r):
 				endLateLooks(ctx, a, a.DB, r.ID, "MetaRush made its last look at the old database.", true)
-			case now.After(r.Due[len(r.Due)-1].Add(LateLookGrace)):
+			case lateGraceOver(r, now):
 				endLateLooks(ctx, a, a.DB, r.ID, "MetaRush's last look didn't see everything and nobody finished it, so it stopped looking and no longer keeps the old database's address.", false)
 				said = append(said, fmt.Sprintf("stopped looking at the old database (%s): its last look didn't see everything", r.From))
 			}
@@ -2330,18 +2494,18 @@ func LookDueLate(ctx context.Context, a *app.App, now time.Time) []string {
 			// The address or the fingerprints are gone from this computer: no
 			// later look could be made either.
 			endLateLooks(ctx, a, a.DB, r.ID, lateProblemWords(err)+" MetaRush stopped looking at the old database.", false)
-			said = append(said, fmt.Sprintf("stopped looking at the old database (%s): %s", r.From, lowerFirst(strings.TrimSuffix(lateProblemWords(err), "."))))
+			said = append(said, fmt.Sprintf("stopped looking at the old database (%s): %s", r.From, lateLower(strings.TrimSuffix(lateProblemWords(err), "."))))
 		case err == nil && o.partial:
 			said = append(said, fmt.Sprintf("looked at the old database (%s) again, part of it: %s; %s found", r.From, o.stopped, plural(o.found, "record")))
 		case err == nil && o.found > 0:
 			said = append(said, fmt.Sprintf("looked at the old database (%s) again: %s written there after the move", r.From, plural(o.found, "record")))
 		case err == nil:
 			said = append(said, fmt.Sprintf("looked at the old database (%s) again: nothing new", r.From))
-		case now.After(r.Due[len(r.Due)-1].Add(LateLookGrace)):
+		case lateGraceOver(r, now):
 			endLateLooks(ctx, a, a.DB, r.ID, "MetaRush couldn't reach the old database for its last look, so it stopped looking and no longer keeps its address.", false)
 			said = append(said, fmt.Sprintf("stopped looking at the old database (%s): it couldn't be reached", r.From))
 		default:
-			said = append(said, fmt.Sprintf("couldn't look at the old database (%s) again: %s", r.From, lowerFirst(strings.TrimSuffix(lateProblemWords(err), "."))))
+			said = append(said, fmt.Sprintf("couldn't look at the old database (%s) again: %s", r.From, lateLower(strings.TrimSuffix(lateProblemWords(err), "."))))
 		}
 	}
 	return said

@@ -69,3 +69,10 @@ func SetLateLookAfter(d []time.Duration) func() {
 	LateLookAfter = d
 	return func() { LateLookAfter = old }
 }
+
+// SetLateKeepFails plays a move that can't keep what the looks afterwards
+// need; the returned func undoes it.
+func SetLateKeepFails() func() {
+	lateKeepFails = true
+	return func() { lateKeepFails = false }
+}

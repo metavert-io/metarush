@@ -1228,7 +1228,7 @@ server.
   last change there. The computer that moved looks at the old database again right after the move, then about 15
   minutes, an hour and a day later (only reading it, within limits, going on from where it stopped), and owners' bells
   ring when it finds something, or when it couldn't check everything: it says "nothing was written" only after reading
-  all of it. Carry each record over (only while this database's own is still the one the move copied; otherwise you see
+  all of it, from the start once the last look was due. Carry each record over (only while this database's own is still the one the move copied; otherwise you see
   both versions; one clip's transcript whole or not at all) or leave it, in the card or with `metarush database
   late-writes`; a record removed there is never removed here. Passwords, sign-in links and upload addresses are only
   reported, never copied, shown or carried over; other copies go once you decide, or after 30 days.

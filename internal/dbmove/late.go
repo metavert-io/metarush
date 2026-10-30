@@ -48,7 +48,7 @@ const (
 	LateChanged = "changed" // in both, different in the old database now
 	LateGone    = "gone"    // in the copy, gone from the old database since
 	// A whole kind of record gone from the old database (one finding, Count
-	// records), and the whole database gone or empty.
+	// records), and the whole database with no records.
 	LateKindGone = "kind-gone"
 	LateEmptied  = "emptied"
 )
@@ -327,7 +327,7 @@ func RecheckPrinting(ctx context.Context, from, to *store.DB, res *Result, move 
 
 // Late is one thing a look found written into the old database after the
 // move: one record, a whole kind of record gone (LateKindGone), or the whole
-// database gone or empty (LateEmptied).
+// database with no records (LateEmptied).
 type Late struct {
 	Collection string
 	// ID is the record's _id (Key the same as bytes: its type, then its value).

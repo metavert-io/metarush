@@ -17819,6 +17819,9 @@
         "late": {
           "$ref": "#/$defs/LateLookView"
         },
+        "lateNote": {
+          "type": "string"
+        },
         "summary": {
           "type": "string"
         }
@@ -29417,6 +29420,13 @@
         "canLook": {
           "type": "boolean"
         },
+        "lookUntil": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "waitingCopies": {
+          "type": "integer"
+        },
         "more": {
           "type": "integer"
         },
@@ -29455,6 +29465,7 @@
         "allClear",
         "unread",
         "canLook",
+        "waitingCopies",
         "more",
         "atLimit",
         "partial",

@@ -1082,7 +1082,7 @@ Read `docs/architecture.md` before structural changes.
   `database` section, checked as loaded) → `recordMove` into the new database. No job (the old database is frozen):
   progress is `<state>/database-move/<id>.json`; the dashboard starts `database move --dashboard-move <id>` with
   `tools.Start` and a one-time grant like the media's move. Never deletes either database. **Something written late**
-  (D352–D359, D371, `internal/dbmove/late.go`, `internal/ops/databasemove_late.go`, `web/src/screens/settings/DatabaseLateWrites.tsx`):
+  (D352–D359, D371, D374, `internal/dbmove/late.go`, `internal/ops/databasemove_late.go`, `web/src/screens/settings/DatabaseLateWrites.tsx`):
   the last look's read keeps every record's fingerprint (`RecheckPrinting` → `<state>/database-move/<move>.prints`)
   and the move keeps the old address (`keepLookAddress`: keychain `database-late-<move>` / `database/late-<move>.secret`,
   never `forgetUnneededAddress`'s); the moving computer looks right after its switch (`startLateLooks`, also after a
@@ -1093,8 +1093,12 @@ Read `docs/architecture.md` before structural changes.
   `MaxBytes`/`MaxTime`/`Pace`: `lateBackground` 256 MB, 5 min, stops and says so, the next look goes on (`From`,
   `Position`, `latePass`); `lateAsked` 16 GB, 2 h). **"Nothing was written" only after a complete look**: `complete`
   (a pass read everything, nothing only counted, no failed look since) → `LateLookView.Checked`, `AllClear` (over and
-  complete: what a script trusts), `lateSummary`, `tellOwnersIncomplete`; an old database removed is one finding
-  (`Emptied`, `Gone`);
+  complete: what a script trusts), `lateSummary`, `tellOwnersIncomplete`. **An all-clear needs a complete pass begun at
+  or after the last look's due time** (`lateFinal`; `lookLate` starts a pass over past that time, so a sleeper's write
+  into a record already passed, or a kind made mid-pass, can't slip by). `LateLookGrace` counts from the first look tried
+  once the last was due (`graceFrom`, `lateGraceOver`, `LookUntil`). No looks on record: `lateNoLooks` says it can't tell
+  (a finished move's lock) or that no move came here, never "nothing was written". An old database with no records is
+  one finding with its own words (`Emptied`, `Gone`, `lateEmptiedWords`);
   records `late_looks`/`late_writes` (migration 62; `late_writes` left out of exports), bell `late_writes` only when
   something is found; a look that saw everything settles what it didn't find (`seenBy`, copy dropped); it keeps
   `lateKeepPerLook` new records (the rest counted, `more`; later looks go on past them). **Secrets**:

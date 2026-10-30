@@ -15,8 +15,11 @@
   `late-writes show|carry|leave` decide, owners and people only, at their own terminal. A look only reads the old
   database, within limits, going on next time from where it stopped (Atlas's Free and Flex clusters make every look read
   all of it, and the plan says so), and once the last one is made MetaRush no longer keeps its address. "Nothing was
-  written" is said only after a look read everything: otherwise MetaRush says it couldn't check everything, what it
-  didn't get to and what you can do, and rings the bell. An old database you removed yourself is one finding.
+  written" is said only after a look read everything, and the last word only after a read begun once the last look was
+  due, so a computer waking late can't slip past: otherwise MetaRush says it couldn't check everything, what it didn't
+  get to and what you can do, and rings the bell. A computer off for days still leaves you a day to look. When a move
+  couldn't keep what the looks need, MetaRush says it can't tell. An old database with no records is one finding, which
+  says what to do whether or not you removed it.
 - **Hand a computer's role to another computer**. Replacing a laptop or moving the team onto an always-on Mac mini:
   Settings → Storage → **Hand over this computer's role…** (owners) or `metarush machine handover plan --to
   <computer>` lists everything tied to this computer and what happens to each — the conversations in Claude's panel,

@@ -17593,6 +17593,8 @@ completeAt?: string
 completeFrom?: string
 unread: string[]
 canLook: boolean
+lookUntil?: string
+waitingCopies: number
 more: number
 atLimit: boolean
 partial: boolean
@@ -17716,6 +17718,7 @@ command?: string
 moving: boolean
 run?: DatabaseMoveRunView
 late?: LateLookView
+lateNote?: string
 summary: string
 }
 /**

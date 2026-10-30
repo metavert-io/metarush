@@ -418,6 +418,9 @@ func printDatabaseMoveStatus(c *cobra.Command, s *ops.DatabaseMoveStatusOut) {
 	for _, st := range s.Steps {
 		fmt.Println("  - " + st)
 	}
+	if s.LateNote != "" {
+		fmt.Println(s.LateNote)
+	}
 	if s.Late != nil {
 		fmt.Println(s.Late.Summary)
 		if s.Late.Ended && s.Late.EndedWhy != "" {

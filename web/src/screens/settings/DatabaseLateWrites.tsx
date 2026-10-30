@@ -22,7 +22,7 @@ import { Badge, Button, cx, Details, Spinner, Theirs } from '../../ui/primitives
  * time, and what a later look no longer finds settles by itself.
  */
 
-const KIND: Record<string, string> = { new: 'added there', changed: 'changed there', gone: 'removed there', 'kind-gone': 'removed there', emptied: 'gone or empty' };
+const KIND: Record<string, string> = { new: 'added there', changed: 'changed there', gone: 'removed there', 'kind-gone': 'removed there', emptied: 'no records' };
 const DONE: Record<string, string> = { carried: 'carried over', left: 'left as it is', settled: 'nothing to carry over', carrying: 'being carried over' };
 
 export function LateWrites({ late, onChanged }: { late: LateLookView; onChanged: () => void }) {
@@ -61,7 +61,7 @@ export function LateWrites({ late, onChanged }: { late: LateLookView; onChanged:
               {late.endedWhy}
             </div>
           ) : null}
-          {late.found > 0 && late.waiting > 0 ? (
+          {late.waitingCopies > 0 ? (
             <div className="mt-0.5 text-[12.5px] text-muted" data-database-late-keep>
               MetaRush keeps its copies for {late.copyDays} days for someone to decide, then lets them go.
             </div>
@@ -175,7 +175,10 @@ function LateItem({ f, onDecided }: { f: LateWriteView; onDecided: () => void })
       body: (
         <div className="space-y-2">
           <p>{f.says}</p>
-          <p>This database keeps its own{f.reportOnly ? '' : ' and MetaRush lets its copy go'}. What was found stays in this list as decided.</p>
+          <p>
+            {f.kind === 'emptied' || f.kind === 'kind-gone' ? 'Nothing in this database changes.' : `This database keeps its own${f.reportOnly ? '' : ' and MetaRush lets its copy go'}.`} What was found stays in
+            this list as decided.
+          </p>
         </div>
       ),
       confirmLabel: f.reportOnly ? 'Yes' : 'Leave it',
@@ -202,7 +205,7 @@ function LateItem({ f, onDecided }: { f: LateWriteView; onDecided: () => void })
             <Badge tone={f.kind === 'gone' ? 'danger' : 'accent'}>{KIND[f.kind] ?? f.kind}</Badge>
             {waiting ? null : <Badge tone={f.state === 'carried' ? 'ok' : 'neutral'}>{DONE[f.state] ?? f.state}</Badge>}
             {f.groupSize > 1 ? <Badge tone="neutral">{f.groupSize} records together</Badge> : null}
-            {f.reportOnly ? <Badge tone="info">only reported</Badge> : null}
+            {f.reportOnly && f.kind !== 'emptied' ? <Badge tone="info">only reported</Badge> : null}
             {waiting && f.copyChanged ? <Badge tone="info">changed here too</Badge> : null}
           </div>
           <p className="mt-0.5 text-muted">{f.says}</p>

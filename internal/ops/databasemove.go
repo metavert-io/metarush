@@ -1009,7 +1009,7 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 	}
 	// The old database's address stays on this computer until the last look
 	// at it (D353); without it, or the fingerprints, there are no looks.
-	lateOK := printsOK && keepLookAddress(a.Cfg, moveID, a.Cfg.Database.URI) == nil
+	lateOK := printsOK && !lateKeepFails && keepLookAddress(a.Cfg, moveID, a.Cfg.Database.URI) == nil
 	if !lateOK {
 		forgetLookAddress(a, moveID)
 	}
@@ -1106,6 +1106,10 @@ func moveAlive(ctx context.Context, a *app.App, m *store.MoveMarker) bool {
 // switchFails, set by tests, makes a move's own switch fail after the old
 // database was marked moved.
 var switchFails func() error
+
+// lateKeepFails, set by tests, plays a move that can't keep what the looks
+// afterwards need.
+var lateKeepFails bool
 
 func copyLabel(p dbmove.CopyProgress) string {
 	if p.Phase == "checking" {

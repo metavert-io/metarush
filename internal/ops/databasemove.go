@@ -1060,7 +1060,7 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 	} else if out.Late.Waiting > 0 {
 		out.Next = append(out.Next, out.Late.Summary+" Settings → Storage → Move the database shows it (metarush database late-writes).")
 	} else {
-		out.Next = append(out.Next, "MetaRush looks at the old database again in about 15 minutes, an hour and a day, for anything a computer that was asleep wrote there late, and says so if it finds something.")
+		out.Next = append(out.Next, lateLooksAgainWords)
 	}
 	// MetaRush running in the background here starts again with the new
 	// database (it follows config.yaml).

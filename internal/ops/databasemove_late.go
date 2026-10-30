@@ -1899,6 +1899,10 @@ type DatabaseLateLeaveOut struct {
 	Summary string          `json:"summary"`
 }
 
+// lateLooksAgainWords is what a finished move says of its looks to come (its
+// record keeps it: database.move.status leaves it out once they are over).
+const lateLooksAgainWords = "MetaRush looks at the old database again in about 15 minutes, an hour and a day, for anything a computer that was asleep wrote there late, and says so if it finds something."
+
 // lateBeingCarried is said of a record a carry-over claimed.
 const lateBeingCarried = "It is being carried over right now (one that stopped part-way lets go of it within 10 minutes): try again then."
 

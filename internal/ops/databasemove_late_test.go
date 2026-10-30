@@ -367,6 +367,11 @@ func TestLateLooksKeepTheAddressUntilTheLast(t *testing.T) {
 	if said := ops.LookDueLate(ctx, n, rec.Due[2].Add(time.Hour)); len(said) != 0 {
 		t.Fatalf("a look after the last: %v", said)
 	}
+	// The move's record no longer promises looks that are over.
+	ms, err := ops.CallTyped[ops.DatabaseMoveStatusOut](ctx, n, "database.move.status", ops.DatabaseMoveStatusIn{}, ops.Caller{})
+	if err != nil || ms.Run == nil || slices.ContainsFunc(ms.Run.Next, func(s string) bool { return strings.Contains(s, "looks at the old database again") }) {
+		t.Fatalf("the status after the last look: %+v %v", ms, err)
+	}
 	lw, err := ops.CallTyped[ops.DatabaseLateWritesOut](ctx, n, "database.late.writes", ops.DatabaseLateWritesIn{Look: true}, ops.Caller{})
 	if err != nil || lw.Looked || !strings.Contains(lw.Problem, "no longer looks") {
 		t.Fatalf("asking after the last look: %+v %v", lw, err)

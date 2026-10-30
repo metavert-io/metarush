@@ -38,8 +38,12 @@ Read `docs/architecture.md` before structural changes.
 - **Durable jobs on MongoDB leases** (heartbeats, retries, recovery, idempotency; a lease ends by the database server's
   time, `$$NOW` + `LeaseDuration`, and is compared with `$$NOW`, and so is when a job may run, `nextRunAt`; every time
   compared across computers — heartbeats, claims, due times, stale markers, expiries — is the server's: in the query or
-  update (`store.SeenWithin|StaleBefore|DueBy|ServerTimeIn`, `$currentDate`), else `store.DB.Now` (one round trip a
-  minute, an offset to this computer's clock), never `time.Now()`; tests skew with `testutil.SkewClock`; D360);
+  update (`store.SeenWithin|StaleBefore|DueBy|ServerTimeIn`, `$currentDate`), else `store.DB.Now`/`NowOrLocal` (an offset
+  to this computer's clock, measured a round trip a minute behind the callers; only the first measurement and a moment
+  after the clock jumps are waited for), never `time.Now()`; displays that read those stamps use it too. Tests skew with
+  `testutil.SkewClock`. `TestNothingComparesWithThisComputersClock` (`internal/store/clockguard_test.go`, reads the code
+  only) fails on a new comparison or write by this computer's clock: a place only this computer ever reads goes in its
+  `clockAllowed` by file and function, with how many places and why; an entry that no longer matches fails too. D360, D368–D370);
   workers coordinate only via the DB;
   heavy jobs defer on low battery (threshold, override) — never silently. A stopping worker releases its job (attempt
   not counted, never failed); a terminal's `--wait` runs only the jobs it waits for (`LeaseAmong`) and keeps them

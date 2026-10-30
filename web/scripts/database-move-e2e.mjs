@@ -15,13 +15,14 @@
 //   4. a project written straight into the old database after the move (a
 //      computer that slept through it) is found by the studio's next look,
 //      shown on its card in plain words with the bell, compared, and carried
-//      over after a styled dialog (D352–D358);
+//      over after a styled dialog (D352–D358), and looks that can't go on
+//      never read as an all-clear (D370);
 //   5. no native dialogs, page errors or horizontal overflow; the cards in
 //      plain words. Screenshots: desktop dark and light, phone, in
 //      DATABASE_SHOTS.
 // It CHANGES both installations, so point it only at throwaway ones.
 import { execFileSync, execSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -29,7 +30,7 @@ import { checkShown } from './plainwords.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..');
-const need = ['METARUSH_DASHBOARD_A', 'METARUSH_MINT_A', 'METARUSH_DASHBOARD_B', 'METARUSH_MINT_B', 'DATABASE_ADDRESS', 'DATABASE_NEW', 'DATABASE_OLD', 'DATABASE_LATE_WRITER', 'DATABASE_SHOTS'];
+const need = ['METARUSH_DASHBOARD_A', 'METARUSH_MINT_A', 'METARUSH_DASHBOARD_B', 'METARUSH_MINT_B', 'DATABASE_ADDRESS', 'DATABASE_NEW', 'DATABASE_OLD', 'DATABASE_LATE_WRITER', 'DATABASE_MOVE_STATE', 'DATABASE_SHOTS'];
 for (const k of need) {
   if (!process.env[k]) {
     console.error(`set ${need.join(', ')} (scripts/database-move-e2e.sh does)`);
@@ -330,6 +331,30 @@ async function main() {
   await plain(b, 'after switching');
   await b.locator('section#database').scrollIntoViewIfNeeded();
   await shot(b, 'database-switched-desktop-dark');
+
+  /* ---------- looks that can't go on are never an all-clear ---------- */
+  // The studio loses the move's fingerprints: nothing was found since the last
+  // look, but the later looks can't be made, so the card must not read as clear.
+  for (const f of readdirSync(process.env.DATABASE_MOVE_STATE)) {
+    if (f.endsWith('.prints')) rmSync(path.join(process.env.DATABASE_MOVE_STATE, f));
+  }
+  await open(a, `${process.env.METARUSH_DASHBOARD_A}/settings/storage#database`);
+  const lateAgain = sec.locator('[data-database-late]');
+  await lateAgain.waitFor({ timeout: 30_000 });
+  await lateAgain.getByRole('button', { name: 'Look again now' }).click();
+  await sec.locator('[data-database-late="incomplete"]').waitFor({ timeout: 60_000 });
+  const incompleteText = await sec.locator('[data-database-late]').innerText();
+  check('a look that can\u2019t be made reads as not checked', incompleteText.includes('couldn\u2019t check everything') || incompleteText.includes("couldn't check everything"), incompleteText.split('\n')[1]);
+  check('it never reads as an all-clear', !/Nothing was written/.test(incompleteText));
+  check('it says why the looks ended', (await sec.locator('[data-database-late-ended]').count()) === 1);
+  check('it offers no look that can\u2019t be made', (await sec.getByRole('button', { name: 'Look again now' }).count()) === 0 && !/Look again/.test(incompleteText));
+  const lateState = await op(a, 'database.late.writes', {});
+  check('a script can trust it', lateState.ok && lateState.data.allClear === false && lateState.data.moves.at(-1).checked === 'part' && lateState.data.moves.at(-1).allClear === false);
+  const bellAgain = await op(a, 'notification.list', {});
+  check('owners hear of it on the bell', bellAgain.ok && bellAgain.data.notifications.filter((n) => n.title.includes('couldn\u2019t check everything') || n.title.includes("couldn't check everything")).length === 1);
+  await plain(a, 'looks that couldn\u2019t finish');
+  await sec.locator('[data-database-late]').scrollIntoViewIfNeeded();
+  await shot(a, 'database-late-incomplete-desktop-dark');
 
   await browser.close();
   for (const p of problems) check(p, false);

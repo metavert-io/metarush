@@ -164,16 +164,29 @@ one again and says what it finds:
   network, in order, beside its fingerprints, one record at a time. **MongoDB Atlas's Free and Flex clusters don't offer
   that hash** (the plan says so when yours doesn't): then every look reads the whole old database over the network. So
   a look keeps to bounds: one MetaRush makes by itself reads at most 256 MB, for at most 5 minutes, with a short pause
-  every 1,000 records; past either it stops and says so (*"stopped part-way"*), settles nothing, and isn't tried again.
-  One you ask for reads up to 16 GB, for up to 2 hours. When the last look stopped part-way, MetaRush keeps the address
-  one more day, so you can look at everything yourself.
+  every 1,000 records; past either it stops and says so (*"stopped part-way"*), settles nothing, and isn't tried again:
+  **the next look goes on from where it stopped**, so a large database is got through over several looks. One you ask
+  for reads up to 16 GB, for up to 2 hours. When the last look didn't get through everything, MetaRush keeps the address
+  one more day, so you can look yourself.
+- **"Nothing was written" is said only after a look read everything**, every kind of record, with nothing left only
+  counted. Otherwise the card, `move-status` and `late-writes` say plainly that MetaRush **couldn't check everything**,
+  what it didn't get to and what you can do, and owners' bells ring once (brought up to date when the looks end). That
+  holds whatever the reason: looks that stopped part-way, an old database that couldn't be reached, fingerprints lost.
+  With `--json`, `checked` says how far the looks got (`everything`, `part`, `nothing`, `gone`) and **`allClear` is true
+  only once the looks are over, their last one read everything, nothing was left only counted and nothing waits for a
+  person**: that is the field for a script. Once the address is gone no look can be made, so none is offered: if
+  something may have been written there, keep the old database and look in it yourself before you remove it.
+- **An old database you removed or emptied** (you may, once every computer uses the new one) is one finding, not one per
+  record: *"The old database is gone or empty"*. The looks end there, and what they found before stays to decide. A whole
+  kind of record gone that held 50 records or more is one finding too. Other records removed count against a look's bounds.
 - **what you see**: nothing at all when nothing was found. Otherwise owners' bells ring once (refreshed as more is
   found): which kinds of record were added, changed or removed, about when (as the record says), and on which computer
   when the record says. Settings → Storage → Move the database lists them, numbered; `metarush database late-writes`
   too (`--skip`, `--limit` for a long list), and `move-status` and the card say when the next look is. The records of
   one clip's transcript, its first transcript, what was learned from it, its voices or its faces, and one batch of
-  transcript fixes, are one entry. One look keeps up to 2,000 records it finds for the first time (20,000 for one
-  move): it says how many more it found, and each later look goes on past those it already keeps.
+  transcript fixes, are one entry. One look keeps up to 2,000 records it finds for the first time: it says how many more
+  it found, and each later look goes on past those it already keeps. A move keeps at most 20,000: past that the rest are
+  **only counted** and stay in the old database, and the looks say so (they don't read as complete).
 - **what stops being true settles by itself**: a look that saw everything lets go of what it found before and no longer
   finds (a record back as it was at the move, a new one removed again): nothing to carry over any more, and its copy is
   gone. Only the version the latest look saw carries over.
@@ -181,10 +194,14 @@ one again and says what it finds:
   in a terminal, a person at their own): *Carry it over* puts the old database's version into this database — only
   while this database's own record is still exactly the one the move copied (checked and set in one step). When it
   changed here too, or another record took its place, nothing changes: both versions are shown side by side (*Compare*,
-  `late-writes show <n>`) and you decide. An entry of several records goes over whole or not at all, and not while the
-  last look left some unlisted. *Leave it* keeps this database's own. A record **removed** from the old database is
-  never removed here by MetaRush: if it should go, remove it here yourself, then leave it. Each decision is in the
-  change history and the activity log.
+  `late-writes show <n>`) and you decide. For an entry of several records, MetaRush checks them all first: if any changed
+  here, none goes over. If one changes in the moment they go over, the others still go, and it says which stayed behind.
+  It doesn't start while the last look left some unlisted (look again first); when no look can complete it any more it
+  says so, and you can leave it: what was found stays uncarried, and the rest stays only in the old database. *Leave it*
+  keeps this database's own. A record **removed** from the old database is
+  never removed here by MetaRush: if it should go, remove it here yourself, then leave it. Each record carried over or
+  left is in the change history and the activity log. A carry-over that stopped part-way (the computer went away) lets go
+  of the record it held within 10 minutes; until then it says it is being carried, and carrying again finishes it.
 
 ```bash
 metarush database late-writes            # look again now (on the computer that moved, while it keeps the address) and list
@@ -202,8 +219,9 @@ them and not even their IDs, never shows them, and never carries them over: it s
 
 For every other kind, *Compare* and `late-writes show` leave out what MetaRush never shows anywhere (a review link's key,
 where a file is kept, voice and face prints, claims on work, what a conversation keeps for Claude: `models.NeverShown`,
-listed as *Left out*) and take out anything shaped like a key, a password in an address or a sign-in token, as a
-workspace export does.
+listed as *Left out*), any field whose name looks like a secret, at any depth (`apiToken`, `clientSecret`, a password: a
+number such as a token limit stays), and take out anything shaped like a key, a password in an address or a sign-in token,
+as a workspace export does.
 
 ### How long copies stay
 
@@ -291,16 +309,20 @@ Every command takes `--json` and `--details`. The operations are `database.plan`
   every record's fingerprint (`_id` and the first 16 bytes of the SHA-256 of its export line, per kind the server's
   `dbHash`, in a gzip'd file `<state>/database-move/<move>.prints`) in the same read as the last look; `Look` reads only
   the old database (`dbHash` per kind; a changed kind streamed in `_id` order, one class of `_id` type at a time, and
-  merged with its fingerprints, holding one record at a time; `LookOptions` `Each`, `MaxBytes`, `MaxTime`, `Pace`); the
-  old database's address for the looks (`keepLookAddress`: keychain `database-late-<move>` or
-  `database/late-<move>.secret`), dropped with the fingerprints after the last look that saw everything
-  (`endLateLooks`). Records: `late_looks` (per move: due times by the moving computer's clock, looks taken, `more`,
-  `partial`, the one-look-at-a-time `lookingUntil`) and `late_writes` (`lwr_…`, per record found: the old version up to
-  8 MB while it waits, its fingerprint and the move's, `group`); `wsarchive.ReportOnly` (the catalogue: left out, marked
-  `Secret`, or unknown) keeps no copy or ID; `models.NeverShown` (a test keeps it in step with `json:"-"`) and the
-  export's scrub for what `show` returns; `RunLateLooks` in the daemon, with `DropOldLateCopies` (`LateCopyKeep`,
-  `DeletionsPaused`); a look that saw everything settles what it didn't find (`seenBy`); carry-over: claim on the
-  fingerprint, then check and set (`$expr: {$eq: ["$$ROOT", {$literal: <the record read>}]}`).
+  merged with its fingerprints, holding one record at a time; `LookOptions` `Each`, `MaxBytes`, `MaxTime`, `Pace`, `From`:
+  a stop returns `Position`, every look gets at least one record further; `Emptied`, `LateKindGone`); the old database's
+  address for the looks (`keepLookAddress`: keychain `database-late-<move>` or `database/late-<move>.secret`), dropped with
+  the fingerprints after a last look that read everything, or a day after one that didn't (`endLateLooks`). Records:
+  `late_looks` (per move: due times by the moving computer's clock, looks taken, `pass`: one way through over as many
+  looks as it takes, `complete`, `unread`, `more`, `partial`, the one-look-at-a-time `lookingUntil`) and `late_writes`
+  (`lwr_…`, per record found: the old version up to 8 MB while it waits, its fingerprint and the move's, `group`);
+  `LateLookView.Checked`/`AllClear` are what every surface reads, and `lateSummary` says "nothing" only when complete;
+  `wsarchive.ReportOnly` (the catalogue: left out, in the manifest, marked `Secret`, or unknown) keeps no copy or ID;
+  `models.HiddenField` (`NeverShown`, kept in step with `json:"-"` and secret-looking struct fields by a test, and
+  `LooksSecret`, by name at any depth) and the export's scrub for what `show` returns; `RunLateLooks` in the daemon, with
+  `DropOldLateCopies` (`LateCopyKeep`, `DeletionsPaused`); a pass that read everything settles what it didn't find
+  (`seenBy`); carry-over: claim on the fingerprint, then check and set (`$expr: {$eq: ["$$ROOT", {$literal: <the record
+  read>}]}`), audited record by record before it is marked.
 - Tests: `go test ./internal/dbmove/ ./internal/ops/ -run 'TestDatabaseMove|TestCopy|TestLook|TestLate'`, `./internal/cli -run
   TestDatabaseMove` (with a second computer's home; into this computer's own database with a real `mongod`), and the
   browser run `scripts/database-move-e2e.sh` (ports 5690–5699).

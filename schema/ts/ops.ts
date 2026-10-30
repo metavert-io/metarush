@@ -17474,7 +17474,7 @@ id: string
  * The kind of record, in words: a comment, a clip, a version of a cut.
  */
 what: string
-kind: ("new" | "changed" | "gone")
+kind: ("new" | "changed" | "gone" | "kind-gone" | "emptied")
 groupSize: number
 groupWhat?: string
 at?: string
@@ -17503,7 +17503,7 @@ decidedAt?: string
 export interface LateRefused {
 found: LateWriteView
 why: string
-reason: ("changed_here" | "gone" | "report_only" | "no_copy" | "decided" | "clash" | "changed_again" | "not_all_listed")
+reason: ("changed_here" | "gone" | "report_only" | "no_copy" | "decided" | "clash" | "changed_again" | "not_all_listed" | "cant_be_whole" | "being_carried")
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -17559,6 +17559,7 @@ moves: LateLookView[]
 found: LateWriteView[]
 total: number
 waiting: number
+allClear: boolean
 summary: string
 steps: string[]
 }
@@ -17586,7 +17587,14 @@ endedWhy?: string
 problem?: string
 found: number
 waiting: number
+checked: ("everything" | "part" | "nothing" | "gone")
+allClear: boolean
+completeAt?: string
+completeFrom?: string
+unread: string[]
+canLook: boolean
 more: number
+atLimit: boolean
 partial: boolean
 stopped?: string
 readsAll: boolean
@@ -17605,6 +17613,7 @@ more?: number
 settled?: number
 partial?: boolean
 stopped?: string
+complete?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

@@ -93,7 +93,7 @@ done
 step "the browser run"
 METARUSH_DASHBOARD_A="http://127.0.0.1:$PORT_A" METARUSH_MINT_A="env HOME=$USERHOME $MR_BIN --home $HA dashboard --print-link --no-open" \
 METARUSH_DASHBOARD_B="http://127.0.0.1:$PORT_B" METARUSH_MINT_B="env HOME=$USERHOME $MR_BIN --home $HB dashboard --print-link --no-open" \
-DATABASE_ADDRESS="$URI" DATABASE_NEW="$NEWDB" DATABASE_OLD="$DB" DATABASE_LATE_WRITER="$BASE/latewrite" \
+DATABASE_ADDRESS="$URI" DATABASE_NEW="$NEWDB" DATABASE_OLD="$DB" DATABASE_LATE_WRITER="$BASE/latewrite" DATABASE_MOVE_STATE="$HA/state/database-move" \
 DATABASE_SHOTS="${DATABASE_SHOTS:-$BASE/screenshots}" node web/scripts/database-move-e2e.mjs || {
   echo "--- studio dashboard log"; tail -60 "$BASE/studio.log"; echo "--- laptop dashboard log"; tail -60 "$BASE/laptop.log"
   for f in "$HA"/state/database-move/*.log; do [ -f "$f" ] && { echo "--- $f"; cat "$f"; }; done
@@ -112,6 +112,11 @@ step "what was written into the old database late: the command line agrees"
 A database late-writes --no-look
 [ "$(A database late-writes --no-look --json | J 'd["data"]["found"][0]["state"]')" = carried ] || die "the late write isn't carried over"
 [ "$(B database late-writes --json | J 'd["data"]["looked"]')" = False ] || die "the laptop looked at the old database (only the studio keeps its address)"
+# The browser run took the studio's fingerprints away: its looks ended without checking everything.
+[ "$(A database late-writes --no-look --json | J 'd["data"]["allClear"]')" = False ] || die "looks that couldn't finish read as an all-clear"
+[ "$(A database late-writes --no-look --json | J 'd["data"]["moves"][-1]["checked"]')" = part ] || die "looks that couldn't finish don't say so"
+A database late-writes --no-look | grep -q "couldn't check everything" || die "the command line doesn't say it couldn't check everything"
+if A database late-writes --no-look | grep -q "Nothing was written"; then die "the command line says nothing was written"; fi
 if CLAUDECODE=1 A database late-writes leave 1 --json >"$BASE/late-claude.json" 2>&1; then die "Claude Code decided a late write"; fi
 [ "$(J 'd["error"]["code"]' <"$BASE/late-claude.json")" = E_HUMAN_ONLY ] || { cat "$BASE/late-claude.json"; die "Claude Code's decision wasn't refused as people-only"; }
 echo "the late write: carried over; the laptop doesn't look; Claude Code deciding: refused"

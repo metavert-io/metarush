@@ -28,7 +28,16 @@ import (
 // would). The moving App still reads the old database.
 func movedForLooks(t *testing.T) (w *moveWorkspace, dst *store.DB, n *app.App, out *ops.DatabaseMoveOut) {
 	t.Helper()
+	return movedForLooksWith(t, nil)
+}
+
+// movedForLooksWith is movedForLooks with records added before the move.
+func movedForLooksWith(t *testing.T, seed func(w *moveWorkspace)) (w *moveWorkspace, dst *store.DB, n *app.App, out *ops.DatabaseMoveOut) {
+	t.Helper()
 	w = newMoveWorkspace(t)
+	if seed != nil {
+		seed(w)
+	}
 	ctx := context.Background()
 	dst = moveDB(t)
 	if err := ops.SaveMoveAddress(w.a.Cfg, testutil.URI()); err != nil {
@@ -351,7 +360,8 @@ func TestLateLooksKeepTheAddressUntilTheLast(t *testing.T) {
 		}
 	}
 	st := ops.LateStatus(ctx, n)
-	if st == nil || !st.Ended || st.Next != nil || !strings.Contains(st.Summary, "no longer keeps its address") {
+	if st == nil || !st.Ended || st.Next != nil || !strings.Contains(st.Summary, "no longer keeps its address") || !strings.Contains(st.Summary, "Nothing was written") ||
+		!st.AllClear || st.Checked != ops.LateCheckedEverything || st.CanLook {
 		t.Fatalf("after the last look: %+v", st)
 	}
 	if said := ops.LookDueLate(ctx, n, rec.Due[2].Add(time.Hour)); len(said) != 0 {
@@ -412,8 +422,13 @@ func TestLateLooksEndWhenTheOldDatabaseIsGone(t *testing.T) {
 	if len(said) != 1 || !strings.Contains(said[0], "stopped looking") || ops.KeepsLookAddress(n.Cfg, move) {
 		t.Fatalf("the looks' end: %v", said)
 	}
-	if st := ops.LateStatus(ctx, n); st == nil || !st.Ended || !strings.Contains(st.EndedWhy, "couldn't reach") {
+	st = ops.LateStatus(ctx, n)
+	if st == nil || !st.Ended || !strings.Contains(st.EndedWhy, "couldn't reach") || st.AllClear || st.Checked != ops.LateCheckedPart || st.CanLook ||
+		strings.Contains(st.Summary, "Nothing was written") || !strings.Contains(st.Summary, "couldn't check everything") || strings.Contains(st.Summary, "Look again") {
 		t.Fatalf("ended: %+v", st)
+	}
+	if k := countNotes(t, dst, "late_incomplete:"+move); k != 1 {
+		t.Fatalf("%d notes that it couldn't check everything", k)
 	}
 	// Without the fingerprints (dropped above) no look could ever be made:
 	// the looks end at once rather than being tried again for a day.
@@ -427,9 +442,19 @@ func TestLateLooksEndWhenTheOldDatabaseIsGone(t *testing.T) {
 	if len(said) != 1 || !strings.Contains(said[0], "stopped looking") || ops.KeepsLookAddress(n.Cfg, move) {
 		t.Fatalf("without the fingerprints: %v", said)
 	}
-	if st := ops.LateStatus(ctx, n); st == nil || !st.Ended || !strings.Contains(st.EndedWhy, "no longer keeps") {
+	st = ops.LateStatus(ctx, n)
+	if st == nil || !st.Ended || !strings.Contains(st.EndedWhy, "no longer keeps") || st.AllClear || strings.Contains(st.Summary, "Nothing was written") {
 		t.Fatalf("ended without the fingerprints: %+v", st)
 	}
+}
+
+func countNotes(t *testing.T, db *store.DB, group string) int64 {
+	t.Helper()
+	n, err := db.C(store.CNotifications).CountDocuments(context.Background(), bson.M{"groupKey": group})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
 }
 
 func lateRaw(t *testing.T, db *store.DB, id string) bson.M {
@@ -490,7 +515,8 @@ func TestLateSignInSecretsAreOnlyReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	link := ids.New("rvl")
-	if _, err := old.Collection(store.CReviewLinks).InsertOne(ctx, bson.M{"_id": link, "workspaceId": ws, "key": capKey, "title": "For Sam"}); err != nil {
+	if _, err := old.Collection(store.CReviewLinks).InsertOne(ctx, bson.M{"_id": link, "workspaceId": ws, "key": capKey, "title": "For Sam", "apiToken": "invented-token-value",
+		"settings": bson.M{"clientSecret": "nested-secret-value", "tokenLimit": int32(5), "color": "blue"}}); err != nil {
 		t.Fatal(err)
 	}
 	comment := ids.New("cmt")
@@ -536,6 +562,10 @@ func TestLateSignInSecretsAreOnlyReported(t *testing.T) {
 	sh, err := ops.CallTyped[ops.DatabaseLateShowOut](ctx, n, "database.late.show", ops.DatabaseLateShowIn{ID: rl.ID}, ops.Caller{Human: true})
 	if err != nil || strings.Contains(string(sh.Old), capKey) || !strings.Contains(string(sh.Old), "For Sam") || !slices.Contains(sh.Hidden, "key") {
 		t.Fatalf("the review link shown: %s %+v %v", sh.Old, sh, err)
+	}
+	if strings.Contains(string(sh.Old), "invented-token-value") || strings.Contains(string(sh.Old), "nested-secret-value") || !slices.Contains(sh.Hidden, "apiToken") || !slices.Contains(sh.Hidden, "settings.clientSecret") ||
+		!strings.Contains(string(sh.Old), "tokenLimit") || !strings.Contains(string(sh.Old), "blue") {
+		t.Fatalf("what looks like a secret, shown: %s, hidden %v", sh.Old, sh.Hidden)
 	}
 	cm := entryOf(t, lw, store.CComments)
 	sh, err = ops.CallTyped[ops.DatabaseLateShowOut](ctx, n, "database.late.show", ops.DatabaseLateShowIn{ID: cm.ID}, ops.Caller{Human: true})
@@ -645,8 +675,8 @@ func TestLateManyRecordsKeepGoingAndGoOverWhole(t *testing.T) {
 	if k, _ := dst.C(store.CSegments).CountDocuments(ctx, bson.M{"_id": first}); k != 1 {
 		t.Fatal("the first line isn't here")
 	}
-	if k, _ := dst.C(store.CAudit).CountDocuments(ctx, bson.M{"action": "database.late.carry"}); k != 1 {
-		t.Fatalf("%d audit entries for one carry-over", k)
+	if k, _ := dst.C(store.CAudit).CountDocuments(ctx, bson.M{"action": "database.late.carry"}); k != 120 {
+		t.Fatalf("%d audit entries for 120 records carried over", k)
 	}
 	lf, err := ops.CallTyped[ops.DatabaseLateLeaveOut](ctx, n, "database.late.leave", ops.DatabaseLateDecideIn{IDs: []string{short.ID}}, ops.Caller{Human: true})
 	if err != nil || !strings.Contains(lf.Summary, "3 records") {
@@ -706,6 +736,12 @@ func TestLateFindingsSettleAndCopiesAreLetGo(t *testing.T) {
 	for _, id := range []string{f.ID, nw.ID} {
 		if raw := lateRaw(t, dst, id); raw["state"] != ops.LateSettled || raw["old"] != nil || raw["kept"] != false {
 			t.Fatalf("settled: %v", raw)
+		}
+	}
+	// The bell stops asking, without ringing again.
+	for _, note := range lateNotes(t, dst) {
+		if strings.Contains(note.Body, "carry it over") || !strings.Contains(note.Title, "Nothing from the old database waits") || note.Tone != "info" {
+			t.Fatalf("the bell after settling: %+v", note)
 		}
 	}
 	_, err := ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{f.ID}}, ops.Caller{Human: true})
@@ -805,12 +841,23 @@ func TestLateFindingsSettleAndCopiesAreLetGo(t *testing.T) {
 	}
 }
 
+// ten comments, seeded before a move: a look reading one record at a time can't
+// get through them in a few looks.
+func tenComments(w *moveWorkspace) {
+	ctx := context.Background()
+	for i := 0; i < 10; i++ {
+		if _, err := w.a.DB.C(store.CComments).InsertOne(ctx, bson.M{"_id": fmt.Sprintf("cmt_a%05d", i), "workspaceId": w.a.WorkspaceID(), "text": "seeded"}); err != nil {
+			panic(err)
+		}
+	}
+}
+
 // A look in the background keeps to its bounds: it stops, says so, settles
 // nothing, isn't tried again; a person's look reads on. A last look that
 // stopped part-way keeps the address so a person can look at everything, and
 // the looks end when one does, or a day later.
 func TestLateLooksKeepToTheirBounds(t *testing.T) {
-	w, dst, n, _ := movedForLooks(t)
+	w, dst, n, _ := movedForLooksWith(t, tenComments)
 	a := w.a
 	ctx := context.Background()
 	move := moveOf(t, a)
@@ -825,7 +872,7 @@ func TestLateLooksKeepToTheirBounds(t *testing.T) {
 	if _, err := a.DB.DB.Collection(store.CProjects).UpdateOne(ctx, bson.M{"_id": w.project}, bson.M{"$set": bson.M{"name": "Spring launch"}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.DB.DB.Collection(store.CComments).UpdateOne(ctx, bson.M{}, bson.M{"$set": bson.M{"text": "another late change"}}); err != nil {
+	if _, err := a.DB.DB.Collection(store.CComments).UpdateOne(ctx, bson.M{"_id": "cmt_a00009"}, bson.M{"$set": bson.M{"text": "another late change"}}); err != nil {
 		t.Fatal(err)
 	}
 	var rec struct {
@@ -862,6 +909,344 @@ func TestLateLooksKeepToTheirBounds(t *testing.T) {
 	}
 	if entryOf(t, lw, store.CComments).State != ops.LateWaiting || entryOf(t, lw, store.CProjects).State != ops.LateSettled {
 		t.Fatalf("what it found: %+v", lw.Found)
+	}
+}
+
+// "Nothing was written" only after a look read everything. A late change in
+// records the bounded looks never get to: found stays 0 through every look
+// and the extra day, yet the words, the bell and the field a script reads all
+// say it couldn't check everything: what it didn't read and what to do, and
+// never to look again once the address is gone.
+func TestLateIncompleteLooksAreNeverAnAllClear(t *testing.T) {
+	w, dst, n, _ := movedForLooksWith(t, tenComments)
+	a := w.a
+	ctx := context.Background()
+	move := moveOf(t, a)
+	if _, err := a.DB.DB.Collection(store.CComments).UpdateOne(ctx, bson.M{"_id": "cmt_a00009"}, bson.M{"$set": bson.M{"text": "out of the looks' reach"}}); err != nil {
+		t.Fatal(err)
+	}
+	var rec struct {
+		Due []time.Time `bson:"due"`
+	}
+	if err := dst.C(store.CLateLooks).FindOne(ctx, bson.M{"_id": move}).Decode(&rec); err != nil {
+		t.Fatal(err)
+	}
+	undo := ops.SetLateBackgroundBytes(1)
+	defer undo()
+	for _, due := range rec.Due[:2] {
+		ops.LookDueLate(ctx, n, due.Add(time.Second))
+		st := ops.LateStatus(ctx, n)
+		if st.Found != 0 || st.AllClear || st.Checked != ops.LateCheckedPart || !st.CanLook || strings.Contains(st.Summary, "Nothing was written") ||
+			!strings.Contains(st.Summary, "hasn't been able to check everything") || !strings.Contains(st.Summary, "Look again") || !slices.Contains(st.Unread, store.CComments) {
+			t.Fatalf("part of the way: %+v", st)
+		}
+	}
+	if k := countNotes(t, dst, "late_incomplete:"+move); k != 0 {
+		t.Fatal("rang before the last look")
+	}
+	ops.LookDueLate(ctx, n, rec.Due[2].Add(time.Second))
+	st := ops.LateStatus(ctx, n)
+	if st.Ended || st.AllClear || !st.CanLook || !strings.Contains(st.Summary, "couldn't check everything") || strings.Contains(st.Summary, "Nothing was written") || !strings.Contains(st.Summary, "kind") {
+		t.Fatalf("after the last look: %+v", st)
+	}
+	if k := countNotes(t, dst, "late_incomplete:"+move); k != 1 {
+		t.Fatalf("%d notes after the last look", k)
+	}
+	said := ops.LookDueLate(ctx, n, rec.Due[2].Add(ops.LateLookGrace+time.Minute))
+	if len(said) != 1 || ops.KeepsLookAddress(n.Cfg, move) {
+		t.Fatalf("a day later: %v", said)
+	}
+	st = ops.LateStatus(ctx, n)
+	if !st.Ended || st.AllClear || st.Found != 0 || st.Checked != ops.LateCheckedPart || st.CanLook || st.EndedWhy == "" ||
+		!strings.Contains(st.Summary, "couldn't check everything") || strings.Contains(st.Summary, "Nothing was written") || strings.Contains(st.Summary, "Look again") ||
+		!strings.Contains(st.Summary, "look in it yourself") {
+		t.Fatalf("the final state: %+v", st)
+	}
+	if k := countNotes(t, dst, "late_incomplete:"+move); k != 1 {
+		t.Fatalf("%d notes at the end: one, brought up to date", k)
+	}
+	var note models.Notification
+	if err := dst.C(store.CNotifications).FindOne(ctx, bson.M{"groupKey": "late_incomplete:" + move}).Decode(&note); err != nil || !strings.Contains(note.Body, "look in it yourself") {
+		t.Fatalf("the note: %+v %v", note, err)
+	}
+	lw, err := ops.CallTyped[ops.DatabaseLateWritesOut](ctx, n, "database.late.writes", ops.DatabaseLateWritesIn{Look: true}, ops.Caller{})
+	if err != nil || lw.Looked || lw.AllClear || !strings.Contains(lw.Problem, "no longer looks") || strings.Contains(lw.Summary, "Nothing was written") {
+		t.Fatalf("asking afterwards: %+v %v", lw, err)
+	}
+	b, _ := json.Marshal(lw)
+	if !strings.Contains(string(b), `"allClear":false`) || !strings.Contains(string(b), `"checked":"part"`) {
+		t.Fatalf("the answer for a script: %s", b)
+	}
+}
+
+// A look that stopped is gone on with: however low the bound, later looks get
+// further from where it stopped, not from the start, until the way through is
+// done, and only then is everything checked.
+func TestLateLooksGoOnFromWhereTheyStopped(t *testing.T) {
+	undoAfter := ops.SetLateLookAfter([]time.Duration{time.Minute, 2 * time.Minute, 3 * time.Minute, 4 * time.Minute, 5 * time.Minute, 6 * time.Minute,
+		7 * time.Minute, 8 * time.Minute, 9 * time.Minute, 10 * time.Minute, 11 * time.Minute, 12 * time.Minute, 13 * time.Minute, 14 * time.Minute})
+	defer undoAfter()
+	w, dst, n, _ := movedForLooksWith(t, tenComments)
+	a := w.a
+	ctx := context.Background()
+	move := moveOf(t, a)
+	if _, err := a.DB.DB.Collection(store.CComments).UpdateOne(ctx, bson.M{"_id": "cmt_a00009"}, bson.M{"$set": bson.M{"text": "the last one"}}); err != nil {
+		t.Fatal(err)
+	}
+	var rec struct {
+		Due []time.Time `bson:"due"`
+	}
+	if err := dst.C(store.CLateLooks).FindOne(ctx, bson.M{"_id": move}).Decode(&rec); err != nil {
+		t.Fatal(err)
+	}
+	undo := ops.SetLateBackgroundBytes(1)
+	defer undo()
+	foundAt := -1
+	for i, due := range rec.Due {
+		ops.LookDueLate(ctx, n, due.Add(time.Second))
+		st := ops.LateStatus(ctx, n)
+		if st.Found == 1 && foundAt < 0 {
+			foundAt = i
+		}
+		if st.Checked == ops.LateCheckedEverything {
+			break
+		}
+	}
+	st := ops.LateStatus(ctx, n)
+	if foundAt < 0 || st.Waiting != 1 || st.Checked != ops.LateCheckedEverything {
+		t.Fatalf("after going on: found at %d: %+v", foundAt, st)
+	}
+	lw, err := ops.CallTyped[ops.DatabaseLateWritesOut](ctx, n, "database.late.writes", ops.DatabaseLateWritesIn{}, ops.Caller{})
+	if err != nil || len(lw.Found) != 1 || lw.Found[0].Record != "cmt_a00009" {
+		t.Fatalf("the list: %+v %v", lw, err)
+	}
+}
+
+// Past the move's limit the rest is only counted: the words say so and never
+// that a next look lists them; a group that can't be completed any more
+// refuses plainly and can be left, saying what stays uncarried; and the looks
+// don't read as complete.
+func TestLateAtTheLimitOnlyCountsAndGroupsCanEnd(t *testing.T) {
+	w, dst, n, _ := movedForLooks(t)
+	a := w.a
+	ctx := context.Background()
+	move := moveOf(t, a)
+	var lines []any
+	for i := 0; i < 8; i++ {
+		lines = append(lines, bson.M{"_id": fmt.Sprintf("seg_a%05d", i), "workspaceId": a.WorkspaceID(), "assetId": "ast_long", "text": "a line"})
+	}
+	if _, err := a.DB.DB.Collection(store.CSegments).InsertMany(ctx, lines); err != nil {
+		t.Fatal(err)
+	}
+	undo := ops.SetLateKeepPerMove(3)
+	defer undo()
+	var rec struct {
+		Due []time.Time `bson:"due"`
+	}
+	if err := dst.C(store.CLateLooks).FindOne(ctx, bson.M{"_id": move}).Decode(&rec); err != nil {
+		t.Fatal(err)
+	}
+	for _, due := range rec.Due {
+		ops.LookDueLate(ctx, n, due.Add(time.Second))
+		st := ops.LateStatus(ctx, n)
+		if st.More != 5 || !st.AtLimit || st.Found != 3 || !strings.Contains(st.Summary, "only counted") || strings.Contains(st.Summary, "the next look lists") || st.AllClear || st.Checked != ops.LateCheckedPart {
+			t.Fatalf("at the limit: %+v", st)
+		}
+	}
+	if !ops.KeepsLookAddress(n.Cfg, move) {
+		t.Fatal("the address went with some only counted")
+	}
+	// It can't go over whole, and says what to do.
+	_, err := ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{"1"}}, ops.Caller{Human: true})
+	if code, reason := codeAndReason(err); code != apperr.Conflict || reason != "cant_be_whole" || !strings.Contains(apperr.From(err).Message, "Leave it") {
+		t.Fatalf("a group that can't go over whole: %v", err)
+	}
+	ops.LookDueLate(ctx, n, rec.Due[2].Add(ops.LateLookGrace+time.Minute))
+	st := ops.LateStatus(ctx, n)
+	if !st.Ended || st.AllClear || !strings.Contains(st.Summary, "only counted") || strings.Contains(st.Summary, "Look again") {
+		t.Fatalf("ended at the limit: %+v", st)
+	}
+	lf, err := ops.CallTyped[ops.DatabaseLateLeaveOut](ctx, n, "database.late.leave", ops.DatabaseLateDecideIn{IDs: []string{"1"}}, ops.Caller{Human: true})
+	if err != nil || !strings.Contains(lf.Summary, "3 records") || !strings.Contains(lf.Summary, "5 more records") || !strings.Contains(lf.Summary, "only in the old database") {
+		t.Fatalf("leaving it: %+v %v", lf, err)
+	}
+}
+
+// A carry-over that stopped part-way (the process went away): the record it
+// held says it is being carried, a list lets go of it after a while, carrying
+// again finishes the group, and the history has every record.
+func TestLateCrashedCarryOverFinishes(t *testing.T) {
+	w, dst, n, _ := movedForLooks(t)
+	a := w.a
+	ctx := context.Background()
+	var lines []any
+	for i := 0; i < 3; i++ {
+		lines = append(lines, bson.M{"_id": fmt.Sprintf("seg_a%05d", i), "workspaceId": a.WorkspaceID(), "assetId": "ast_c", "text": "a line"})
+	}
+	if _, err := a.DB.DB.Collection(store.CSegments).InsertMany(ctx, lines); err != nil {
+		t.Fatal(err)
+	}
+	lw := lookNow(t, n)
+	if len(lw.Found) != 1 || lw.Found[0].GroupSize != 3 {
+		t.Fatalf("the look: %+v", lw.Found)
+	}
+	calls := 0
+	undo := ops.SetLateCarryHook(func(id string) {
+		calls++
+		if calls == 2 {
+			// The process goes away holding the second record.
+			_, _ = dst.C(store.CLateWrites).UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": bson.M{"state": ops.LateCarrying, "carryingAt": time.Now().UTC()}})
+			panic("the process went away")
+		}
+	})
+	func() {
+		defer func() { _ = recover() }()
+		_, _ = ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{lw.Found[0].ID}}, ops.Caller{Human: true})
+	}()
+	undo()
+	if k, _ := dst.C(store.CSegments).CountDocuments(ctx, bson.M{"assetId": "ast_c"}); k != 1 {
+		t.Fatalf("%d lines went over before it stopped", k)
+	}
+	var held bson.M
+	if err := dst.C(store.CLateWrites).FindOne(ctx, bson.M{"state": ops.LateCarrying}).Decode(&held); err != nil {
+		t.Fatal(err)
+	}
+	// While held: it says so, not that it was decided.
+	_, err := ops.CallTyped[ops.DatabaseLateLeaveOut](ctx, n, "database.late.leave", ops.DatabaseLateDecideIn{IDs: []string{held["_id"].(string)}}, ops.Caller{Human: true})
+	if code, reason := codeAndReason(err); code != apperr.Conflict || reason != "being_carried" || strings.Contains(apperr.From(err).Message, "decided") {
+		t.Fatalf("leaving what is being carried: %v", err)
+	}
+	// After a while a list lets go of it; carrying again finishes all three.
+	if _, err := dst.C(store.CLateWrites).UpdateOne(ctx, bson.M{"_id": held["_id"]}, bson.M{"$set": bson.M{"carryingAt": time.Now().UTC().Add(-time.Hour)}}); err != nil {
+		t.Fatal(err)
+	}
+	lw, err = ops.CallTyped[ops.DatabaseLateWritesOut](ctx, n, "database.late.writes", ops.DatabaseLateWritesIn{}, ops.Caller{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var waiting ops.LateWriteView
+	for _, f := range lw.Found {
+		if f.State == ops.LateWaiting {
+			waiting = f
+		}
+	}
+	if waiting.GroupSize != 2 {
+		t.Fatalf("what waits again: %+v", lw.Found)
+	}
+	if _, err := ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{waiting.ID}}, ops.Caller{Human: true}); err != nil {
+		t.Fatal(err)
+	}
+	if k, _ := dst.C(store.CSegments).CountDocuments(ctx, bson.M{"assetId": "ast_c"}); k != 3 {
+		t.Fatalf("%d lines here", k)
+	}
+	if k, _ := dst.C(store.CAudit).CountDocuments(ctx, bson.M{"action": "database.late.carry"}); k != 3 {
+		t.Fatalf("%d of 3 records in the change history", k)
+	}
+}
+
+// A record that changes here while its group goes over stays behind: the rest
+// go, MetaRush says what happened, carrying it again is refused plainly (never
+// "1 record of the 1 record"), and leaving it ends it.
+func TestLateCarryRacingAChangeHere(t *testing.T) {
+	w, dst, n, _ := movedForLooks(t)
+	a := w.a
+	ctx := context.Background()
+	var lines []any
+	for i := 0; i < 3; i++ {
+		lines = append(lines, bson.M{"_id": fmt.Sprintf("seg_a%05d", i), "workspaceId": a.WorkspaceID(), "assetId": "ast_r", "text": "a line"})
+	}
+	if _, err := a.DB.DB.Collection(store.CSegments).InsertMany(ctx, lines); err != nil {
+		t.Fatal(err)
+	}
+	lw := lookNow(t, n)
+	calls := 0
+	undo := ops.SetLateCarryHook(func(string) {
+		calls++
+		if calls == 2 {
+			if _, err := dst.C(store.CSegments).InsertOne(ctx, bson.M{"_id": "seg_a00001", "workspaceId": a.WorkspaceID(), "assetId": "ast_r", "text": "made here meanwhile"}); err != nil {
+				panic(err)
+			}
+		}
+	})
+	c, err := ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{lw.Found[0].ID}}, ops.Caller{Human: true})
+	undo()
+	if err != nil || len(c.Carried) != 1 || c.Carried[0].GroupSize != 2 || len(c.Warnings) != 1 || !strings.Contains(c.Warnings[0], "Only 2 of the 3 records") || !strings.Contains(c.Warnings[0], "1 record of them waits") {
+		t.Fatalf("the race: %+v %v", c, err)
+	}
+	if k, _ := dst.C(store.CSegments).CountDocuments(ctx, bson.M{"assetId": "ast_r", "text": "a line"}); k != 2 {
+		t.Fatalf("%d lines went over", k)
+	}
+	lw, err = ops.CallTyped[ops.DatabaseLateWritesOut](ctx, n, "database.late.writes", ops.DatabaseLateWritesIn{}, ops.Caller{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var left ops.LateWriteView
+	for _, f := range lw.Found {
+		if f.State == ops.LateWaiting {
+			left = f
+		}
+	}
+	if left.GroupSize != 1 || !left.CopyChanged {
+		t.Fatalf("what stayed behind: %+v", lw.Found)
+	}
+	_, err = ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{left.ID}}, ops.Caller{Human: true})
+	if code, reason := codeAndReason(err); code != apperr.Conflict || reason != "changed_here" || strings.Contains(apperr.From(err).Message, "1 record of the 1 record") {
+		t.Fatalf("carrying what stayed behind: %v", err)
+	}
+	if _, err := ops.CallTyped[ops.DatabaseLateLeaveOut](ctx, n, "database.late.leave", ops.DatabaseLateDecideIn{IDs: []string{left.ID}}, ops.Caller{Human: true}); err != nil {
+		t.Fatal(err)
+	}
+	if lw, _ := ops.CallTyped[ops.DatabaseLateWritesOut](ctx, n, "database.late.writes", ops.DatabaseLateWritesIn{}, ops.Caller{}); lw.Waiting != 0 {
+		t.Fatalf("still waiting: %+v", lw.Found)
+	}
+}
+
+// An old database removed or emptied (the docs say you may) is one finding in
+// plain words, not one per record: the looks end, what was found before stays
+// to decide, and it isn't an all-clear.
+func TestLateOldDatabaseRemovedIsOneFinding(t *testing.T) {
+	w, dst, n, _ := movedForLooks(t)
+	a := w.a
+	ctx := context.Background()
+	move := moveOf(t, a)
+	if _, err := a.DB.DB.Collection(store.CProjects).UpdateOne(ctx, bson.M{"_id": w.project}, bson.M{"$set": bson.M{"name": "Late name"}}); err != nil {
+		t.Fatal(err)
+	}
+	lookNow(t, n)
+	names, err := a.DB.DB.ListCollectionNames(ctx, bson.D{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range names {
+		if name != store.CTestRun {
+			if err := a.DB.DB.Collection(name).Drop(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	lw := lookNow(t, n)
+	if lw.Total != 2 || lw.Waiting != 2 {
+		t.Fatalf("the look: %+v", lw.Found)
+	}
+	gone := lw.Found[1]
+	if gone.Kind != "emptied" || !gone.ReportOnly || gone.CanCarry || !strings.Contains(gone.Says, "gone or empty") {
+		t.Fatalf("the finding: %+v", gone)
+	}
+	m := lw.Moves[0]
+	if !m.Ended || m.Checked != ops.LateCheckedGone || m.AllClear || !strings.Contains(m.Summary, "gone or empty") || m.CanLook || ops.KeepsLookAddress(n.Cfg, move) {
+		t.Fatalf("the looks: %+v", m)
+	}
+	if entryOf(t, lw, store.CProjects).State != ops.LateWaiting || !entryOf(t, lw, store.CProjects).CanCarry {
+		t.Fatalf("what was found before: %+v", lw.Found)
+	}
+	if _, err := ops.CallTyped[ops.DatabaseLateCarryOut](ctx, n, "database.late.carry", ops.DatabaseLateDecideIn{IDs: []string{gone.ID}}, ops.Caller{Human: true}); err == nil {
+		t.Fatal("carried the old database being gone")
+	}
+	if _, err := ops.CallTyped[ops.DatabaseLateLeaveOut](ctx, n, "database.late.leave", ops.DatabaseLateDecideIn{IDs: []string{gone.ID}}, ops.Caller{Human: true}); err != nil {
+		t.Fatal(err)
+	}
+	if k := countNotes(t, dst, "late_writes:"+move); k != 1 {
+		t.Fatalf("%d notes", k)
 	}
 }
 

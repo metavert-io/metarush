@@ -22,7 +22,7 @@ import { Badge, Button, cx, Details, Spinner, Theirs } from '../../ui/primitives
  * time, and what a later look no longer finds settles by itself.
  */
 
-const KIND: Record<string, string> = { new: 'added there', changed: 'changed there', gone: 'removed there' };
+const KIND: Record<string, string> = { new: 'added there', changed: 'changed there', gone: 'removed there', 'kind-gone': 'removed there', emptied: 'gone or empty' };
 const DONE: Record<string, string> = { carried: 'carried over', left: 'left as it is', settled: 'nothing to carry over', carrying: 'being carried over' };
 
 export function LateWrites({ late, onChanged }: { late: LateLookView; onChanged: () => void }) {
@@ -44,16 +44,23 @@ export function LateWrites({ late, onChanged }: { late: LateLookView; onChanged:
         onError: (e) => toast({ tone: 'error', title: 'MetaRush couldn’t look again', body: [e.message, e.hint].filter(Boolean).join(' ') }),
       },
     );
-  const tone = late.waiting > 0 ? 'bg-accent-soft' : 'bg-hover';
+  // Never an all-clear unless a look read everything (late.checked).
+  const incomplete = late.checked === 'part' || late.checked === 'nothing';
+  const tone = incomplete && late.ended ? 'bg-danger-soft' : late.waiting > 0 || incomplete ? 'bg-accent-soft' : 'bg-hover';
+  const state = late.waiting > 0 ? 'waiting' : incomplete ? 'incomplete' : late.allClear ? 'clear' : late.ended ? 'ended' : 'looking';
   return (
-    <div className={cx('mt-4 rounded-[12px] px-3.5 py-3', tone)} data-database-late={late.waiting > 0 ? 'waiting' : late.ended ? 'ended' : 'looking'}>
+    <div className={cx('mt-4 rounded-[12px] px-3.5 py-3', tone)} data-database-late={state} data-database-late-checked={late.checked}>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="min-w-0 flex-1 text-[13px] leading-relaxed">
           <div className="font-medium text-fg">Anything written into the old database late</div>
           <div className="text-muted" data-database-late-summary role="status">
             {late.summary}
           </div>
-          {late.problem && !late.ended ? <div className="mt-0.5 text-[12.5px] text-muted">The last look couldn’t be made: {late.problem}</div> : null}
+          {late.ended && late.endedWhy ? (
+            <div className="mt-0.5 text-[12.5px] text-muted" data-database-late-ended>
+              {late.endedWhy}
+            </div>
+          ) : null}
           {late.found > 0 && late.waiting > 0 ? (
             <div className="mt-0.5 text-[12.5px] text-muted" data-database-late-keep>
               MetaRush keeps its copies for {late.copyDays} days for someone to decide, then lets them go.
@@ -70,7 +77,7 @@ export function LateWrites({ late, onChanged }: { late: LateLookView; onChanged:
             </div>
           ) : null}
         </div>
-        {late.here && !late.ended ? (
+        {late.canLook ? (
           <Button variant="secondary" size="sm" icon={<ArrowsClockwise size={14} />} onClick={lookAgain} loading={look.isPending} data-database-late-look>
             Look again now
           </Button>
@@ -136,8 +143,10 @@ function LateItem({ f, onDecided }: { f: LateWriteView; onDecided: () => void })
         <div className="space-y-2">
           <p>{f.says}</p>
           <p>
-            The old database’s version goes into this database, in place of the one the move copied{f.groupSize > 1 ? `, for all ${f.groupSize} records together or none at all` : ''}. If this database’s own
-            changed meanwhile, nothing changes and both versions are shown.
+            The old database’s version goes into this database, in place of the one the move copied.
+            {f.groupSize > 1
+              ? ` MetaRush checks all ${f.groupSize} records first: if any changed here, none goes over and both versions are shown. If one changes while they go over, the others still go and MetaRush says which stayed behind.`
+              : ' If this database’s own changed meanwhile, nothing changes and both versions are shown.'}
           </p>
         </div>
       ),

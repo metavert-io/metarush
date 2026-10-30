@@ -13,8 +13,10 @@
   carried over. Other copies are let go once you decide, or after 30 days. A record removed from the old database is
   never removed here by MetaRush. `metarush database late-writes` looks again on demand and lists what was found;
   `late-writes show|carry|leave` decide, owners and people only, at their own terminal. A look only reads the old
-  database, within limits (Atlas's Free and Flex clusters make every look read all of it, and the plan says so), and
-  once the last one is made MetaRush no longer keeps its address.
+  database, within limits, going on next time from where it stopped (Atlas's Free and Flex clusters make every look read
+  all of it, and the plan says so), and once the last one is made MetaRush no longer keeps its address. "Nothing was
+  written" is said only after a look read everything: otherwise MetaRush says it couldn't check everything, what it
+  didn't get to and what you can do, and rings the bell. An old database you removed yourself is one finding.
 - **Hand a computer's role to another computer**. Replacing a laptop or moving the team onto an always-on Mac mini:
   Settings → Storage → **Hand over this computer's role…** (owners) or `metarush machine handover plan --to
   <computer>` lists everything tied to this computer and what happens to each — the conversations in Claude's panel,

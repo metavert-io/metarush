@@ -420,6 +420,9 @@ func printDatabaseMoveStatus(c *cobra.Command, s *ops.DatabaseMoveStatusOut) {
 	}
 	if s.Late != nil {
 		fmt.Println(s.Late.Summary)
+		if s.Late.Ended && s.Late.EndedWhy != "" {
+			fmt.Println(s.Late.EndedWhy)
+		}
 		if s.Late.Waiting > 0 {
 			fmt.Println("  - See it, carry it over or leave it: metarush database late-writes (or Settings → Storage → Move the database).")
 		}

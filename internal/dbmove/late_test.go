@@ -220,7 +220,7 @@ func TestLookStreamsAndKeepsToItsBounds(t *testing.T) {
 		t.Fatalf("streamed %d of 1200: %+v %v", n, r, err)
 	}
 	r, err = Look(ctx, src, prints, LookOptions{Each: func(Late) error { return nil }, MaxBytes: 4 << 10})
-	if err != nil || !r.Partial || !strings.Contains(r.Stopped, "after reading") {
+	if err != nil || !r.Partial || r.Position == nil || !strings.Contains(r.Stopped, "after reading") {
 		t.Fatalf("past its size: %+v %v", r, err)
 	}
 	r, err = Look(ctx, src, prints, LookOptions{Each: func(Late) error { return nil }, MaxTime: time.Nanosecond})
@@ -261,4 +261,137 @@ func TestCompareIDs(t *testing.T) {
 	if _, err := compareIDs(key(bson.M{"a": 1}), key(bson.M{"b": 1})); err == nil {
 		t.Error("documents ordered")
 	}
+}
+
+// A look that stops says where, and the next goes on from there: however low
+// the bound, every look gets at least one record further, and together they
+// find every late write once, of every kind, whatever the type of its _id.
+func TestLookGoesOnFromWhereItStopped(t *testing.T) {
+	src, _, ws, prints := movedWithPrints(t)
+	ctx := context.Background()
+	raw := func(coll string) *mongo.Collection { return src.DB.Collection(coll) }
+	must := func(_ any, err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(raw(store.CUsers).InsertOne(ctx, bson.M{"_id": "usr_late", "workspaceId": ws, "name": "Sam"}))
+	must(raw(store.CProjects).UpdateOne(ctx, bson.M{"_id": "prj_00003"}, bson.M{"$set": bson.M{"name": "Changed"}}))
+	must(raw(store.CProjects).DeleteOne(ctx, bson.M{"_id": "prj_00001"}))
+	must(raw(store.CProjects).InsertOne(ctx, bson.M{"_id": "prj_00002a", "workspaceId": ws, "name": "Between"}))
+	must(raw(store.CProjects).InsertOne(ctx, bson.M{"_id": bson.NewObjectID(), "workspaceId": ws, "name": "Another kind of ID"}))
+	must(raw("studio_notes").InsertOne(ctx, bson.M{"_id": int32(3), "text": "a number before 7"}))
+	must(raw("late_kind").InsertOne(ctx, bson.M{"_id": "lk1", "text": "a kind made since"}))
+	must(raw("late_kind").InsertOne(ctx, bson.M{"_id": "lk2", "text": "and another"}))
+	want := []string{"late_kind lk1 new", "late_kind lk2 new", "projects objectid new", "projects prj_00001 gone", "projects prj_00002a new", "projects prj_00003 changed",
+		"studio_notes 3 new", "users usr_late new"}
+	var from *LookPosition
+	var got []string
+	looks := 0
+	// A stop after every record would be 1,200 looks here: enough to hold
+	// many records per look, few enough to stop in every kind.
+	for {
+		looks++
+		if looks > 2000 {
+			t.Fatal("the looks don't get any further")
+		}
+		r, err := Look(ctx, src, prints, LookOptions{From: from, MaxBytes: 2 << 10, Each: func(x Late) error {
+			id := x.ID.String()
+			if s, ok := x.ID.StringValueOK(); ok {
+				id = s
+			} else if n, ok := x.ID.Int32OK(); ok {
+				id = fmt.Sprint(n)
+			} else if x.ID.Type == bson.TypeObjectID {
+				id = "objectid"
+			} else if x.ID.Type == bson.TypeEmbeddedDocument {
+				id = "document"
+			}
+			got = append(got, x.Collection+" "+id+" "+x.Kind)
+			return nil
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !r.Partial {
+			break
+		}
+		if r.Position == nil {
+			t.Fatal("stopped without saying where")
+		}
+		from = r.Position
+	}
+	sort.Strings(got)
+	if looks < 3 || strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("%d looks found:\n%s\nwant:\n%s", looks, strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	// A bound of one byte still gets a record further each look.
+	r, err := Look(ctx, src, prints, LookOptions{MaxBytes: 1, Each: func(Late) error { return nil }})
+	if err != nil || !r.Partial {
+		t.Fatalf("one byte: %+v %v", r, err)
+	}
+	first := *r.Position
+	r, err = Look(ctx, src, prints, LookOptions{MaxBytes: 1, From: r.Position, Each: func(Late) error { return nil }})
+	if err != nil || !r.Partial || (r.Position.Kind == first.Kind && string(r.Position.Key) == string(first.Key)) {
+		t.Fatalf("no further: %+v from %+v, %v", r.Position, first, err)
+	}
+}
+
+// Records gone count against a look's bounds, a whole kind gone that held many
+// is one finding, and an old database emptied or removed is one fact, not a
+// record each.
+func TestLookCountsRemovalsAndSeesAnEmptiedDatabase(t *testing.T) {
+	src, _, _, prints := movedWithPrints(t)
+	ctx := context.Background()
+	if _, err := src.DB.Collection(store.CProjects).DeleteMany(ctx, bson.M{"_id": bson.M{"$lt": "prj_00100"}}); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	r, err := Look(ctx, src, prints, LookOptions{MaxBytes: 10 * removedCost, Each: func(Late) error { n++; return nil }})
+	if err != nil || !r.Partial || n > 11 {
+		t.Fatalf("removals past the bounds: %d found, %+v, %v", n, r, err)
+	}
+	// The whole kind.
+	if _, err := src.DB.Collection(store.CProjects).DeleteMany(ctx, bson.M{}); err != nil {
+		t.Fatal(err)
+	}
+	var found []Late
+	r, err = Look(ctx, src, prints, LookOptions{Each: func(x Late) error { found = append(found, x); return nil }})
+	if err != nil || r.Partial || r.Emptied {
+		t.Fatalf("a kind gone: %+v %v", r, err)
+	}
+	whole := 0
+	for _, x := range found {
+		if x.Collection == store.CProjects {
+			whole++
+			if x.Kind != LateKindGone || x.Count != 1203 {
+				t.Fatalf("the kind gone: %+v", x)
+			}
+		}
+	}
+	if whole != 1 {
+		t.Fatalf("%d findings for a kind wholly gone", whole)
+	}
+	// The whole database: one fact.
+	for _, name := range mustNames(t, src) {
+		if name != store.CTestRun {
+			if err := src.DB.Collection(name).Drop(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	found = nil
+	r, err = Look(ctx, src, prints, LookOptions{Each: func(x Late) error { found = append(found, x); return nil }})
+	if err != nil || !r.Emptied || len(found) != 0 {
+		t.Fatalf("an emptied database: %+v, %d findings, %v", r, len(found), err)
+	}
+}
+
+func mustNames(t *testing.T, db *store.DB) []string {
+	t.Helper()
+	names, err := db.DB.ListCollectionNames(context.Background(), bson.D{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return names
 }

@@ -1,5 +1,7 @@
 package models
 
+import "strings"
+
 // NeverShown are the stored fields MetaRush keeps but never shows or sends to
 // a browser — `json:"-"` on its records: capabilities (a review link's key,
 // a storage key, a resumable upload's address), sign-in state, voice and face
@@ -8,7 +10,9 @@ package models
 // database after a move, beside this database's own (D359) — these are left
 // out wherever they appear in it, by name. TestNeverShownIsWhole keeps the
 // list in step with every record's `json:"-"` fields; a few names that hold
-// secrets on their own are listed too.
+// secrets on their own are listed too, and any field whose name looks like a
+// secret is left out as well (LooksSecret), so a record's unknown or free-form
+// fields are covered.
 var NeverShown = map[string]bool{
 	// Capabilities and where files are kept.
 	"key": true, "storageKey": true, "sessionUri": true, "store": true,
@@ -29,4 +33,27 @@ var NeverShown = map[string]bool{
 	"counting": true, "folder": true, "refPrefix": true, "renderDoneAt": true, "handover": true, "to": true, "from": true,
 	// Other records' own state.
 	"log": true, "schemaJson": true, "previewJson": true, "oldDir": true, "newDir": true,
+}
+
+// secretWords are what a field's name says when it holds a secret, in lower
+// case without separators.
+var secretWords = []string{"token", "secret", "password", "passwd", "passphrase", "apikey", "credential", "privatekey", "signingkey", "accesskey", "cookie", "authorization", "bearer", "sessionuri", "refreshkey"}
+
+// LooksSecret reports a field whose name looks like it holds a secret: an
+// apiToken, a clientSecret, a password_hash.
+func LooksSecret(name string) bool {
+	n := strings.ToLower(strings.NewReplacer("_", "", "-", "", ".", "").Replace(name))
+	for _, w := range secretWords {
+		if strings.Contains(n, w) {
+			return true
+		}
+	}
+	return false
+}
+
+// HiddenField reports a field a record shown whole leaves out: one on
+// NeverShown, or one whose name looks like a secret and that holds something
+// a secret can be in (text: tokenLimitMillions, a number, says nothing).
+func HiddenField(name string, holdsText bool) bool {
+	return NeverShown[name] || (holdsText && LooksSecret(name))
 }

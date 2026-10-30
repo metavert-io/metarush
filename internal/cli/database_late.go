@@ -37,7 +37,10 @@ shows them and never carries them over. Other copies are kept for 30 days for so
 Then, a person at their own terminal:
   metarush database late-writes show 1     # the old database's version beside this database's
   metarush database late-writes carry 1    # carry it over (only while this database's record is still the one the move copied)
-  metarush database late-writes leave 1    # this database keeps its own`,
+  metarush database late-writes leave 1    # this database keeps its own
+
+"Nothing was written" is said only after a look read everything; with --json, allClear is true only once the
+looks are over and their last one did.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			return runOp(c, "database.late.writes", ops.DatabaseLateWritesIn{Look: !noLook, Skip: skip, Limit: limit}, func(o any) { printLateWrites(c, o.(*ops.DatabaseLateWritesOut)) })
@@ -79,9 +82,10 @@ func databaseLateCarryCmd() *cobra.Command {
 		Long: `Carries the old database's version of each record over into this database, only while this database's
 own record is still exactly the one the move copied. When it changed here too (or another record took
 its place), nothing changes: both versions are shown, and you decide. The records of one clip's
-transcript or one fix go over together or not at all. A record removed from the old database is never
-removed here by MetaRush: remove it yourself if it should go, then leave it. Passwords, sign-in links
-and upload addresses are never carried over.`,
+transcript or one fix go over together: if any changed here, none does (one that changes while they go
+over stays behind, and MetaRush says so). A record removed from the old database is never removed here
+by MetaRush: remove it yourself if it should go, then leave it. Passwords, sign-in links and upload
+addresses are never carried over.`,
 		RunE: func(c *cobra.Command, args []string) error {
 			if len(args) == 0 && !all {
 				return fail(c, apperr.InvalidInput, "Say which ones: their numbers in the list (metarush database late-writes), or --all.", "")
@@ -178,10 +182,14 @@ func printLateWrites(c *cobra.Command, o *ops.DatabaseLateWritesOut) {
 	}
 	if len(o.Moves) > 0 {
 		m := o.Moves[len(o.Moves)-1]
-		if o.Waiting > 0 && m.Summary != o.Summary {
-			fmt.Println(m.Summary)
+		if m.Ended && m.EndedWhy != "" {
+			fmt.Println(m.EndedWhy)
 		}
 		if detailsMode(c) {
+			fmt.Printf("checked: %s; all clear: %v\n", m.Checked, m.AllClear)
+			for _, u := range m.Unread {
+				fmt.Println("not read: " + u)
+			}
 			for _, l := range m.Looks {
 				fmt.Printf("look %s (%s): %d found\n", l.At.Local().Format("2 Jan 15:04"), l.When, l.Found)
 			}

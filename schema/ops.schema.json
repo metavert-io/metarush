@@ -17543,6 +17543,9 @@
         "waiting": {
           "type": "integer"
         },
+        "allClear": {
+          "type": "boolean"
+        },
         "summary": {
           "type": "string"
         },
@@ -17561,6 +17564,7 @@
         "found",
         "total",
         "waiting",
+        "allClear",
         "summary",
         "steps"
       ]
@@ -29322,6 +29326,9 @@
         },
         "stopped": {
           "type": "string"
+        },
+        "complete": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -29381,8 +29388,40 @@
         "waiting": {
           "type": "integer"
         },
+        "checked": {
+          "type": "string",
+          "enum": [
+            "everything",
+            "part",
+            "nothing",
+            "gone"
+          ]
+        },
+        "allClear": {
+          "type": "boolean"
+        },
+        "completeAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completeFrom": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "unread": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "canLook": {
+          "type": "boolean"
+        },
         "more": {
           "type": "integer"
+        },
+        "atLimit": {
+          "type": "boolean"
         },
         "partial": {
           "type": "boolean"
@@ -29412,7 +29451,12 @@
         "ended",
         "found",
         "waiting",
+        "checked",
+        "allClear",
+        "unread",
+        "canLook",
         "more",
+        "atLimit",
         "partial",
         "readsAll",
         "copyDays",
@@ -29437,7 +29481,9 @@
             "decided",
             "clash",
             "changed_again",
-            "not_all_listed"
+            "not_all_listed",
+            "cant_be_whole",
+            "being_carried"
           ]
         }
       },
@@ -29466,7 +29512,9 @@
           "enum": [
             "new",
             "changed",
-            "gone"
+            "gone",
+            "kind-gone",
+            "emptied"
           ]
         },
         "groupSize": {

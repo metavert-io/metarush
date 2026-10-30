@@ -135,11 +135,12 @@ var Catalogue = map[string]Entry{
 
 // ReportOnly reports a kind of record whose records are only ever reported,
 // never copied, shown or carried over — something written into an old
-// database after a move, D359: one an archive leaves out, one that holds
-// sign-in secrets, and any kind MetaRush doesn't know.
+// database after a move, D359: one an archive leaves out or keeps only in its
+// manifest (the migration level, never carried over record by record), one
+// that holds sign-in secrets, and any kind MetaRush doesn't know.
 func ReportOnly(name string) bool {
 	e, ok := Catalogue[name]
-	return !ok || e.How == LeftOut || e.Secret
+	return !ok || e.How == LeftOut || e.How == InManifest || e.Secret
 }
 
 // Exported reports whether a collection's documents go into an archive.

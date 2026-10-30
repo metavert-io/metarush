@@ -2,6 +2,7 @@ package ops
 
 import (
 	"context"
+	"time"
 
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/store"
@@ -51,4 +52,20 @@ func SetServerHashesWork(ok bool) func() {
 	old := lateServerHashesWork
 	lateServerHashesWork = func(context.Context, *store.DB) bool { return ok }
 	return func() { lateServerHashesWork = old }
+}
+
+// SetLateKeepPerMove lowers how many records one move keeps; the returned
+// func undoes it.
+func SetLateKeepPerMove(n int) func() {
+	old := lateKeepPerMove
+	lateKeepPerMove = n
+	return func() { lateKeepPerMove = old }
+}
+
+// SetLateLookAfter replaces when the looks after a move are due; the returned
+// func undoes it.
+func SetLateLookAfter(d []time.Duration) func() {
+	old := LateLookAfter
+	LateLookAfter = d
+	return func() { LateLookAfter = old }
 }

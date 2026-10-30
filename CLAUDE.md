@@ -1082,7 +1082,7 @@ Read `docs/architecture.md` before structural changes.
   `database` section, checked as loaded) → `recordMove` into the new database. No job (the old database is frozen):
   progress is `<state>/database-move/<id>.json`; the dashboard starts `database move --dashboard-move <id>` with
   `tools.Start` and a one-time grant like the media's move. Never deletes either database. **Something written late**
-  (D352–D359, `internal/dbmove/late.go`, `internal/ops/databasemove_late.go`, `web/src/screens/settings/DatabaseLateWrites.tsx`):
+  (D352–D359, D370, `internal/dbmove/late.go`, `internal/ops/databasemove_late.go`, `web/src/screens/settings/DatabaseLateWrites.tsx`):
   the last look's read keeps every record's fingerprint (`RecheckPrinting` → `<state>/database-move/<move>.prints`)
   and the move keeps the old address (`keepLookAddress`: keychain `database-late-<move>` / `database/late-<move>.secret`,
   never `forgetUnneededAddress`'s); the moving computer looks right after its switch (`startLateLooks`, also after a
@@ -1090,13 +1090,17 @@ Read `docs/architecture.md` before structural changes.
   `LookDueLate`, retries, ends `LateLookGrace` after; one at a time, `lookingUntil`) and on demand (`database.late.writes`
   `look`, owners, any surface, "-" in readsShow); `dbmove.Look` only reads (`dbHash` per kind — Atlas Free/Flex don't
   offer it, the plan says so — then changed kinds streamed in `_id` order and merged with their fingerprints; `Each`,
-  `MaxBytes`/`MaxTime`/`Pace`: `lateBackground` 256 MB, 5 min, stops and says so; `lateAsked` 16 GB, 2 h);
+  `MaxBytes`/`MaxTime`/`Pace`: `lateBackground` 256 MB, 5 min, stops and says so, the next look goes on (`From`,
+  `Position`, `latePass`); `lateAsked` 16 GB, 2 h). **"Nothing was written" only after a complete look**: `complete`
+  (a pass read everything, nothing only counted, no failed look since) → `LateLookView.Checked`, `AllClear` (over and
+  complete: what a script trusts), `lateSummary`, `tellOwnersIncomplete`; an old database removed is one finding
+  (`Emptied`, `Gone`);
   records `late_looks`/`late_writes` (migration 62; `late_writes` left out of exports), bell `late_writes` only when
   something is found; a look that saw everything settles what it didn't find (`seenBy`, copy dropped); it keeps
   `lateKeepPerLook` new records (the rest counted, `more`; later looks go on past them). **Secrets**:
-  `wsarchive.ReportOnly` (left out, `Entry.Secret` or unknown: **mark a new kind that holds secrets**) keeps no copy or
-  ID, shows nothing, never carries; `show` leaves out `models.NeverShown` (every `json:"-"` field, a test keeps it
-  whole) and runs the export's scrub. Copies go on a decision, and after `LateCopyKeep` (`DropOldLateCopies`, checks
+  `wsarchive.ReportOnly` (left out, in the manifest, `Entry.Secret` or unknown: **mark a new kind that holds secrets**) keeps
+  no copy or ID, shows nothing, never carries; `show` leaves out `models.HiddenField` (`NeverShown`: every `json:"-"`
+  field, a test keeps it whole; `LooksSecret`: any secret-looking name, at any depth) and runs the export's scrub. Copies go on a decision, and after `LateCopyKeep` (`DropOldLateCopies`, checks
   `DeletionsPaused`). `database.late.show|carry|leave` OwnerOnly + HumanOnly + `databasePeopleOnly`, the CLI
   `lateAtTerminal`; `lateGroupBy` entries (one clip's transcript…) go whole or not at all; carry = a claim on the
   fingerprint, then check and set on the whole record (`$$ROOT` vs `$literal`), gone records never removed;

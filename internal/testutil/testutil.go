@@ -292,3 +292,17 @@ func (c TemplateCollection) make(ctx context.Context, db *store.DB) error {
 	}
 	return nil
 }
+
+// SkewClock makes this computer's clock (store.Clock, which jobs.Clock and the
+// server-time helper read) run off by d — a computer whose clock is wrong —
+// until restore is called or the test ends. The database server's time is
+// unchanged.
+func SkewClock(t testing.TB, d time.Duration) (restore func()) {
+	t.Helper()
+	old := store.Clock
+	store.Clock = func() time.Time { return old().Add(d) }
+	var once sync.Once
+	restore = func() { once.Do(func() { store.Clock = old }) }
+	t.Cleanup(restore)
+	return restore
+}

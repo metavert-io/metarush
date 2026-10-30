@@ -177,6 +177,8 @@ type DB struct {
 	// (OnFirstWrite); said is whether it ran.
 	firstWrite func(context.Context)
 	said       atomic.Bool
+	// clock is the last measurement of the database server's time (Now).
+	clock serverClock
 }
 
 // OnFirstWrite runs fn once, before this connection's first write that goes

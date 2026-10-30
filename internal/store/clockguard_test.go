@@ -65,6 +65,7 @@ var clockAllowed = map[string]struct {
 	N   int
 	Why string
 }{
+	"internal/dbmove/late.go looker.account":                        {1, "how long this look has run, in one process"},
 	"internal/aiwork/presenter_retire.go linkServer.add":            {1, "the link server's own memory, in one process"},
 	"internal/aiwork/presenter_retire.go linkServer.serve":          {1, "the link server's own memory, in one process"},
 	"internal/aiwork/presenters.go askWords":                        {1, "turns the adapter's end by this computer's clock into time left; what is stored is the server's now plus that"},

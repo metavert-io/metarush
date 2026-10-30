@@ -360,7 +360,7 @@ func openLatePrints(a *app.App, move string) *os.File {
 // still open). nil when the looks can't be kept.
 func startLateLooks(ctx context.Context, a *app.App, newDB, old *store.DB, move string, from DatabasePlace, movedAt time.Time) *LateLookView {
 	ctx = context.WithoutCancel(ctx)
-	now := time.Now().UTC()
+	now := newDB.NowOrLocal(ctx)
 	rec := lateLookRec{ID: move, WorkspaceID: a.WorkspaceID(), From: from.Words, FromHost: from.Host, FromName: old.Name, MovedAt: movedAt,
 		Computer: a.Cfg.Installation.ID, ComputerName: a.Cfg.MachineName(), Due: []time.Time{}, Looks: []LateLookTaken{}}
 	for _, d := range LateLookAfter {
@@ -396,7 +396,7 @@ func lookAndRecord(ctx context.Context, a *app.App, db *store.DB, rec *lateLookR
 	// One look at a time: a person's beside MetaRush's own would each settle
 	// what only the other just saw. A look that went away holds it no longer
 	// than a look may take.
-	wall := time.Now().UTC()
+	wall := db.NowOrLocal(ctx)
 	until := wall.Add(lateAsked.MaxTime + 2*time.Minute)
 	if when != LateAsked {
 		until = wall.Add(lateBackground.MaxTime + 2*time.Minute)
@@ -521,7 +521,7 @@ func lateProblemWords(err error) string {
 // drops the old database's address and the fingerprints. settled false: they
 // ended without checking everything, and owners hear of it.
 func endLateLooks(ctx context.Context, a *app.App, db *store.DB, move, why string, settled bool) {
-	now := time.Now().UTC()
+	now := db.NowOrLocal(ctx)
 	set := bson.M{"ended": true, "endedAt": now, "endedWhy": why}
 	if !settled {
 		set["complete"] = false
@@ -941,7 +941,7 @@ func tellLateOwners(ctx context.Context, a *app.App, db *store.DB, n models.Noti
 // there is none).
 func quietLateBell(ctx context.Context, a *app.App, db *store.DB, group, tone, title, body string) {
 	_, _ = db.C(store.CNotifications).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "groupKey": group, "kind": models.NotifyLateWrites},
-		bson.M{"$set": bson.M{"title": title, "body": body, "tone": tone, "updatedAt": time.Now().UTC()}})
+		bson.M{"$set": bson.M{"title": title, "body": body, "tone": tone, "updatedAt": db.NowOrLocal(ctx)}})
 }
 
 // collapsed is one entry of the list: a record, or the first of a group with
@@ -1250,6 +1250,8 @@ type LateLookView struct {
 	// WaitingCopies: how many of those waiting have a copy to carry over.
 	WaitingCopies  int `json:"waitingCopies"`
 	waitingEmptied int
+	// now is the database server's time when this was read, for the words.
+	now time.Time
 	// More: found and not kept; AtLimit: the move keeps no more, so they stay
 	// only counted. Partial: the last look stopped before it saw everything
 	// (Stopped says why); ReadsAll: every look reads the old database whole
@@ -1281,7 +1283,7 @@ func lateLookView(ctx context.Context, a *app.App, db *store.DB, move string) *L
 }
 
 func viewOfLook(ctx context.Context, a *app.App, db *store.DB, r *lateLookRec) *LateLookView {
-	v := &LateLookView{Move: r.ID, From: r.From, MovedAt: r.MovedAt, Computer: r.ComputerName, Here: r.Computer == a.Cfg.Installation.ID,
+	v := &LateLookView{now: db.NowOrLocal(ctx), Move: r.ID, From: r.From, MovedAt: r.MovedAt, Computer: r.ComputerName, Here: r.Computer == a.Cfg.Installation.ID,
 		Looks: append([]LateLookTaken{}, r.Looks...), Ended: r.Ended, EndedWhy: r.EndedWhy, Problem: r.Problem, Found: r.Found,
 		More: r.More, AtLimit: r.Found >= lateKeepPerMove, Partial: r.Partial, Stopped: r.Stopped, ReadsAll: r.ReadsAll, CopyDays: lateKeepDays(),
 		CompleteAt: r.CompleteAt, CompleteFrom: r.CompleteFrom, Unread: append([]string{}, r.Unread...)}
@@ -1355,9 +1357,9 @@ func lateSummary(r *lateLookRec, v *LateLookView) string {
 	case r.Ended:
 		s = fmt.Sprintf("MetaRush read all of the old database (%s) for the last time; everything it found was decided or settled.", r.From)
 	case r.Found == 0:
-		s = fmt.Sprintf("Nothing was written into the old database (%s) after the move so far: MetaRush read all of it. %s looks again %s.", r.From, who, nextWords(v.Next))
+		s = fmt.Sprintf("Nothing was written into the old database (%s) after the move so far: MetaRush read all of it. %s looks again %s.", r.From, who, nextWords(v.Next, v.now))
 	default:
-		s = fmt.Sprintf("Everything found in the old database (%s) after the move was decided or settled. %s looks again %s.", r.From, who, nextWords(v.Next))
+		s = fmt.Sprintf("Everything found in the old database (%s) after the move was decided or settled. %s looks again %s.", r.From, who, nextWords(v.Next, v.now))
 	}
 	if !r.Gone && v.Checked != LateCheckedEverything {
 		s = strings.TrimSpace(s + " " + lateIncompleteWords(r, v, who))
@@ -1422,17 +1424,17 @@ func lateIncompleteWords(r *lateLookRec, v *LateLookView, who string) string {
 		s += " It keeps it until " + lateTime(*v.LookUntil) + "."
 	}
 	if v.Next != nil {
-		s += " " + who + " looks again " + nextWords(v.Next) + "."
+		s += " " + who + " looks again " + nextWords(v.Next, v.now) + "."
 	}
 	return s
 }
 
 // nextWords says when the next look is.
-func nextWords(t *time.Time) string {
+func nextWords(t *time.Time, now time.Time) string {
 	if t == nil {
 		return "when asked"
 	}
-	d := time.Until(*t)
+	d := t.Sub(now)
 	switch {
 	case d < -time.Hour:
 		return "when MetaRush runs there"
@@ -1614,7 +1616,7 @@ func lateLooks(ctx context.Context, a *app.App) []lateLookRec {
 // in the order found, a group (in one state) as one entry. Copies aren't read.
 func lateList(ctx context.Context, a *app.App, recs []lateLookRec) []collapsed {
 	// A carry-over that stopped part-way lets go of what it claimed.
-	_, _ = a.DB.C(store.CLateWrites).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "state": LateCarrying, "carryingAt": bson.M{"$lt": time.Now().UTC().Add(-lateCarryStale)}},
+	_, _ = a.DB.C(store.CLateWrites).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "state": LateCarrying, "carryingAt": bson.M{"$lt": a.DB.NowOrLocal(ctx).Add(-lateCarryStale)}},
 		bson.M{"$set": bson.M{"state": LateWaiting}, "$unset": bson.M{"carryingAt": ""}})
 	var found []lateWriteRec
 	_ = a.DB.Find(ctx, store.CLateWrites, a.WorkspaceID(), bson.M{}, &found, options.Find().SetProjection(bson.M{"old": 0}))
@@ -1649,7 +1651,7 @@ func DatabaseLateWrites(ctx context.Context, a *app.App, in *DatabaseLateWritesI
 			if a.ReadOnly {
 				continue
 			}
-			if _, err := lookAndRecord(ctx, a, a.DB, r, nil, LateAsked, time.Now().UTC()); err != nil {
+			if _, err := lookAndRecord(ctx, a, a.DB, r, nil, LateAsked, a.DB.NowOrLocal(ctx)); err != nil {
 				out.Problem = lateProblemWords(err)
 				if e := apperr.From(err); e != nil && e.Code == apperr.NotConfigured {
 					// The address or the fingerprints are gone from this computer:
@@ -2233,7 +2235,7 @@ func carryLate(ctx context.Context, a *app.App, r lateWriteRec, who string) (str
 	}
 	lw := a.DB.C(store.CLateWrites)
 	claim, err := lw.UpdateOne(ctx, bson.M{"_id": r.ID, "workspaceId": a.WorkspaceID(), "state": LateWaiting, "print": r.Print},
-		bson.M{"$set": bson.M{"state": LateCarrying, "carryingAt": time.Now().UTC()}})
+		bson.M{"$set": bson.M{"state": LateCarrying, "carryingAt": a.DB.NowOrLocal(ctx)}})
 	if err != nil {
 		return "", "", apperr.Wrap(apperr.Database, err, "MetaRush couldn't carry it over.")
 	}
@@ -2309,7 +2311,7 @@ func carryLate(ctx context.Context, a *app.App, r lateWriteRec, who string) (str
 	// In the history before it is marked: a process that stops here leaves
 	// a history that says so, and the record goes over again without a change.
 	a.Audit(ctx, "database.late.carry", "late_write", r.ID, "", map[string]any{"move": r.Move, "collection": r.Collection, "record": lateRecordWords(r.Key), "kind": r.Kind})
-	now := time.Now().UTC()
+	now := a.DB.NowOrLocal(ctx)
 	done, err := lw.UpdateOne(ctx, bson.M{"_id": r.ID, "workspaceId": a.WorkspaceID(), "state": LateCarrying, "print": r.Print},
 		bson.M{"$set": bson.M{"state": LateCarried, "decidedBy": who, "decidedAt": now, "kept": false}, "$unset": bson.M{"old": "", "carryingAt": ""}})
 	if err == nil && done.ModifiedCount == 0 {
@@ -2333,7 +2335,7 @@ func DatabaseLateLeave(ctx context.Context, a *app.App, in *DatabaseLateDecideIn
 		return nil, err
 	}
 	out := &DatabaseLateLeaveOut{Left: []LateWriteView{}}
-	now := time.Now().UTC()
+	now := a.DB.NowOrLocal(ctx)
 	who := firstNonEmpty(a.Actor.UserName, "a person")
 	total, busy, noted := 0, 0, 0
 	looks := map[string]*lateLookRec{}
@@ -2418,7 +2420,7 @@ func RunLateLooks(ctx context.Context, a *app.App, logf func(string, ...any)) {
 			return
 		case <-t.C:
 		}
-		now := time.Now().UTC()
+		now := a.DB.NowOrLocal(ctx)
 		for _, s := range LookDueLate(ctx, a, now) {
 			logf("%s", s)
 		}

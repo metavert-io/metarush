@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -254,7 +255,10 @@ type DatabaseMoveOut struct {
 	Seconds float64  `json:"seconds"`
 	Kept    string   `json:"kept"`
 	Next    []string `json:"next"`
-	Summary string   `json:"summary"`
+	// Late is the looks at the old database afterwards, for anything written
+	// there late (the first one was made right after the switch).
+	Late    *LateLookView `json:"late,omitempty"`
+	Summary string        `json:"summary"`
 }
 
 // databasePeopleOnly: a move, a switch and abandoning one are a person's,
@@ -659,6 +663,9 @@ func planMove(ctx context.Context, a *app.App, t *dbTarget) (*DatabasePlanOut, e
 	if t.place.Cloud && !kept {
 		out.Notes = append(out.Notes, "The new database is elsewhere on the internet, which clients' What may leave rules count as cloud storage: it holds the workspace's transcripts, names and notes, and the voice and face prints MetaRush knows people by.")
 	}
+	if !lateServerHashesWork(ctx, a.DB) {
+		out.Notes = append(out.Notes, lateReadsAllNote())
+	}
 	if t.place.Kind == "server" && t.place.Words == "a MongoDB server on this computer" && others > 0 {
 		out.Notes = append(out.Notes, "The new database's address is on this computer: your other computers reach it only if the same address works on theirs (a tunnel, say).")
 	}
@@ -968,19 +975,43 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 	// The last look, right before: the old database (frozen) still adds up
 	// to exactly what the copy holds, every kind of record listed again.
 	rec.phase(a, "checking", "Looking at the old database one last time")
-	if err := dbmove.Recheck(ctx, a.DB, t.db, res); err != nil {
+	// The same read keeps every record's fingerprint, for the looks at the old
+	// database after the move (something written there late, D354).
+	printsOK := false
+	if pf := openLatePrints(a, moveID); pf != nil {
+		err := dbmove.RecheckPrinting(ctx, a.DB, t.db, res, moveID, pf)
+		if cerr := pf.Close(); err == nil && cerr == nil {
+			printsOK = true
+		} else {
+			_ = os.Remove(latePrintsFile(a, moveID))
+		}
+		if err != nil {
+			return nil, copyError(err, t.place)
+		}
+	} else if err := dbmove.Recheck(ctx, a.DB, t.db, res); err != nil {
 		return nil, copyError(err, t.place)
 	}
 	ok, err := a.DB.SetMoveState(ctx, moveID, store.MoveMoving, store.MoveMoved, "")
 	if err != nil || !ok {
+		_ = os.Remove(latePrintsFile(a, moveID))
 		if err == nil {
 			return nil, apperr.New(apperr.Conflict, "The move was abandoned while it copied, so this computer didn't switch.").
 				WithHint("The new database keeps its lock, so nothing uses that copy. Move again into a new, empty database when you want.")
 		}
 		return nil, apperr.Wrap(apperr.Database, err, "The copy is whole and checked, but MetaRush couldn't mark the old database as moved, so nothing switched. Run the move again to finish it.")
 	}
+	movedAt := time.Now().UTC()
 	if cur, err := a.DB.ReadMoveMarker(ctx); err == nil {
 		a.SetMoveMarker(cur)
+		if cur != nil && cur.MovedAt != nil {
+			movedAt = cur.MovedAt.UTC()
+		}
+	}
+	// The old database's address stays on this computer until the last look
+	// at it (D353); without it, or the fingerprints, there are no looks.
+	lateOK := printsOK && !lateKeepFails && keepLookAddress(a.Cfg, moveID, a.Cfg.Database.URI) == nil
+	if !lateOK {
+		forgetLookAddress(a, moveID)
 	}
 	// 5. This computer switches (checked the way MetaRush loads its settings;
 	// put back when it doesn't work).
@@ -1019,6 +1050,18 @@ func databaseMove(ctx context.Context, a *app.App, in *DatabaseMoveIn, rec *dbMo
 	// The record goes into the new database, where the workspace lives on.
 	recordMove(ctx, t.db, a, "database.move", "moved the workspace's database", map[string]any{"from": out.From.Words, "to": t.place.Words,
 		"documents": res.Documents, "collections": len(res.Collections), "resumed": out.Resumed, "seconds": int(time.Since(started).Seconds())})
+	// The first look at the old database for anything written there late
+	// (D352): right after the switch; later ones by MetaRush in the background.
+	if lateOK {
+		out.Late = startLateLooks(ctx, a, t.db, a.DB, moveID, out.From, movedAt)
+	}
+	if out.Late == nil {
+		out.Notes = append(out.Notes, "MetaRush couldn't keep what it needs to look at the old database again later, for anything written there after the move.")
+	} else if out.Late.Waiting > 0 {
+		out.Next = append(out.Next, out.Late.Summary+" Settings → Storage → Move the database shows it (metarush database late-writes).")
+	} else {
+		out.Next = append(out.Next, lateLooksAgainWords)
+	}
 	// MetaRush running in the background here starts again with the new
 	// database (it follows config.yaml).
 	if running, restarted := waitForDaemonRestart(ctx, a.Cfg.Home(), switchedAt); running {
@@ -1063,6 +1106,10 @@ func moveAlive(ctx context.Context, a *app.App, m *store.MoveMarker) bool {
 // switchFails, set by tests, makes a move's own switch fail after the old
 // database was marked moved.
 var switchFails func() error
+
+// lateKeepFails, set by tests, plays a move that can't keep what the looks
+// afterwards need.
+var lateKeepFails bool
 
 func copyLabel(p dbmove.CopyProgress) string {
 	if p.Phase == "checking" {
@@ -1353,7 +1400,10 @@ type DatabaseSwitchOut struct {
 	To       DatabasePlace `json:"to"`
 	Switched bool          `json:"switched"`
 	Next     []string      `json:"next"`
-	Summary  string        `json:"summary"`
+	// Late is the looks at the old database, when this is the computer that
+	// moved it (its own switch hadn't held).
+	Late    *LateLookView `json:"late,omitempty"`
+	Summary string        `json:"summary"`
 }
 
 // DatabaseSwitch is database.switch: this computer, still using the old
@@ -1413,6 +1463,19 @@ func DatabaseSwitch(ctx context.Context, a *app.App, in *DatabaseSwitchIn) (*Dat
 	forgetMoveAddress(a.Cfg)
 	recordMove(ctx, t.db, a, "database.switch", "switched this computer to the workspace's new database", map[string]any{"from": from.Words, "to": t.place.Words})
 	out := &DatabaseSwitchOut{From: from, To: t.place, Switched: true, Next: []string{}}
+	// The computer that moved it, whose own switch didn't hold: its looks at
+	// the old database start now (D352).
+	if m.From == a.Cfg.Installation.ID && KeepsLookAddress(a.Cfg, m.Move) {
+		if _, err := os.Stat(latePrintsFile(a, m.Move)); err == nil && lateLookView(ctx, a, t.db, m.Move) == nil {
+			movedAt := time.Now().UTC()
+			if m.MovedAt != nil {
+				movedAt = m.MovedAt.UTC()
+			}
+			if v := startLateLooks(ctx, a, t.db, a.DB, m.Move, from, movedAt); v != nil {
+				out.Late = v
+			}
+		}
+	}
 	out.Summary = "This computer uses " + t.place.Words + " now, with its own sign-in. MetaRush running in the background here starts again by itself to use it."
 	out.Next = append(out.Next, keptWords(from))
 	return out, nil

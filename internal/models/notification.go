@@ -36,6 +36,7 @@ const (
 	NotifyOutsideComments   = "outside_comments"    // people outside the workspace commented through a review link (D315)
 	NotifyReviewLinkEnded   = "review_link_ended"   // a review link ended by itself: the media moved, rules or consent changed (D318)
 	NotifyPublishStopped    = "publish_stopped"     // a post MetaRush stopped part-way couldn't go on (rules changed, kept failing) (D305)
+	NotifyLateWrites        = "late_writes"         // something was written into the old database after the workspace moved (D356)
 )
 
 // Notification is a persistent, per-person message about an outcome. The
@@ -45,7 +46,7 @@ type Notification struct {
 	ID          string         `bson:"_id" json:"id"`
 	WorkspaceID string         `bson:"workspaceId" json:"workspaceId"`
 	UserID      string         `bson:"userId" json:"userId"`
-	Kind        string         `bson:"kind" json:"kind" jsonschema:"enum=file_ready,enum=render_finished,enum=render_failed,enum=qa_done,enum=assistant_proposal,enum=duplicate_skipped,enum=battery_paused,enum=upload_interrupted,enum=speakers,enum=speakers_recognized,enum=narration_ready,enum=narration_failed,enum=import_failed,enum=on_screen,enum=scenes_described,enum=generation_ready,enum=generation_failed,enum=fixes_missed,enum=remotion_waiting,enum=signin_locked,enum=content_settings,enum=recipe_run,enum=recipe_planned,enum=ability_waiting,enum=ability_run,enum=auto_spent,enum=recording_expiring,enum=publish_stopped,enum=outside_comments,enum=review_link_ended"`
+	Kind        string         `bson:"kind" json:"kind" jsonschema:"enum=file_ready,enum=render_finished,enum=render_failed,enum=qa_done,enum=assistant_proposal,enum=duplicate_skipped,enum=battery_paused,enum=upload_interrupted,enum=speakers,enum=speakers_recognized,enum=narration_ready,enum=narration_failed,enum=import_failed,enum=on_screen,enum=scenes_described,enum=generation_ready,enum=generation_failed,enum=fixes_missed,enum=remotion_waiting,enum=signin_locked,enum=content_settings,enum=recipe_run,enum=recipe_planned,enum=ability_waiting,enum=ability_run,enum=auto_spent,enum=recording_expiring,enum=publish_stopped,enum=outside_comments,enum=review_link_ended,enum=late_writes"`
 	GroupKey    string         `bson:"groupKey" json:"groupKey"`
 	Tone        string         `bson:"tone" json:"tone" jsonschema:"enum=success,enum=error,enum=warning,enum=info"`
 	Title       string         `bson:"title" json:"title"`

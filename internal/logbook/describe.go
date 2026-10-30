@@ -337,6 +337,8 @@ var opBase = map[string]string{
 	"database.plan":  "check what moving the workspace's database would do", "database.move": "move the workspace's database",
 	"database.switch": "switch this computer to the workspace's new database", "database.abandon": "abandon a move of the database",
 	"database.move.status": "look at whether the workspace's database is moving",
+	"database.late.writes": "look for what was written into the old database after the move", "database.late.show": "compare a record written into the old database late with this database's",
+	"database.late.carry": "carry what was written into the old database late over into this one", "database.late.leave": "leave what was written into the old database late as it is here",
 	// Screen recordings made in the dashboard (D258–D260).
 	"recording.list": "list screen recordings", "recording.show": "look at a screen recording",
 	"recording.finish": "add a screen recording to the Library", "recording.link": "link a screen recording into {p}",

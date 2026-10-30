@@ -43,6 +43,11 @@ const (
 type Entry struct {
 	How string `json:"how" jsonschema:"enum=as-is,enum=transformed,enum=left-out,enum=in-manifest"`
 	Why string `json:"why"`
+	// Secret: it holds sign-in secrets or capabilities (passwords, sign-in
+	// links, a resumable upload's address): left out of an archive or
+	// changed for it, and never copied, shown or carried over anywhere else
+	// either (ReportOnly).
+	Secret bool `json:"-"`
 	// transform changes one document (only for Transformed).
 	transform transformFunc
 }
@@ -57,7 +62,7 @@ var Catalogue = map[string]Entry{
 	store.CUsers:                  {How: Transformed, Why: "people: names, emails, roles, pictures and preferences; passwords are not in the archive, so “password set” is cleared and people set one again", transform: clearPasswordSet},
 	store.CProjects:               {How: AsIs, Why: "projects: names, briefs, members and settings"},
 	store.CAssets:                 {How: AsIs, Why: "footage: each clip's record, where its bytes are kept and what was learned from it"},
-	store.CIngest:                 {How: Transformed, Why: "upload records; an unfinished upload's resumable address is taken out (it allows writing into the storage)", transform: dropUploadSession},
+	store.CIngest:                 {How: Transformed, Why: "upload records; an unfinished upload's resumable address is taken out (it allows writing into the storage)", transform: dropUploadSession, Secret: true},
 	store.CSegments:               {How: AsIs, Why: "transcripts: every clip's words with their times"},
 	store.CInsights:               {How: AsIs, Why: "what MetaRush learned from the footage (scenes, pauses, what is on screen)"},
 	store.CRevisions:              {How: AsIs, Why: "every version of every cut"},
@@ -89,9 +94,9 @@ var Catalogue = map[string]Entry{
 	store.CAbilities:              {How: AsIs, Why: "abilities, their checks and owners' approvals"},
 	store.CAbilitySetups:          {How: LeftOut, Why: "what each computer set up for an ability (programs and files on that computer, pinned there): set up again on the new computer"},
 	store.CAbilityRuns:            {How: AsIs, Why: "abilities' runs: what each sent, made and cost"},
-	store.CUserCredentials:        {How: LeftOut, Why: "passwords (kept as hashes): credentials never go into an archive; people set a password again"},
-	store.CAuthTokens:             {How: LeftOut, Why: "invitation and password-reset links: credentials; owners send new ones"},
-	store.CAuthFailures:           {How: LeftOut, Why: "counts of wrong passwords, kept a short while to slow guessing: about sign-ins to this database only"},
+	store.CUserCredentials:        {How: LeftOut, Why: "passwords (kept as hashes): credentials never go into an archive; people set a password again", Secret: true},
+	store.CAuthTokens:             {How: LeftOut, Why: "invitation and password-reset links: credentials; owners send new ones", Secret: true},
+	store.CAuthFailures:           {How: LeftOut, Why: "counts of wrong passwords, kept a short while to slow guessing: about sign-ins to this database only", Secret: true},
 	store.CTranscriptFixes:        {How: AsIs, Why: "people's fixes to transcripts"},
 	store.CTranscriptOriginals:    {How: AsIs, Why: "transcripts as the machine wrote them, before the first fix"},
 	store.CTranscriptSnapshots:    {How: AsIs, Why: "the words saved versions were made with"},
@@ -112,6 +117,8 @@ var Catalogue = map[string]Entry{
 	store.CSpokenChanges:          {How: AsIs, Why: "words changed in a speaker's own voice, as disclosed"},
 	store.CReviewLinks:            {How: AsIs, Why: "links sent to outside reviewers, as the record of what was shared"},
 	store.CHandovers:              {How: AsIs, Why: "handovers of a computer's role to another computer and take-overs, as history: which computer took over from which, and when (never a passphrase or a key)"},
+	store.CLateLooks:              {How: AsIs, Why: "the looks at an old database after the workspace moved, as history: when, from which computer, how much each found (never an address)"},
+	store.CLateWrites:             {How: LeftOut, Why: "copies of records written into an old database after the workspace moved, kept a short while for a person to carry over: about that old database only"},
 	store.CLogEntries:             {How: AsIs, Why: "the activity log (written without keys or passwords)"},
 	store.CImprovementItems:       {How: AsIs, Why: "gaps and friction the weekly report found"},
 	store.CImprovementReports:     {How: AsIs, Why: "the weekly reports"},
@@ -124,6 +131,16 @@ var Catalogue = map[string]Entry{
 	store.CDatabaseMove:           {How: LeftOut, Why: "the marker a move of the database leaves in the database it moved from: that database's own state"},
 	"catch_ups":                   {How: AsIs, Why: "which catch-up steps already ran (so the copy doesn't run them again)"},
 	"sound_cache":                 {How: AsIs, Why: "clearer voices already made (made once, kept by content address)"},
+}
+
+// ReportOnly reports a kind of record whose records are only ever reported,
+// never copied, shown or carried over — something written into an old
+// database after a move, D359: one an archive leaves out or keeps only in its
+// manifest (the migration level, never carried over record by record), one
+// that holds sign-in secrets, and any kind MetaRush doesn't know.
+func ReportOnly(name string) bool {
+	e, ok := Catalogue[name]
+	return !ok || e.How == LeftOut || e.How == InManifest || e.Secret
 }
 
 // Exported reports whether a collection's documents go into an archive.

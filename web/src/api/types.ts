@@ -322,6 +322,13 @@ export type DatabaseMovePlanOut = api.DatabaseMovePlanOut;
 export type DatabaseMoveStartIn = api.DatabaseMoveStartIn;
 export type DatabaseMoveStartOut = api.DatabaseMoveStartOut;
 export type DatabaseSwitchFormIn = api.DatabaseSwitchFormIn;
+/* Something written into the old database after a move (D352–D358): database.late.writes|show|carry|leave. */
+export type LateLookView = ops.LateLookView;
+export type LateWriteView = ops.LateWriteView;
+export type DatabaseLateWritesOut = ops.DatabaseLateWritesOut;
+export type DatabaseLateShowOut = ops.DatabaseLateShowOut;
+export type DatabaseLateCarryOut = ops.DatabaseLateCarryOut;
+export type DatabaseLateLeaveOut = ops.DatabaseLateLeaveOut;
 export type JobShowOut = ops.JobShowOut;
 export type JobTarget = ops.JobTarget;
 export type PreviewPrepareOut = ops.PreviewPrepareOut;

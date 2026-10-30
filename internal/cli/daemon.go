@@ -253,6 +253,10 @@ func serveCmd() *cobra.Command {
 			// Posts to video platforms MetaRush stopped part-way go on from where
 			// YouTube got to (or are marked as not posted, plainly) (D305).
 			go ops.RunPublishRecovery(ctx, a, srv.Log)
+			// After this computer moved the workspace's database: looks at the old
+			// one for anything written there late, about 15 minutes, an hour and a
+			// day after the move (D352).
+			go ops.RunLateLooks(ctx, a, srv.Log)
 			// Generated video: close requests stopped before they were sent and
 			// let go of money held for requests that were never saved (D124).
 			go generate.RunSweep(ctx, a)

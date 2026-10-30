@@ -201,6 +201,19 @@ var Migrations = []Migration{
 				options.Index().SetName("handover_in_progress").SetUnique(true).SetPartialFilterExpression(bson.M{"active": true})),
 			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "settledAt", Value: -1}}))
 	}},
+	{Version: 62, Name: "looking at the old database again after a move, and what was written there late", Up: func(ctx context.Context, d *DB) error {
+		// The computer that moved finds the looks still to take (D352); the
+		// records found are listed per move in the order they were found
+		// (D355), and those waiting for a person counted.
+		if err := createIndexes(ctx, d, CLateLooks,
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "computer", Value: 1}, {Key: "ended", Value: 1}}),
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "movedAt", Value: -1}})); err != nil {
+			return fmt.Errorf("%s indexes: %w", CLateLooks, err)
+		}
+		return createIndexes(ctx, d, CLateWrites,
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "move", Value: 1}, {Key: "n", Value: 1}}),
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "state", Value: 1}}))
+	}},
 }
 
 // migratePresenters indexes people's own presenters (D273: one per short

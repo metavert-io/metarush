@@ -705,9 +705,15 @@ type DatabaseMoveStatusOut struct {
 	Steps   []string `json:"steps"`
 	Command string   `json:"command,omitempty"`
 	// Moving: a move runs on this computer now; Run is the last one started here.
-	Moving  bool                 `json:"moving"`
-	Run     *DatabaseMoveRunView `json:"run,omitempty"`
-	Summary string               `json:"summary"`
+	Moving bool                 `json:"moving"`
+	Run    *DatabaseMoveRunView `json:"run,omitempty"`
+	// Late is the looks at the old database after the newest move into this
+	// one, for anything written there late (D352).
+	Late *LateLookView `json:"late,omitempty"`
+	// LateNote: the workspace moved here with no looks on record, so MetaRush
+	// can't tell whether anything was written into the old database late.
+	LateNote string `json:"lateNote,omitempty"`
+	Summary  string `json:"summary"`
 }
 
 // DatabaseMoveStatus is database.move.status.
@@ -750,6 +756,22 @@ func DatabaseMoveStatus(ctx context.Context, a *app.App, _ *DatabaseMoveStatusIn
 		break
 	}
 	out.Moving = out.Run != nil && (out.Run.State == DBMoveRunning || out.Run.State == DBMoveStarting)
+	out.Late = LateStatus(ctx, a)
+	if out.Late == nil {
+		if note, step := lateNoLooks(ctx, a); step != "" {
+			out.LateNote = note + " " + step
+		}
+	}
+	if out.Run != nil && out.Late != nil && out.Late.Ended {
+		// The move's record still says its looks are to come: they aren't.
+		next := []string{}
+		for _, n := range out.Run.Next {
+			if n != lateLooksAgainWords {
+				next = append(next, n)
+			}
+		}
+		out.Run.Next = next
+	}
 	switch {
 	case m != nil && m.State == store.MoveMoved:
 		out.SwitchMeToo = true

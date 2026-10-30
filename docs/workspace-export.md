@@ -142,6 +142,8 @@ history, and stays.
 | `installations` | as it is | the workspace's computers as history: their names, systems and MetaRush versions, and the names (never the secrets) of their storage keys and database users; a computer that restores the archive joins as a new one |
 | `jobs` | changed | work: what finished is history; what was running, and paid work that was waiting, is held for a person (a copy beside a running original never does it twice); other work asked for on one computer still waits for that computer |
 | `keep_items` | as it is | what projects kept from conversations |
+| `late_looks` | as it is | the looks at an old database after the workspace moved, as history: when, from which computer, how much each found (never an address) |
+| `late_writes` | left out | copies of records written into an old database after the workspace moved, kept a short while for a person to carry over: about that old database only |
 | `linked_folders` | as it is | linked folders' shared records (where each folder is on a computer stays in that computer's settings) |
 | `log_entries` | as it is | the activity log (written without keys or passwords) |
 | `looks` | as it is | looks of people and characters |

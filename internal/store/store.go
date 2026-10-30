@@ -159,6 +159,14 @@ const (
 	// CHandovers holds handovers of a computer's role to another computer
 	// and take-overs from a computer that is gone (hov_…, item 34, D344–D348).
 	CHandovers = "handovers"
+	// CLateLooks holds, per move of the database into this one, the looks
+	// MetaRush takes at the old database afterwards for anything written there
+	// late (D352–D358): when, by which computer, what each found.
+	CLateLooks = "late_looks"
+	// CLateWrites holds each record those looks found written into the old
+	// database after the move (lwr_…): new, changed or gone there, the old
+	// database's version, and whether a person carried it over or left it.
+	CLateWrites = "late_writes"
 )
 
 // ErrNotFound is returned when a document does not exist in the workspace.

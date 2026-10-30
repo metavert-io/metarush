@@ -107,6 +107,11 @@ func (l *LineWriter) Write(doc bson.Raw) error {
 	if err != nil {
 		return err
 	}
+	return l.WriteLine(b)
+}
+
+// WriteLine adds one document already made a line (Line).
+func (l *LineWriter) WriteLine(b []byte) error {
 	n, err := l.w.Write(b)
 	l.Bytes += int64(n)
 	if err == nil {
@@ -139,8 +144,27 @@ func HashCollection(ctx context.Context, db *store.DB, coll, ws string) (Digest,
 
 // HashWhere digests the documents matching filter (empty: all of them) as lines.
 func HashWhere(ctx context.Context, db *store.DB, coll string, filter bson.M) (Digest, error) {
+	return HashWhereEach(ctx, db, coll, filter, nil)
+}
+
+// HashWhereEach is HashWhere that also hands each document and its line to
+// each as it goes (nil: none) — a move's fingerprints of every record are
+// taken in the same read as its last check (D354).
+func HashWhereEach(ctx context.Context, db *store.DB, coll string, filter bson.M, each func(doc bson.Raw, line []byte) error) (Digest, error) {
 	lw := NewLineWriter(io.Discard)
-	if err := EachDocWhere(ctx, db, coll, filter, lw.Write); err != nil {
+	err := EachDocWhere(ctx, db, coll, filter, func(doc bson.Raw) error {
+		line, err := Line(doc)
+		if err != nil {
+			return err
+		}
+		if each != nil {
+			if err := each(doc, line); err != nil {
+				return err
+			}
+		}
+		return lw.WriteLine(line)
+	})
+	if err != nil {
 		return Digest{}, err
 	}
 	sum, err := lw.Close()

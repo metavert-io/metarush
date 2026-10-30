@@ -1091,8 +1091,35 @@ Read `docs/architecture.md` before structural changes.
   `dbmove.Recheck` under the freeze (late collections, source hashes again) → marker `moved` **before** `switchDatabase` (keychain/.env, previous kept aside, config.yaml's
   `database` section, checked as loaded) → `recordMove` into the new database. No job (the old database is frozen):
   progress is `<state>/database-move/<id>.json`; the dashboard starts `database move --dashboard-move <id>` with
-  `tools.Start` and a one-time grant like the media's move. Never deletes either database. Browser run
-  `scripts/database-move-e2e.sh` (ports 5690–5699).
+  `tools.Start` and a one-time grant like the media's move. Never deletes either database. **Something written late**
+  (D352–D359, D371, D374, `internal/dbmove/late.go`, `internal/ops/databasemove_late.go`, `web/src/screens/settings/DatabaseLateWrites.tsx`):
+  the last look's read keeps every record's fingerprint (`RecheckPrinting` → `<state>/database-move/<move>.prints`)
+  and the move keeps the old address (`keepLookAddress`: keychain `database-late-<move>` / `database/late-<move>.secret`,
+  never `forgetUnneededAddress`'s); the moving computer looks right after its switch (`startLateLooks`, also after a
+  `database.switch` of its own), then at `LateLookAfter` (15 min, 1 h, 24 h; the daemon's `RunLateLooks` →
+  `LookDueLate`, retries, ends `LateLookGrace` after; one at a time, `lookingUntil`) and on demand (`database.late.writes`
+  `look`, owners, any surface, "-" in readsShow); `dbmove.Look` only reads (`dbHash` per kind — Atlas Free/Flex don't
+  offer it, the plan says so — then changed kinds streamed in `_id` order and merged with their fingerprints; `Each`,
+  `MaxBytes`/`MaxTime`/`Pace`: `lateBackground` 256 MB, 5 min, stops and says so, the next look goes on (`From`,
+  `Position`, `latePass`); `lateAsked` 16 GB, 2 h). **"Nothing was written" only after a complete look**: `complete`
+  (a pass read everything, nothing only counted, no failed look since) → `LateLookView.Checked`, `AllClear` (over and
+  complete: what a script trusts), `lateSummary`, `tellOwnersIncomplete`. **An all-clear needs a complete pass begun at
+  or after the last look's due time** (`lateFinal`; `lookLate` starts a pass over past that time, so a sleeper's write
+  into a record already passed, or a kind made mid-pass, can't slip by). `LateLookGrace` counts from the first look tried
+  once the last was due (`graceFrom`, `lateGraceOver`, `LookUntil`). No looks on record: `lateNoLooks` says it can't tell
+  (a finished move's lock) or that no move came here, never "nothing was written". An old database with no records is
+  one finding with its own words (`Emptied`, `Gone`, `lateEmptiedWords`);
+  records `late_looks`/`late_writes` (migration 62; `late_writes` left out of exports), bell `late_writes` only when
+  something is found; a look that saw everything settles what it didn't find (`seenBy`, copy dropped); it keeps
+  `lateKeepPerLook` new records (the rest counted, `more`; later looks go on past them). **Secrets**:
+  `wsarchive.ReportOnly` (left out, in the manifest, `Entry.Secret` or unknown: **mark a new kind that holds secrets**) keeps
+  no copy or ID, shows nothing, never carries; `show` leaves out `models.HiddenField` (`NeverShown`: every `json:"-"`
+  field, a test keeps it whole; `LooksSecret`: any secret-looking name, at any depth) and runs the export's scrub. Copies go on a decision, and after `LateCopyKeep` (`DropOldLateCopies`, checks
+  `DeletionsPaused`). `database.late.show|carry|leave` OwnerOnly + HumanOnly + `databasePeopleOnly`, the CLI
+  `lateAtTerminal`; `lateGroupBy` entries (one clip's transcript…) go whole or not at all; carry = a claim on the
+  fingerprint, then check and set on the whole record (`$$ROOT` vs `$literal`), gone records never removed;
+  the address and prints dropped after the last look that saw everything (`endLateLooks`). Browser run
+  `scripts/database-move-e2e.sh` (ports 5690–5699; a late write by `scripts/latewrite`).
 - **Handing a computer's role to another computer** (D344–D348, `internal/handover`, `internal/assistant/handover.go`,
   `claudepaths.go`, `web/src/screens/settings/Handover.tsx`, docs/handover.md): `machine.handover.plan|status|export|
   receive|abandon|clean` and `machine.takeover` (`metarush machine handover …`, `machine take-over`), OwnerOnly +
@@ -1183,7 +1210,7 @@ scripts/ship-gate-e2e.sh                                  # the ship gate and pr
 scripts/windows-e2e.sh                                    # the dashboard as Windows 11 uses it: Windows file names, folders, downloads, line endings, Ctrl (D247; ports 5440–5449; Edge when installed)
 scripts/presenters-e2e.sh                                 # presenters with the fake D-ID and HeyGen: a test clip, approve, a clip, a stock clip, consent words, No presenters, retire (D273–D277; ports 5510–5519)
 scripts/workspace-export-e2e.sh                           # Settings → Storage → Export the workspace, then a CLI restore into a fresh home and the dashboard on the copy (D329–D333; ports 5670–5679)
-scripts/database-move-e2e.sh                              # Settings → Storage → Move the database with a second computer: the plan, changes refused while it moves, the switch on both (D334–D338; ports 5690–5699)
+scripts/database-move-e2e.sh                              # Settings → Storage → Move the database with a second computer: the plan, changes refused while it moves, the switch on both, a late write found and carried over (D334–D338, D352–D359; ports 5690–5699)
 scripts/components-e2e.sh                                 # only the required components, then Settings → Components and Getting started's Add it with a stand-in Homebrew (D324–D327; ports 5650–5659)
 scripts/resources-e2e.sh                                  # the Add box, Inbox clips dragged onto project cards, the Sources "…" menu, Delete…, a nested cut (D79–D84; ports 5660–5669)
 scripts/handover-e2e.sh                                   # two computers: the dry run in Settings → Storage, the handover file at a terminal, receive, the conversation going on in the same session, the old computer stepping down to a client, clean (D344–D348; ports 5710–5719)

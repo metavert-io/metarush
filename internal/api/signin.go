@@ -146,8 +146,11 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *models.
 	if c, err := r.Cookie(sessionCookie(acc)); err == nil && c.Value != "" {
 		_ = st.Remove(c.Value)
 	}
+	// Made at the database server's time, which "sign out everywhere" on any
+	// computer is compared with (D360); it ends and goes idle by this
+	// computer's clock, which only this computer reads.
 	val, err := st.New(sessions.Session{UserID: u.ID, UserName: u.Name, Public: acc.public, From: acc.from, Method: models.AuthPassword,
-		ExpiresAt: time.Now().Add(auth.SessionMax).UTC()}, time.Now())
+		CreatedAt: auth.SessionStart(r.Context(), s.App, u), ExpiresAt: time.Now().Add(auth.SessionMax).UTC()}, time.Now())
 	if err != nil {
 		writeErr(w, apperr.Wrap(apperr.Internal, err, "MetaRush couldn't sign you in. Try again."))
 		return

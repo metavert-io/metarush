@@ -16,7 +16,7 @@
 //      computer that slept through it) is found by the studio's next look,
 //      shown on its card in plain words with the bell, compared, and carried
 //      over after a styled dialog (D352–D358), and looks that can't go on
-//      never read as an all-clear (D370);
+//      never read as an all-clear (D371);
 //   5. no native dialogs, page errors or horizontal overflow; the cards in
 //      plain words. Screenshots: desktop dark and light, phone, in
 //      DATABASE_SHOTS.

@@ -33,7 +33,7 @@ import (
 	"github.com/metavert-io/metarush/internal/wsarchive"
 )
 
-// Something written late (D352–D359, D370, docs/database-move.md): a write a
+// Something written late (D352–D359, D371, docs/database-move.md): a write a
 // computer sent just before it slept for longer than MetaRush trusts a look
 // at the move's marker can still land in the old database after the move
 // marked it moved — and nobody would ever see it there. So the computer that

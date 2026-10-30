@@ -26,7 +26,7 @@ import (
 	"github.com/metavert-io/metarush/internal/wsarchive"
 )
 
-// Something written late (D352–D359, D370, docs/database-move.md): the move marks
+// Something written late (D352–D359, D371, docs/database-move.md): the move marks
 // the old database moved only after its last look under the freeze, but a
 // write a computer sent just before it slept for longer than MetaRush trusts
 // a look at the marker can still land in the old database after that (closing

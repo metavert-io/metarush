@@ -1082,7 +1082,7 @@ Read `docs/architecture.md` before structural changes.
   `database` section, checked as loaded) → `recordMove` into the new database. No job (the old database is frozen):
   progress is `<state>/database-move/<id>.json`; the dashboard starts `database move --dashboard-move <id>` with
   `tools.Start` and a one-time grant like the media's move. Never deletes either database. **Something written late**
-  (D352–D359, D370, `internal/dbmove/late.go`, `internal/ops/databasemove_late.go`, `web/src/screens/settings/DatabaseLateWrites.tsx`):
+  (D352–D359, D371, `internal/dbmove/late.go`, `internal/ops/databasemove_late.go`, `web/src/screens/settings/DatabaseLateWrites.tsx`):
   the last look's read keeps every record's fingerprint (`RecheckPrinting` → `<state>/database-move/<move>.prints`)
   and the move keeps the old address (`keepLookAddress`: keychain `database-late-<move>` / `database/late-<move>.secret`,
   never `forgetUnneededAddress`'s); the moving computer looks right after its switch (`startLateLooks`, also after a

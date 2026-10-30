@@ -234,7 +234,9 @@ func SessionValid(ctx context.Context, a *app.App, userID string, created time.T
 	if u.State == models.UserDisabled || u.State == models.UserInvited {
 		return false
 	}
-	return u.SessionsValidAfter == nil || created.After(*u.SessionsValidAfter)
+	// To the millisecond, which is all a stored sign-out keeps: a session made in
+	// the millisecond of a sign-out is one it ends.
+	return u.SessionsValidAfter == nil || created.Truncate(time.Millisecond).After(*u.SessionsValidAfter)
 }
 
 // Why a person's paired browser stops sending (D197).

@@ -79,6 +79,9 @@ func TestSignOutEverywhereFollowsTheServersClock(t *testing.T) {
 		if SessionValid(ctx, a, maya, before) {
 			t.Fatalf("a session made five minutes before signing out on a computer %v off still works", skew)
 		}
+		// A moment later: a start time is measured, to within half a round trip,
+		// and two this close could fall in either order.
+		time.Sleep(time.Second)
 		restore = testutil.SkewClock(t, -skew) // the dashboard's computer, off the other way
 		made := SessionStart(ctx, a, nil)
 		restore()
@@ -330,5 +333,25 @@ func TestLinksEndByTheServersClock(t *testing.T) {
 	}
 	if HasPassword(ctx, a, theo) {
 		t.Fatal("an ended link set a password")
+	}
+}
+
+// A stored sign-out keeps milliseconds and a session's start keeps more: a
+// session made in the millisecond of a sign-out is one it ends, and one a
+// millisecond after it stands.
+func TestASignOutCountsToTheMillisecond(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	id := newPerson(t, a, "Theo Hartley", ids.New("e")+"@example.com")
+	if err := SignOutEverywhere(ctx, a, id); err != nil {
+		t.Fatal(err)
+	}
+	forgetAll()
+	at := validAfter(t, a, id)
+	if SessionValid(ctx, a, id, at.Add(70*time.Microsecond)) {
+		t.Fatal("a session made in the millisecond of a sign-out outlived it")
+	}
+	if !SessionValid(ctx, a, id, at.Add(time.Millisecond)) {
+		t.Fatal("a session made a millisecond after a sign-out didn't last")
 	}
 }

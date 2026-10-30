@@ -44,6 +44,10 @@ func TestSessionsAndSignOutsFollowTheServersClock(t *testing.T) {
 		defer restore()
 		fn()
 	}
+	// aMoment passes between a sign-in and a sign-out next to it: a start time
+	// is measured, to within half a round trip, and two this close could fall in
+	// either order, which is what the rest of this test isn't about.
+	aMoment := func() { time.Sleep(time.Second) }
 	login := func(skew time.Duration) *browser {
 		t.Helper()
 		b := d.tailnet("", "")
@@ -72,11 +76,13 @@ func TestSessionsAndSignOutsFollowTheServersClock(t *testing.T) {
 	if !signedIn(b) {
 		t.Fatal("not signed in on a dashboard ten minutes fast")
 	}
+	aMoment()
 	signOut(0, maya)
 	if signedIn(b) {
 		t.Fatal("a sign-out a moment after signing in on a dashboard ten minutes fast left the browser signed in")
 	}
 	b = login(0)
+	aMoment()
 	signOut(tenSlow, maya)
 	if signedIn(b) {
 		t.Fatal("a sign-out on a computer ten minutes slow left the browser signed in")
@@ -90,11 +96,13 @@ func TestSessionsAndSignOutsFollowTheServersClock(t *testing.T) {
 	// The owner, signed in on this computer with one-time links.
 	owner := d.a.Cfg.User.ID
 	skewed(tenFast, d.signIn)
+	aMoment()
 	signOut(tenSlow, owner)
 	if code, _ := d.do("GET", "/api/session", nil, false); code != http.StatusUnauthorized {
 		t.Fatalf("the owner's link session on a computer ten minutes fast survived a sign-out on one ten minutes slow: %d", code)
 	}
 	signOut(tenFast, owner)
+	aMoment()
 	skewed(tenSlow, d.signIn)
 	if code, _ := d.do("GET", "/api/session", nil, false); code != http.StatusOK {
 		t.Fatalf("the owner's link session made right after a sign-out on a computer ten minutes fast: %d", code)

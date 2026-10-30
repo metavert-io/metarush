@@ -427,7 +427,7 @@ func (w *Worker) device() models.WorkerDevice {
 		CPUs: runtime.NumCPU(), MemoryGB: memoryGB(), Tools: tv, JobTypes: w.JobTypes(), Lacks: w.Lacks(), Concurrency: w.Concurrency, Running: running,
 		AcceptsHeavy: w.AcceptsHeavy && !p.Defer, OnBattery: p.Battery.OnBattery(), Charging: p.Battery.Charging,
 		HeavyBatteryThreshold: p.Threshold, HeavyEnabled: w.AcceptsHeavy, DeferringHeavy: p.Defer, DeferReason: p.Reason,
-		Version: version.Version, StartedAt: w.started, LastHeartbeat: store.Clock().UTC(), // the server's time when beat can ask it
+		Version: version.Version, StartedAt: w.started,
 	}
 	if p.Battery.Present {
 		pct := p.Battery.Percent
@@ -456,7 +456,7 @@ func (w *Worker) resumeDeferral(ctx context.Context) {
 		return
 	}
 	// The heartbeat is the database server's time (beat).
-	if !prev.DeferringHeavy || prev.DeferSince == nil || w.serverNow(ctx).Sub(prev.LastHeartbeat) > resumeEpisodeWindow {
+	if !prev.DeferringHeavy || prev.DeferSince == nil || w.App.DB.NowOrLocal(ctx).Sub(prev.LastHeartbeat) > resumeEpisodeWindow {
 		return
 	}
 	since := prev.DeferSince.UTC()
@@ -506,8 +506,9 @@ func (w *Worker) trackDeferral(ctx context.Context) {
 	// Due and online by the database server's time: other computers wrote
 	// both (D360).
 	var waiting []models.Job
-	err := a.DB.Find(ctx, store.CJobs, a.WorkspaceID(), bson.M{"state": models.JobQueued, "heavy": true, "allowOnBattery": bson.M{"$ne": true},
-		"cancelRequested": false, "type": bson.M{"$in": w.JobTypes()}, "$expr": bson.M{"$lte": bson.A{"$nextRunAt", "$$NOW"}}}, &waiting, options.Find().SetLimit(200))
+	due := store.DueBy("nextRunAt")
+	due["state"], due["heavy"], due["allowOnBattery"], due["cancelRequested"], due["type"] = models.JobQueued, true, bson.M{"$ne": true}, false, bson.M{"$in": w.JobTypes()}
+	err := a.DB.Find(ctx, store.CJobs, a.WorkspaceID(), due, &waiting, options.Find().SetLimit(200))
 	if err != nil || len(waiting) == 0 {
 		return
 	}
@@ -538,9 +539,7 @@ func (w *Worker) beat(ctx context.Context) {
 	d := w.device()
 	// Other computers judge whether this one is online by its heartbeat:
 	// the database server's time (D360).
-	if now, err := w.App.DB.Now(ctx); err == nil {
-		d.LastHeartbeat = now
-	}
+	d.LastHeartbeat = w.App.DB.NowOrLocal(ctx)
 	_, err := w.App.DB.C(store.CWorkers).ReplaceOne(ctx, bson.M{"_id": d.ID, "workspaceId": d.WorkspaceID}, d, options.Replace().SetUpsert(true))
 	if err != nil {
 		w.Log("worker heartbeat failed (database unreachable?): %v", err)
@@ -642,7 +641,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
-				case <-time.After(at.Sub(w.serverNow(ctx))): // at is the server's time
+				case <-time.After(at.Sub(w.App.DB.NowOrLocal(ctx))): // at is the server's time
 				}
 			case <-ctx.Done():
 				wg.Wait()
@@ -659,7 +658,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				if j.State != models.JobQueued && j.State != models.JobRunning {
 					return nil
 				}
-				if j.State == models.JobRunning && j.Lease != nil && j.Lease.ExpiresAt.After(w.serverNow(ctx)) {
+				if j.State == models.JobRunning && j.Lease != nil && j.Lease.ExpiresAt.After(w.App.DB.NowOrLocal(ctx)) {
 					return fmt.Errorf("job %s is already running on %s", j.ID, j.Lease.OwnerName)
 				}
 			}
@@ -811,18 +810,14 @@ func retryAt(ctx context.Context, w *Worker, j *models.Job, wait time.Duration) 
 	switch {
 	case err != nil:
 		// The database didn't answer: the job waits as the queue saved it.
-		return w.serverNow(ctx).Add(wait)
+		return w.App.DB.NowOrLocal(ctx).Add(wait)
 	case cur.State != models.JobQueued:
 		return time.Time{}
 	case cur.NextRunAt.IsZero():
-		return w.serverNow(ctx)
+		return w.App.DB.NowOrLocal(ctx)
 	}
 	return cur.NextRunAt
 }
-
-// serverNow is the database server's time: leases, heartbeats and when a job
-// may run again are written in it (D360).
-func (w *Worker) serverNow(ctx context.Context) time.Time { return w.App.DB.NowOrLocal(ctx) }
 
 // settled writes the notifications a terminal job can complete: "file ready"
 // once all of an asset's derivative jobs are terminal, a render's outcome, a QA

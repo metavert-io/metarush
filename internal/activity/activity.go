@@ -258,7 +258,10 @@ func sentence(s string) string {
 
 // Build computes the summary.
 func Build(ctx context.Context, a *app.App, in *SummaryIn) (*Summary, error) {
-	now := time.Now().UTC()
+	// The database server's time: heartbeats, when a job may run, an upload's
+	// session and a render's times are written in it (D360), so a summary says
+	// the same on every computer, and on one whose clock is off (D368).
+	now := a.DB.NowOrLocal(ctx)
 	recent := 10 * time.Minute
 	if in.RecentMinutes > 0 {
 		recent = time.Duration(in.RecentMinutes) * time.Minute
@@ -625,7 +628,8 @@ func (b *builder) uploadItem(r uploads.Record, byAsset map[string][]models.Job) 
 		it.Stage, it.StageLabel, it.Rate = uploads.StageSending, "Sending", r.Rate
 		it.Pct, it.StagePct = ptr(r.Pct()*0.85), ptr(r.Pct())
 		it.State = StateActive
-		if r.Interrupted(b.now) {
+		// An upload's record is a file on this computer, kept by its clock.
+		if r.Interrupted(time.Now()) {
 			it.Stage, it.State = "interrupted", StateInterrupted
 			it.StageLabel = fmt.Sprintf("Interrupted at %d%%", int(r.Pct()*100))
 			it.Rate = 0

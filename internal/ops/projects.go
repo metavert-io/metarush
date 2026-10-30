@@ -347,8 +347,9 @@ func init() {
 			return nil, err
 		}
 		out := &WorkerListOut{Workers: []WorkerRow{}}
+		now := a.DB.NowOrLocal(ctx) // heartbeats are the database server's time (D360, D368)
 		for _, w := range ws {
-			out.Workers = append(out.Workers, WorkerRow{WorkerDevice: w, Online: time.Since(w.LastHeartbeat) < 45*time.Second})
+			out.Workers = append(out.Workers, WorkerRow{WorkerDevice: w, Online: now.Sub(w.LastHeartbeat) < 45*time.Second})
 		}
 		return out, nil
 	})

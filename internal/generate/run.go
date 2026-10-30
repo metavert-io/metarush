@@ -591,7 +591,7 @@ func fileName(title string) string {
 // end writes the outcome once (and the actual cost), at the database
 // server's time (D360): other computers compare it.
 func (r *runner) end(ctx context.Context, oc *models.GenOutcome, actual *models.GenCost) {
-	oc.At = StampNow(ctx, r.a)
+	oc.At = r.a.DB.NowOrLocal(ctx)
 	if actual != nil && actual.Basis != "" {
 		oc.Actual = actual
 	}

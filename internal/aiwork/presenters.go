@@ -657,7 +657,7 @@ func stateWords(pr *models.Presenter, now time.Time) string {
 
 // presenterView is a presenter with what people read about it.
 func presenterView(ctx context.Context, a *app.App, pr *models.Presenter, detail bool) PresenterView {
-	now := generate.StampNow(ctx, a) // the consent words end by the server's clock (askWords)
+	now := a.DB.NowOrLocal(ctx) // the consent words end by the server's clock (askWords)
 	v := PresenterView{Presenter: *pr, Summary: fmt.Sprintf("“%s”, %s's presenter at %s. %s", pr.Title, pr.PersonName, pr.ProviderTitle, stateWords(pr, now)), Link: links.Person(pr.PersonID)}
 	_, terms, _ := presenterTerms(pr.Provider)
 	switch pr.State {

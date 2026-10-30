@@ -301,7 +301,7 @@ func consentStatus(c *models.Consent, now time.Time) string {
 }
 
 func consentView(ctx context.Context, a *app.App, c models.Consent) ConsentView {
-	now := time.Now().UTC()
+	now := a.DB.NowOrLocal(ctx) // a consent ends by the database server's time (D360, D368)
 	v := ConsentView{Consent: c, Status: consentStatus(&c, now), Link: links.Person(c.PersonID)}
 	var ls []models.GenLook
 	_ = a.DB.Find(ctx, store.CLooks, a.WorkspaceID(), bson.M{"consentId": c.ID}, &ls)

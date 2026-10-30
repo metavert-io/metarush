@@ -34,12 +34,6 @@ func Now(ctx context.Context, a *app.App) (time.Time, error) {
 	return now, nil
 }
 
-// StampNow is the database server's time for a stamp written where nothing
-// can wait for it (an outcome, a deletion recorded once): this computer's
-// clock only while the server has never answered, when the write that
-// follows fails too.
-func StampNow(ctx context.Context, a *app.App) time.Time { return a.DB.NowOrLocal(ctx) }
-
 // SetOnce writes a part of a generation record only while it is still empty (D125).
 func SetOnce(ctx context.Context, a *app.App, genID, field string, v any) error {
 	return setOnce(ctx, a, genID, field, v)

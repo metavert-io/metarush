@@ -147,8 +147,22 @@ func (b *Broker) changeStream(ctx context.Context) error {
 	return cs.Err()
 }
 
+// pollMark is where a poll starts looking from: the earlier of the database
+// server's time and this computer's. What another computer judges is stamped
+// in the server's time (D360) and plain records with their computer's clock,
+// so going by one clock alone misses the other's changes when the two differ.
+// A change stamped ahead of the mark is told again until the mark passes it,
+// which costs a refresh or two and misses nothing (D368).
+func (b *Broker) pollMark(ctx context.Context) time.Time {
+	server, here := b.a.DB.NowOrLocal(ctx), store.Clock().UTC()
+	if here.Before(server) {
+		return here
+	}
+	return server
+}
+
 func (b *Broker) poll(ctx context.Context, d time.Duration) {
-	since := time.Now().UTC().Add(-5 * time.Second)
+	since := b.pollMark(ctx).Add(-5 * time.Second)
 	end := time.Now().Add(d)
 	t := time.NewTicker(3 * time.Second)
 	defer t.Stop()
@@ -158,7 +172,7 @@ func (b *Broker) poll(ctx context.Context, d time.Duration) {
 			return
 		case <-t.C:
 		}
-		now := time.Now().UTC()
+		now := b.pollMark(ctx)
 		polls := []struct {
 			coll   string
 			filter bson.M

@@ -479,7 +479,7 @@ func renderHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 	mu.Unlock()
 	// Other computers wait a while after it for the quality check (a run's
 	// step, the panel's card): the database server's time (D360).
-	now := w.serverNow(ctx)
+	now := w.App.DB.NowOrLocal(ctx)
 	setRender(bson.M{"state": models.RenderAvailable, "output": output, "rendererVersion": "remotion " + rv, "rendererId": rendererID, "templateVersions": tv, "completedAt": now})
 	details := map[string]any{"sha256": sha, "size": size, "duration": mi.Duration, "worker": a.Cfg.Installation.Name, "renderer": rendererID}
 	if len(blocked) > 0 {

@@ -140,7 +140,7 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 		ProjectID: p.projectID, Actor: a.Actor, Installation: a.Cfg.Installation.ID,
 		Payload: map[string]any{"generationId": g.ID, "kind": g.Kind, "what": p.kind.What, "provider": g.ProviderTitle, "costUsd": g.Estimate.USD}})
 	if err != nil {
-		_ = generate.SetOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenFailed, At: generate.StampNow(ctx, a), Message: "MetaRush couldn't queue it.", Actual: &models.GenCost{Basis: "none"}})
+		_ = generate.SetOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenFailed, At: a.DB.NowOrLocal(ctx), Message: "MetaRush couldn't queue it.", Actual: &models.GenCost{Basis: "none"}})
 		_ = generate.Settle(context.WithoutCancel(ctx), a, &g, 0, "")
 		return nil, err
 	}

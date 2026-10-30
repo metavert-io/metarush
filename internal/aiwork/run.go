@@ -597,7 +597,7 @@ func inputUSD(g *models.Generation, pr *aiservices.Price) float64 {
 // long a lost clip is looked for, and whether a presenter was deleted before
 // it was made, are read from it on any computer.
 func (r *runner) end(ctx context.Context, oc *models.GenOutcome, actual *models.GenCost) {
-	oc.At = generate.StampNow(ctx, r.a)
+	oc.At = r.a.DB.NowOrLocal(ctx)
 	if actual != nil && actual.Basis != "" {
 		oc.Actual = actual
 	}

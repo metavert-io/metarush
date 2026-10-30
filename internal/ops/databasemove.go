@@ -1181,10 +1181,7 @@ func runningChanges(ctx context.Context, a *app.App, m *store.MoveMarker) []stri
 	if len(m.Busy) == 0 {
 		return nil
 	}
-	now, err := a.DB.ServerNow(ctx)
-	if err != nil {
-		now = time.Now().UTC()
-	}
+	now := a.DB.NowOrLocal(ctx)
 	names := map[string]string{}
 	for _, in := range installationsOf(ctx, a) {
 		names[in.ID] = firstNonEmpty(in.Name, in.Hostname, in.ID)

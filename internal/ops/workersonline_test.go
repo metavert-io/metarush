@@ -3,12 +3,14 @@ package ops
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/store"
@@ -50,5 +52,63 @@ func TestVisualsPossibleGoesByTheServersTime(t *testing.T) {
 	}
 	if possible(-10*time.Minute, month+5*time.Minute) {
 		t.Fatal("a computer ten minutes slow counted a Mac last seen 5 minutes past the 30 days")
+	}
+}
+
+// The worker list, sync status and a job's details say the same on a computer
+// whose clock is off (D368): heartbeats, when a job may run and an upload's
+// session are the database server's time, so a computer a few minutes off
+// doesn't call itself offline, an upload stopped, or a retry's wait minutes long.
+func TestWhatPeopleSeeGoesByTheServersTime(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	server, err := a.DB.ServerNow(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := models.WorkerDevice{ID: a.Cfg.Installation.ID, WorkspaceID: a.WorkspaceID(), Name: "studio-mac", JobTypes: []string{jobs.TypeProxy}, Concurrency: 1,
+		LastHeartbeat: server.Add(-5 * time.Second)}
+	if _, err := a.DB.C(store.CWorkers).ReplaceOne(ctx, bson.M{"_id": w.ID}, w, options.Replace().SetUpsert(true)); err != nil {
+		t.Fatal(err)
+	}
+	j, _, err := a.Queue.Enqueue(ctx, jobs.EnqueueOptions{Type: jobs.TypeProxy, IdempotencyKey: "proxy:seen", MaxAttempts: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.DB.C(store.CJobs).UpdateOne(ctx, bson.M{"_id": j.ID}, bson.M{"$set": bson.M{"nextRunAt": server.Add(20 * time.Second)}}); err != nil {
+		t.Fatal(err)
+	}
+	session := models.IngestSession{ID: ids.New(ids.Ingest), WorkspaceID: a.WorkspaceID(), InstallationID: w.ID, SourceName: "pier.mov", AssetID: ids.New(ids.Asset),
+		State: "uploading", Size: 100, BytesDone: 40, Via: "cli", CreatedAt: server.Add(-time.Minute), UpdatedAt: server.Add(-5 * time.Second)}
+	if err := a.DB.Insert(ctx, store.CIngest, session); err != nil {
+		t.Fatal(err)
+	}
+	for _, skew := range []time.Duration{time.Minute, 3 * time.Minute, -time.Minute, -3 * time.Minute} {
+		restore := testutil.SkewClock(t, skew)
+		list, err := CallTyped[WorkerListOut](ctx, a, "worker.list", WorkerListIn{}, Caller{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list.Workers) != 1 || !list.Workers[0].Online {
+			t.Fatalf("%v off: worker.list says %+v", skew, list.Workers)
+		}
+		sync, err := CallTyped[SyncStatusOut](ctx, a, "sync.status", SyncStatusIn{}, Caller{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !sync.ThisWorkerOnline || len(sync.Workers) != 1 || !sync.Workers[0].Online {
+			t.Fatalf("%v off: sync.status says offline: %+v", skew, sync.Workers)
+		}
+		if len(sync.Ingest) != 1 || sync.Ingest[0].Status != "active" {
+			t.Fatalf("%v off: an upload that just moved: %+v", skew, sync.Ingest)
+		}
+		show, err := CallTyped[JobShowOut](ctx, a, "job.show", JobIDIn{ID: j.ID}, Caller{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if show.Waiting == nil || show.Waiting.Code != jobs.WaitRetry || !strings.Contains(show.Waiting.Text, "seconds") {
+			t.Fatalf("%v off: a retry's wait of 20 seconds: %+v", skew, show.Waiting)
+		}
+		restore()
 	}
 }

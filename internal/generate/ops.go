@@ -199,7 +199,7 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 		for i := range made {
 			g := &made[i]
 			_, _ = a.Queue.RequestCancel(context.WithoutCancel(ctx), g.JobID)
-			_ = setOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenCanceled, At: StampNow(ctx, a), Message: "Stopped: the other takes didn't fit the budget.",
+			_ = setOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenCanceled, At: a.DB.NowOrLocal(ctx), Message: "Stopped: the other takes didn't fit the budget.",
 				Actual: &models.GenCost{Basis: "none"}})
 			_ = Settle(context.WithoutCancel(ctx), a, g, 0, "")
 		}
@@ -248,7 +248,7 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 			ProjectID: p.projectID, Actor: a.Actor, Installation: a.Cfg.Installation.ID,
 			Payload: map[string]any{"generationId": g.ID, "what": what(&g), "seconds": g.Params.Seconds, "resolution": g.Params.Resolution, "provider": g.ProviderTitle, "costUsd": g.Estimate.USD, "take": g.Take}})
 		if err != nil {
-			_ = setOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenFailed, At: StampNow(ctx, a), Message: "MetaRush couldn't queue it.", Actual: &models.GenCost{Basis: "none"}})
+			_ = setOnce(context.WithoutCancel(ctx), a, g.ID, "outcome", models.GenOutcome{State: models.GenFailed, At: a.DB.NowOrLocal(ctx), Message: "MetaRush couldn't queue it.", Actual: &models.GenCost{Basis: "none"}})
 			_ = Settle(context.WithoutCancel(ctx), a, &g, 0, "")
 			undo()
 			return nil, err

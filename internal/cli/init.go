@@ -540,7 +540,7 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 		}
 	}
 	inst := models.Installation{ID: instID, WorkspaceID: ws.ID, Name: o.installName, Hostname: app.Hostname(), OS: runtime.GOOS, Arch: runtime.GOARCH,
-		Version: version.Version, Commit: version.Commit, Built: version.Date, UserID: user.ID, CreatedAt: now, LastSeenAt: now}
+		Version: version.Version, Commit: version.Commit, Built: version.Date, UserID: user.ID, CreatedAt: now}
 	set := bson.M{"workspaceId": inst.WorkspaceID, "name": inst.Name, "hostname": inst.Hostname, "os": inst.OS, "arch": inst.Arch,
 		"version": inst.Version, "commit": inst.Commit, "built": inst.Built, "knowsMoves": app.MovesMark(inst.Version, inst.Commit),
 		"userId": inst.UserID, "state": models.InstallationActive}

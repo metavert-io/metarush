@@ -224,3 +224,48 @@ func TestAFastClockNeverTakesALiveLease(t *testing.T) {
 		t.Fatalf("a slow computer left a lease that ended: %+v %v", got, err)
 	}
 }
+
+// A job's times are one clock's, the database server's, whichever computer
+// wrote them (D368): what people read beside when it may run adds up.
+func TestAJobsTimesAreTheServers(t *testing.T) {
+	db := testutil.DB(t)
+	ctx := context.Background()
+	q := &Queue{DB: db, WorkspaceID: "ws_test"}
+	w := Worker{ID: "ins_a", JobTypes: []string{TypeProxy}, AcceptsHeavy: true}
+	near := func(what string, at time.Time) {
+		t.Helper()
+		now, err := db.ServerNow(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d := now.Sub(at); d < -2*time.Second || d > 30*time.Second {
+			t.Fatalf("%s: %v from the server's now", what, d)
+		}
+	}
+	for _, skew := range []time.Duration{10 * time.Minute, -10 * time.Minute} {
+		restore := testutil.SkewClock(t, skew)
+		j, _, err := q.Enqueue(ctx, EnqueueOptions{Type: TypeProxy, IdempotencyKey: "proxy:" + skew.String(), MaxAttempts: 3})
+		if err != nil {
+			t.Fatal(err)
+		}
+		near("made", j.CreatedAt)
+		got, err := q.Lease(ctx, w)
+		if err != nil || got == nil {
+			t.Fatalf("lease: %+v %v", got, err)
+		}
+		near("started", got.Attempts[0].StartedAt)
+		if err := q.Succeed(ctx, got, w.ID, map[string]any{}); err != nil {
+			t.Fatal(err)
+		}
+		restore()
+		done, err := q.Get(ctx, j.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if done.FinishedAt == nil {
+			t.Fatal("not finished")
+		}
+		near("ended", *done.FinishedAt)
+		near("changed", done.UpdatedAt)
+	}
+}

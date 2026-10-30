@@ -1116,9 +1116,7 @@ func TestDatabasePlanSeesASlowWorkersMediaMove(t *testing.T) {
 	w := newMoveWorkspace(t)
 	a, b := w.a, w.b
 	ctx := context.Background()
-	old := jobs.Clock
-	jobs.Clock = func() time.Time { return old().Add(-2 * time.Minute) }
-	defer func() { jobs.Clock = old }()
+	testutil.SkewClock(t, -2*time.Minute)
 	wk := jobs.Worker{ID: b.Cfg.Installation.ID, Name: "Edit laptop", JobTypes: []string{jobs.TypeStorageMove}}
 	j, err := b.Queue.Start(ctx, jobs.EnqueueOptions{Type: jobs.TypeStorageMove, Installation: b.Cfg.Installation.ID}, wk)
 	if err != nil {

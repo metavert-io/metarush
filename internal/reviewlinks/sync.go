@@ -517,7 +517,7 @@ func syncLink(ctx context.Context, a *app.App, l *models.ReviewLink, last bool) 
 // that ended by the database server's clock (computers' clocks differ).
 func leaseFree(id, workspaceID string) bson.M {
 	return bson.M{"_id": id, "workspaceId": workspaceID, "$or": bson.A{bson.M{"syncUntil": bson.M{"$exists": false}}, bson.M{"syncUntil": nil},
-		bson.M{"$expr": bson.M{"$lt": bson.A{"$syncUntil", "$$NOW"}}}}}
+		store.DueBy("syncUntil")}}
 }
 
 // takeLease is the update that holds a link's slots under token for d by

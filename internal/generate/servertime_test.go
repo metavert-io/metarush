@@ -219,6 +219,27 @@ func TestConsentInForceGoesByTheServersClock(t *testing.T) {
 	look := generate.LookCreateIn{Title: "Wren", Person: "Wren Tolliver", Description: "A woman with a grey braid and a green coat.",
 		Stills: []generate.LookStillIn{{AssetID: porch.ID, At: 1}, {AssetID: porch.ID, At: 2}}}
 
+	// What a person reads about it goes by the same clock (D368).
+	status := func(off time.Duration) string {
+		t.Helper()
+		var v *generate.ConsentView
+		as(off, func() {
+			var err error
+			if v, err = call[generate.ConsentView](t, e.a, "consent.show", generate.ConsentIDIn{ID: c.Consent.ID}, false); err != nil {
+				t.Fatal(err)
+			}
+		})
+		return v.Status
+	}
+	ends(-30 * time.Second)
+	if st := status(-skew); st != "expired" {
+		t.Fatalf("a computer behind shows a consent that ended 30 s ago as %s", st)
+	}
+	ends(30 * time.Second)
+	if st := status(skew); st != "active" {
+		t.Fatalf("a computer ahead shows a consent with 30 s left as %s", st)
+	}
+
 	// Ended 30 s ago by the server's clock: a computer behind refuses all of it.
 	ends(-30 * time.Second)
 	as(-skew, func() {

@@ -331,13 +331,7 @@ func RunSchedule(ctx context.Context, a *app.App, exe string, logf func(string, 
 // week's slot counts as made; in this computer's time zone, whose day and
 // hour the slot is. When the server doesn't answer, this computer's clock
 // (asking what was made since fails then too, and the tick waits).
-func tickNow(ctx context.Context, a *app.App) time.Time {
-	now, err := a.DB.Now(ctx)
-	if err != nil {
-		return time.Now()
-	}
-	return now.Local()
-}
+func tickNow(ctx context.Context, a *app.App) time.Time { return a.DB.NowOrLocal(ctx).Local() }
 
 // RunIfDue makes the weekly report if it is due now (the schedule's tick).
 func RunIfDue(ctx context.Context, a *app.App, now time.Time, logf func(string, ...any)) bool {

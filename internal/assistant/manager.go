@@ -2456,9 +2456,21 @@ func (m *Manager) save(c *conv, immediate bool) {
 		TitleSource string `bson:"titleSource"`
 		Archived    bool   `bson:"archived"`
 	}
+	c.mu.Lock()
+	seen := c.metaVer
+	c.mu.Unlock()
 	if m.App.DB.C(store.CAssistantConversations).FindOne(ctx, bson.M{"_id": d.ID},
 		options.FindOne().SetProjection(bson.M{"title": 1, "titleSource": 1, "archived": 1})).Decode(&meta) == nil {
+		if saveMetaHook != nil {
+			saveMetaHook()
+		}
 		c.mu.Lock()
+		// What changed here since that read is newer than what it read (a rename
+		// landing just now): the next save looks again.
+		if c.metaVer != seen {
+			c.mu.Unlock()
+			return
+		}
 		if meta.Title != c.data.Title && c.data.TitleSource != "claude" || meta.Archived != c.data.Archived || (meta.TitleSource == "user" && c.data.TitleSource != "user") {
 			c.data.Title, c.data.TitleSource, c.data.Archived = meta.Title, meta.TitleSource, meta.Archived
 			c.metaVer++
@@ -2467,6 +2479,10 @@ func (m *Manager) save(c *conv, immediate bool) {
 		c.mu.Unlock()
 	}
 }
+
+// saveMetaHook (tests) runs after a save read the fields people change, before
+// it compares them.
+var saveMetaHook func()
 
 // saveFields is what a save writes of a conversation: everything this
 // computer keeps of it, but who holds it and the fields people change from

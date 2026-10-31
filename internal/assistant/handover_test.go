@@ -298,3 +298,24 @@ func TestACardClaimWritesOnlyItsCards(t *testing.T) {
 		t.Fatal("released cards wait again")
 	}
 }
+
+// A rename landing while a save compares the title it read stays: the save's
+// older copy never puts the old title back (a list would show it).
+func TestARenameDuringASaveStays(t *testing.T) {
+	m, c, id, _ := cardConversation(t)
+	ctx := context.Background()
+	t.Cleanup(func() { saveMetaHook = nil })
+	saveMetaHook = func() {
+		saveMetaHook = nil
+		if _, err := m.Rename(ctx, ConversationRenameIn{ID: id, Title: "Shorter b"}); err != nil {
+			t.Error(err)
+		}
+	}
+	m.save(c, true)
+	c.mu.Lock()
+	title, source := c.data.Title, c.data.TitleSource
+	c.mu.Unlock()
+	if title != "Shorter b" || source != "user" {
+		t.Fatalf("after a rename during a save: %q from %q", title, source)
+	}
+}

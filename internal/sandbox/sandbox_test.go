@@ -1155,8 +1155,22 @@ func TestLocalService(t *testing.T) {
 	if hits["other"] != 0 || hits["service"] != 2 {
 		t.Fatalf("what the services got: %v", hits)
 	}
-	reqs, _ := p.Requests()
-	if len(reqs) < 4 || reqs[0].Host != "127.0.0.1" || reqs[0].Refused != "" || reqs[0].Path != "/prompt" {
+	// A request's record is written as its answer goes back, so the first one
+	// can come a moment after the later ones.
+	recorded := func() bool {
+		reqs, _ := p.Requests()
+		for _, r := range reqs {
+			if r.Host == "127.0.0.1" && r.Port == port && r.Path == "/prompt" && r.Refused == "" {
+				return len(reqs) >= 5
+			}
+		}
+		return false
+	}
+	for deadline := time.Now().Add(5 * time.Second); !recorded() && time.Now().Before(deadline); {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !recorded() {
+		reqs, _ := p.Requests()
 		t.Fatalf("the requests are recorded: %+v", reqs)
 	}
 	// A words-only run's budget doesn't take what goes to the service (it

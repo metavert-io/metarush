@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/zalando/go-keyring"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
@@ -38,7 +40,7 @@ func dbHashBut(t *testing.T, db *store.DB) string {
 	}
 	var colls bson.A
 	for _, n := range names {
-		if n != store.CDatabaseMove && n != store.CLogEntries {
+		if n != store.CDatabaseMove && n != store.CLogEntries && n != store.CInstallations {
 			colls = append(colls, n)
 		}
 	}
@@ -46,7 +48,18 @@ func dbHashBut(t *testing.T, db *store.DB) string {
 	if err := db.DB.RunCommand(ctx, bson.D{{Key: "dbHash", Value: 1}, {Key: "collections", Value: colls}}).Decode(&h); err != nil {
 		t.Fatal(err)
 	}
-	return h["md5"].(string)
+	// Each computer's record, but when it was last used: a process says it ran
+	// before its first write, and its activity log can write before the freeze
+	// (a change the move copies).
+	cur, err := db.DB.Collection(store.CInstallations).Find(ctx, bson.D{}, options.Find().SetSort(bson.D{{Key: "_id", Value: 1}}).SetProjection(bson.M{"lastUsedAt": 0}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var computers []bson.D
+	if err := cur.All(ctx, &computers); err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf("%s %v", h["md5"], computers)
 }
 
 // frozenSince fails when the old database's activity log got an entry after
@@ -140,8 +153,8 @@ func TestDatabaseMoveAtATerminal(t *testing.T) {
 	if !out.Verified || !out.Switched || !out.Marked {
 		t.Fatalf("move: %+v", out)
 	}
-	if dbHashBut(t, a.DB) != before {
-		t.Fatal("the move changed the old database")
+	if after := dbHashBut(t, a.DB); after != before {
+		t.Fatalf("the move changed the old database:\n%s\n%s", before, after)
 	}
 	frozenSince(t, a.DB)
 	// This computer works in the new database now.

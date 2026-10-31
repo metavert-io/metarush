@@ -2332,7 +2332,6 @@ func (m *Manager) setMeta(ctx context.Context, id string, set bson.M, apply func
 	if c != nil {
 		c.mu.Lock()
 		apply(&c.data)
-		c.metaVer++
 		c.touch()
 		c.mu.Unlock()
 	}

@@ -193,6 +193,12 @@ func (o EnqueueOptions) jobID() string {
 	return ids.New(ids.Job)
 }
 
+// newJobLead is how far before now a new job's first due time is written. The
+// time is a measured one, which can be ahead of the server's own clock by part
+// of a round trip, and a job just queued must be due at once. A retry's or a
+// postponement's wait is left exact.
+const newJobLead = time.Second
+
 // Enqueue inserts a job, or returns the existing one for the idempotency key.
 // Retrying a failed/canceled job with the same key re-queues it.
 func (q *Queue) Enqueue(ctx context.Context, o EnqueueOptions) (*models.Job, bool, error) {
@@ -210,7 +216,7 @@ func (q *Queue) Enqueue(ctx context.Context, o EnqueueOptions) (*models.Job, boo
 		ID: o.jobID(), WorkspaceID: q.WorkspaceID, Type: o.Type, SchemaVersion: 1, State: models.JobQueued,
 		Priority: o.Priority, Heavy: o.Heavy, ProjectID: o.ProjectID, AssetID: o.AssetID, RenderID: o.RenderID, Installation: o.Installation,
 		Payload: o.Payload, IdempotencyKey: o.IdempotencyKey, MaxAttempts: o.MaxAttempts, Attempts: []models.Attempt{},
-		NextRunAt: now, CreatedBy: o.Actor, CreatedAt: now, UpdatedAt: now,
+		NextRunAt: now.Add(-newJobLead), CreatedBy: o.Actor, CreatedAt: now, UpdatedAt: now,
 	}
 	err := q.DB.Insert(ctx, store.CJobs, j)
 	if err == nil {
@@ -321,11 +327,9 @@ func leaseEnd() bson.D {
 
 // due matches a queued job whose wait is over (nextRunAt, written in the
 // server's time), by the server's time: a computer whose clock is fast never
-// skips a retry's wait, nor one whose clock is slow leaves a job waiting. A new
-// job is written as due now by a measured time, so a second's grace keeps it
-// due when the measure runs ahead; a wait can only end that much early.
+// skips a retry's wait, nor one whose clock is slow leaves a job waiting.
 func due() bson.M {
-	f := store.DueWithin("nextRunAt", time.Second)
+	f := store.DueBy("nextRunAt")
 	f["state"] = models.JobQueued
 	return f
 }

@@ -1036,8 +1036,10 @@ func TestDatabaseMoveRunningChangeStopsAtTheCopy(t *testing.T) {
 	if cur, _ := a.DB.ReadMoveMarker(ctx); cur == nil || len(cur.Busy) == 0 {
 		t.Fatalf("the move doesn't know about the change: %+v", cur)
 	}
-	// The laptop sleeps past the wait: what it listed goes stale, the copy starts.
-	if ok, err := a.DB.MoveCopying(ctx, m.Move, 0); err != nil || !ok {
+	// The laptop sleeps past the wait: what it listed goes stale, the copy starts
+	// (a window below zero: no listing can count as recent, whichever of the
+	// server's clocks stamped it and however lately the change wrote).
+	if ok, err := a.DB.MoveCopying(ctx, m.Move, -time.Minute); err != nil || !ok {
 		t.Fatalf("the copy couldn't start: %v %v", ok, err)
 	}
 	if err := write(cctx, "Sam: after waking"); !refusedMoving(err) {

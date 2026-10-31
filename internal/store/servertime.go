@@ -282,13 +282,6 @@ func DueBy(field string) bson.M {
 	return bson.M{"$expr": bson.M{"$and": bson.A{isDate(field), bson.M{"$lte": bson.A{"$" + field, "$$NOW"}}}}}
 }
 
-// DueWithin is DueBy for a time that may have been written as "due now": a
-// measured time can be ahead of the server's own clock by part of a round
-// trip, so what falls due within margin counts as due.
-func DueWithin(field string, margin time.Duration) bson.M {
-	return bson.M{"$expr": bson.M{"$and": bson.A{isDate(field), bson.M{"$lte": bson.A{"$" + field, bson.M{"$add": bson.A{"$$NOW", margin.Milliseconds()}}}}}}}
-}
-
 // StaleBefore is a filter for records whose time field is older than the
 // last while by the database server's clock (a claim or a marker nobody
 // renewed: field < $$NOW − within). Records without the field don't match.

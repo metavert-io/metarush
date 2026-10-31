@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+
+## 0.15.0 — 31 Oct 2026
+- **A conversation you rename keeps its new name**. A rename at the very moment a conversation saved could show the old
+  title in the list until its next save.
 - **Computers whose clocks disagree still agree on when things happen**. A computer's clock can be a few minutes
   off, and some of MetaRush's decisions went by the clock of whichever computer looked: one running fast could retry
   work before its wait was over or take another computer for gone, one running slow could leave work waiting, and a

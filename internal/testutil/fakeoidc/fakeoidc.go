@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"html"
 	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -99,6 +100,27 @@ func New(clientID, secret string) *Server {
 	s.Server = httptest.NewServer(http.HandlerFunc(s.serve))
 	s.Issuer = s.URL
 	return s
+}
+
+// NewAt starts a stand-in at a fixed address on this computer (a browser
+// run's, whose dashboard is told the address before it starts).
+func NewAt(addr, clientID, secret string) (*Server, error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil || !net.ParseIP(host).IsLoopback() {
+		return nil, fmt.Errorf("the stand-in listens on this computer only (127.0.0.1:<port>), not %q", addr)
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	s := &Server{ClientID: clientID, Secret: secret, codes: map[string]*grant{}, Requests: map[string]int{}}
+	s.keys = []*Key{NewKey("RS256")}
+	s.Server = httptest.NewUnstartedServer(http.HandlerFunc(s.serve))
+	_ = s.Server.Listener.Close()
+	s.Server.Listener = ln
+	s.Server.Start()
+	s.Issuer = s.URL
+	return s, nil
 }
 
 // NewKey makes a signing key (RS256 or ES256) at run time.

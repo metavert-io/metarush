@@ -23,12 +23,14 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/metavert-io/metarush/internal/logbook"
+	"github.com/metavert-io/metarush/internal/providers"
 )
 
 // Kinds of provider.
@@ -142,10 +144,16 @@ func CheckIssuer(raw string) error {
 	if u.Scheme != "https" && !(u.Scheme == "http" && Loopback(raw)) {
 		return problem("bad_issuer", "A sign-in provider's address must start with https://.", "")
 	}
-	if testing.Testing() && !Loopback(raw) {
+	if realRefused() && !Loopback(raw) {
 		return problem("bad_issuer", "Tests never reach a real sign-in provider: use a stand-in on this computer.", "")
 	}
 	return nil
+}
+
+// realRefused: only a provider on this computer is ever reached — under go
+// test, and in a browser run (METARUSH_NO_PAID_SERVICES=1, scripts/lib/e2e.sh).
+func realRefused() bool {
+	return testing.Testing() || strings.TrimSpace(os.Getenv(providers.EnvNoPaidServices)) == "1"
 }
 
 // endpointOK says whether an address from the discovery document may be
@@ -155,7 +163,7 @@ func (c *Client) endpointOK(raw string) bool {
 	if err != nil || u.Host == "" || u.User != nil || u.Fragment != "" {
 		return false
 	}
-	if testing.Testing() && !Loopback(raw) {
+	if realRefused() && !Loopback(raw) {
 		return false
 	}
 	return u.Scheme == "https" || (u.Scheme == "http" && Loopback(raw) && Loopback(c.Issuer))

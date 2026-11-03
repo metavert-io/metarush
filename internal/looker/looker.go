@@ -161,9 +161,14 @@ func openStatus(ts *tools.Set) Status {
 }
 
 // CanRun reports whether this computer can look at clips now, or set itself
-// up to by itself the first time (the helper is built when Swift is here).
+// up to by itself the first time (the helper is built when Swift is here,
+// unless a person left Seeing what's on screen out: vision.Ensure never builds
+// it then, so this computer doesn't offer to look, D446).
 func CanRun(cfg *config.Config, ts *tools.Set) bool {
 	if Chosen(cfg) == AppleVision {
+		if !ts.Has(tools.Vision) && cfg != nil && cfg.Home() != "" && choice.Declined(cfg.Home(), Component) {
+			return false
+		}
 		return vision.CanRun(ts)
 	}
 	return openStatus(ts).Ready

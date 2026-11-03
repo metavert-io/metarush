@@ -217,3 +217,37 @@ func TestCutOutFollowsTheChoice(t *testing.T) {
 		}
 	}
 }
+
+// A Mac whose person left Seeing what's on screen out doesn't offer to look
+// when its helper isn't here (D446): the helper is never built for it, so the
+// clip would only fail there. A helper that is here still runs.
+func TestCanRunHonoursALeftOutHelper(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("Apple Vision runs only on a Mac")
+	}
+	dir := t.TempDir()
+	for _, p := range []string{"ffmpeg", "ffprobe", "swiftc"} {
+		if err := os.WriteFile(filepath.Join(dir, p), []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv(tools.EnvToolDirs, dir)
+	t.Setenv("METARUSH_VISION_CACHE", t.TempDir())
+	cfg := config.Default(t.TempDir())
+	ts := tools.New(config.Tools{})
+	if Chosen(cfg) != AppleVision || !CanRun(cfg, ts) {
+		t.Fatal("a Mac with Swift offers to look (it builds the helper on first use)")
+	}
+	if err := choice.Set(cfg.Home(), map[string]bool{Component: false}, "Sam"); err != nil {
+		t.Fatal(err)
+	}
+	if CanRun(cfg, ts) {
+		t.Fatal("a Mac whose person left the helper out offers to look")
+	}
+	if err := os.WriteFile(filepath.Join(dir, tools.Vision), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !CanRun(cfg, tools.New(config.Tools{})) {
+		t.Fatal("a helper that is here runs, left out or not")
+	}
+}

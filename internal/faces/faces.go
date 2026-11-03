@@ -162,7 +162,10 @@ func Save(ctx context.Context, a *app.App, assetID string, idx *visual.Index) er
 			f.Prints = append(f.Prints, models.FacePrint{At: p.At, Q: p.Quality, V: p.Vec})
 		}
 		if len(f.Prints) > 0 {
-			f.PrintModel = faceid.ModelName
+			f.PrintModel, f.PrintsBy = faceid.ModelName, visual.BackendAppleVision
+			if idx.ByOpenModels() {
+				f.PrintsBy = visual.BackendOpenModels
+			}
 		}
 		best, bestScore := -1, 0.0
 		for i, o := range old {

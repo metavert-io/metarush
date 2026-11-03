@@ -318,3 +318,32 @@ func TestIndexVisualFixture(t *testing.T) {
 		t.Errorf("focus on the person who walked in (right of center): x=%v from %d frames", x, n)
 	}
 }
+
+// An index the open models made keeps what Apple Vision saw in the same clip
+// before (D447): its places, things, animals and gestures, which the open
+// models don't look for; faces and words are the new look's.
+func TestKeepFrom(t *testing.T) {
+	apple := &Index{Duration: 30, Labels: []LabelSpan{{Label: "beach", Kind: "scene", From: 6, To: 14, Conf: 0.9}, {Label: "dog", Kind: "animal", From: 25, To: 30, Conf: 0.8},
+		{Label: "person", Kind: "person", From: 0, To: 6, Conf: 0.9}}, Gestures: []GestureSpan{{Kind: "pointing", From: 12, To: 15, Toward: "left"}}}
+	open := &Index{Duration: 30, Backend: BackendOpenModels, Sees: []string{"faces", "landmarks", "text", "attention"},
+		Labels: []LabelSpan{{Label: "person", Kind: "person", From: 0, To: 6, Conf: 0.95}}, Text: []TextSpan{{Text: "EXIT", From: 21, To: 25}}}
+	open.KeepFrom(apple)
+	var got []string
+	for _, l := range open.Labels {
+		got = append(got, l.Label)
+	}
+	if strings.Join(got, ",") != "person,beach,dog" || len(open.Gestures) != 1 || !open.Looked("labels") || !open.Looked("gestures") || len(open.Kept) == 0 {
+		t.Fatalf("kept: %v %+v %v", got, open.Gestures, open.Kept)
+	}
+	if !strings.Contains(open.Summary, "dog") || !strings.Contains(strings.Join(open.Terms, " "), "dog") || len(open.Text) != 1 {
+		t.Fatalf("summary %q, terms %v", open.Summary, open.Terms)
+	}
+	// Nothing to keep from another index the open models made, or into Apple Vision's own.
+	again := &Index{Duration: 30, Backend: BackendOpenModels, Sees: []string{"faces"}}
+	again.KeepFrom(open)
+	same := &Index{Duration: 30}
+	same.KeepFrom(apple)
+	if len(again.Labels) != 0 || len(again.Kept) != 0 || len(same.Labels) != 0 || len(same.Kept) != 0 {
+		t.Fatalf("kept where it shouldn't: %+v %+v", again, same)
+	}
+}

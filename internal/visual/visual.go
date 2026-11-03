@@ -11,6 +11,7 @@ package visual
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -169,6 +170,11 @@ type Index struct {
 	// models: faces, landmarks, text, attention — no labels, animals, bodies
 	// or gestures, so their absence says nothing about the clip).
 	Sees []string `json:"sees,omitempty" bson:"sees,omitempty"`
+	// Kept is what an index the open models made carries over from the one
+	// Apple Vision made before it (D447: labels — places, things, animals,
+	// people's bodies — and gestures, which the open models don't look for),
+	// so looking again without a Mac never drops them.
+	Kept []string `json:"kept,omitempty" bson:"kept,omitempty"`
 }
 
 // Backends that make indexes.
@@ -186,12 +192,36 @@ func (idx *Index) Looked(what string) bool {
 	if idx == nil || len(idx.Sees) == 0 {
 		return true
 	}
-	for _, s := range idx.Sees {
-		if s == what {
-			return true
+	return slices.Contains(idx.Sees, what) || slices.Contains(idx.Kept, what)
+}
+
+// What an index Apple Vision made has that the open models' doesn't (D447).
+var keptKinds = []string{"labels", "animals", "people", "gestures"}
+
+// KeepFrom carries into an index the open models made what an earlier index
+// of the same clip by Apple Vision saw that they don't look for (D447): its
+// labels (places, things, animals, people's bodies) and gestures. Faces,
+// words and where the eye is drawn are the new look's.
+func (idx *Index) KeepFrom(old *Index) {
+	if idx == nil || old == nil || !idx.ByOpenModels() || old.ByOpenModels() {
+		return
+	}
+	have := map[string]bool{}
+	for _, l := range idx.Labels {
+		have[l.Kind+"\x00"+l.Label] = true
+	}
+	for _, l := range old.Labels {
+		if !have[l.Kind+"\x00"+l.Label] && l.From < idx.Duration+0.5 {
+			idx.Labels = append(idx.Labels, l)
 		}
 	}
-	return false
+	sort.SliceStable(idx.Labels, func(i, j int) bool { return idx.Labels[i].From < idx.Labels[j].From })
+	if len(idx.Gestures) == 0 {
+		idx.Gestures = old.Gestures
+	}
+	idx.Kept = append([]string{}, keptKinds...)
+	idx.Terms = Terms(idx)
+	idx.Summary = summary(idx)
 }
 
 // AttentionSample is where the eye is drawn at one moment: the middle of

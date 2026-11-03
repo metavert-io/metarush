@@ -61,6 +61,13 @@ type postponed struct {
 
 func (p *postponed) Error() string { return p.reason }
 
+// released hands the job back as it was (the attempt does not count, as a
+// stopping worker does) for another computer to run: this one found it can't
+// after all, and stops offering it (D446). waiting is what the job says.
+type released struct{ waiting string }
+
+func (r *released) Error() string { return r.waiting }
+
 // Report updates a running job's progress.
 type Report func(pct float64, msg string)
 
@@ -335,6 +342,15 @@ func (w *Worker) Handle(t string, h Handler) {
 	w.hmu.Lock()
 	defer w.hmu.Unlock()
 	w.handlers[t] = h
+}
+
+// stopOffering makes the worker leave a job type to other computers until
+// its components or settings change (Refresh offers it again when they allow
+// it): it found it can't run it after all (D446).
+func (w *Worker) stopOffering(t string) {
+	w.hmu.Lock()
+	defer w.hmu.Unlock()
+	delete(w.handlers, t)
 }
 
 func (w *Worker) handler(t string) Handler {
@@ -748,6 +764,7 @@ func (w *Worker) execute(parent context.Context, j *models.Job) (again time.Time
 	close(hbDone)
 	fctx := context.WithoutCancel(parent)
 	var wait *postponed
+	var rel *released
 	switch {
 	case lost:
 		w.Log("job %s: lease lost; another worker owns it now — discarding local result", j.ID)
@@ -763,6 +780,14 @@ func (w *Worker) execute(parent context.Context, j *models.Job) (again time.Time
 			w.Log("job %s %s: could not put it back in the queue: %v", j.ID, j.Type, rerr)
 		} else {
 			w.Log("job %s %s put back in the queue: this worker is stopping", j.ID, j.Type)
+		}
+	case errors.As(err, &rel):
+		// This computer can't run it after all, another one can: back in the
+		// queue as it was, for that one (D446).
+		if rerr := a.Queue.ReleaseFor(fctx, j, a.Cfg.Installation.ID, rel.waiting); rerr != nil {
+			w.Log("job %s %s: could not put it back in the queue: %v", j.ID, j.Type, rerr)
+		} else {
+			w.Log("job %s %s put back in the queue for another computer: %s", j.ID, j.Type, rel.waiting)
 		}
 	case errors.As(err, &wait):
 		// Something it needs isn't there yet: back in the queue for a moment,

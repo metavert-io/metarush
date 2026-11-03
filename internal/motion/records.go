@@ -233,7 +233,10 @@ func SaveCheck(ctx context.Context, db *store.DB, c *models.MotionComponent) (*m
 		if err != nil {
 			return nil, err
 		}
-		set, push := mergeCheck(old, c)
+		set, push, err := mergeCheck(old, c)
+		if err != nil {
+			return nil, err
+		}
 		if set == nil {
 			return old, nil // nothing new: every shape was drawn before
 		}
@@ -256,10 +259,14 @@ func SaveCheck(ctx context.Context, db *store.DB, c *models.MotionComponent) (*m
 	return nil, apperr.New(apperr.Conflict, "The motion graphic %s changed while this check was saved. Check it again.", c.Name)
 }
 
+// MaxDrawnShapes bounds the shapes one version is drawn in over all its
+// checks (D381); one check adds at most MaxShapes.
+const MaxDrawnShapes = 9
+
 // mergeCheck is what a check adds to a version checked before (D381): the
 // shapes it drew that the version lacks, their frames and previews, notes not
 // there yet, the graphics a library's check drew; nil when it adds nothing.
-func mergeCheck(old, c *models.MotionComponent) (bson.M, *models.MotionDraw) {
+func mergeCheck(old, c *models.MotionComponent) (bson.M, *models.MotionDraw, error) {
 	// A shape is drawn when any size of its ratio was (D379).
 	have := map[string]bool{}
 	for _, k := range old.DrawnSizes() {
@@ -287,6 +294,11 @@ func mergeCheck(old, c *models.MotionComponent) (bson.M, *models.MotionDraw) {
 	}
 	for _, sh := range fresh {
 		words[ShapeLabel(sh.Width, sh.Height)]++
+	}
+	if len(fresh) > 0 && len(shapes)+len(fresh) > MaxDrawnShapes {
+		// Full: refused, never by dropping a shape (least of all an approved one).
+		return nil, nil, apperr.New(apperr.Conflict, "%s is already drawn in %d shapes; MetaRush draws one version in at most %d, so it wasn't drawn in more.", old.Name, len(shapes), MaxDrawnShapes).
+			WithHint("The shapes it has stay as they are. For more shapes, change the graphic and check the new version.")
 	}
 	label := map[string]string{}
 	var added []string
@@ -329,22 +341,22 @@ func mergeCheck(old, c *models.MotionComponent) (bson.M, *models.MotionDraw) {
 		}
 	}
 	if len(added) == 0 && !moreNotes && !moreUses {
-		return nil, nil
+		return nil, nil, nil
 	}
 	set := bson.M{"warnings": warnings, "usedBy": usedBy}
 	var draw *models.MotionDraw
 	if len(added) > 0 {
 		set["shapes"], set["frames"] = shapes, frames
 		draw = &models.MotionDraw{At: c.Check.At, By: c.Check.By, Machine: c.Check.Machine, Renderer: c.Check.Renderer, Shapes: added}
-		if old.State == models.MotionApproved && old.ApprovedShapes == nil {
+		if covered := old.ApprovedSizes(); old.State == models.MotionApproved && old.ApprovedShapes == nil && len(covered) > 0 {
 			// What the approval covered, written down before anything is added.
-			set["approvedShapes"] = old.DrawnSizes()
+			set["approvedShapes"] = covered
 		}
 	}
 	if old.ProjectID == "" && c.ProjectID != "" {
 		set["projectId"] = c.ProjectID
 	}
-	return set, draw
+	return set, draw, nil
 }
 
 func sizeKeyOf(w, h int) string {
@@ -418,7 +430,10 @@ func Decide(ctx context.Context, db *store.DB, workspaceID, hash, verb string, b
 	set := bson.M{"state": state, "updatedAt": now}
 	if state == models.MotionApproved {
 		if seen == nil {
-			seen = c.DrawnSizes() // what was there to look at
+			// Callers name the shapes the person was shown (the dashboard, the
+			// CLI, the panel's card); one that names none gets only the first
+			// check's shapes, never a later drawing nobody may have seen (D384).
+			seen = c.OriginalSizes()
 		}
 		set["approvedBy"], set["approvedAt"], set["approvedShapes"] = by, now, seen
 		d.Shapes = seen

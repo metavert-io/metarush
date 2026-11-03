@@ -132,6 +132,11 @@ func (g MotionShapeGap) Words() string {
 		return fmt.Sprintf("The motion graphic %s was only ever drawn %s, never %s like this cut, so nobody has seen how it looks here. Draw it in this shape, then a person looks at it and approves it that way; its code stays the same.",
 			g.Name, shapeWords(g.Drawn), cut)
 	}
+	if len(g.Approved) == 0 {
+		// Approved before its frames were drawn again (D384): no shape is covered.
+		return fmt.Sprintf("The motion graphic %s has test frames %s like this cut, but no person has approved it in this shape: its frames were drawn after it was approved. A person looks at them and approves it in this shape; drawing it again doesn't count.",
+			g.Name, cut)
+	}
 	return fmt.Sprintf("The motion graphic %s has test frames %s like this cut, but a person approved it only %s. A person looks at those frames and approves it in this shape; drawing it again doesn't count.",
 		g.Name, cut, shapeWords(g.Approved))
 }

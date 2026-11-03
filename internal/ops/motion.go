@@ -380,9 +380,8 @@ func checkFrame(ctx context.Context, a *app.App, in *MotionCheckIn, dir string, 
 	return o, set, nil
 }
 
-// MaxDrawnShapes bounds the shapes one version is drawn in over all its
-// checks (D381); one check adds at most motion.MaxShapes.
-const MaxDrawnShapes = 9
+// MaxDrawnShapes bounds the shapes one version is drawn in (motion.MaxDrawnShapes, D381).
+const MaxDrawnShapes = motion.MaxDrawnShapes
 
 // askedShape reads --shape: a shape's word or an exact, even size (video
 // previews can't be drawn at an odd size).

@@ -166,11 +166,14 @@ project's brand kit, else the workspace's.
 of its code (the same bytes, so the same version), in the ratios of the cuts that use it and the shape asked for that it
 lacks (D381). It only ever adds: the new shapes' frames and previews go beside the ones it had, and the frames,
 previews, contact sheet and check a person saw stay exactly as they were (one check adds at most three shapes, a
-version holds at most nine). It runs like any check, in the jailed browser, and works from the dashboard and as a card
+version holds at most nine; past that a check — a redraw or the folder checked again — is refused, never trimmed). It runs like any check, in the jailed browser, and works from the dashboard and as a card
 in Claude's panel, which starts by itself and which Auto may run (D382): it is evidence, never a decision.
 
-Approval is per version and per what a person looked at: an approval covers the shapes the person was shown
-(`approvedShapes`; an approval from before covers every shape it was drawn in then). A shape drawn later is approved
+Approval is per version and per what a person looked at: an approval covers exactly the shapes the person was shown
+(`approvedShapes`; the dashboard, the CLI and the panel's card name them, and a caller that names none gets only the
+first check's shapes, never a later drawing, D384). An approval from before shapes were recorded covers the shape its
+check drew only when that check came before the approval: older builds replaced frames when the same code was
+checked again, so newer frames were never approved and cuts are noted until a person approves the graphic there. A shape drawn later is approved
 by a person on the graphic's page (**Approve in this shape**) or with `metarush motion approve name@version --shape
 1920x1080`; drawing it, by anyone, never does. Frames are linked by their own SHA-256, so a card keeps showing what it
 showed.

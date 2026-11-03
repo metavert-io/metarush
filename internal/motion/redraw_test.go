@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/models"
@@ -125,8 +126,8 @@ func TestOlderApprovalsCoverWhatWasDrawn(t *testing.T) {
 		Frames: []models.MotionFrame{fr}, Check: models.MotionCheckInfo{By: a.Actor, At: time.Now().UTC(), Width: 1080, Height: 1920}}); err != nil {
 		t.Fatal(err)
 	}
-	// Approved the way older builds did: no shapes recorded.
-	if _, err := a.DB.C("motion_components").UpdateOne(ctx, map[string]any{"hash": hash}, map[string]any{"$set": map[string]any{"state": models.MotionApproved}}); err != nil {
+	// Approved the way older builds did, after its check: no shapes recorded.
+	if _, err := a.DB.C("motion_components").UpdateOne(ctx, map[string]any{"hash": hash}, map[string]any{"$set": map[string]any{"state": models.MotionApproved, "approvedAt": time.Now().UTC().Add(time.Minute)}}); err != nil {
 		t.Fatal(err)
 	}
 	c, _ := motion.Get(ctx, a.DB, a.WorkspaceID(), hash)
@@ -146,3 +147,154 @@ type infoFacts map[string]editspec.MotionInfo
 func (f infoFacts) Asset(string) (editspec.AssetFacts, bool)       { return editspec.AssetFacts{}, false }
 func (f infoFacts) Transcript(string) []editspec.TranscriptSegment { return nil }
 func (f infoFacts) Motion(h string) (editspec.MotionInfo, bool)    { i, ok := f[h]; return i, ok }
+
+// putOld writes a version the way 0.15.0 left it: frames in one shape, a
+// check time, maybe an approval time, and no approved shapes recorded.
+func putOld(t *testing.T, a *app.App, hash, name, state string, checkedAt time.Time, approvedAt *time.Time, w, h int) {
+	t.Helper()
+	c := models.MotionComponent{ID: a.WorkspaceID() + "/" + hash, WorkspaceID: a.WorkspaceID(), Hash: hash, Name: name, Region: "center", SchemaJSON: `{}`, State: state,
+		Frames: []models.MotionFrame{{Label: "middle", Object: models.MotionObject{Key: "k-" + name, SHA256: hash, Width: w, Height: h}}},
+		Check:  models.MotionCheckInfo{By: a.Actor, At: checkedAt, Width: w, Height: h}, ApprovedAt: approvedAt, CreatedAt: checkedAt, UpdatedAt: checkedAt}
+	if approvedAt != nil {
+		c.ApprovedBy = &a.Actor
+		c.Decisions = []models.MotionDecision{{State: models.MotionApproved, By: a.Actor, At: *approvedAt}}
+	}
+	if err := a.DB.Insert(context.Background(), "motion_components", c); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func gapsFor(t *testing.T, a *app.App, hash string, w, h int) []editspec.MotionShapeGap {
+	t.Helper()
+	infos, err := motion.Infos(context.Background(), a.DB, a.WorkspaceID(), []string{hash})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cut := &editspec.Spec{SchemaVersion: 1, Output: editspec.Output{Width: w, Height: h}, Overlays: []editspec.Overlay{{ID: "g", Motion: &editspec.MotionRef{Name: "g", Hash: hash}}}}
+	return editspec.MotionShapeGaps(cut, infoFacts(infos), w, h)
+}
+
+// A (D384): approving with no shapes named — a caller that sends none —
+// covers only the first check's shapes, never one drawn afterwards that the
+// person may not have seen.
+func TestApprovingWithNoShapesNamedCoversOnlyTheFirstCheck(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	hash := strings.Repeat("7c", 32)
+	save := func(w, h int, seed string) {
+		t.Helper()
+		if _, err := motion.SaveCheck(ctx, a.DB, &models.MotionComponent{WorkspaceID: a.WorkspaceID(), Hash: hash, Name: "card", Region: "center", SchemaJSON: `{}`,
+			Shapes: []models.MotionShape{{Width: w, Height: h}}, Frames: []models.MotionFrame{{Label: "middle", Object: models.MotionObject{Key: "k" + seed, SHA256: strings.Repeat(seed, 32), Width: w, Height: h}}},
+			Check: models.MotionCheckInfo{By: a.Actor, At: time.Now().UTC(), Width: w, Height: h}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save(1080, 1920, "01") // checked vertical, waiting for a person
+	save(1920, 1080, "02") // drawn widescreen afterwards (Auto, a safe step)
+	c, err := motion.Decide(ctx, a.DB, a.WorkspaceID(), hash, motion.Approve, a.Actor, "")
+	if err != nil || strings.Join(c.ApprovedShapes, ",") != "1080x1920" || strings.Join(c.Decisions[0].Shapes, ",") != "1080x1920" {
+		t.Fatalf("approved with no shapes named: %v %+v", err, c)
+	}
+	if gaps := gapsFor(t, a, hash, 1920, 1080); len(gaps) != 1 || gaps[0].Undrawn {
+		t.Fatalf("the widescreen drawing still waits for a person: %+v", gaps)
+	}
+}
+
+// B (D384): on 0.15.0 checking the same code again replaced its frames, so a
+// version approved vertical and re-checked widescreen afterwards holds frames
+// nobody approved: its approval covers no shape until a person approves one.
+func TestApprovalOlderThanItsFramesCoversNoShape(t *testing.T) {
+	a := testapp.New(t)
+	approved := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	hash := strings.Repeat("8d", 32)
+	putOld(t, a, hash, "rechecked", models.MotionApproved, approved.Add(26*time.Hour), &approved, 1920, 1080)
+	c, err := motion.Get(context.Background(), a.DB, a.WorkspaceID(), hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := c.ApprovedSizes(); len(got) != 0 {
+		t.Fatalf("frames newer than the approval are covered: %v", got)
+	}
+	gaps := gapsFor(t, a, hash, 1920, 1080)
+	if len(gaps) != 1 || gaps[0].Undrawn || !strings.Contains(gaps[0].Command(), "motion approve rechecked@8d8d8d8d --shape 1920x1080") || !strings.Contains(gaps[0].Words(), "no person has approved it in this shape") {
+		t.Fatalf("a widescreen cut asks a person to approve it widescreen: %+v", gaps)
+	}
+	// Its first drawing again doesn't write a coverage nobody gave.
+	after, err := motion.SaveCheck(context.Background(), a.DB, &models.MotionComponent{WorkspaceID: a.WorkspaceID(), Hash: hash, Name: "rechecked", Region: "center", SchemaJSON: `{}`,
+		Shapes: []models.MotionShape{{Width: 1080, Height: 1920}}, Frames: []models.MotionFrame{{Label: "middle", Object: models.MotionObject{Key: "k9", SHA256: strings.Repeat("09", 32), Width: 1080, Height: 1920}}},
+		Check: models.MotionCheckInfo{By: a.Actor, At: time.Now().UTC(), Width: 1080, Height: 1920}})
+	if err != nil || after.ApprovedShapes != nil || len(after.ApprovedSizes()) != 0 {
+		t.Fatalf("drawn again: %v %v", err, after.ApprovedShapes)
+	}
+}
+
+// B, as the live workspace holds them: four graphics checked on 20 October,
+// three approved after their one check the next day, one still waiting. The
+// approved ones count as approved in the shape they were drawn in (1080×1920)
+// and nothing else; the waiting one in nothing.
+func TestApprovedAfterItsOneCheckCoversThatShapeOnly(t *testing.T) {
+	a := testapp.New(t)
+	checked := time.Date(2026, 10, 20, 15, 4, 0, 0, time.UTC)
+	for i, name := range []string{"lower-third", "title-card", "end-card", "stat-card"} {
+		hash := strings.Repeat(fmt.Sprintf("%02x", 0xa0+i), 32)
+		var approvedAt *time.Time
+		state := models.MotionWaiting
+		if i < 3 {
+			at := checked.Add(time.Duration(18+i) * time.Hour)
+			approvedAt, state = &at, models.MotionApproved
+		}
+		putOld(t, a, hash, name, state, checked.Add(time.Duration(i)*time.Minute), approvedAt, 1080, 1920)
+		c, err := motion.Get(context.Background(), a.DB, a.WorkspaceID(), hash)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := ""
+		if i < 3 {
+			want = "1080x1920"
+		}
+		if got := strings.Join(c.ApprovedSizes(), ","); got != want {
+			t.Fatalf("%s: approved in %q, want %q", name, got, want)
+		}
+		if i < 3 {
+			if gaps := gapsFor(t, a, hash, 1080, 1920); len(gaps) != 0 {
+				t.Fatalf("%s in a vertical cut: %+v", name, gaps)
+			}
+			if gaps := gapsFor(t, a, hash, 1920, 1080); len(gaps) != 1 || !gaps[0].Undrawn {
+				t.Fatalf("%s in a widescreen cut: %+v", name, gaps)
+			}
+		}
+	}
+}
+
+// Minor (D381): checking the folder again with the same code merges like a
+// redraw, so a full version is refused in plain words — never trimmed, and
+// never by dropping a shape a person approved.
+func TestRecheckingAFullVersionIsRefusedNotTrimmed(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	hash := strings.Repeat("9e", 32)
+	var shapes []models.MotionShape
+	var frames []models.MotionFrame
+	for i := 0; i < motion.MaxDrawnShapes; i++ {
+		w := 1080 + 2*i*37
+		shapes = append(shapes, models.MotionShape{Width: w, Height: 1080})
+		frames = append(frames, models.MotionFrame{Label: "middle", Object: models.MotionObject{Key: fmt.Sprint("k", i), SHA256: strings.Repeat(fmt.Sprintf("%02x", i), 32), Width: w, Height: 1080}})
+	}
+	if _, err := motion.SaveCheck(ctx, a.DB, &models.MotionComponent{WorkspaceID: a.WorkspaceID(), Hash: hash, Name: "full", Region: "center", SchemaJSON: `{}`,
+		Shapes: shapes, Frames: frames, Check: models.MotionCheckInfo{By: a.Actor, At: time.Now().UTC(), Width: 1080, Height: 1080}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := motion.Decide(ctx, a.DB, a.WorkspaceID(), hash, motion.Approve, a.Actor, "", "1080x1080"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := motion.SaveCheck(ctx, a.DB, &models.MotionComponent{WorkspaceID: a.WorkspaceID(), Hash: hash, Name: "full", Region: "center", SchemaJSON: `{}`,
+		Shapes: []models.MotionShape{{Width: 1080, Height: 1920}}, Frames: []models.MotionFrame{{Label: "middle", Object: models.MotionObject{Key: "kv", SHA256: strings.Repeat("ff", 32), Width: 1080, Height: 1920}}},
+		Check: models.MotionCheckInfo{By: a.Actor, At: time.Now().UTC(), Width: 1080, Height: 1920}})
+	if e := apperr.From(err); e.Code != apperr.Conflict || !strings.Contains(e.Message, "at most 9") {
+		t.Fatalf("a tenth shape: %v", err)
+	}
+	c, _ := motion.Get(ctx, a.DB, a.WorkspaceID(), hash)
+	if len(c.Shapes) != motion.MaxDrawnShapes || len(c.Frames) != motion.MaxDrawnShapes || strings.Join(c.ApprovedShapes, ",") != "1080x1080" {
+		t.Fatalf("the version changed: %d shapes, %d frames, approved %v", len(c.Shapes), len(c.Frames), c.ApprovedShapes)
+	}
+}

@@ -250,9 +250,31 @@ func (c *MotionComponent) DrawnSizes() []string {
 	return out
 }
 
+// OriginalSizes are the sizes its first recorded check drew: every size it
+// was drawn in but those a later draw added (D381).
+func (c *MotionComponent) OriginalSizes() []string {
+	added := map[string]bool{}
+	for _, d := range c.Draws {
+		for _, k := range d.Shapes {
+			added[k] = true
+		}
+	}
+	var out []string
+	for _, k := range c.DrawnSizes() {
+		if !added[k] {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
 // ApprovedSizes are the sizes a person's approval covers (D381): none unless
-// it is approved; its recorded shapes, else (approved before) every size it
-// was drawn in.
+// it is approved; its recorded shapes. An approval from before shapes were
+// recorded covers what its check drew only when that check came before the
+// approval: older builds replaced a version's frames when the same code was
+// checked again, so frames newer than the approval are frames nobody approved
+// (D384) — then it covers nothing, and cuts are noted until a person approves
+// it in their shape.
 func (c *MotionComponent) ApprovedSizes() []string {
 	if c.State != MotionApproved {
 		return nil
@@ -260,7 +282,10 @@ func (c *MotionComponent) ApprovedSizes() []string {
 	if c.ApprovedShapes != nil {
 		return c.ApprovedShapes
 	}
-	return c.DrawnSizes()
+	if c.ApprovedAt == nil || c.Check.At.After(*c.ApprovedAt) {
+		return nil
+	}
+	return c.OriginalSizes()
 }
 
 func sizeKey(w, h int) string { return itoa(w) + "x" + itoa(h) }

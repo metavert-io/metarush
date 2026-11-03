@@ -164,7 +164,12 @@ func (m *Manager) describeMotionDecision(ctx context.Context, call *cliCall, a *
 	a.Rationale = clip(strings.TrimSpace(call.Flags["note"]), 1000)
 	in := ops.MotionDecideIn{Ref: comp.Name + "@" + comp.Hash, Reject: reject && op == "motion.approve", Note: clip(call.Flags["note"], 2000)}
 	if op == "motion.approve" && !reject {
-		in.Shapes = shapeFlags(call)
+		// The approval covers exactly the shapes this card shows (D384): its
+		// frames are the ones drawn now, so a shape drawn after the card was
+		// made (by a safe step or Auto) is never approved unseen.
+		if in.Shapes = shapeFlags(call); len(in.Shapes) == 0 {
+			in.Shapes = comp.DrawnSizes()
+		}
 	}
 	setInput(a, op, in)
 }

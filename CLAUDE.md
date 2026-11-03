@@ -633,7 +633,8 @@ Read `docs/architecture.md` before structural changes.
   `MotionComponent.Shapes`, `motion.TidyShapes`; else the workspace's cuts that use it, else `ProjectShape`, else both
   widescreen and vertical; cut sizes become `editspec.TestSize`); `motion check --version name@v [--shape …]` only adds
   shapes to a checked version (D381: `SaveCheck` merges, never replaces what a person saw; frames linked by SHA-256;
-  `approvedShapes`, `motion approve --shape`; a panel card Auto may run, D382); a graphic nobody approved in a cut's
+  `approvedShapes` = exactly the shapes a person was shown, older approvals only if their check came first, D384;
+  `motion approve --shape`; a panel card Auto may run, D382); a graphic nobody approved in a cut's
   ratio is `motion_shape_undrawn` / QA `motion_shape` (D379). Inside nested cuts and conversations (D182, `callclips.go`): always get a
   clip's switches with `clipFootage(s, i, wrapFacts(s, facts))` (a conversation's depend on the clip's shots; a nested
   cut's are on its timeline); the bar's changes are keyed by the clip's own key, a conversation's cover comes from the

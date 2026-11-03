@@ -116,3 +116,42 @@ func TestMotionRedrawAndShapeApprovalCards(t *testing.T) {
 		t.Fatalf("the approve card: %+v (%s)", approve, approve.Input)
 	}
 }
+
+// A (D384): the approve card shows the frames drawn when it was made, so it
+// approves exactly those shapes. When Auto (or a safe step) draws the graphic
+// widescreen afterwards and the person then clicks Approve, the approval
+// covers vertical only; widescreen waits for a person.
+func TestApproveCardMadeBeforeARedrawCoversOnlyWhatItShowed(t *testing.T) {
+	a := testApp(t, "")
+	ctx := context.Background()
+	m := &Manager{App: a, names: map[string]string{}}
+	hash := strings.Repeat("4d", 32)
+	save := func(w, h int, seed string) {
+		t.Helper()
+		if _, err := motion.SaveCheck(ctx, a.DB, &models.MotionComponent{WorkspaceID: a.WorkspaceID(), Hash: hash, Name: "route-map", Region: "center", SchemaJSON: `{}`,
+			Files: []models.MotionFile{}, Imports: []models.MotionImport{}, Shapes: []models.MotionShape{{Width: w, Height: h}},
+			Frames: []models.MotionFrame{{Label: "middle", Object: models.MotionObject{Key: "k" + seed, SHA256: strings.Repeat(seed, 32), Width: w, Height: h}}},
+			Check:  models.MotionCheckInfo{By: a.Actor, At: time.Now().UTC(), Width: w, Height: h}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	save(1080, 1920, "0b")
+	words, _ := splitCommand("metarush motion approve route-map@4d4d4d4d")
+	call, _ := parseMetarush(words)
+	card := &AssistantAction{Kind: call.Path, State: ActionPending}
+	m.describeAction(ctx, &conv{id: "cnv_approve"}, &call, card)
+	var in ops.MotionDecideIn
+	_ = json.Unmarshal([]byte(card.Input), &in)
+	if card.Op != "motion.approve" || !card.HumanOnly || fmt.Sprint(in.Shapes) != "[1080x1920]" || len(card.Frames) != 1 {
+		t.Fatalf("the card: %+v (%s)", card, card.Input)
+	}
+	save(1920, 1080, "0c") // Auto draws it widescreen after the card was made
+	out, err := ops.CallTyped[ops.MotionDecideOut](ctx, a, "motion.approve", in, ops.Caller{Human: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _ := motion.Get(ctx, a.DB, a.WorkspaceID(), hash)
+	if out.Row.State != models.MotionApproved || fmt.Sprint(c.ApprovedShapes) != "[1080x1920]" {
+		t.Fatalf("approved in %v, want only what the card showed", c.ApprovedShapes)
+	}
+}

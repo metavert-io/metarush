@@ -18,8 +18,8 @@ import (
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/testutil/fakescreen"
-	"github.com/metavert-io/metarush/internal/visual"
 	"github.com/metavert-io/metarush/internal/visionmodels"
+	"github.com/metavert-io/metarush/internal/visual"
 )
 
 // A computer with the open models looks at new footage itself (D405, D408):

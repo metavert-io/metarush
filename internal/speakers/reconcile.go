@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -33,10 +34,13 @@ func Reconcile(ctx context.Context, a *app.App, assetID string) error {
 		return err
 	}
 	if as.IsReference() {
+		if err := forgetVoices(ctx, a, &as); err != nil {
+			return err
+		}
 		if _, err := todos.CloseStale(ctx, a, "speaker:"+as.ID+":", nil); err != nil {
 			return err
 		}
-		_, err := faces.Candidates(ctx, a, as.ID) // its face questions close too
+		_, err := faces.Candidates(ctx, a, as.ID) // its faces too: questions close, fingerprints go
 		return err
 	}
 	voices, err := Voices(ctx, a, assetID, false)
@@ -357,4 +361,60 @@ func Summary(assetName string, voices []models.AssetSpeaker) string {
 		fmt.Fprintf(&b, " %d very brief voices are too short to tell who they are.", brief)
 	}
 	return b.String()
+}
+
+// forgetVoices takes a reference's voices out of recognition (D443): names
+// MetaRush gave them automatically and suggestions go (the transcript and what
+// the video does stop naming someone's people), and their fingerprints aren't
+// kept, so they never match or teach anyone's voice. Names a person gave stay.
+func forgetVoices(ctx context.Context, a *app.App, as *models.Asset) error {
+	ws := a.WorkspaceID()
+	var autos []models.AssetSpeaker
+	if err := a.DB.Find(ctx, store.CSpeakers, ws, bson.M{"assetId": as.ID, "source": models.SpeakerByAuto, "mergedInto": bson.M{"$in": bson.A{nil, ""}}}, &autos); err != nil {
+		return err
+	}
+	people := map[string]bool{}
+	for _, v := range autos {
+		if err := unmergeAuto(ctx, a, as.ID, v.Label); err != nil {
+			return err
+		}
+		people[v.PersonID] = true
+	}
+	now := time.Now().UTC()
+	named, err := a.DB.C(store.CSpeakers).UpdateMany(ctx, bson.M{"workspaceId": ws, "assetId": as.ID, "source": models.SpeakerByAuto},
+		bson.M{"$set": bson.M{"name": "", "personId": "", "source": "", "score": 0.0, "updatedAt": now}})
+	if err != nil {
+		return err
+	}
+	prints, err := a.DB.C(store.CSpeakers).UpdateMany(ctx, bson.M{"workspaceId": ws, "assetId": as.ID, "$or": bson.A{
+		bson.M{"centroid": bson.M{"$exists": true}}, bson.M{"exemplars": bson.M{"$exists": true}}, bson.M{"model": bson.M{"$exists": true}}, bson.M{"suggestions": bson.M{"$exists": true}}}},
+		bson.M{"$unset": bson.M{"centroid": "", "exemplars": "", "exSeconds": "", "model": "", "suggestions": ""}, "$set": bson.M{"updatedAt": now}})
+	if err != nil {
+		return err
+	}
+	if named.ModifiedCount+prints.ModifiedCount == 0 {
+		return nil
+	}
+	if err := SyncNames(ctx, a, as.ID); err != nil {
+		return err
+	}
+	_ = refreshStatus(ctx, a, as.ID)
+	for id := range people {
+		if id != "" {
+			_ = refreshTotals(ctx, a, id)
+		}
+	}
+	return nil
+}
+
+// referenceIDs are the workspace's references (D398): their voices never
+// count for anyone.
+func referenceIDs(ctx context.Context, a *app.App) []string {
+	var as []models.Asset
+	_ = a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), bson.M{"reference": bson.M{"$exists": true}}, &as, options.Find().SetProjection(bson.M{"_id": 1}))
+	out := []string{}
+	for _, x := range as {
+		out = append(out, x.ID)
+	}
+	return out
 }

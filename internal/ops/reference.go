@@ -3,7 +3,6 @@ package ops
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -13,6 +12,7 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/evidence"
+	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/speakers"
 	"github.com/metavert-io/metarush/internal/store"
@@ -126,6 +126,20 @@ func referenceMine(ctx context.Context, a *app.App, in *FootageReferenceIn) (*Fo
 	}
 	a.Audit(ctx, "footage.reference.mine", "asset", as.ID, firstOr(as.ProjectIDs), details)
 	_ = speakers.Reconcile(ctx, a, as.ID) // the person's own video: who speaks and who is on screen are asked about again
+	// Its voices and faces were kept out of recognition, without fingerprints
+	// (D443): listen and look again, so they are recognized like the person's
+	// other footage.
+	if as.Media.HasAudio && as.Transcript != nil && as.Transcript.State == "available" {
+		_, _ = speakers.QueueDetection(ctx, a, []models.Asset{*as}, speakers.QueueOptions{})
+	}
+	if as.Media.HasVideo && as.Analysis[jobs.TypeVisual] == "available" && visualsPossible(ctx, a) {
+		key := jobs.TypeVisual + ":" + as.ID + ":mine"
+		if was != nil {
+			key += ":" + was.At.UTC().Format("20060102T150405.000")
+		}
+		_, _, _ = a.Queue.Enqueue(ctx, jobs.EnqueueOptions{Type: jobs.TypeVisual, IdempotencyKey: key, Priority: 8, Heavy: true, AssetID: as.ID,
+			Payload: map[string]any{"assetId": as.ID}, Actor: a.Actor})
+	}
 	return &FootageReferenceOut{Clip: summarize(*as), Changed: true, Message: fmt.Sprintf("“%s” is yours now: cuts can play it.", title)}, nil
 }
 
@@ -135,7 +149,7 @@ func referenceMine(ctx context.Context, a *app.App, in *FootageReferenceIn) (*Fo
 // what was asked ("make a shot from it").
 func RefuseReference(as *models.Asset, doing string) error {
 	return apperr.New(apperr.Conflict, "%s, so MetaRush doesn't %s. If it's your own video, say so on its page (This is mine) and try again.", ReferenceWords(as), doing).
-		WithCommand("metarush footage reference " + as.ID + " --mine").
+		WithCommand(as.ReferenceMineCommand()).
 		WithDetails(map[string]any{"reason": "reference", "assetId": as.ID})
 }
 
@@ -178,9 +192,7 @@ func ReferencesPlayed(ctx context.Context, a *app.App, s *editspec.Spec) ([]mode
 
 // ReferenceWords says a reference clip plainly for refusals elsewhere ("“X” is
 // a reference: someone else's video, kept to learn from").
-func ReferenceWords(as *models.Asset) string {
-	return "“" + strings.TrimSpace(as.DisplayTitle()) + "” is a reference: someone else's video, kept to learn from"
-}
+func ReferenceWords(as *models.Asset) string { return as.ReferenceWords() }
 
 // AskStartFrom records on a clip a draft asked for from it (D401), unless one
 // is asked for or made already (a failed one is asked again), then tells the

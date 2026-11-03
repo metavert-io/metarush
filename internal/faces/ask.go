@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/app"
+	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/faceid"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/models"
@@ -317,7 +318,14 @@ func candidatesWith(ctx context.Context, a *app.App, assetID string, rec *recogn
 		return 0, nil, err
 	}
 	st := visual.Load(ctx, a.DB, a.WorkspaceID(), assetID)
-	// A reference is someone else's video, kept to learn from (D398): nobody in it is asked about.
+	// A reference is someone else's video, kept to learn from (D398, D443):
+	// nobody in it is asked about or recognized, and its faces keep no
+	// fingerprints (they never match or teach anyone's face).
+	if as.IsReference() {
+		if err := forgetFaces(ctx, a, assetID); err != nil {
+			return 0, nil, err
+		}
+	}
 	if as.IsReference() || st == nil || len(st.Index.Tracks) == 0 {
 		if _, err := closeOldQuestions(ctx, a, assetID, nil); err != nil {
 			return 0, nil, err
@@ -1093,4 +1101,25 @@ func aboutDuration(s float64) string {
 	default:
 		return fmt.Sprintf("about %d minutes", int(s/60+0.5))
 	}
+}
+
+// forgetFaces takes a reference's faces out of recognition (D443): their
+// fingerprints, the names MetaRush gave them by their looks and who they might
+// be go. Names a person gave stay; with no fingerprint they teach nothing.
+func forgetFaces(ctx context.Context, a *app.App, assetID string) error {
+	_, err := a.DB.C(store.CFaces).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "assetId": assetID, "$or": bson.A{
+		bson.M{"prints": bson.M{"$exists": true}}, bson.M{"recognized": bson.M{"$exists": true}}, bson.M{"candidate": bson.M{"$exists": true}}}},
+		bson.M{"$unset": bson.M{"prints": "", "printModel": "", "recognized": "", "candidate": ""}})
+	return err
+}
+
+// notInReference refuses naming the faces in a reference — someone else's
+// video (D443) — until a person says it's theirs.
+func notInReference(ctx context.Context, a *app.App, assetID string) error {
+	var as models.Asset
+	if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), assetID, &as); err != nil || !as.IsReference() {
+		return nil
+	}
+	return apperr.New(apperr.Conflict, "%s, so MetaRush doesn't name the people in it. If it's your own video, say so on its page (This is mine) first.", as.ReferenceWords()).
+		WithCommand(as.ReferenceMineCommand()).WithDetails(map[string]any{"reason": "reference", "assetId": as.ID})
 }

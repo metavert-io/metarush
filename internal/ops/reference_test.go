@@ -12,6 +12,7 @@ import (
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/faces"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/speakers"
 	"github.com/metavert-io/metarush/internal/store"
@@ -64,10 +65,25 @@ func TestAReferenceAsksAboutNobodyInIt(t *testing.T) {
 	if ts := open(); len(ts) != 0 {
 		t.Fatalf("asked again after a look: %+v", ts)
 	}
-	// A person says it's theirs: cuts can play it, and its questions come back as its looks say.
+	// A person says it's theirs: cuts can play it, and MetaRush listens and
+	// looks again so its voices and faces get their fingerprints (D443).
+	if _, err := a.DB.C(store.CAssets).UpdateOne(ctx, bson.M{"_id": as.ID}, bson.M{"$set": bson.M{"transcript": models.TranscriptStatus{State: "available"},
+		"analysis.visual": "available"}}); err != nil {
+		t.Fatal(err)
+	}
 	mine, err := CallTyped[FootageReferenceOut](ctx, a, "footage.reference.mine", FootageReferenceIn{AssetID: as.ID}, Caller{Human: true})
 	if err != nil || !mine.Changed || mine.Clip.Reference != nil {
 		t.Fatalf("theirs: %+v %v", mine, err)
+	}
+	queued := func(typ string) bool {
+		n, _ := a.DB.C(store.CJobs).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "assetId": as.ID, "type": typ})
+		return n > 0
+	}
+	if !queued(jobs.TypeDiarize) {
+		t.Errorf("its voices are listened to again")
+	}
+	if queued(jobs.TypeVisual) != VisualsPossible(ctx, a) {
+		t.Errorf("its faces are looked at again where this computer can: %v", queued(jobs.TypeVisual))
 	}
 }
 

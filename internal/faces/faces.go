@@ -275,6 +275,9 @@ func Confirm(ctx context.Context, a *app.App, faceID string, person models.Perso
 	if err != nil {
 		return nil, err
 	}
+	if err := notInReference(ctx, a, f.AssetID); err != nil {
+		return nil, err
+	}
 	now := time.Now().UTC()
 	actor := a.Actor
 	rejected := []string{}

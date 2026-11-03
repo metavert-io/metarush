@@ -100,6 +100,9 @@ func AssignWords(ctx context.Context, a *app.App, in AssignInput) (*AssignResult
 	}
 	var person *models.Person
 	if !in.Unsure {
+		if err := notInReference(ctx, a, as.ID); err != nil {
+			return nil, nil, err
+		}
 		p, created, err := personFor(ctx, a, in.Name, in.PersonID, in.NewPerson)
 		if err != nil {
 			return nil, nil, err

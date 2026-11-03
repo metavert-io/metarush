@@ -601,6 +601,18 @@ type AssetReference struct {
 // IsReference reports a clip marked as someone else's video, kept to learn from (D398).
 func (a *Asset) IsReference() bool { return a != nil && a.Reference != nil }
 
+// ReferenceWords says a reference plainly for refusals ("“X” is a reference:
+// someone else's video, kept to learn from").
+func (a *Asset) ReferenceWords() string {
+	return "“" + strings.TrimSpace(a.DisplayTitle()) + "” is a reference: someone else's video, kept to learn from"
+}
+
+// ReferenceMineCommand is the command a person runs to say a reference is
+// their own video.
+func (a *Asset) ReferenceMineCommand() string {
+	return "metarush footage reference " + a.ID + " --mine"
+}
+
 // AssetAlias is another filename an asset's bytes arrived under.
 type AssetAlias struct {
 	Name      string    `bson:"name" json:"name"`

@@ -25,22 +25,25 @@ type FrameRef struct {
 
 // GenShotIn asks for a new shot (or, with dryRun, only prices and checks it).
 type GenShotIn struct {
-	ProjectID   string    `json:"projectId" jsonschema:"pattern=^prj_[0-9a-z]{26}$"`
-	Prompt      string    `json:"prompt" jsonschema:"minLength=1,maxLength=4000,description=What the shot shows\\, in your words."`
-	Look        string    `json:"look,omitempty" jsonschema:"maxLength=80,description=A look's short name or ID: who (or which character) appears."`
-	Seconds     int       `json:"seconds,omitempty" jsonschema:"minimum=0,maximum=60,description=How long (the model's range; default 6)."`
-	AspectRatio string    `json:"aspectRatio,omitempty" jsonschema:"enum=,enum=16:9,enum=9:16"`
-	Quality     string    `json:"quality,omitempty" jsonschema:"enum=,enum=draft,enum=final,description=draft (cheaper\\, to try ideas) or final; default draft."`
-	Resolution  string    `json:"resolution,omitempty" jsonschema:"enum=,enum=360p,enum=720p,enum=1080p,enum=4k,description=Overrides the quality's resolution."`
-	Model       string    `json:"model,omitempty" jsonschema:"maxLength=120"`
-	From        *FrameRef `json:"from,omitempty" jsonschema:"description=Start from this frame (continue the shot)."`
-	To          *FrameRef `json:"to,omitempty" jsonschema:"description=End on this frame (with from: a shot between two frames)."`
-	Images      []string  `json:"images,omitempty" jsonschema:"maxItems=10,description=Pictures from the resources library (short name or name@version)\\, referred to in the prompt as <IMAGE_REF_0>\\, <IMAGE_REF_1>…"`
-	NoPeople    bool      `json:"noPeople,omitempty" jsonschema:"description=You say the frames and pictures show no real people (needed when MetaRush can't tell)."`
-	Takes       int       `json:"takes,omitempty" jsonschema:"minimum=0,maximum=4,description=How many takes to make at once (default 1)."`
-	MaxUSD      *float64  `json:"maxUsd,omitempty" jsonschema:"minimum=0,description=The most you agree to pay for all takes\\, in US dollars (from the estimate). Required to generate\\, unless your estimates are off (Settings → Preferences)."`
-	DryRun      bool      `json:"dryRun,omitempty" jsonschema:"description=Price and check it only; nothing is sent or spent."`
-	Origin      string    `json:"origin,omitempty" jsonschema:"maxLength=200,description=Where the request came from (a Claude panel card)."`
+	ProjectID   string `json:"projectId" jsonschema:"pattern=^prj_[0-9a-z]{26}$"`
+	Prompt      string `json:"prompt" jsonschema:"minLength=1,maxLength=4000,description=What the shot shows\\, in your words."`
+	Look        string `json:"look,omitempty" jsonschema:"maxLength=80,description=A look's short name or ID: who (or which character) appears."`
+	Seconds     int    `json:"seconds,omitempty" jsonschema:"minimum=0,maximum=60,description=How long (the model's range; default 6)."`
+	AspectRatio string `json:"aspectRatio,omitempty" jsonschema:"enum=,enum=16:9,enum=9:16,description=The shape; default: the shape of the cut it is for (cut)\\, else the project's\\, else the look's usual one\\, else the model's (D385)."`
+	// Cut is the cut the shot is for: its name (branch) or a version (an ID
+	// or rN). The shot is made in its shape unless aspectRatio says otherwise.
+	Cut        string    `json:"cut,omitempty" jsonschema:"maxLength=80,description=The cut the shot is for (its name or a version): it is made in that cut's shape (default: the project's)."`
+	Quality    string    `json:"quality,omitempty" jsonschema:"enum=,enum=draft,enum=final,description=draft (cheaper\\, to try ideas) or final; default draft."`
+	Resolution string    `json:"resolution,omitempty" jsonschema:"enum=,enum=360p,enum=720p,enum=1080p,enum=4k,description=Overrides the quality's resolution."`
+	Model      string    `json:"model,omitempty" jsonschema:"maxLength=120"`
+	From       *FrameRef `json:"from,omitempty" jsonschema:"description=Start from this frame (continue the shot)."`
+	To         *FrameRef `json:"to,omitempty" jsonschema:"description=End on this frame (with from: a shot between two frames)."`
+	Images     []string  `json:"images,omitempty" jsonschema:"maxItems=10,description=Pictures from the resources library (short name or name@version)\\, referred to in the prompt as <IMAGE_REF_0>\\, <IMAGE_REF_1>…"`
+	NoPeople   bool      `json:"noPeople,omitempty" jsonschema:"description=You say the frames and pictures show no real people (needed when MetaRush can't tell)."`
+	Takes      int       `json:"takes,omitempty" jsonschema:"minimum=0,maximum=4,description=How many takes to make at once (default 1)."`
+	MaxUSD     *float64  `json:"maxUsd,omitempty" jsonschema:"minimum=0,description=The most you agree to pay for all takes\\, in US dollars (from the estimate). Required to generate\\, unless your estimates are off (Settings → Preferences)."`
+	DryRun     bool      `json:"dryRun,omitempty" jsonschema:"description=Price and check it only; nothing is sent or spent."`
+	Origin     string    `json:"origin,omitempty" jsonschema:"maxLength=200,description=Where the request came from (a Claude panel card)."`
 }
 
 // GenAgainIn makes new takes of an earlier generation, made the same way
@@ -127,7 +130,16 @@ type GenEstimate struct {
 	Seconds       int    `json:"seconds"`
 	Resolution    string `json:"resolution"`
 	AspectRatio   string `json:"aspectRatio"`
-	Quality       string `json:"quality"`
+	// ShapeFrom says who chose the shape (D385): the request (asked), the
+	// cut it is for, the project's shape, the look's usual one, the earlier
+	// generation or clip it is made from (same), or the model's own (default);
+	// ShapeWhy says it in plain words.
+	ShapeFrom string `json:"shapeFrom,omitempty" jsonschema:"enum=,enum=asked,enum=cut,enum=project,enum=look,enum=same,enum=default"`
+	ShapeWhy  string `json:"shapeWhy,omitempty"`
+	// FitsCut is the shape that fits the cut (or project) it is for, when
+	// something says: what a shape asked for is compared with.
+	FitsCut string `json:"fitsCut,omitempty" jsonschema:"description=The shape that fits the cut (or project) it is for\\, when something says."`
+	Quality string `json:"quality"`
 	// Upscaled: the model makes this resolution by upscaling.
 	Upscaled       bool    `json:"upscaled,omitempty"`
 	USD            float64 `json:"usd" jsonschema:"description=All takes\\, in US dollars."`

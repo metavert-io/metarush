@@ -73,6 +73,10 @@ type MakeOptions struct {
 	Source string
 	// Theme: dark or light (default: from the brand kit's background).
 	Theme string
+	// Shape is the shape of the cut it is made for (D393): a vertical or
+	// square cut gets a slide drawn to fit it; widescreen, or none (a
+	// free-standing resource), is drawn wide as always.
+	Shape editspec.Shape
 	// Name and Title of the new resource (default from the file or repository).
 	Name, Title string
 	// Where it goes: a project, or the workspace library.
@@ -202,6 +206,10 @@ type genResult struct {
 	Versions      map[string]string
 }
 
+// drawSlide is how slides are drawn: runGenerator (tests stand in for it; the
+// renderer isn't set up under go test).
+var drawSlide = runGenerator
+
 // runGenerator runs video/render/generate.mjs in the jailed browser.
 func runGenerator(ctx context.Context, a *app.App, kind string, input any, out string) (*genResult, error) {
 	if !a.Tools.Has(tools.Node) {
@@ -320,6 +328,15 @@ func Make(ctx context.Context, a *app.App, o MakeOptions) (*MakeResult, error) {
 			add.ProjectID, add.Scope = o.Repo.ProjectID, models.ScopeProject // next to the repository it came from
 		}
 	}
+	// Drawn to fit the cut it is made for (D393): only a vertical or square
+	// cut changes anything; wide is how slides were always drawn.
+	shape := o.Shape
+	if shape != editspec.ShapeVertical && shape != editspec.ShapeSquare {
+		shape = ""
+	}
+	if shape != "" && (o.Kind == MakeCode || o.Kind == MakeDiagram || o.Kind == MakeStats) {
+		res.Notes = append(res.Notes, "Drawn to fit a "+shape.Word()+" cut.")
+	}
 	var file string
 	switch o.Kind {
 	case MakeCode:
@@ -373,8 +390,9 @@ func Make(ctx context.Context, a *app.App, o MakeOptions) (*MakeResult, error) {
 		}
 		input := map[string]any{"code": code, "language": lang, "theme": theme, "firstLine": from, "highlight": hl, "brand": brand,
 			"header": map[string]any{"path": clean, "lines": span, "repo": repoV.Repo.Owner + "/" + repoV.Repo.Name + " @ " + models.ShortSHA(repoV.Repo.Commit)}}
+		shapeInput(input, shape)
 		file = filepath.Join(work, "code-"+Slug(path.Base(clean))+".png")
-		gr, err := runGenerator(ctx, a, MakeCode, input, file)
+		gr, err := drawSlide(ctx, a, MakeCode, input, file)
 		if err != nil {
 			return nil, err
 		}
@@ -386,7 +404,7 @@ func Make(ctx context.Context, a *app.App, o MakeOptions) (*MakeResult, error) {
 		add.Source.File, add.Source.Lines = clean, lineSpan
 		add.Source.MadeWith = &models.ResourceMadeWith{Kind: MakeCode, RepoID: o.Repo.ID, RepoSHA: repoV.SHA256, File: clean, From: from, To: to, Language: lang,
 			Highlight: strings.ReplaceAll(o.Highlight, " ", ""), Snippet: clipBytes(strings.Join(shown, "\n"), 20000), Theme: theme,
-			Caption: clean + " · " + span}
+			Caption: clean + " · " + span, Shape: string(shape)}
 	case MakeDiagram:
 		src := strings.TrimSpace(o.Source)
 		if src == "" {
@@ -403,13 +421,15 @@ func Make(ctx context.Context, a *app.App, o MakeOptions) (*MakeResult, error) {
 		tool := ""
 		switch format {
 		case "mermaid":
-			gr, err := runGenerator(ctx, a, MakeDiagram, map[string]any{"format": "mermaid", "source": src, "theme": theme, "brand": brand}, file)
+			input := map[string]any{"format": "mermaid", "source": src, "theme": theme, "brand": brand}
+			shapeInput(input, shape)
+			gr, err := drawSlide(ctx, a, MakeDiagram, input, file)
 			if err != nil {
 				return nil, err
 			}
 			tool = "diagram (Mermaid " + gr.Versions["mermaid"] + ")"
 		case "d2":
-			if err := runD2(ctx, a, src, theme, file); err != nil {
+			if err := runD2(ctx, a, d2ForShape(src, shape), theme, file); err != nil {
 				return nil, err
 			}
 			tool = "diagram (D2)"
@@ -423,7 +443,7 @@ func Make(ctx context.Context, a *app.App, o MakeOptions) (*MakeResult, error) {
 			}
 		}
 		add.Source = repoSource(o.Repo, repoV, tool, "a diagram of the repository")
-		add.Source.MadeWith = &models.ResourceMadeWith{Kind: MakeDiagram, Format: format, Source: clipBytes(src, 50000), Theme: theme}
+		add.Source.MadeWith = &models.ResourceMadeWith{Kind: MakeDiagram, Format: format, Source: clipBytes(src, 50000), Theme: theme, Shape: string(shape)}
 		if o.Repo != nil {
 			add.Source.MadeWith.RepoID, add.Source.MadeWith.RepoSHA = o.Repo.ID, repoV.SHA256
 		}
@@ -435,15 +455,16 @@ func Make(ctx context.Context, a *app.App, o MakeOptions) (*MakeResult, error) {
 		input := map[string]any{"theme": theme, "brand": brand, "repo": rs.Owner + "/" + rs.Name, "description": rs.Description, "stars": rs.Stars, "forks": rs.Forks,
 			"license": rs.License, "languages": rs.Languages, "files": rs.Files, "contributors": len(rs.Contributors), "commit": models.ShortSHA(rs.Commit),
 			"committedAt": rs.CommittedAt.Format("2 Jan 2006"), "topics": rs.Topics, "recent": len(rs.Recent)}
+		shapeInput(input, shape)
 		file = filepath.Join(work, "repo-card.png")
-		if _, err := runGenerator(ctx, a, MakeStats, input, file); err != nil {
+		if _, err := drawSlide(ctx, a, MakeStats, input, file); err != nil {
 			return nil, err
 		}
 		if add.Title == "" && o.ResourceID == "" {
 			add.Title = rs.Owner + "/" + rs.Name + " card"
 		}
 		add.Source = repoSource(o.Repo, repoV, "repository card", "what the repository holds at this commit")
-		add.Source.MadeWith = &models.ResourceMadeWith{Kind: MakeStats, RepoID: o.Repo.ID, RepoSHA: repoV.SHA256, Theme: theme}
+		add.Source.MadeWith = &models.ResourceMadeWith{Kind: MakeStats, RepoID: o.Repo.ID, RepoSHA: repoV.SHA256, Theme: theme, Shape: string(shape)}
 	default:
 		return nil, apperr.New(apperr.InvalidInput, "MetaRush makes code slides (code), diagrams (diagram) and repository cards (stats).")
 	}
@@ -455,6 +476,32 @@ func Make(ctx context.Context, a *app.App, o MakeOptions) (*MakeResult, error) {
 	res.Add = ar
 	res.Provenance = add.Source.Provenance()
 	return res, nil
+}
+
+// shapeInput tells the generator the shape of the cut a slide is drawn for
+// (D393); nothing for a wide one, so it is drawn as it always was.
+func shapeInput(input map[string]any, shape editspec.Shape) {
+	if shape != "" {
+		input["shape"] = string(shape)
+	}
+}
+
+// d2Direction is a D2 diagram's own direction at its top level.
+var d2Direction = regexp.MustCompile(`(?m)^direction:\s*(right|left)\s*$`)
+
+// d2ForShape turns a D2 diagram that runs across to run down for a vertical
+// cut (D393; Mermaid's flowcharts turn in generate.mjs). Its words and boxes
+// are the same; only the way it is laid out changes.
+func d2ForShape(src string, shape editspec.Shape) string {
+	if shape != editspec.ShapeVertical {
+		return src
+	}
+	return d2Direction.ReplaceAllStringFunc(src, func(m string) string {
+		if strings.HasSuffix(strings.TrimSpace(m), "left") {
+			return "direction: up"
+		}
+		return "direction: down"
+	})
 }
 
 // codeForSlide expands tabs and shortens very long lines; it returns the
@@ -555,7 +602,7 @@ func RegenerateFromRepo(ctx context.Context, a *app.App, repo *models.Resource) 
 			continue
 		}
 		rc := v.Source.MadeWith
-		o := MakeOptions{Kind: rc.Kind, Repo: repo, Theme: rc.Theme, ResourceID: r.ID}
+		o := MakeOptions{Kind: rc.Kind, Repo: repo, Theme: rc.Theme, ResourceID: r.ID, Shape: editspec.Shape(rc.Shape)}
 		switch rc.Kind {
 		case MakeCode:
 			raw, _, err := RepoFile(ctx, a, repo, "", rc.File)

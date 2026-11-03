@@ -213,6 +213,10 @@ type DraftReviewCopy struct {
 	Machine  string  `json:"machine,omitempty"`
 	Seconds  float64 `json:"seconds,omitempty" jsonschema:"description=How long it took to make."`
 	Follow   bool    `json:"follow,omitempty" jsonschema:"description=MetaRush made it by itself."`
+	// Shape is the copy's shape in words; OtherShape says when it isn't the
+	// version's own (it has none in its own shape yet, D391).
+	Shape      string `json:"shape,omitempty"`
+	OtherShape string `json:"otherShape,omitempty"`
 }
 
 func init() {
@@ -778,15 +782,26 @@ func receiptWords(cost *costs.Estimate, used []string) string {
 	return s
 }
 
-// draftReviewCopy is the newest review copy of a draft's version.
+// draftReviewCopy is the review copy a draft's version shows (D391): the
+// newest in the version's own shape, else the newest in another, saying so.
 func draftReviewCopy(ctx context.Context, a *app.App, revisionID string) *DraftReviewCopy {
 	var rs []models.Render
 	if err := a.DB.Find(ctx, store.CRenders, a.WorkspaceID(), bson.M{"revisionId": revisionID, "quality": "review", "state": bson.M{"$ne": models.RenderCanceled}}, &rs,
-		options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetLimit(1)); err != nil || len(rs) == 0 {
+		options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetLimit(20)); err != nil || len(rs) == 0 {
 		return nil
 	}
 	r := rs[0]
+	var rev models.Revision
+	if err := a.DB.GetByID(ctx, store.CRevisions, a.WorkspaceID(), revisionID, &rev); err == nil {
+		if rd, _ := PickRender(rs, &rev); rd != nil {
+			r = *rd
+		}
+	}
 	rc := &DraftReviewCopy{RenderID: r.ID, State: r.State, Machine: r.RenderedByName, Follow: r.Follow}
+	if rev.ID != "" {
+		rc.Shape = RenderShape(&r, &rev).Word
+		rc.OtherShape = OtherShapeWords(&r, &rev, "review copy")
+	}
 	if r.CompletedAt != nil {
 		rc.Seconds = r.CompletedAt.Sub(r.CreatedAt).Seconds()
 	}

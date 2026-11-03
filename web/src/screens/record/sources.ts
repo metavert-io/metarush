@@ -1,4 +1,6 @@
 import { NoAnswer, openWithDeadline } from '../../lib/deadline';
+import type { Shape } from '../../lib/shape';
+import { cameraConstraints } from './camera';
 
 /*
  * The screen recorder's sources (D258, D262): the screen through the
@@ -97,15 +99,15 @@ export async function listCameras(): Promise<CameraDevice[]> {
     .filter((d, i, list) => list.findIndex((x) => x.id === d.id) === i);
 }
 
-/** Opens a camera (720p at 30 frames a second where it can). */
-export async function openCamera(deviceId?: string): Promise<MediaStream> {
+/** Opens a camera in the project's shape where it can (cameraConstraints). */
+export async function openCamera(deviceId?: string, shape?: Shape): Promise<MediaStream> {
   if (!window.isSecureContext) throw new SourceError('camera', 'insecure', 'The camera only works on a secure page.');
   if (!navigator.mediaDevices?.getUserMedia) throw new SourceError('camera', 'unsupported', 'This browser cannot use the camera.');
   try {
     return await openWithDeadline(
       () =>
         navigator.mediaDevices.getUserMedia({
-          video: { ...(deviceId ? { deviceId: { exact: deviceId } } : {}), width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+          video: cameraConstraints(deviceId, shape),
         }),
       'camera',
       'camera',

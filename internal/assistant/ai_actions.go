@@ -142,6 +142,9 @@ func (m *Manager) aiCard(a *AssistantAction, est *aiwork.AIEstimate, in aiwork.M
 	if est.Licence.Commercial == "plan" || est.Licence.Commercial == "unstated" || est.Licence.Broadcast == "plan" {
 		a.Details = append(a.Details, "Licence: "+clip(est.Licence.Summary, 240))
 	}
+	if est.Shape != "" { // the cut's shape (D385)
+		a.Details = append(a.Details, "Shape: "+strings.TrimSuffix(est.Shape, "."))
+	}
 	if est.Consent.OK && est.Consent.Message != "" {
 		a.Details = append(a.Details, est.Consent.Message)
 	}

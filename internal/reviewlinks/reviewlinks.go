@@ -109,12 +109,15 @@ type SharePlanOut struct {
 	ProjectName    string `json:"projectName"`
 	RevisionID     string `json:"revisionId,omitempty"`
 	RevisionNumber int    `json:"revisionNumber,omitempty"`
-	// ReviewCopy is the render the link would play ("" none ready).
-	ReviewCopy string `json:"reviewCopy,omitempty"`
-	Title      string `json:"title"`
-	Days       int    `json:"days"`
-	MaxDays    int    `json:"maxDays"`
-	Ends       string `json:"ends"`
+	// ReviewCopy is the render the link would play ("" none ready), and
+	// ReviewCopyShape its shape in words: the version's own unless it has no
+	// review copy in it yet (a warning then says so, D391).
+	ReviewCopy      string `json:"reviewCopy,omitempty"`
+	ReviewCopyShape string `json:"reviewCopyShape,omitempty" jsonschema:"description=The shape of the review copy the link plays: widescreen\\, vertical or square."`
+	Title           string `json:"title"`
+	Days            int    `json:"days"`
+	MaxDays         int    `json:"maxDays"`
+	Ends            string `json:"ends"`
 	// Exposes says what the page would show; Kinds as What may leave names them.
 	Exposes []string `json:"exposes"`
 	Kinds   []string `json:"kinds"`

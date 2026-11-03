@@ -175,9 +175,19 @@ func submitRender(ctx context.Context, a *app.App, r *models.Revision, in *Rende
 	if _, err := motion.RequireApproved(ctx, a.DB, a.WorkspaceID(), &r.Spec); err != nil {
 		return nil, err
 	}
+	// A render in another shape than the version's re-picks what depends on
+	// the shape (D388). Its key says so, so a copy asked for before keeps
+	// what it drew and a new ask gets a new one.
+	shapeRule := 0
+	if preset != "" && preset != r.Spec.Output.Preset && (editspec.Output{Preset: preset}).Shape().Shape != r.Spec.Output.Shape().Shape {
+		shapeRule = editspec.ReshapeRule
+	}
 	key := in.IdempotencyKey
 	if key == "" {
 		key = renderKey(r.ID, preset, quality)
+		if shapeRule > 0 {
+			key += fmt.Sprintf(":shape-%d", shapeRule)
+		}
 	}
 	// reuse answers with the render that an existing job for the same key makes.
 	reuse := func(j *models.Job) (*RenderOut, bool) {
@@ -221,7 +231,7 @@ func submitRender(ctx context.Context, a *app.App, r *models.Revision, in *Rende
 	}
 	jobID := ids.New(ids.Job)
 	rd := models.Render{ID: ids.New(ids.Render), WorkspaceID: a.WorkspaceID(), ProjectID: r.ProjectID, RevisionID: r.ID, RevisionNumber: r.Number, SpecHash: r.SpecHash,
-		Preset: preset, Quality: quality, JobID: jobID, State: models.RenderQueued, CreatedBy: a.Actor, CreatedAt: now, Follow: follow}
+		Preset: preset, Quality: quality, JobID: jobID, State: models.RenderQueued, CreatedBy: a.Actor, CreatedAt: now, Follow: follow, ShapeRule: shapeRule}
 	if err := a.DB.Insert(ctx, store.CRenders, rd); err != nil {
 		return nil, err
 	}

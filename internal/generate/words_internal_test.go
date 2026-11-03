@@ -326,12 +326,14 @@ func TestSmallHelpers(t *testing.T) {
 	if lookName2(nil) != "" || lookName2(&models.GenLookRef{Name: "ada", Version: "abc"}) != "ada@abc" {
 		t.Fatal("look name")
 	}
-	if projectAspect(&models.Project{Brief: models.Brief{Platforms: []string{"YouTube", "Reels"}}}) != "9:16" || projectAspect(&models.Project{Brief: models.Brief{Platforms: []string{"youtube"}}}) != "" ||
-		projectAspect(&models.Project{}) != "" {
-		t.Fatal("project aspect")
-	}
-	if shapeWords("9:16") != "tall" || shapeWords("16:9") != "wide" || shapeWords("") != "wide" {
+	if shapeWords("9:16") != "tall" || shapeWords("16:9") != "wide" || shapeWords("") != "wide" || shapeWords("1:1") != "square" {
 		t.Fatal("shape words")
+	}
+	if ratioList([]string{"16:9", "9:16"}) != "wide or tall" || ratioList([]string{"16:9"}) != "wide" {
+		t.Fatal("ratio list")
+	}
+	if lowerFirst("Its cut") != "its cut" || lowerFirst("The cut") != "the cut" || lowerFirst("") != "" {
+		t.Fatal("lowerFirst")
 	}
 	if qualityWords(models.GenParams{Quality: "final", Resolution: "4k"}) != "final quality, 4K" || qualityWords(models.GenParams{Quality: "draft", Resolution: "720p"}) != "draft, 720p" {
 		t.Fatalf("quality words %q", qualityWords(models.GenParams{Quality: "final", Resolution: "4k"}))

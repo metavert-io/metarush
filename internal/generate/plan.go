@@ -13,8 +13,10 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/costs"
+	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/leave"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/providers"
 	"github.com/metavert-io/metarush/internal/speakers"
 	"github.com/metavert-io/metarush/internal/store"
@@ -57,6 +59,10 @@ type plan struct {
 	// Gemini); budgets and the daily limit stay the team's AI work ones.
 	provider string
 	pinfo    *videogen.ProviderInfo
+	// forShape is the shape of the cut (or project) a new shot is for, when
+	// something says (D385); shapeFrom and shapeWhy say who chose the shape.
+	forShape                     *ops.ProjectShapeOut
+	shapeFrom, shapeWhy, fitsCut string
 }
 
 // addConsent records that the request relies on a consent record.
@@ -173,15 +179,14 @@ func (p *plan) resolveSettings(model string, seconds int, aspect, quality, resol
 		return err
 	}
 	p.caps, p.provider = caps, provider
+	lookAspect := ""
 	if p.look != nil {
 		d := p.look.Defaults
 		seconds = firstInt(seconds, d.Seconds)
-		aspect = firstNonEmpty(aspect, d.AspectRatio)
+		lookAspect = d.AspectRatio
 		quality = firstNonEmpty(quality, d.Quality)
 	}
-	if aspect == "" && st.project != nil {
-		aspect = projectAspect(st.project)
-	}
+	aspect = p.chooseShape(aspect, lookAspect)
 	p.params = models.GenParams{Seconds: firstInt(seconds, st.seconds), AspectRatio: firstNonEmpty(aspect, st.aspect), Quality: firstNonEmpty(quality, "draft")}
 	switch {
 	case resolution != "":
@@ -204,15 +209,80 @@ func firstInt(vs ...int) int {
 	return 0
 }
 
-// projectAspect is the shape of the project's cut: tall presets make 9:16.
-func projectAspect(pr *models.Project) string {
-	for _, p := range pr.Brief.Platforms {
-		switch strings.ToLower(p) {
-		case "shorts", "reels", "tiktok":
-			return "9:16"
+// chooseShape is the shape a shot is made in (D385), from the first of: the
+// request's; the shape of the cut it is for (or its project's, when
+// something says), as near as the model makes; the look's usual shape; the
+// model's own. Money is never spent on a shape nobody chose when the cut
+// says another. It sets shapeFrom and shapeWhy.
+func (p *plan) chooseShape(asked, lookAspect string) string {
+	label := func(ar string) string { return upperFirst(shapeWords(ar)) + " (" + ar + ")" }
+	def := p.st.aspect
+	if fs := p.forShape; fs != nil {
+		p.fitsCut = editspec.RatioFor(fs.Width, fs.Height, p.caps.AspectRatios, def)
+	}
+	switch {
+	case asked != "":
+		p.shapeFrom, p.shapeWhy = "asked", label(asked)+", as asked."
+		if fs := p.forShape; fs != nil && p.fitsCut != "" && p.fitsCut != asked {
+			p.shapeWhy += " " + strings.TrimSuffix(fs.Why, ".") + ": " + shapeWords(p.fitsCut) + " (" + p.fitsCut + ") would fit it."
+		}
+		return asked
+	case p.forShape != nil:
+		fs := p.forShape
+		if ar := editspec.RatioFor(fs.Width, fs.Height, p.caps.AspectRatios, def); ar != "" {
+			p.shapeFrom = "project"
+			if fs.From == ops.ShapeFromCut {
+				p.shapeFrom = "cut"
+			}
+			p.shapeWhy = label(ar) + ", because " + lowerFirst(fs.Why)
+			if x, y := editspec.ParseRatio(ar); editspec.ShapeOf(x, y) != fs.Shape {
+				p.shapeWhy += fmt.Sprintf(" %s makes only %s shots, so it is the nearest and the cut frames it %s.", p.caps.Title, ratioList(p.caps.AspectRatios), fs.Word)
+			}
+			if lookAspect != "" && lookAspect != ar && p.look != nil {
+				p.shapeWhy += fmt.Sprintf(" The look “%s” is usually %s.", p.look.Title, shapeWords(lookAspect))
+			}
+			return ar
 		}
 	}
+	if lookAspect != "" {
+		p.shapeFrom, p.shapeWhy = "look", fmt.Sprintf("%s, the look “%s”'s usual shape.", label(lookAspect), p.look.Title)
+		return lookAspect
+	}
+	if def != "" {
+		p.shapeFrom, p.shapeWhy = "default", fmt.Sprintf("%s, %s's usual shape: nothing about the project says yet.", label(def), p.caps.Title)
+	}
 	return ""
+}
+
+// sameShape says a new take, extension or edit keeps the shape of what it
+// is made from.
+func (p *plan) sameShape(what string) {
+	if ar := p.params.AspectRatio; ar != "" {
+		p.shapeFrom, p.shapeWhy = "same", upperFirst(shapeWords(ar))+" ("+ar+"), like "+what+"."
+	}
+}
+
+// ratioList names the shapes a model makes: "wide or tall".
+func ratioList(rs []string) string {
+	var words []string
+	for _, r := range rs {
+		words = append(words, shapeWords(r))
+	}
+	if len(words) < 2 {
+		return strings.Join(words, "")
+	}
+	return strings.Join(words[:len(words)-1], ", ") + " or " + words[len(words)-1]
+}
+
+func lowerFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	if len(r) > 1 && r[1] >= 'A' && r[1] <= 'Z' {
+		return s // an initialism
+	}
+	return strings.ToLower(string(r[0])) + string(r[1:])
 }
 
 // finish composes the prompt, builds the request, checks the model can do
@@ -261,7 +331,7 @@ func containsUpscaled(c *videogen.Capabilities, res string) bool {
 // estimate is the plan's price with every check, for people and for cards.
 func (p *plan) estimate(ctx context.Context, a *app.App) GenEstimate {
 	e := GenEstimate{ProjectID: p.projectID, Provider: p.provider, ProviderTitle: p.pinfo.Title, Model: p.caps.ID, ModelTitle: p.caps.Title, Stage: p.caps.Stage, Operation: p.op, Task: p.req.Task,
-		Takes: p.takes, Seconds: p.params.Seconds, Resolution: p.params.Resolution, AspectRatio: p.params.AspectRatio, Quality: p.params.Quality,
+		Takes: p.takes, Seconds: p.params.Seconds, Resolution: p.params.Resolution, AspectRatio: p.params.AspectRatio, ShapeFrom: p.shapeFrom, ShapeWhy: p.shapeWhy, FitsCut: p.fitsCut, Quality: p.params.Quality,
 		Upscaled: containsUpscaled(p.caps, p.params.Resolution), PerTakeUSD: p.est.USD, USD: videogen.RoundUSD(p.est.USD * float64(p.takes)),
 		PerSecondUSD: p.est.PerSecondUSD, PriceTable: p.est.PriceTable, VideoTokens: p.est.VideoTokens, InputTokens: p.est.InputTokens, ThinkingTokens: p.est.ThinkingTokens,
 		References: p.refWords, Likeness: p.likeness, KeyReady: keyReady(a, p.provider), Notes: p.notes}
@@ -393,8 +463,12 @@ func qualityWords(pr models.GenParams) string {
 }
 
 func shapeWords(ar string) string {
-	if ar == "9:16" {
+	x, y := editspec.ParseRatio(ar)
+	switch editspec.ShapeOf(x, y) {
+	case editspec.ShapeVertical:
 		return "tall"
+	case editspec.ShapeSquare:
+		return "square"
 	}
 	return "wide"
 }
@@ -441,6 +515,14 @@ func planShot(ctx context.Context, a *app.App, in *GenShotIn) (*plan, error) {
 			p.lookRef.ConsentID = c.ID
 			p.addConsent(c)
 		}
+	}
+	// The shot is made in the shape of the cut it is for (D385).
+	cs, err := ops.CutShape(ctx, a, st.project, in.Cut)
+	if err != nil {
+		return nil, err
+	}
+	if cs.Known {
+		p.forShape = &cs
 	}
 	if err := p.resolveSettings(in.Model, in.Seconds, in.AspectRatio, in.Quality, in.Resolution); err != nil {
 		return nil, err
@@ -651,6 +733,7 @@ func planAgain(ctx context.Context, a *app.App, in *GenAgainIn) (*plan, error) {
 	if err := p.resolveSettings(parent.Model, parent.Params.Seconds, parent.Params.AspectRatio, quality, resolution); err != nil {
 		return nil, err
 	}
+	p.sameShape("the take it is made from")
 	p.req.Task = parent.Params.Task
 	for _, r := range parent.References {
 		path, err := local(ctx, a, r.StorageKey, r.SHA256, r.Size)
@@ -745,6 +828,7 @@ func planWork(ctx context.Context, a *app.App, op, id, prompt, projectID string,
 		aspectOf(as, params.AspectRatio), firstNonEmpty(quality, params.Quality), resolution); err != nil {
 		return nil, err
 	}
+	p.sameShape("the clip it is made from")
 	maxIn := float64(p.caps.InputVideoMaxSeconds)
 	dur := as.Media.Duration
 	var a0, a1 float64

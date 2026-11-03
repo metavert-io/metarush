@@ -305,10 +305,11 @@ func LayoutCut(ctx context.Context, a *app.App, in LayoutCutIn) (*LayoutCutOut, 
 			return nil, invalid("%s is sound only, so it can't be shown", m.Name)
 		}
 	}
-	preset, platform, err := shapeOf(in.Shape)
+	frame, err := callOutput(ctx, a, pid, in.Branch, in.Shape)
 	if err != nil {
 		return nil, err
 	}
+	frame.FPS, frame.Framing = projectFPS(ctx, a, pid), editspec.FramingFaces
 	if c.Length < 0.5 {
 		return nil, invalid("%s is too short to cut (%s)", c.Name, secs(c.Length))
 	}
@@ -316,7 +317,7 @@ func LayoutCut(ctx context.Context, a *app.App, in LayoutCutIn) (*LayoutCutOut, 
 	pin.SampleAligned = true
 	pin.NameTags = "off"
 	spec := &editspec.Spec{SchemaVersion: editspec.SchemaVersion, Title: strings.TrimSpace(in.Title),
-		Output:        editspec.Output{Preset: preset, FPS: projectFPS(ctx, a, pid), Platform: platform, Framing: editspec.FramingFaces},
+		Output:        frame,
 		Conversations: map[string]editspec.ConversationPin{convName: pin},
 		Clips:         []editspec.Clip{{ID: "recording", AssetID: editspec.ConvKey(convName), In: 0, Out: c.Length, Shots: []editspec.Shot{shot}}},
 		Notes:         in.Notes}

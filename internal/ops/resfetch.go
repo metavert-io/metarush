@@ -73,6 +73,9 @@ type ResourceMakeIn struct {
 	Name      string `json:"name,omitempty" jsonschema:"pattern=^[a-z][a-z0-9_-]{0\\,47}$,description=The short name (a name that is already there gets a new version)."`
 	Title     string `json:"title,omitempty" jsonschema:"maxLength=200"`
 	ProjectID string `json:"projectId,omitempty" jsonschema:"description=The project it goes into (ID or name); default: next to the repository."`
+	// Cut is the cut it is made for (D393): a slide for a vertical or square
+	// cut is drawn to fit it. With a project and no cut, the project's shape.
+	Cut       string `json:"cut,omitempty" jsonschema:"maxLength=80,description=The cut it is made for (its name or a version; with projectId): drawn to fit that cut's shape. A project without a cut: the project's shape; neither: drawn wide."`
 	Workspace bool   `json:"workspace,omitempty"`
 }
 
@@ -283,13 +286,26 @@ func init() {
 		o := resources.MakeOptions{Kind: in.Kind, File: in.File, Highlight: in.Highlight, Language: in.Language, Format: in.Format, Source: in.Source, Theme: in.Theme,
 			Name: in.Name, Title: in.Title, Workspace: in.Workspace, RepoSHA: strings.ToLower(strings.TrimSpace(in.Version))}
 		pid := ""
-		if strings.TrimSpace(in.ProjectID) != "" && !in.Workspace {
+		if strings.TrimSpace(in.Cut) != "" && strings.TrimSpace(in.ProjectID) == "" {
+			return nil, invalid("Say which project the cut is in (projectId) as well as the cut.")
+		}
+		if strings.TrimSpace(in.ProjectID) != "" && (!in.Workspace || strings.TrimSpace(in.Cut) != "") {
 			p, err := resolveProject(ctx, a, in.ProjectID)
 			if err != nil {
 				return nil, err
 			}
-			pid = p.ID
-			o.ProjectID = p.ID
+			// Made for a project's cut: drawn to fit its shape (D393).
+			cs, err := CutShape(ctx, a, p, in.Cut)
+			if err != nil {
+				return nil, err
+			}
+			if cs.Known {
+				o.Shape = cs.Shape
+			}
+			if !in.Workspace {
+				pid = p.ID
+				o.ProjectID = p.ID
+			}
 		}
 		if strings.TrimSpace(in.Repo) != "" {
 			e, _, err := findResource(ctx, a, ResourceRefIn{Ref: in.Repo, ProjectID: pid})

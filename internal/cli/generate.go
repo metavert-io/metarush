@@ -53,7 +53,8 @@ func (f *shotFlags) add(c *cobra.Command, estimate bool) {
 	fl.StringVar(&f.in.ProjectID, "project", "", "the project the shot is for")
 	fl.StringVar(&f.in.Look, "look", "", "who (or which character) appears: a look's short name")
 	fl.IntVar(&f.in.Seconds, "seconds", 0, "how long (3 to 10; default 6)")
-	fl.StringVar(&f.aspect, "aspect", "", "16:9 (wide, default) or 9:16 (tall)")
+	fl.StringVar(&f.aspect, "aspect", "", "16:9 (wide) or 9:16 (tall); default: the shape of the cut it is for (--cut), else the project's")
+	fl.StringVar(&f.in.Cut, "cut", "", "the cut the shot is for (its name or a version): made in that cut's shape")
 	fl.StringVar(&f.in.Quality, "quality", "", "draft (cheaper, default) or final")
 	fl.StringVar(&f.in.Resolution, "resolution", "", "360p, 720p, 1080p or 4k (overrides --quality)")
 	fl.StringVar(&f.in.Model, "model", "", "the video model (default: the team's; vertex/veo-3.1-fast-generate-001 or vertex/veo-3.1-generate-001 for Veo through Google Cloud)")
@@ -255,6 +256,9 @@ func costWords(v generate.GenView) string {
 
 func printEstimate(e *generate.GenEstimate, details bool) {
 	fmt.Println(e.Summary)
+	if e.ShapeWhy != "" {
+		fmt.Println("  shape: " + e.ShapeWhy)
+	}
 	for _, r := range e.References {
 		fmt.Println("  " + r)
 	}

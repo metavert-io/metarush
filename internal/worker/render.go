@@ -491,14 +491,12 @@ func renderHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 }
 
 // resolveForRender resolves the frame-accurate plan a render uses: the revision's
-// spec with the render's preset override, plus the referenced assets and their
-// transcripts. Render and QA share it so QA checks exactly what was rendered.
+// spec with the render's preset override (in another shape, what depends on
+// the shape re-picked when the render says so, D388), plus the referenced
+// assets and their transcripts. Render and QA share it so QA checks exactly
+// what was rendered.
 func resolveForRender(ctx context.Context, a *app.App, rd *models.Render, rev *models.Revision) (*editspec.RenderPlan, *editspec.Spec, []models.Asset, *renderFacts, error) {
-	spec := editspec.Clone(&rev.Spec)
-	if rd.Preset != "" && rd.Preset != spec.Output.Preset {
-		d := editspec.Presets[rd.Preset]
-		spec.Output.Preset, spec.Output.Width, spec.Output.Height = rd.Preset, d[0], d[1]
-	}
+	spec := editspec.ForRender(&rev.Spec, rd.Preset, rd.ShapeRule)
 	// Project motion graphics first: only versions a person approved render or
 	// get checked (D68). A refusal is final (the job does not retry).
 	comps, err := motion.RequireApproved(ctx, a.DB, a.WorkspaceID(), spec)

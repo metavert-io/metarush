@@ -424,6 +424,10 @@ type ResourceMadeWith struct {
 	Theme string `bson:"theme,omitempty" json:"theme,omitempty" jsonschema:"enum=dark,enum=light,enum="`
 	// Caption is the header line drawn on a code slide or card.
 	Caption string `bson:"caption,omitempty" json:"caption,omitempty"`
+	// Shape is the shape of the cut it was drawn to fit (D393): vertical or
+	// square; absent, drawn wide as always (a widescreen cut's, or free-standing).
+	// Newer versions made from a newer commit keep it.
+	Shape string `bson:"shape,omitempty" json:"shape,omitempty" jsonschema:"enum=vertical,enum=square,enum=,description=The shape of the cut it was drawn to fit; absent: drawn wide."`
 }
 
 // ResourceTag is a tag MetaRush suggested, with where it came from.

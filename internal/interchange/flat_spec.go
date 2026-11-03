@@ -28,6 +28,9 @@ type SpecOptions struct {
 	Uses map[string]Use
 	// Title is the cut's title (default: the timeline's name).
 	Title string
+	// Frame is the cut's shape when the timeline says no size (its
+	// project's, when something says; else widescreen, D389).
+	Frame editspec.Output
 }
 
 // SpecResult is the cut and what didn't make it in.
@@ -82,14 +85,18 @@ func (f *Flat) Spec(o SpecOptions) *SpecResult {
 	lost := func(format string, args ...any) { lostSoFar.add(fmt.Sprintf(format, args...)) }
 	defer func() { res.Lost = lostSoFar.done() }()
 	fps := OutputFPS(f.FPS)
+	// The timeline's own shape (D389): a preset's ratio at its size, any
+	// other ratio kept (4:5 stays 4:5) with its short side 1080; with no
+	// size, the project's shape, else widescreen.
 	out := editspec.Output{Preset: editspec.PresetLandscape, FPS: fps}
-	if f.Width > 0 && f.Height > 0 {
-		switch {
-		case f.Height > f.Width:
-			out.Preset = editspec.PresetVertical
-		case f.Height == f.Width:
-			out.Preset = editspec.PresetSquare
+	switch size, exact := editspec.CutSizeFor(f.Width, f.Height); {
+	case size.Preset != "" || size.Width > 0:
+		out.Preset, out.Width, out.Height = size.Preset, size.Width, size.Height
+		if !exact {
+			lost("the timeline is %d×%d, a shape MetaRush can't make exactly: the cut is %d×%d, as near as it gets", f.Width, f.Height, size.Width, size.Height)
 		}
+	case o.Frame.Shape().Known():
+		out.Preset, out.Width, out.Height = o.Frame.Preset, o.Frame.Width, o.Frame.Height
 	}
 	spec := &editspec.Spec{SchemaVersion: 1, Title: clip(firstNonEmptyStr(o.Title, f.Name, "Imported timeline"), 200), Output: out}
 	res.Spec = spec

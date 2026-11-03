@@ -16,6 +16,7 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/costs"
+	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/generate"
 	"github.com/metavert-io/metarush/internal/leave"
 	"github.com/metavert-io/metarush/internal/models"
@@ -79,6 +80,33 @@ type plan struct {
 	notes    []string
 	words    []string // what is sent, in plain words
 	now      time.Time
+	shape    string // the shape it is made in for a cut and why (D385)
+}
+
+// cutShape gives work made for a cut — a picture for it, a presenter's clip —
+// that cut's shape when the request names none (D385): the cut named (else,
+// for a presenter, the project's when something says), as near as the model
+// makes. A model that takes no shape makes its own.
+func (p *plan) cutShape(ctx context.Context, a *app.App, cut string, o *models.GenOptions) error {
+	if o.AspectRatio != "" || p.projectID == "" || len(p.model.Limits.AspectRatios) == 0 {
+		return nil
+	}
+	var pj models.Project
+	if err := a.DB.GetByID(ctx, store.CProjects, a.WorkspaceID(), p.projectID, &pj); err != nil {
+		return nil
+	}
+	cs, err := ops.CutShape(ctx, a, &pj, cut)
+	if err != nil || !cs.Known {
+		return err
+	}
+	if ar := editspec.RatioFor(cs.Width, cs.Height, p.model.Limits.AspectRatios, ""); ar != "" {
+		o.AspectRatio = ar
+		p.shape = ar + ", because " + lowerFirst(cs.Why)
+		if x, y := editspec.ParseRatio(ar); editspec.ShapeOf(x, y) != cs.Shape {
+			p.shape += " " + p.model.Title + " makes no " + cs.Word + " ones, so it is the nearest."
+		}
+	}
+	return nil
 }
 
 // planNow is the time a plan is made by: the database server's (D360), so a
@@ -142,6 +170,11 @@ func planMake(ctx context.Context, a *app.App, in *MakeIn) (*plan, error) {
 	case aiservices.KindPicture:
 		if len(in.Pictures) > 0 {
 			p.req.Task = aiservices.TaskEdit
+		}
+		if in.Branch != "" { // a picture for a cut, such as its background, is the cut's shape (D385)
+			if err := p.cutShape(ctx, a, in.Branch, &p.req.Options); err != nil {
+				return nil, err
+			}
 		}
 		view, err := projectlinks.Load(ctx, a, p.projectID)
 		if err != nil {
@@ -847,7 +880,7 @@ func (p *plan) estimate(ctx context.Context, a *app.App) AIEstimate {
 	e := AIEstimate{ProjectID: p.projectID, Kind: p.kind.Kind, KindTitle: p.kind.Title, What: p.kind.What, Task: p.req.Task, Provider: m.Provider, ProviderTitle: m.ProviderTitle,
 		Model: m.ID, ModelTitle: m.Title, Stage: m.Stage, Choice: p.choice.by, Alternatives: p.alts, USD: p.est.USD, Units: p.est.Units, Rate: p.est.Rate,
 		PriceTable: p.est.PriceTable, Licence: m.Licence, Data: p.provider.Data.Summary, Watermark: m.Watermark, RetiredOn: m.RetiredOn,
-		Inputs: p.words, KeyReady: keyReady(a, m.Provider), Notes: append(append([]string{}, p.notes...), p.est.Notes...)}
+		Inputs: p.words, KeyReady: keyReady(a, m.Provider), Notes: append(append([]string{}, p.notes...), p.est.Notes...), Shape: p.shape}
 	if e.Alternatives == nil {
 		e.Alternatives = []aiservices.Alternative{}
 	}

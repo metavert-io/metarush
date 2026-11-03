@@ -55,7 +55,7 @@ func (m *Manager) describeGenerate(ctx context.Context, c *conv, call *cliCall, 
 	case "generate shot":
 		in := generate.GenShotIn{ProjectID: call.Flags["project"], Prompt: clip(strings.TrimSpace(firstNonEmpty(call.Flags["prompt"], strings.Join(call.Args, " "))), 4000),
 			Look: clip(call.Flags["look"], 80), Seconds: num("seconds"), Quality: call.Flags["quality"], Resolution: call.Flags["resolution"], Model: clip(call.Flags["model"], 120),
-			Images: listFlag(call, "image"), NoPeople: hasBool(call, "no-people"), Takes: num("takes"), Origin: origin}
+			Images: listFlag(call, "image"), NoPeople: hasBool(call, "no-people"), Takes: num("takes"), Cut: clip(call.Flags["cut"], 80), Origin: origin}
 		if in.ProjectID == "" {
 			in.ProjectID = c.projectID()
 		}
@@ -187,6 +187,9 @@ func (m *Manager) generateCard(a *AssistantAction, est *generate.GenEstimate, op
 		shape = "tall"
 	}
 	a.Details = append(a.Details, fmt.Sprintf("%s (%s), %s, made with %s", q, videogen.ResolutionLabel(est.Resolution), shape, est.ProviderTitle))
+	if est.ShapeWhy != "" && est.ShapeFrom != "same" { // why that shape (D385)
+		a.Details = append(a.Details, strings.TrimSuffix(est.ShapeWhy, "."))
+	}
 	if est.Consent.OK && est.Consent.Message != "" {
 		a.Details = append(a.Details, est.Consent.Message)
 	}

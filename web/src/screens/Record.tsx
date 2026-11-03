@@ -6,6 +6,7 @@ import { call, toApiError } from '../api/client';
 import { useOp, useSession } from '../api/queries';
 import type { RecordingInfo } from '../api/types';
 import { useHost } from '../lib/host';
+import { frameAspect, sizeShape } from '../lib/shape';
 import { useDialog } from '../ui/Dialog';
 import { Button, cx, Kbd, Spinner } from '../ui/primitives';
 import { ProjectPicker } from '../components/ProjectPicker';
@@ -19,6 +20,7 @@ import { promptLines, splitScript } from './record/script';
 import { Refused } from './record/pieces';
 import { finishOnHost, isGone, RecordingSession, restoreQueues } from './record/session';
 import { listCameras, openCamera, openScreen, problemWords, screenProblem, SourceError, sourceProblem, surfaceOf, type CameraDevice } from './record/sources';
+import { recordingShapeWords } from './record/camera';
 import { available, forget, pending as pendingRecordings, type Pending } from './record/store';
 
 /*
@@ -47,10 +49,13 @@ export function RecordPage() {
   const head = project.data?.headRevisionId;
   const narration = useOp('voiceover.show', head ? { revisionId: head } : null, { staleTime: 60_000 });
   const projectLines = useMemo(() => (narration.data?.beats ?? []).map((b) => (b.delivery ? `(${b.delivery}) ${b.text}` : b.text)), [narration.data]);
+  // The camera is asked for the project's shape when something says (D392).
+  const projectShape = project.data?.shape?.known ? project.data.shape.shape : undefined;
 
   /* ----- sources ----- */
   const [screen, setScreen] = useState<MediaStream | null>(null);
   const [camera, setCamera] = useState<MediaStream | null>(null);
+  const [cameraSize, setCameraSize] = useState<{ width: number; height: number } | undefined>();
   const [cameraId, setCameraId] = useState('');
   const [cameras, setCameras] = useState<CameraDevice[]>([]);
   const [mic, setMic] = useState<Mic | null>(null);
@@ -125,7 +130,9 @@ export function RecordPage() {
     if (!id) return;
     setOpening('camera');
     try {
-      const s = await openCamera(id === 'default' ? undefined : id);
+      const s = await openCamera(id === 'default' ? undefined : id, projectShape);
+      const st = s.getVideoTracks()[0]?.getSettings();
+      setCameraSize(st?.width && st?.height ? { width: st.width, height: st.height } : undefined);
       setCamera(s);
       setCameras(await listCameras().catch(() => cameras));
     } catch (e) {
@@ -411,8 +418,13 @@ export function RecordPage() {
                       {cameras.length ? cameras.map((c) => <option key={c.id} value={c.id || 'default'}>{c.label}</option>) : <option value="default">The computer’s camera</option>}
                     </select>
                     {opening === 'camera' ? <Spinner size={14} /> : null}
-                    {camera ? <Preview stream={camera} className="h-[72px] w-[96px] rounded-full" mirror /> : null}
+                    {camera ? <Preview stream={camera} className="h-[72px] max-w-[128px] rounded-[10px]" mirror onSize={setCameraSize} /> : null}
                   </div>
+                  {camera && cameraSize ? (
+                    <p className="mt-2 text-[12.5px] text-[#a69d93]" data-camera-shape>
+                      {recordingShapeWords(sizeShape(cameraSize.width, cameraSize.height), project.data?.shape?.known ? project.data.shape : undefined)}
+                    </p>
+                  ) : null}
                 </SourceRow>
                 <SourceRow icon={<Microphone size={16} />} title="Microphone" problem={problems.microphone} ctx={ctx} onRetry={() => void openMic(micId)}>
                   <div className="flex flex-wrap items-center gap-3">
@@ -579,8 +591,8 @@ export function RecordPage() {
               </div>
             </div>
             <div className="flex min-w-0 flex-col gap-3">
-              {camera ? <Preview stream={camera} className="aspect-video w-full rounded-[14px]" mirror /> : null}
-              {screen ? <Preview stream={screen} className="aspect-video w-full rounded-[14px]" /> : null}
+              {camera ? <Preview stream={camera} className="mx-auto max-h-[52vh] w-full rounded-[14px]" mirror /> : null}
+              {screen ? <Preview stream={screen} className="mx-auto max-h-[52vh] w-full rounded-[14px]" /> : null}
               {mic && !micOff ? <LevelMeter mic={mic} /> : null}
               <Sending session={s} />
             </div>
@@ -736,9 +748,14 @@ function Unfinished({ exclude, userId }: { exclude?: string; userId: string }) {
   );
 }
 
-/** A live picture of a source (muted). */
-function Preview({ stream, className, mirror }: { stream: MediaStream; className?: string; mirror?: boolean }) {
+/**
+ * A live picture of a source (muted), shown whole at its own shape (D392):
+ * the box takes the picture's real ratio once it plays, and nothing is
+ * cropped (object-contain), so what is seen is what is recorded.
+ */
+function Preview({ stream, className, mirror, onSize }: { stream: MediaStream; className?: string; mirror?: boolean; onSize?: (s: { width: number; height: number }) => void }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   useEffect(() => {
     const v = ref.current;
     if (v && v.srcObject !== stream) {
@@ -746,7 +763,26 @@ function Preview({ stream, className, mirror }: { stream: MediaStream; className
       void v.play().catch(() => undefined);
     }
   }, [stream]);
-  return <video ref={ref} muted playsInline autoPlay className={cx('bg-black object-cover', mirror && '-scale-x-100', className)} />;
+  const measure = () => {
+    const v = ref.current;
+    if (!v?.videoWidth || !v.videoHeight) return;
+    const s = { width: v.videoWidth, height: v.videoHeight };
+    setSize((cur) => (cur?.width === s.width && cur.height === s.height ? cur : s));
+    onSize?.(s);
+  };
+  return (
+    <video
+      ref={ref}
+      muted
+      playsInline
+      autoPlay
+      onLoadedMetadata={measure}
+      onResize={measure}
+      style={{ aspectRatio: frameAspect(size) }}
+      className={cx('bg-black object-contain', mirror && '-scale-x-100', className)}
+      data-preview-shape={size ? `${size.width}x${size.height}` : undefined}
+    />
+  );
 }
 
 function Note({ children, tone = 'info' }: { children: ReactNode; tone?: 'info' | 'warn' | 'error' }) {

@@ -117,9 +117,13 @@ func makePlan(ctx context.Context, a *app.App, in ShareCreateIn) (*plan, error) 
 
 	// The review copy it plays (if it has none, that is said after what
 	// would stop the link anyway: making one first would be in vain).
-	pl.render = reviewCopy(ctx, a, rev.ID)
+	pl.render = reviewCopy(ctx, a, rev)
 	if pl.render != nil {
 		out.ReviewCopy = pl.render.ID
+		out.ReviewCopyShape = ops.RenderShape(pl.render, rev).Word
+		if w := ops.OtherShapeWords(pl.render, rev, "review copy"); w != "" {
+			out.Warnings = append(out.Warnings, w)
+		}
 	}
 
 	// What it shows.
@@ -273,14 +277,17 @@ func maxDaysHint(n int) string {
 	return "A cloud bucket signs a link for a week at most. Make a new link when it ends."
 }
 
-// reviewCopy is a version's newest finished review copy.
-func reviewCopy(ctx context.Context, a *app.App, revisionID string) *models.Render {
+// reviewCopy is the finished review copy a link to a version plays (D391):
+// the newest in the version's own shape, else the newest in another (the
+// plan then says which shape is shared).
+func reviewCopy(ctx context.Context, a *app.App, rev *models.Revision) *models.Render {
 	var rs []models.Render
-	if err := a.DB.Find(ctx, store.CRenders, a.WorkspaceID(), bson.M{"revisionId": revisionID, "quality": "review", "state": models.RenderAvailable}, &rs,
-		options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetLimit(1)); err != nil || len(rs) == 0 || rs[0].Output == nil {
+	if err := a.DB.Find(ctx, store.CRenders, a.WorkspaceID(), bson.M{"revisionId": rev.ID, "quality": "review", "state": models.RenderAvailable, "output": bson.M{"$ne": nil}}, &rs,
+		options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetLimit(20)); err != nil {
 		return nil
 	}
-	return &rs[0]
+	rd, _ := ops.PickRender(rs, rev)
+	return rd
 }
 
 // making reports a review copy of the version on its way.

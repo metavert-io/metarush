@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "render:selftest": "node render/selftest.mjs",
     "browser:ensure": "remotion browser ensure",
-    "test:motion": "node render/motion/test.mjs && node render/web/test.mjs && node render/source/test.mjs",
+    "test:motion": "node render/motion/test.mjs && node render/web/test.mjs && node render/source/test.mjs && node render/slideshape.test.mjs",
     "motion": "node render/motion.mjs"
   },
   "dependencies": {

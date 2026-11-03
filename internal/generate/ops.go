@@ -357,6 +357,9 @@ func testLook(ctx context.Context, a *app.App, in *LookTestIn) (*GenRunOut, erro
 		if err := p.resolveSettings("", 3, firstNonEmpty(l.Defaults.AspectRatio, st.aspect), "draft", "360p"); err != nil {
 			return nil, err
 		}
+		if ar := p.params.AspectRatio; ar != "" { // a look's test isn't for any cut
+			p.shapeFrom, p.shapeWhy = "look", upperFirst(shapeWords(ar))+" ("+ar+"), the look's usual shape."
+		}
 		var tags []string
 		for _, s := range l.Stills {
 			path, err := local(ctx, a, s.StorageKey, s.SHA256, s.Size)

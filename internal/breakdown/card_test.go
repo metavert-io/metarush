@@ -222,3 +222,39 @@ func repeat(v float64, n int) []float64 {
 	}
 	return out
 }
+
+// A list of six points names each part plainly: the sixth is "point 6".
+func TestCardNamesEveryPointOfALongList(t *testing.T) {
+	in := Input{Duration: 64, Width: 720, Height: 1280, HasVideo: true, HasAudio: true, Heard: true, Measured: true, Names: map[string]string{}}
+	lines := []string{"Why do videos fail?", "Here are six things to fix.", "First, open strong.", "Second, cut pauses.", "Third, add captions.",
+		"Next, show faces.", "Next, use music.", "Finally, end clearly.", "Follow for more."}
+	at := 0.5
+	for i, l := range lines {
+		ws := strings.Fields(l)
+		for k, w := range ws {
+			in.Words = append(in.Words, Word{Text: w, From: at + float64(k)*0.4, To: at + float64(k)*0.4 + 0.35, Speaker: "speaker_0"})
+		}
+		at += float64(len(ws))*0.4 + 1.6
+		if i >= 1 {
+			in.Cuts = append(in.Cuts, at-0.8)
+		}
+	}
+	c := Build(in)
+	var parts []WhatSection
+	for _, s := range c.Sections {
+		if s.Kind == KindBody {
+			parts = append(parts, s)
+		}
+	}
+	if len(parts) != 6 {
+		t.Fatalf("six points, six parts: %+v", c.Sections)
+	}
+	if !strings.HasPrefix(parts[0].Does, "the first point: ") || !strings.HasPrefix(parts[5].Does, "point 6: ") || strings.Contains(parts[5].Does, "point,") {
+		t.Errorf("the points' words: %q … %q", parts[0].Does, parts[5].Does)
+	}
+	for _, s := range c.Sections {
+		if f := plainwords.CheckShown(s.Does); len(f) > 0 {
+			t.Errorf("not plain: %q %+v", s.Does, f)
+		}
+	}
+}

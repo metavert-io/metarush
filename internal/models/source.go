@@ -260,8 +260,8 @@ func (s *AssetSource) Credit() string {
 // PublicLink is the address of the original when anyone may open it: a video
 // page on a site MetaRush's downloader brought in without the person's
 // browser sign-in. Never a cloud folder's, a page the browser extension sent,
-// generated or made clips, nor an address with a sign-in in it ("" then). A
-// recipe drafted from a reference keeps only this link (D444).
+// generated or made clips, nor an address with a sign-in in it ("" then).
+// What Recipes draft from a reference keeps only this link (D444).
 func (s *AssetSource) PublicLink() string {
 	if s == nil || s.URL == "" || s.Generated != nil || s.Remotion != nil || s.MadeWith != nil || s.SignedIn || s.Method != SourceDownload {
 		return ""

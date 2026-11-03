@@ -885,7 +885,7 @@ func (b *builder) sections() []WhatSection {
 			}
 			s := b.section(KindBody, name, title, round1(edges[i].at), round1(edges[i+1].at), why)
 			if count > 1 && (listWordIn(b.sentences, s.From, s.To) || announced == count) {
-				s.Does = ordinal(i+1) + " point: " + s.Does
+				s.Does = pointWords(i+1) + ": " + s.Does
 			}
 			out = append(out, s)
 		}
@@ -955,6 +955,14 @@ func listWordIn(ss []sentence, from, to float64) bool {
 	return false
 }
 
+// pointWords names a list's point: "the first point", …, "point 6".
+func pointWords(n int) string {
+	if n >= 1 && n <= 5 {
+		return ordinal(n) + " point"
+	}
+	return fmt.Sprintf("point %d", n)
+}
+
 func ordinal(n int) string {
 	switch n {
 	case 1:
@@ -968,7 +976,7 @@ func ordinal(n int) string {
 	case 5:
 		return "the fifth"
 	}
-	return fmt.Sprintf("point %d,", n)
+	return fmt.Sprintf("number %d", n)
 }
 
 // section measures one section and says what happens in it.

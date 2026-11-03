@@ -28,11 +28,7 @@ const KIND_TONE: Record<string, string> = {
   'end-card': 'bg-[#b8a6d9]',
 };
 
-/** webLink is a link someone may open: an http or https address, else nothing. */
-export function webLink(u?: string | null): string | undefined {
-  const h = (u ?? '').trim();
-  return /^https?:\/\/[^\s/?#@]+/i.test(h) ? h : undefined;
-}
+export { webLink } from '../lib/weblink';
 
 /** clock says a time in the video (0:03.2). */
 export function clock(t: number): string {

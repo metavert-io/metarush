@@ -15,12 +15,15 @@
 //   E  Home's Start from finds the same draft again (Drafted earlier)
 //   F  Claude's card in the panel names the video and what it does; Start the draft makes a
 //      second draft whose runs make new cuts in the project
+//   F2 the person's own video, chosen again (already in the Library), stays theirs: never a
+//      reference, and the box says so
 //   G  on a phone, a video file chosen in the Add box comes in as a reference and is drafted
 //      too; desktop light, phone dark and light, no sideways scrolling
 // No native browser dialog may appear; what is shown reads plainly (web/scripts/plainwords.mjs).
 //
 //   METARUSH_DASHBOARD=http://127.0.0.1:5760 METARUSH_MINT="bin/metarush --home <home> dashboard --print-link --no-open" \
-//   FROM_VIDEO_PROJECT=prj_… FROM_VIDEO_FILE=<a video file> FROM_VIDEO_CLAUDE_SCRIPT=<the fake claude's script> \
+//   FROM_VIDEO_PROJECT=prj_… FROM_VIDEO_FILE=<a video file> FROM_VIDEO_OWN_FILE=<a file already in the Library> \
+//   FROM_VIDEO_CLAUDE_SCRIPT=<the fake claude's script> \
 //   FROM_VIDEO_SHOTS=<dir> node web/scripts/recipes-from-video-e2e.mjs
 import { execSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -34,9 +37,10 @@ const repo = path.resolve(here, '../..');
 const base = (process.env.METARUSH_DASHBOARD ?? 'http://127.0.0.1:5760').replace(/\/$/, '');
 const project = process.env.FROM_VIDEO_PROJECT;
 const chosenFile = process.env.FROM_VIDEO_FILE;
+const ownFile = process.env.FROM_VIDEO_OWN_FILE;
 const claudeScript = process.env.FROM_VIDEO_CLAUDE_SCRIPT;
-if (!process.env.METARUSH_MINT || !project || !chosenFile || !claudeScript) {
-  console.error('set METARUSH_MINT, METARUSH_DASHBOARD, FROM_VIDEO_PROJECT, FROM_VIDEO_FILE and FROM_VIDEO_CLAUDE_SCRIPT (see the header of this script)');
+if (!process.env.METARUSH_MINT || !project || !chosenFile || !ownFile || !claudeScript) {
+  console.error('set METARUSH_MINT, METARUSH_DASHBOARD, FROM_VIDEO_PROJECT, FROM_VIDEO_FILE, FROM_VIDEO_OWN_FILE and FROM_VIDEO_CLAUDE_SCRIPT (see the header of this script)');
   process.exit(2);
 }
 const SHOTS = process.env.FROM_VIDEO_SHOTS ?? '';
@@ -337,6 +341,21 @@ try {
   const second = await api(page, 'recipe.show', { recipe: 'like-it-in-shop-tips' }).catch(() => null);
   check('F: a second draft, whose runs make new cuts in the project', !!second && second.recipe.current === 0 && second.version.state === 'draft' && second.doc.lands?.projectId === project, JSON.stringify(second ? { cur: second.recipe.current, state: second.version.state, lands: second.lands } : null).slice(0, 200));
   await shot(page, 'F-panel-card-done-desktop-dark');
+
+  /* ---------- F2: the person's own video, chosen again: it stays theirs (D442) ---------- */
+  {
+    await openRecipes(page);
+    const box2 = page.locator('[data-start-from-video]').first();
+    await box2.locator('[data-start-from-video-file]').setInputFiles(ownFile);
+    const skip = page.getByRole('button', { name: 'Skip', exact: true });
+    if (await skip.waitFor({ timeout: 30_000 }).then(() => true, () => false)) await skip.click(); // "already in your Library": no second copy
+    const already = await box2.locator('[data-start-from-video-already]').waitFor({ timeout: 90_000 }).then(() => true, () => false);
+    const said = already ? await box2.locator('[data-start-from-video-already]').innerText() : (await box2.innerText()).slice(0, 300);
+    check('F2: a file already in MetaRush stays the person’s own, and the box says so', already && /stays your own footage/.test(said), said);
+    const own = (await api(page, 'asset.list', {})).assets.find((x) => x.name === path.basename(ownFile));
+    check('F2: it isn’t marked a reference', !!own && !own.reference, JSON.stringify(own ? { reference: own.reference } : null));
+    await shot(page, 'F2-own-file-desktop-dark');
+  }
 
   /* ---------- G: a phone chooses a video file; desktop light ---------- */
   {

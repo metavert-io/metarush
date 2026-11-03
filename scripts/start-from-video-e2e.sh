@@ -14,7 +14,8 @@
 #   reference's note (This is mine… asks in a styled question, cancelled here); a cut that
 #   plays it is refused in plain words; Home's Start from finds the same draft again;
 #   Claude's card in the panel names the video and what it does, and a person starts a
-#   second draft from it; a video file chosen on a phone comes in as a reference too.
+#   second draft from it; the person's own video, chosen again, stays theirs (never a
+#   reference); a video file chosen on a phone comes in as a reference too.
 #   Desktop dark and light, 390 px phone dark and light, with screenshots; no native
 #   browser dialog, no sideways scrolling, plain words.
 #
@@ -70,9 +71,13 @@ go build -o "$BASE/fake-yt-dlp/yt-dlp" ./internal/testutil/fakeytdlp/cmd/fake-yt
 export METARUSH_YTDLP="$BASE/fake-yt-dlp/yt-dlp" METARUSH_FAKE_YTDLP_MEDIA="$VIDEO"
 # The video file a person chooses: the same video, its own bytes (another clip).
 ffmpeg -hide_banner -loglevel error -nostdin -y -i "$VIDEO" -map 0 -c copy -metadata comment="chosen in the browser" "$BASE/files/their-tips.mp4"
+# The person's own video, in the Library already: chosen again, it stays theirs (never a reference).
+ffmpeg -hide_banner -loglevel error -nostdin -y -f lavfi -i "testsrc2=size=640x360:rate=30:duration=3" -f lavfi -i "sine=frequency=330:duration=3" \
+  -shortest -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac "$BASE/files/our-own.mp4"
 go build -o "$BASE/claude" ./internal/assistant/fakeclaude/cmd/fakeclaude
 echo '{"default":{"steps":[{"text":"Noted."}]},"turns":[]}' > "$BASE/claude.json"  # the browser run adds its turns
 P=$(MR project create "Shop tips" --json | J 'd["data"]["project"]["id"]')
+MR ingest "$BASE/files/our-own.mp4" --no-transcribe --wait --json | J '"their own video, in the Library: added %d" % d["data"]["ingest"]["ingested"]'
 
 step "the dashboard on 127.0.0.1:$PORT (with its worker: the imports and the looking)"
 METARUSH_CLAUDE="$BASE/claude" METARUSH_DEV_ORIGINS="" ./bin/metarush --home "$H" serve > "$BASE/serve.log" 2>&1 & SRV=$!
@@ -85,7 +90,7 @@ if [ "${NO_BROWSER:-}" = "1" ]; then
 fi
 step "the browser run"
 METARUSH_DASHBOARD="http://127.0.0.1:$PORT" METARUSH_MINT="./bin/metarush --home $H dashboard --print-link --no-open" \
-FROM_VIDEO_PROJECT="$P" FROM_VIDEO_FILE="$BASE/files/their-tips.mp4" FROM_VIDEO_CLAUDE_SCRIPT="$BASE/claude.json" \
+FROM_VIDEO_PROJECT="$P" FROM_VIDEO_FILE="$BASE/files/their-tips.mp4" FROM_VIDEO_OWN_FILE="$BASE/files/our-own.mp4" FROM_VIDEO_CLAUDE_SCRIPT="$BASE/claude.json" \
 FROM_VIDEO_SHOTS="${FROM_VIDEO_SHOTS:-$BASE/screenshots}" node web/scripts/recipes-from-video-e2e.mjs
 
 step "what the browser did, from the CLI"

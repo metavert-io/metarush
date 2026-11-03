@@ -13,10 +13,12 @@
   burned-in captions, titles and other words on screen, what plays under the voices and how it ends — read from what
   MetaRush found in it, on this computer.
 - **Reference clips never play in a cut**. A clip marked a reference (someone else's video, kept to learn from) is
-  refused in a cut's clips and sound, with how to say it's yours if it is: **This is mine…** on its page, or
-  `metarush footage reference <clip> --mine` in your own terminal (people only). Recipes never take one as footage,
-  MetaRush never asks who speaks or who is on screen in one, and `metarush import --reference` brings links in as
-  references.
+  refused wherever a cut would play it — a clip, the sound, a conversation's recordings and cutaways, narration, a
+  cut it nests — with how to say it's yours if it is: **This is mine…** on its page, or `metarush footage reference
+  <clip> --mine` in your own terminal (people only). Nothing is generated or sent to an AI service from one, a version
+  that plays one is held from delivery, posting and review links until a person says it's theirs or sends it anyway
+  with a note, and Recipes never take one as footage. Its voices and faces are never recognized, named or learned
+  from. A file already in MetaRush stays yours; `metarush import --reference` brings links in as references.
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says

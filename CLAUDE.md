@@ -886,15 +886,23 @@ Read `docs/architecture.md` before structural changes.
   Browser run `scripts/starter-recipes-e2e.sh` (ports 5550–5559). **Start from a video you like** (D398–D404,
   `internal/ops/reference.go`, `internal/breakdown`, `internal/recipes/fromvideo.go`, `web/src/components/WhatItDoes.tsx`,
   `web/src/components/recipes/StartFromVideo.tsx`): a link (or a clip, or a file) comes in as a **reference**
-  (`Asset.reference`: someone else's video, kept to learn from; marked only by the import that made the clip). The edit
-  check refuses one in clips and sound (`reference_footage`, `details.command` = `metarush footage reference <clip>
-  --mine`), inputs and source footage leave it out, and `footage.reference.mine` is people only. `footage.whatItDoes`
+  (`Asset.reference`: someone else's video, kept to learn from; marked only by the import or upload that made the clip,
+  `linkimport.madeBy` on a retry; a duplicate file stays the person's). The edit check refuses one wherever a spec
+  plays footage — one pass over `editspec.AssetIDs` plus nested cuts (`references.go`, D440; `reference_footage`,
+  `details.command` = `metarush footage reference <clip> --mine`); `ops.HeadsUsing` matches every place AssetIDs reads
+  and `HeadsPlaying` nested cuts too (marking is refused while a latest version plays it); generated video and AI
+  work refuse one (`ops.RefuseReference`, D441); the ship gate's `reference` hold (with the gate off too; sent anyway
+  with a note; `GateHold.holding`) keeps a version that plays one from delivery, timelines, posts and review links;
+  its voices and faces keep no fingerprints, are never recognized, counted or named (`speakers.forgetVoices`,
+  `faces.forgetFaces`, D443) and "mine" listens and looks again; inputs and source footage leave it out, and
+  `footage.reference.mine` is people only. `footage.whatItDoes`
   is a deterministic card from the evidence MetaRush keeps, with no AI calls (hook, intro, parts, call to action and end
   card with times; pacing, voices, burned-in captions, graphics, the music bed; what's on screen on a Mac).
   `recipe.fromVideo` drafts through `recipe.write` once the looks are done (`asset.startFrom`, the `OnSourceFacts`
-  hook with `FactsAsked`, a claim by the server's time): chosen sections from one footage input described in
-  MetaRush's own words, never the video's; `RecipeDoc.reference` (the sheet's `reference:` line); rules and hints. A
-  person makes it current. In the panel `recipe from-video` is a `fromvideo` card (never Auto; no browser sign-in,
+  hook with `FactsAsked`; asking, the hook and the daemon's `RunDraftSweep` all take one claim by the server's time,
+  D444): chosen sections from one footage input described in MetaRush's own words, never the video's;
+  `RecipeDoc.reference` (the sheet's `reference:` line; only `AssetSource.PublicLink`, never a cloud folder's or
+  private address, also in recipe files); rules and hints. A person makes it current. In the panel `recipe from-video` is a `fromvideo` card (never Auto; no browser sign-in,
   files or local addresses) whose work is `WorkDraft`. The fake downloader hands over a real file with
   `METARUSH_FAKE_YTDLP_MEDIA`. Browser run `scripts/start-from-video-e2e.sh` (ports 5760–5769, Mac only).
 - **A small tool surface: the catalogue, find, MCP's core, skills as routers** (D221–D223, `internal/catalog`,

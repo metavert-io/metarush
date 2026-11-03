@@ -555,13 +555,26 @@ MetaRush can start a recipe: `recipe.fromVideo` (`metarush recipe from-video <li
 1. **It comes in as a reference, not footage.** A link goes through the link import (`ingest.url` with `reference`:
    the downloader on this computer, copy-protected videos refused, a browser's sign-in only when a person chooses it);
    a file is added like a drop. Either is marked a **reference** (`asset.reference`): someone else's video, kept to
-   learn from. No cut plays a reference — the edit and cut checks refuse it in a cut's clips or sound
-   (`reference_footage`), saying how a person who made it says so (**This is mine…** on the clip's page, `metarush
-   footage reference <clip> --mine`: people only) — and no recipe run takes one as footage (a project's or a
-   collection's newest footage leaves references out; one given by name is refused). Nobody in a reference is asked
-   about: MetaRush never asks who speaks or who is on screen in someone else's video (marking one closes those
-   questions; saying it's yours brings them back). Marking a clip a reference (`footage.reference`) is refused while a
-   cut's latest version plays it. A clip already in MetaRush stays what it is (`--reference` marks it).
+   learn from — only a clip the import or the upload made: a file that is already in MetaRush (the same bytes, the
+   person's own footage) stays what it is, and the answer says so. A clip already in MetaRush stays what it is too
+   (`--reference` marks it).
+   - **No cut plays a reference**, wherever it would play it: a clip, the cut's sound, a conversation's recordings and
+     cutaways, a narration line's take or the narration recording, the mix's copies, and inside a cut it nests. The
+     edit and cut checks refuse it (`reference_footage`), saying how a person who made it says so (**This is mine…**
+     on the clip's page, `metarush footage reference <clip> --mine`: people only). Marking a clip a reference
+     (`footage.reference`) is refused while any cut's latest version plays it, nested cuts too.
+   - **Nothing is made from a reference**: no generated shot from or ending on its frames, extending or editing it,
+     no dubbing, voice change, cloud transcription, lip sync or voice copy of it — refused before anything is priced
+     or sent, since what came back would be ordinary footage made from someone else's video.
+   - **A version that plays one is held from going out** (the ship gate's `reference` hold, with the gate off too):
+     delivery, timelines into a delivery folder, posts and review links wait until a person says the video is theirs
+     or sends the version out anyway with a note. Renders stay allowed: they stay on this computer.
+   - **Nobody in it is asked about, recognized or named**: its voices and faces keep no fingerprints, never take the
+     names of your people (its transcript and what it does name nobody), never count as anyone's appearances and never
+     teach anyone's voice or face; naming a voice or a face in it is refused. Marking a clip clears what was there;
+     saying it's yours listens and looks again.
+   - No recipe run takes one as footage (a project's or a collection's newest footage leaves references out; one
+     given by name is refused).
 2. **MetaRush looks at it** like any footage — its words and voices, its cuts, pauses and loudness, and on a Mac
    what's on screen — and then says **what it does** (`footage.whatItDoes`, `metarush footage what-it-does <clip>`, the
    clip's **What it does** tab), read from that evidence on this computer with no AI service:
@@ -594,17 +607,22 @@ MetaRush can start a recipe: `recipe.fromVideo` (`metarush recipe from-video <li
      (measured), the voices over the music (measured);
    - hints for Claude: the pacing, a question first, the layout pack's title card and end screen, music under the
      voices;
-   - `reference:` — the clip and its link, where it came from.
+   - `reference:` — the clip and its link, where it came from: only a link anyone may open (a public video page the
+     link import brought in), never a cloud folder's or this computer's address. A file's draft is titled in
+     MetaRush's own words ("Like a 26-second vertical video you liked"), never the clip's title.
 
    It never holds the video's footage, its words or its pictures: every section is the person's own footage, and
    nothing the video says or shows is copied into it. Its check passes without footage of its own (`footage_from_runs`:
    each run gives it, and the run's cut is checked then), so a person can make it current after a look; a run without
    footage says it needs some.
-4. Asking again with the same link or clip gives the draft back (`existing`); another `--name` makes another one. The
-   draft is changed like any other — on its page, or by Claude through its sheet — and only a person makes it current.
+4. Asking again with the same link or clip gives the draft back (`existing`); another `--name` makes another one. One
+   computer drafts it, under a claim by the server's time (asking while another drafts says so); a draft a computer
+   stopped making is made by any running MetaRush's sweep. The draft is changed like any other — on its page, or by
+   Claude through its sheet — and only a person makes it current.
 
 Nothing about the card or the draft leaves this computer: the link import only downloads. A recipe file of a draft
-carries the link, not the reference clip (an import leaves it behind). In Claude's panel `recipe from-video` is a card
+carries a public video page's link, never the reference clip or a private address (it says what it left out); an
+import keeps only a YouTube, TikTok or X video page's link. In Claude's panel `recipe from-video` is a card
 ([below](#in-claudes-panel)); `footage what-it-does` is a read Claude may run (it shows words).
 
 ## In Claude's panel

@@ -22,6 +22,7 @@ for review copies, `--preset` for some shapes) — and lists what holds it:
 | `qa-errors` | "The quality check found 2 problems in its final render." with each problem, its time and its fix | Fix it (the problem's own change, saved as a new version), See the problems, Check it again | yes |
 | `signoff` | "Still waiting for the sign-off “Lena OKs the final version”." (house ones say whose settings) | Tick it (a person) | yes |
 | `consent` | "At 0:02 Ada Lovelace says “fifteen” (words changed with AI in their voice copy), but her consent … is no longer in force …" (or a mouth matched to them) | Take them out (`cut.say.undo`, a new version) | no: it holds with the gate off too |
+| `reference` | "Version 5 plays “Their video”, a reference: someone else's video, kept to learn from. …" (anywhere it plays, nested cuts too) | It's mine (`footage.reference.mine`, a person), or take it out and make a new version | yes, with a note; it holds with the gate off too |
 
 Things worth checking (warnings) never hold. `--json` gives every hold with its stable `key`, `kind`, `says`,
 `problems` (message, time, fix, the fix's edit ops) and `paths` (the op and input the dashboard runs, the command),
@@ -39,7 +40,15 @@ the renders and their checks, the promises as measured, and every note that sent
   a 0600 file, refused inside a sync folder or a repository that would commit it); deleting it only makes the gate
   forget them — the check of the version's final renders, else its review copies; a
   version never rendered hasn't been checked. A timeline for your own editing app goes anywhere else.
-- **Share for review** asks `ops.ShipGate` the same way ([outside-reviewers.md](outside-reviewers.md)).
+- **Share for review** asks `ops.ShipGate` the same way ([outside-reviewers.md](outside-reviewers.md)). A version
+  that plays a reference is shared only with a person's note, never just marked as a draft.
+- **Posting** (`publish.plan|send`) holds what the gate holds.
+
+A reference (someone else's video, kept to learn from; [recipes.md](recipes.md#start-from-a-video-you-like)) can't
+go into a new version, but one saved before the clip was marked, or one that nests a cut playing it, would still go
+out: so `reference` holds delivery, timelines into a delivery folder, posts and review links with the gate off too,
+until a person says the video is theirs or sends the version out anyway with a note. Renders stay allowed — review
+copies and final renders stay on this computer — and show the hold on the version's page.
 
 ## Whether it is on
 

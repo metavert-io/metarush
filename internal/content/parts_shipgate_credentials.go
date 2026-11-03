@@ -13,7 +13,9 @@ import (
 // delivered videos of every project using the settings carry them — always,
 // always and held back until they can be signed, never — or as the
 // workspace says. A client who wants signed videos (or none) says so once.
-// Owners change it (content.credentials.set).
+// Owners change it (content.credentials.set). It registers right after
+// Before it goes out (this file's name sorts after parts_shipgate.go), as
+// the project's Settings tab shows them.
 
 // PartCredentials is Content Credentials' part.
 const PartCredentials = "credentials"

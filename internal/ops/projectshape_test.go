@@ -166,22 +166,26 @@ func TestMotionShapesWithoutAProjectAndNothingKnown(t *testing.T) {
 	}
 
 	// A cut elsewhere in the workspace uses a graphic of that name: its shape,
-	// with no project and for a project none of whose cuts uses it.
+	// with no project and for a project that says nothing about its shape.
 	other := call[ProjectOut](t, a, "project.create", ProjectCreateIn{Name: "Launch"}).Project
 	putCut(t, a, other.ID, "main", 1920, 1080, "lower-title")
 	if got := labels(motionShapes(ctx, a, nil, "lower-title", "generic")); got != "workspace: widescreen 1920x1080" {
 		t.Fatalf("no project, a workspace cut uses it: %s", got)
 	}
-	putCut(t, a, empty.ID, "main", 1080, 1920, "")
 	if got := labels(motionShapes(ctx, a, projectByID(t, a, empty.ID), "lower-title", "generic")); got != "workspace: widescreen 1920x1080" {
-		t.Fatalf("the project's cuts don't use it: %s", got)
+		t.Fatalf("a project that says nothing, a workspace cut uses it: %s", got)
+	}
+	// A project whose own cut says its shape is drawn for: the check is for it.
+	putCut(t, a, empty.ID, "main", 1080, 1920, "")
+	if got := labels(motionShapes(ctx, a, projectByID(t, a, empty.ID), "lower-title", "generic")); got != "project: vertical 1080x1920" {
+		t.Fatalf("the project's cuts don't use it: its shape: %s", got)
 	}
 	// Archived projects' cuts don't count.
 	if _, err := a.DB.C(store.CProjects).UpdateOne(ctx, bson.M{"_id": other.ID}, bson.M{"$set": bson.M{"archived": true}}); err != nil {
 		t.Fatal(err)
 	}
-	if got := labels(motionShapes(ctx, a, projectByID(t, a, empty.ID), "lower-title", "generic")); got != "project: vertical 1080x1920" {
-		t.Fatalf("only an archived project's cut uses it: the project's shape: %s", got)
+	if got := labels(motionShapes(ctx, a, nil, "lower-title", "generic")); got != "nothing: widescreen 1920x1080, vertical 1080x1920" {
+		t.Fatalf("only an archived project's cut uses it: %s", got)
 	}
 
 	// Two vertical sizes are two shapes, kept apart by size and named by ratio.
@@ -219,5 +223,29 @@ func TestMotionShapesWithoutAProjectAndNothingKnown(t *testing.T) {
 	full := &models.MotionComponent{Name: "lower-title", Shapes: many}
 	if _, _, err := checkFrame(ctx, a, &MotionCheckIn{Shape: "1080x1920"}, t.TempDir()+"/lower-title", full); code(err) != apperr.Conflict {
 		t.Fatalf("past the bound: %v", err)
+	}
+}
+
+// The acceptance run's case: a check names the slides project, whose cut is
+// widescreen and doesn't use the graphic, while another project's vertical
+// cut does. The check is for the project it names, so it is drawn widescreen
+// only; with no project named, the other project's vertical cut decides.
+func TestCheckForAProjectIsDrawnInItsShapeWhenAnotherProjectsCutUsesIt(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	film := call[ProjectOut](t, a, "project.create", ProjectCreateIn{Name: "Acceptance film"}).Project
+	slides := call[ProjectOut](t, a, "project.create", ProjectCreateIn{Name: "Acceptance slides"}).Project
+	putCut(t, a, film.ID, "main", 1080, 1920, "route-map")
+	putCut(t, a, slides.ID, "main", 1920, 1080, "")
+	dir := t.TempDir() + "/motion/route-map"
+	o, set, err := checkFrame(ctx, a, &MotionCheckIn{ProjectID: slides.ID}, dir, nil)
+	if err != nil || set.From != shapesProject || len(o.Shapes) != 1 || o.Shapes[0].Label != "widescreen" || o.Shapes[0].Key() != "1920x1080" {
+		t.Fatalf("checked for the slides project: %v %s %+v", err, set.From, o.Shapes)
+	}
+	if o, set, err := checkFrame(ctx, a, &MotionCheckIn{}, dir, nil); err != nil || set.From != shapesWorkspace || len(o.Shapes) != 1 || o.Shapes[0].Key() != "1080x1920" {
+		t.Fatalf("checked with no project: %v %s %+v", err, set.From, o.Shapes)
+	}
+	if o, set, err := checkFrame(ctx, a, &MotionCheckIn{ProjectID: film.ID}, dir, nil); err != nil || set.From != shapesCuts || len(o.Shapes) != 1 || o.Shapes[0].Key() != "1080x1920" {
+		t.Fatalf("checked for the film project: %v %s %+v", err, set.From, o.Shapes)
 	}
 }

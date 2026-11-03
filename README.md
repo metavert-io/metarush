@@ -749,8 +749,9 @@ where the video goes. You hear a change in the preview before you save it ([docs
   `from hook to answer` in a cut sheet), follow those clips through every edit, and change what it says at moments in
   the footage while it stays on screen. Motion graphics are checked in the shapes of the cuts that use them (a short
   and the main video: both), told apart by exact size (9:16 and 4:5 are both vertical, and both are drawn), with test
-  frames grouped by shape and shown at their own shape. With no cut using a graphic yet, its frames follow cuts
-  elsewhere in the workspace that use it, else the project's shape; when nothing says, both widescreen and vertical.
+  frames grouped by shape and shown at their own shape. With no cut using a graphic yet, its frames follow the
+  project's shape; with no project, cuts elsewhere in the workspace that use it; when nothing says, both widescreen
+  and vertical.
 - **One shape rule, one project shape**: whether a video is vertical, widescreen or square is decided by one rule
   everywhere, the renderer's own (wider than 1.15 is widescreen, narrower than 0.87 vertical), and a project's shape comes from its main cut, else any cut,
   else the brief's deliverables, else the shape most of its footage is in. `metarush project show` says it and why;

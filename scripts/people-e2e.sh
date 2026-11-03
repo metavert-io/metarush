@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end run of asking who people are (D155–D158) in a real browser, on a
-# throwaway installation (needs a Mac: the on-screen index uses Apple Vision):
+# throwaway installation (needs a computer that can look at what's on screen: a
+# Mac with Apple Vision, or the open models; the fixtures are made with macOS's say):
 # the speaker-view call fixture (scripts/make-call-fixtures.sh) in a project
 # whose cut uses its first minutes, interview-b (someone else's voice) and
 # visual-a (one of the call's faces in another clip). web/scripts/people-e2e.mjs

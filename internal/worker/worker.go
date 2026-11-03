@@ -27,6 +27,7 @@ import (
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/linkimport"
 	"github.com/metavert-io/metarush/internal/logbook"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/notify"
 	"github.com/metavert-io/metarush/internal/ops"
@@ -40,7 +41,6 @@ import (
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/transcribe"
 	"github.com/metavert-io/metarush/internal/version"
-	"github.com/metavert-io/metarush/internal/vision"
 )
 
 // Permanent marks an error that retrying cannot fix.
@@ -179,9 +179,10 @@ func New(a *app.App) *Worker {
 	if a.Tools.Has(tools.Git) {
 		w.handlers[jobs.TypeRemotionPush] = remotionPushHandler
 	}
-	// What's on screen (Apple Vision, macOS): the helper is built on first use
-	// when only swiftc is there.
-	if vision.CanRun(a.Tools) {
+	// What's on screen (D73, D405): Apple Vision on a Mac (the helper is built
+	// on first use when only swiftc is there), the open models elsewhere once
+	// they are added (looker.Chosen).
+	if looker.CanRun(a.Cfg, a.Tools) {
 		w.handlers[jobs.TypeVisual] = visualHandler
 	}
 	// Scene descriptions are pinned to the machine that asked (its Claude Code).
@@ -398,8 +399,8 @@ func (w *Worker) Lacks() []models.WorkerLack {
 	for _, t := range []string{jobs.TypeRender, jobs.TypeRenderShape, jobs.TypeRemotionImport, jobs.TypeRemotionRender, jobs.TypeRemotionTask, jobs.TypeRemotionRefresh} {
 		lack(t, renderer.Component)
 	}
-	if runtime.GOOS == "darwin" {
-		lack(jobs.TypeVisual, "screen-index")
+	if looker.Check(context.Background(), w.App.Cfg, ts).Supported {
+		lack(jobs.TypeVisual, looker.Component)
 	}
 	return out
 }
@@ -426,6 +427,7 @@ func (w *Worker) device() models.WorkerDevice {
 	d := models.WorkerDevice{
 		ID: a.Cfg.Installation.ID, WorkspaceID: a.WorkspaceID(), Name: a.Cfg.Installation.Name, Hostname: app.Hostname(), OS: runtime.GOOS, Arch: runtime.GOARCH,
 		CPUs: runtime.NumCPU(), MemoryGB: memoryGB(), Tools: tv, JobTypes: w.JobTypes(), Lacks: w.Lacks(), Concurrency: w.Concurrency, Running: running,
+		ScreenIndex:  w.screenIndex(),
 		AcceptsHeavy: w.AcceptsHeavy && !p.Defer, OnBattery: p.Battery.OnBattery(), Charging: p.Battery.Charging,
 		HeavyBatteryThreshold: p.Threshold, HeavyEnabled: w.AcceptsHeavy, DeferringHeavy: p.Defer, DeferReason: p.Reason,
 		Version: version.Version, StartedAt: w.started,

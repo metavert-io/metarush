@@ -7,6 +7,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
+	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/evidence"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/jobs"
@@ -14,7 +15,6 @@ import (
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/testutil/testapp"
-	"github.com/metavert-io/metarush/internal/tools"
 )
 
 func jobsOf(t *testing.T, ctx context.Context, a interface {
@@ -81,8 +81,8 @@ func TestCatchUpLooksAtOlderClipsOnAMac(t *testing.T) {
 	steps := []Step{{Name: "visual-index", Version: 1, Run: visualIndex}}
 
 	// A machine that cannot look (no helper, no swiftc, or not a Mac).
-	defer func(f func(*tools.Set) bool) { canLook = f }(canLook)
-	canLook = func(*tools.Set) bool { return false }
+	defer func(f func(*app.App) bool) { canLook = f }(canLook)
+	canLook = func(*app.App) bool { return false }
 	outs, err := RunSteps(ctx, a, steps)
 	if err != nil || outs[0].Ran || !outs[0].NotHere || outs[0].Error != "" {
 		t.Fatalf("not here: %+v %v", outs, err)
@@ -94,7 +94,7 @@ func TestCatchUpLooksAtOlderClipsOnAMac(t *testing.T) {
 		t.Fatal("recorded although it did not run")
 	}
 	// A Mac: the clips not looked at yet are queued once (heavy: battery rules apply).
-	canLook = func(*tools.Set) bool { return true }
+	canLook = func(*app.App) bool { return true }
 	outs, err = RunSteps(ctx, a, steps)
 	if err != nil || !outs[0].Ran || outs[0].Summary != "looking at what's on screen in 1 clip" {
 		t.Fatalf("on a Mac: %+v %v", outs, err)

@@ -152,9 +152,6 @@ func init() {
 			return readyHere(a, local.Name, k, model) == nil, localNeeds[model]
 		})
 		n := ops.Needs{Setup: check}
-		if k == aiservices.KindBackground {
-			n.OS = []string{"mac"}
-		}
 		return ops.Offering{ID: id, Group: "make", Title: title, Does: does, Input: map[string]any{"kind": k, "model": local.Name + "/" + model}, Words: words, Needs: n}
 	}
 	ops.Offer("ai.make",
@@ -171,7 +168,8 @@ func init() {
 		// The models on this computer (D278–D280): free, no key, nothing leaves.
 		here("offline-voices", aiservices.KindVoice, local.ModelKokoro, "Offline voices", "Says any words in a free voice that runs on this computer; nothing leaves it.", "local text to speech", "free voice"),
 		here("ai-larger-pictures", aiservices.KindUpscale, local.ModelUpscale, "AI larger pictures", "Makes a picture 2 or 4 times larger with an AI model on this computer; nothing leaves it.", "super resolution", "ai upscale"),
-		here("ai-cut-outs", aiservices.KindBackground, local.ModelSubject, "AI cut-outs", "Takes a picture's background away with Apple Vision on this computer, as a new picture; nothing leaves it.", "remove the background", "subject lifting"))
+		here("ai-cut-outs", aiservices.KindBackground, local.ModelSubject, "AI cut-outs", "Takes a picture's background away with Apple Vision on this computer, as a new picture; nothing leaves it.", "remove the background", "subject lifting"),
+		here("ai-cut-outs-open", aiservices.KindBackground, local.ModelCutOut, "AI cut-outs with BiRefNet", "Takes a picture's background away with an open model (BiRefNet) on this computer, as a new picture; nothing leaves it.", "background remover", "transparent cut-out"))
 	ops.Offer("presenter.make", ops.Offering{ID: "own-presenters", Group: "make", Title: "A person's own presenter",
 		Does:  "Makes a presenter of a person at an AI service from their approved look, a training take and their consent filmed on camera, naming the service; people only, priced first.",
 		Words: []string{"digital twin", "my own avatar"}, Needs: ops.Needs{Keys: keysFor(aiservices.KindPresenterMake), Priced: true,
@@ -187,6 +185,7 @@ var localNeeds = map[string]string{
 	local.ModelKokoro:  "the Kokoro voice, set up once by an owner on this computer",
 	local.ModelUpscale: "the Real-ESRGAN picture model, set up once by an owner on this computer",
 	local.ModelSubject: "the on-screen helper, on a Mac",
+	local.ModelCutOut:  "the cut-out model, added once by an owner on this computer",
 }
 
 // leavesFor says what leaves this computer for each kind of AI work.

@@ -161,6 +161,37 @@ type Index struct {
 	Attention []AttentionSample `json:"attention,omitempty" bson:"attention,omitempty"`
 	// Gestures are hands pointing, raised or giving a thumbs up (vision-2, D117).
 	Gestures []GestureSpan `json:"gestures,omitempty" bson:"gestures,omitempty"`
+	// Backend is what looked at the clip (D405): apple-vision, or open-models
+	// (YuNet, PaddleOCR and U²-Net-p on a computer without Apple Vision);
+	// indexes made before it was recorded are Apple Vision's.
+	Backend string `json:"backend,omitempty" bson:"backend,omitempty" jsonschema:"enum=apple-vision,enum=open-models"`
+	// Sees is what the backend looked for when it isn't everything (the open
+	// models: faces, landmarks, text, attention — no labels, animals, bodies
+	// or gestures, so their absence says nothing about the clip).
+	Sees []string `json:"sees,omitempty" bson:"sees,omitempty"`
+}
+
+// Backends that make indexes.
+const (
+	BackendAppleVision = "apple-vision"
+	BackendOpenModels  = "open-models"
+)
+
+// ByOpenModels reports an index the open models made.
+func (idx *Index) ByOpenModels() bool { return idx != nil && idx.Backend == BackendOpenModels }
+
+// Looked reports whether the index's backend looked for something (faces,
+// text, labels…): Apple Vision looks for everything.
+func (idx *Index) Looked(what string) bool {
+	if idx == nil || len(idx.Sees) == 0 {
+		return true
+	}
+	for _, s := range idx.Sees {
+		if s == what {
+			return true
+		}
+	}
+	return false
 }
 
 // AttentionSample is where the eye is drawn at one moment: the middle of

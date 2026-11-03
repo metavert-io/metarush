@@ -1,5 +1,7 @@
 package components
 
+import "github.com/metavert-io/metarush/internal/visionmodels"
+
 // Pin is one download MetaRush may make for a component: an address, the
 // size and checksum its publisher states (or, where it states none, the one
 // measured when it was pinned), and where its files go.
@@ -143,6 +145,16 @@ var pins = []Pin{
 	{ID: "whisper-model", Title: "whisper large-v3-turbo", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo.bin",
 		SHA256: "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69", Bytes: 1624555275,
 		To: "models/whisper/ggml-large-v3-turbo.bin", Licence: "MIT", Hosts: hfCDN},
+}
+
+// The open models that look at what's on screen and cut subjects out (D406):
+// visionmodels.Files is their one list (address, SHA-256, size, licence),
+// placed in the models folder as visionmodels reads them.
+func init() {
+	for _, f := range visionmodels.Files {
+		pins = append(pins, Pin{ID: f.ID, Title: f.Title, URL: f.URL, SHA256: f.SHA256, Bytes: f.Bytes,
+			To: "models/" + visionmodels.Folder + "/" + f.Name, Licence: f.Licence, Hosts: f.Hosts})
+	}
 }
 
 // pinsFor is every pin with an ID for this computer.

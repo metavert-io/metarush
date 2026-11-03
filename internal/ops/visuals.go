@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -19,19 +18,20 @@ import (
 	"github.com/metavert-io/metarush/internal/evidence"
 	"github.com/metavert-io/metarush/internal/faces"
 	"github.com/metavert-io/metarush/internal/jobs"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/speakers"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/tools"
-	"github.com/metavert-io/metarush/internal/vision"
 	"github.com/metavert-io/metarush/internal/visual"
 )
 
-// visualsPossible says whether clips can be looked at: this Mac can, or a Mac
-// in the workspace said in the last 30 days that it can (its worker runs the
-// visual job type).
+// visualsPossible says whether clips can be looked at: this computer can (a
+// Mac with Apple Vision, or one with the open models added, D405), or another
+// computer in the workspace said in the last 30 days that it can (its worker
+// runs the visual job type).
 func visualsPossible(ctx context.Context, a *app.App) bool {
-	if vision.CanRun(a.Tools) {
+	if looker.CanRun(a.Cfg, a.Tools) {
 		return true
 	}
 	filter := store.SeenWithin("lastHeartbeat", 30*24*time.Hour) // the server's time, as heartbeats are written
@@ -146,11 +146,17 @@ type VisualsOut struct {
 	Title   string `json:"title"`
 	// State: available (indexed), queued or running, missing (not looked at yet),
 	// unavailable (no Mac in this workspace can look), none (the clip has no picture).
-	State   string            `json:"state" jsonschema:"enum=available,enum=queued,enum=running,enum=failed,enum=missing,enum=unavailable,enum=none"`
-	Summary string            `json:"summary"`
-	Lines   []visual.Line     `json:"lines"`
-	Faces   []FaceRow         `json:"faces"`
-	Text    []visual.TextSpan `json:"text"`
+	State   string `json:"state" jsonschema:"enum=available,enum=queued,enum=running,enum=failed,enum=missing,enum=unavailable,enum=none"`
+	Summary string `json:"summary"`
+	// LookedWith is what looked at the clip (D405): apple-vision or
+	// open-models; NotLookedFor names what that doesn't look for (the open
+	// models: things, places, animals, bodies, gestures), so their absence
+	// says nothing about the clip.
+	LookedWith   string            `json:"lookedWith,omitempty" jsonschema:"enum=,enum=apple-vision,enum=open-models"`
+	NotLookedFor []string          `json:"notLookedFor,omitempty"`
+	Lines        []visual.Line     `json:"lines"`
+	Faces        []FaceRow         `json:"faces"`
+	Text         []visual.TextSpan `json:"text"`
 	// Labels are what the picture shows, merged per label over the range (longest
 	// first; very general ones such as "people" or "liquid" are left out).
 	Labels    []VisualLabel     `json:"labels"`
@@ -180,7 +186,7 @@ func visualState(ctx context.Context, a *app.App, as *models.Asset, st *visual.S
 	if js, err := a.Queue.List(ctx, bson.M{"assetId": as.ID, "type": jobs.TypeVisual}, 1); err == nil && len(js) > 0 {
 		switch js[0].State {
 		case models.JobQueued:
-			return "queued", "Waiting to look at what's on screen (it runs on a Mac; big jobs wait while the battery is low)."
+			return "queued", "Waiting to look at what's on screen (big jobs wait while the battery is low)."
 		case models.JobRunning:
 			return "running", "Looking at what's on screen now."
 		case models.JobFailed:
@@ -188,9 +194,9 @@ func visualState(ctx context.Context, a *app.App, as *models.Asset, st *visual.S
 		}
 	}
 	if !visualsPossible(ctx, a) {
-		return "unavailable", "Not looked at: seeing what's on screen uses Apple Vision on a Mac, and no Mac in this workspace can do it yet."
+		return "unavailable", "Not looked at: no computer in this workspace can look at what's on screen yet. A Mac can, and any other computer once “Seeing what's on screen” is added in Settings → Components."
 	}
-	return "missing", "Not looked at yet. Open the clip and choose Look now under On screen (it runs on a Mac; nothing is uploaded)."
+	return "missing", "Not looked at yet. Open the clip and choose Look now under On screen (it runs on a computer in this workspace; nothing is uploaded)."
 }
 
 func firstLine(s string) string {
@@ -277,6 +283,15 @@ func init() {
 		}
 		t := st.CreatedAt
 		out.IndexedAt, out.Frames, out.Summary = &t, idx.Frames, idx.Summary
+		out.LookedWith = visual.BackendAppleVision
+		if idx.ByOpenModels() {
+			out.LookedWith = visual.BackendOpenModels
+			for _, w := range []string{looker.SeesLabels, looker.SeesAnimals, looker.SeesPeople, looker.SeesGestures} {
+				if !idx.Looked(w) {
+					out.NotLookedFor = append(out.NotLookedFor, w)
+				}
+			}
+		}
 		tracks, err := faces.Load(ctx, a, as.ID)
 		if err != nil {
 			return nil, err
@@ -346,6 +361,12 @@ func init() {
 		out.Note = "From Apple Vision on this workspace's Mac, about one frame a second plus the moments the picture changes: labels are machine guesses, " +
 			"text is read from the picture (check spelling before quoting it), and a face has a name where a person confirmed it; \"looks like\" names were recognized by the face and are not confirmed yet " +
 			"(\"maybe\" = a question is open). Look at frames (footage frames --at) before claiming anything visual."
+		if idx.ByOpenModels() {
+			out.Note = "From the open models on a computer in this workspace, about one frame a second plus the moments the picture changes: they find faces, read text " +
+				"(Latin, Greek, Chinese and Japanese writing; check spelling before quoting it) and see what stands out, but they don't name things, places or animals, " +
+				"or see gestures, so no label here says nothing about the clip. A face has a name where a person confirmed it; \"looks like\" names were recognized by the face and are not confirmed yet " +
+				"(\"maybe\" = a question is open). Look at frames (footage frames --at) before claiming anything visual."
+		}
 		return out, nil
 	})
 	Def("footage.faces", "List the faces seen in a clip: when each shows, where, and whose it is (named by a person, or recognized by the face and not confirmed yet)", Flags{}, func(ctx context.Context, a *app.App, in *FacesIn) (*FacesOut, error) {
@@ -468,17 +489,22 @@ type VisualStatusIn struct{}
 
 // VisionHere is this machine's on-screen helper.
 type VisionHere struct {
-	Supported bool   `json:"supported" jsonschema:"description=This is a Mac (Apple Vision exists here)."`
-	Ready     bool   `json:"ready"`
-	CanBuild  bool   `json:"canBuild" jsonschema:"description=The Xcode Command Line Tools can build the helper here."`
-	Text      string `json:"text"`
-	Fix       string `json:"fix,omitempty"`
+	Supported bool `json:"supported" jsonschema:"description=This computer can look at what's on screen at all (a Mac with Apple Vision, or macOS and Linux with the open models)."`
+	Ready     bool `json:"ready"`
+	CanBuild  bool `json:"canBuild" jsonschema:"description=The Xcode Command Line Tools can build the helper here."`
+	// Backend is how this computer looks (D408): apple-vision or open-models;
+	// Engine says it in words, Sees what it looks for.
+	Backend string   `json:"backend" jsonschema:"enum=apple-vision,enum=open-models"`
+	Engine  string   `json:"engine"`
+	Sees    []string `json:"sees"`
+	Text    string   `json:"text"`
+	Fix     string   `json:"fix,omitempty"`
 }
 
 // VisualStatusOut says whether clips are looked at, and how far along that is.
 type VisualStatusOut struct {
 	Here     VisionHere `json:"here"`
-	Possible bool       `json:"possible" jsonschema:"description=This Mac or another Mac in the workspace can look at clips."`
+	Possible bool       `json:"possible" jsonschema:"description=This computer or another computer in the workspace can look at clips."`
 	Clips    int        `json:"clips" jsonschema:"description=Clips with a picture."`
 	Indexed  int        `json:"indexed" jsonschema:"description=Clips whose picture was looked at."`
 	Waiting  int        `json:"waiting" jsonschema:"description=Clips queued or being looked at now."`
@@ -486,10 +512,11 @@ type VisualStatusOut struct {
 }
 
 func init() {
-	Def("footage.visuals.status", "Say whether clips get looked at (Apple Vision on a Mac), on this machine and in the workspace, and how many are done", Flags{}, func(ctx context.Context, a *app.App, _ *VisualStatusIn) (*VisualStatusOut, error) {
-		st := vision.Check(ctx, a.Tools)
-		out := &VisualStatusOut{Here: VisionHere{Supported: st.Supported, Ready: st.Ready, CanBuild: st.CanBuild, Text: st.Text, Fix: st.Fix}, Possible: visualsPossible(ctx, a)}
-		if st.Supported && !st.Ready && st.CanBuild {
+	Def("footage.visuals.status", "Say whether clips get looked at (Apple Vision on a Mac, the open models elsewhere), on this machine and in the workspace, and how many are done", Flags{}, func(ctx context.Context, a *app.App, _ *VisualStatusIn) (*VisualStatusOut, error) {
+		st := looker.Check(ctx, a.Cfg, a.Tools)
+		out := &VisualStatusOut{Here: VisionHere{Supported: st.Supported, Ready: st.Ready, CanBuild: st.CanSetUp, Backend: st.Backend, Engine: st.Engine, Sees: st.Sees,
+			Text: st.Text, Fix: st.Fix}, Possible: visualsPossible(ctx, a)}
+		if st.Backend == looker.AppleVision && st.Supported && !st.Ready && st.CanSetUp {
 			out.Here.Text = "Ready to set up: the helper is built the first time a clip is looked at."
 			out.Here.Fix = ""
 		}
@@ -504,9 +531,9 @@ func init() {
 		out.Waiting = int(n)
 		switch {
 		case !out.Possible:
-			out.Summary = "Not looking at what's on screen: that uses Apple Vision on a Mac, and no Mac in this workspace can do it yet."
+			out.Summary = "Not looking at what's on screen: no computer in this workspace can yet. A Mac can, and any other computer once “Seeing what's on screen” is added in Settings → Components."
 		case out.Clips == 0:
-			out.Summary = "Clips are looked at on a Mac as they come in."
+			out.Summary = "Clips are looked at as they come in."
 		default:
 			out.Summary = fmt.Sprintf("Looked at %d of %s.", out.Indexed, count(out.Clips, "clip", "clips"))
 			if out.Waiting > 0 {
@@ -522,18 +549,21 @@ func init() {
 func init() {
 	Offer("footage.visuals", Offering{ID: "whats-on-screen", Group: "understand", Title: "What's on screen",
 		Does:  "Says what's on screen in a clip, line by line: the kind of shot, faces, the setting, things and words shown.",
-		Words: []string{"shot type", "text on screen", "what can be seen"}, Needs: Needs{OS: []string{"mac"}, Setup: "on-screen-helper"}})
+		Words: []string{"shot type", "text on screen", "what can be seen"}, Needs: Needs{Setup: "on-screen-helper"}})
 	Offer("footage.faces", Offering{ID: "faces", Group: "understand", Title: "Faces across clips",
 		Does:  "Finds the faces in your footage and recognizes the people you named, across every clip.",
-		Words: []string{"who appears", "who is on screen", "recognize people"}, Needs: Needs{OS: []string{"mac"}, Setup: "on-screen-helper"}})
-	// The on-screen index runs where vision.CanRun says: a Mac (the OS need
-	// says so elsewhere), with FFmpeg and the helper or what builds it.
-	RegisterReady("on-screen-helper", func(_ context.Context, a *app.App) (bool, string) {
+		Words: []string{"who appears", "who is on screen", "recognize people"}, Needs: Needs{Setup: "on-screen-helper"}})
+	// The on-screen index runs where looker.CanRun says (D405): a Mac with
+	// FFmpeg and the helper or what builds it, or a computer with the open
+	// models added.
+	RegisterReady("on-screen-helper", func(ctx context.Context, a *app.App) (bool, string) {
 		switch {
-		case runtime.GOOS != "darwin" || vision.CanRun(a.Tools):
+		case looker.CanRun(a.Cfg, a.Tools):
 			return true, ""
 		case !a.Tools.Has(tools.FFmpeg):
 			return false, "FFmpeg"
+		case looker.Chosen(a.Cfg) == looker.OpenModels:
+			return false, "the open models that look at the picture (Seeing what's on screen, in Settings → Components)"
 		}
 		return false, "Apple's command line developer tools, to build the helper that looks at the picture"
 	})

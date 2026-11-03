@@ -259,6 +259,13 @@
           "notes": ["On a Mac with macOS 14 or later, through MetaRush's own helper (the same mask as the pictures fix Remove the background); nothing is downloaded.", "It finds people, animals and things in front; a picture without a clear subject says so."]
         },
         {
+          "id": "birefnet", "title": "BiRefNet (general)", "kind": "background-removal", "tasks": ["cut-out"], "stage": "ga", "since": "2024-05-13", "retiredOn": "", "rank": 3,
+          "limits": {"maxInputs": 1},
+          "licence": {"summary": "The picture is yours: the model only works out which part is the subject; nothing new is made. BiRefNet is under the MIT licence, which allows commercial use.", "commercial": "yes", "broadcast": "yes", "source": "https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE", "checked": "2026-11-03"},
+          "docs": "docs/visual-index.md", "checked": "2026-11-03",
+          "notes": ["Runs on this computer through the transcriber's onnxruntime, on macOS and Linux; a person adds it once (about 224 MB: Cutting out a picture's subject, in Settings → Components).", "The general model on its lighter backbone: people, animals and things in front; a picture without a clear subject says so. A few seconds a picture."]
+        },
+        {
           "id": "real-esrgan-x4v3", "title": "Real-ESRGAN general x4v3", "kind": "upscale", "tasks": ["upscale"], "stage": "ga", "since": "2022-04-20", "retiredOn": "", "rank": 3,
           "limits": {"maxInputs": 1, "scales": [2, 4], "maxPixels": 4194304},
           "licence": {"summary": "Real-ESRGAN is under the BSD-3-Clause licence, which allows commercial use; the detail it adds is made up by the model.", "commercial": "yes", "broadcast": "yes", "source": "https://github.com/xinntao/Real-ESRGAN/blob/master/LICENSE", "checked": "2026-10-25"},
@@ -284,6 +291,7 @@
         {"model": "kokoro-v1", "kind": "voice", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "second", "usd": 0},
         {"model": "kitten-nano", "kind": "voice", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "second", "usd": 0},
         {"model": "apple-vision", "kind": "background-removal", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "picture", "usd": 0},
+        {"model": "birefnet", "kind": "background-removal", "effective": "2026-11-03", "checked": "2026-11-03", "source": "docs/visual-index.md", "unit": "picture", "usd": 0},
         {"model": "real-esrgan-x4v3", "kind": "upscale", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "picture", "usd": 0},
         {"model": "parakeet-v2", "kind": "transcription", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "minute", "usd": 0},
         {"model": "whisper-cpp", "kind": "transcription", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "minute", "usd": 0}

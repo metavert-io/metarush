@@ -142,8 +142,8 @@ func Masker(t testing.TB) *[]string {
 	oldReady, oldMask := local.MaskerReady, local.Masker
 	t.Cleanup(func() { local.MaskerReady, local.Masker = oldReady, oldMask })
 	var handed []string
-	local.MaskerReady = func(aiservices.Env) error { return nil }
-	local.Masker = func(_ context.Context, _ aiservices.Env, in, out string) (bool, error) {
+	local.MaskerReady = func(aiservices.Env, string) error { return nil }
+	local.Masker = func(_ context.Context, _ aiservices.Env, _, in, out string) (bool, error) {
 		if !filepath.IsAbs(in) {
 			t.Errorf("the helper was handed a relative path %q", in)
 		}

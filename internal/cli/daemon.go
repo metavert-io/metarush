@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -120,8 +121,16 @@ func serveCmd() *cobra.Command {
 			if exe, err := os.Executable(); err == nil {
 				go improve.RunSchedule(ctx, a, exe, srv.Log)
 			}
-			// Footage imported before an analysis existed gets it now (once per version).
-			go func() {
+			// Footage imported before an analysis existed gets it now (once per
+			// version), and again when a component this computer gains lets it
+			// do a step it couldn't (the on-screen index with the open models
+			// added, D405): steps already done are skipped.
+			var catchingUp sync.Mutex
+			catchUp := func() {
+				if !catchingUp.TryLock() {
+					return
+				}
+				defer catchingUp.Unlock()
 				outs, err := catchup.Run(ctx, a)
 				if err != nil {
 					srv.Log("catching up after the upgrade failed: %v", err)
@@ -129,7 +138,8 @@ func serveCmd() *cobra.Command {
 				if s := catchup.Describe(outs); s != "" {
 					srv.Log("%s", s)
 				}
-			}()
+			}
+			go catchUp()
 			var w *worker.Worker
 			if a.Cfg.Worker.Enabled && !noWorker {
 				w = worker.New(a)
@@ -146,14 +156,22 @@ func serveCmd() *cobra.Command {
 				if w != nil {
 					w.Refresh()
 				}
+				go catchUp()
 			}
 			// …and one added or removed in a terminal, by setup or by Homebrew:
-			// config.yaml or the choices changed.
+			// config.yaml or the choices changed (how this computer looks at
+			// what's on screen is read again with it, D408).
 			go components.Watch(ctx, a, 5*time.Second, func() {
+				if c, err := config.Load(a.Cfg.Home()); err == nil {
+					if want := firstNonEmptyStr(c.ScreenIndex.Backend, config.ScreenAuto); want != a.Cfg.ScreenIndexChoice() {
+						a.Cfg.SetScreenIndexChoice(want)
+					}
+				}
 				if w != nil {
 					w.Refresh()
 				}
 				srv.Broker().Local(api.Event{Type: "settings"})
+				go catchUp()
 			})
 			srv.WorkerFn = func() ([]string, bool, string) {
 				if w == nil {
@@ -873,23 +891,32 @@ func workerCmd() *cobra.Command {
 	addDetails(settings, &settingsDetails)
 	cmd.AddCommand(settings)
 	var threshold int
+	var screenIndex string
 	configure := &cobra.Command{
-		Use:   "configure --heavy-battery-threshold <percent>",
-		Short: "Change the battery level below which big jobs wait for the charger (0 = never wait; people only)",
+		Use:   "configure [--heavy-battery-threshold <percent>] [--screen-index auto|apple-vision|open-models]",
+		Short: "Change the battery level below which big jobs wait for the charger (0 = never wait), or how this computer looks at what's on screen (people only)",
 		RunE: func(c *cobra.Command, _ []string) error {
-			if !c.Flags().Changed("heavy-battery-threshold") {
-				return fail(c, "E_INVALID_INPUT", "Nothing to change.", "Pass --heavy-battery-threshold <percent>.")
+			in := ops.WorkerConfigureIn{}
+			if c.Flags().Changed("heavy-battery-threshold") {
+				in.HeavyBatteryThreshold = &threshold
+			}
+			if c.Flags().Changed("screen-index") {
+				in.ScreenIndex = &screenIndex
+			}
+			if in.HeavyBatteryThreshold == nil && in.ScreenIndex == nil {
+				return fail(c, "E_INVALID_INPUT", "Nothing to change.", "Pass --heavy-battery-threshold <percent> or --screen-index auto|apple-vision|open-models.")
 			}
 			a, err := openApp(c, "cli")
 			if err != nil {
 				return err
 			}
 			defer a.Close()
-			return runOpWith(c, a, "worker.configure", ops.WorkerConfigureIn{HeavyBatteryThreshold: &threshold}, ops.Caller{Human: interactive()},
+			return runOpWith(c, a, "worker.configure", in, ops.Caller{Human: interactive()},
 				func(o any) { printWorkerSettings(o.(*ops.WorkerSettingsOut), false) })
 		},
 	}
 	configure.Flags().IntVar(&threshold, "heavy-battery-threshold", 25, "big jobs wait only on battery (not charging) below this percent")
+	configure.Flags().StringVar(&screenIndex, "screen-index", "auto", "how this computer looks at what's on screen: auto (Apple Vision on a Mac, the open models elsewhere), apple-vision or open-models")
 	cmd.AddCommand(configure)
 	return cmd
 }
@@ -928,11 +955,16 @@ func printWorkerSettings(s *ops.WorkerSettingsOut, details bool) {
 	if s.FakeBattery {
 		fmt.Println("  (simulated battery reading, for testing)")
 	}
+	looks := "Looks at what's on screen with " + s.LooksWith.Engine
+	if !s.LooksWith.Ready {
+		looks += " (" + strings.TrimSuffix(lowerFirst(s.LooksWith.Text), ".") + ")"
+	}
+	fmt.Println("  " + looks + ".")
 	if s.Note != "" {
 		fmt.Println("  " + s.Note)
 	}
 	if details {
-		fmt.Printf("  config: %s (worker.heavyBatteryThreshold = %d)\n", s.ConfigPath, s.HeavyBatteryThreshold)
+		fmt.Printf("  config: %s (worker.heavyBatteryThreshold = %d, screenIndex.backend = %s)\n", s.ConfigPath, s.HeavyBatteryThreshold, s.ScreenIndex)
 		if s.FakeBattery {
 			fmt.Println("  battery reading from METARUSH_FAKE_BATTERY")
 		}

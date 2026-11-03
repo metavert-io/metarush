@@ -57,7 +57,11 @@ type Component struct {
 	Tools []string
 
 	detect func(ctx context.Context, e *Env) Found
-	ways   []Way
+	// here, when set, is what the component is on this computer when that
+	// depends on it (how it looks at what's on screen, D408): what it needs
+	// first and its size, in place of Needs and the sizes above.
+	here func(e *Env) Here
+	ways []Way
 	// remove takes it off this computer; nil when MetaRush can't (Homebrew's,
 	// the system's own, or part of setup).
 	remove func(ctx context.Context, e *Env) error
@@ -82,6 +86,52 @@ type Way struct {
 	// Command behind Details.
 	Says    string
 	Command string
+}
+
+// Here is what a component is on one computer, when that depends on it.
+type Here struct {
+	Needs              []string
+	DownloadMB, DiskMB int
+	Unlocks, Licence   string
+}
+
+// needsOf is what a component needs first on this computer.
+func (e *Env) needsOf(c *Component) []string {
+	if c.here != nil {
+		return c.here(e).Needs
+	}
+	return c.Needs
+}
+
+// sizeOf says how big a component is on this computer.
+func (e *Env) sizeOf(c *Component) string {
+	if c.here != nil {
+		h := c.here(e)
+		cc := *c
+		cc.DownloadMB, cc.DiskMB = h.DownloadMB, h.DiskMB
+		return cc.Size()
+	}
+	return c.Size()
+}
+
+// unlocksOf says what a component adds on this computer.
+func (e *Env) unlocksOf(c *Component) string {
+	if c.here != nil {
+		if u := c.here(e).Unlocks; u != "" {
+			return u
+		}
+	}
+	return c.Unlocks
+}
+
+// licenceOf is what a person must know when it is added here.
+func (e *Env) licenceOf(c *Component) string {
+	if c.here != nil {
+		if l := c.here(e).Licence; l != "" {
+			return l
+		}
+	}
+	return c.Licence
 }
 
 // How a way adds a component.
@@ -165,6 +215,7 @@ var aliases = map[string]string{
 	"poppler": "pdf-pages", "whisper": "other-languages", "whisper.cpp": "other-languages", "parakeet": "transcription",
 	"rclone": "google-drive", "d2": "diagrams", "gh": "github", "bubblewrap": "sandbox", "espeak-ng": "stand-in-voice",
 	"claude": "claude-code", "vision": "screen-index", "metarush-vision": "screen-index", "deepfilternet": "clean-voice",
+	"open-models": "screen-index", "on-screen": "screen-index", "birefnet": "cut-outs", "cut-out": "cut-outs", "subject": "cut-outs",
 }
 
 // Optional lists the optional components for this computer's system.

@@ -80,11 +80,17 @@ jobs:
           scripts/ci-mongo.sh watch
       - name: test (with coverage)
         env:
-          METARUSH_TEST_MONGODB_URI: mongodb://127.0.0.1:27018/?directConnection=true
+          # A new connection's first packet now and then goes unanswered on the runners while MongoDB answers
+          # everything else (scripts/ci-mongo.sh watch): give such an attempt up after 2 s so the driver tries
+          # again at once, instead of a test waiting out its whole deadline.
+          METARUSH_TEST_MONGODB_URI: mongodb://127.0.0.1:27018/?directConnection=true&connectTimeoutMS=2000
           METARUSH_REQUIRE_MONGO: "1"
         # 45 minutes: under load internal/ops has come close to 30 on a Mac (Oct 2026).
         run: |
           go test -timeout 45m -coverpkg=./internal/... -coverprofile=go-unit.raw.cov $(scripts/ci-go-packages.sh ${{ matrix.group }})
+      - name: MongoDB's watch, its last samples
+        if: always()
+        run: tail -n 3 "$RUNNER_TEMP/mongo/host.log" "$RUNNER_TEMP/mongo/watch.log" 2>/dev/null || true
       - name: what became of MongoDB (after a failure)
         if: failure()
         run: scripts/ci-mongo.sh report

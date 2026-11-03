@@ -149,7 +149,11 @@ func (e *Engine) Look(img image.Image, o vision.Options) (vision.Frame, error) {
 		if fa.score < FaceMin {
 			continue
 		}
-		f.Faces = append(f.Faces, toFace(fa, p.w, p.h, faceQuality(p, fa)))
+		sharp := alignedSharpness(p, ordered(fa.pts))
+		if featureless(fa.score, sharp) {
+			continue // a blurred shape, not a face
+		}
+		f.Faces = append(f.Faces, toFace(fa, p.w, p.h, qualityOf(fa, sharp)))
 	}
 	if o.Text != "off" && e.text != nil {
 		ts, err := e.text.read(p)

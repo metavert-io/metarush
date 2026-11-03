@@ -27,6 +27,11 @@ const (
 
 // faceQuality estimates how usable a face is as a picture, 0–1.
 func faceQuality(p *picture, fa faceAt) float64 {
+	return qualityOf(fa, alignedSharpness(p, ordered(fa.pts)))
+}
+
+// qualityOf is faceQuality with the aligned face's sharpness measured.
+func qualityOf(fa faceAt, sharpness float64) float64 {
 	pts := ordered(fa.pts)
 	eyes := math.Hypot(pts[1][0]-pts[0][0], pts[1][1]-pts[0][1])
 	if eyes < 2 {
@@ -38,7 +43,7 @@ func faceQuality(p *picture, fa faceAt) float64 {
 	turn := math.Abs((pts[2][0]-mx)*ux+(pts[2][1]-my)*uy) / eyes
 	pose := clamp01(1 - turn/0.7)
 	size := clamp01(0.35 + 0.65*eyes/qualityEyes)
-	sharp := clamp01(math.Log10(1+alignedSharpness(p, pts)) / math.Log10(1+qualitySharp))
+	sharp := clamp01(math.Log10(1+sharpness) / math.Log10(1+qualitySharp))
 	return clamp01(qualityTop * math.Sqrt(fa.score) * sharp * pose * size)
 }
 

@@ -165,6 +165,24 @@ func TestFaceQuality(t *testing.T) {
 	}
 }
 
+// What isn't a face (D407): a shape the finder is unsure of with no detail at
+// all, as the call's blurred background measured (0.50–0.66, sharpness under
+// 2); a small real face (0.54, 45) and a soft one the finder is sure of
+// (0.82, 9.4), as measured in the fixtures and the faceset, are faces.
+func TestFeatureless(t *testing.T) {
+	for _, c := range []struct {
+		score, sharpness float64
+		not              bool
+	}{
+		{0.62, 1.7, true}, {0.51, 1.3, true}, {0.66, 4.9, true},
+		{0.54, 45, false}, {0.82, 9.4, false}, {0.93, 1.0, false}, {0.69, 5.0, false},
+	} {
+		if got := featureless(c.score, c.sharpness); got != c.not {
+			t.Errorf("score %.2f, sharpness %.1f: featureless %v", c.score, c.sharpness, got)
+		}
+	}
+}
+
 // CTC, greedily: the likeliest character at each step, repeats joined,
 // blanks dropped (a blank between two of the same keeps both), scored by
 // the characters kept.

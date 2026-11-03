@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -222,5 +223,48 @@ func TestCutOutThroughTheRuntime(t *testing.T) {
 	}
 	if _, err := m.CutOut("relative.png", out); err == nil {
 		t.Fatal("a relative path")
+	}
+}
+
+// A shape the face finder is unsure of with no detail in it isn't a face
+// (D407): a smooth grey glow, like a call's blurred background, is left out;
+// the same glow with detail in it, or one the finder is sure of, is a face.
+func TestAFeaturelessShapeIsNotAFace(t *testing.T) {
+	lib, p := standIns(t)
+	e, err := OpenEngine(lib, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	glow := func(top float64, detail uint8) *image.Gray {
+		img := image.NewGray(image.Rect(0, 0, 160, 160))
+		for y := 0; y < 160; y++ {
+			for x := 0; x < 160; x++ {
+				v := top - 0.5*math.Hypot(float64(x)-80, float64(y)-80)
+				if detail > 0 && (x+y)%2 == 0 {
+					v -= float64(detail)
+				} else if detail > 0 {
+					v += float64(detail)
+				}
+				img.SetGray(x, y, color.Gray{Y: uint8(math.Max(0, math.Min(255, v)))})
+			}
+		}
+		return img
+	}
+	for _, c := range []struct {
+		name string
+		img  *image.Gray
+		face bool
+	}{
+		{"a smooth grey glow the finder is 0.67 sure of", glow(170, 0), false},
+		{"the same glow with detail in it", glow(170, 30), true},
+		{"a smooth glow the finder is sure of", glow(250, 0), true},
+	} {
+		f, err := e.Look(c.img, vision.Options{Text: "off"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (len(f.Faces) > 0) != c.face {
+			t.Errorf("%s: %d faces", c.name, len(f.Faces))
+		}
 	}
 }

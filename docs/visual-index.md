@@ -513,7 +513,8 @@ scripts: a sign in those is missed. Apple Vision reads more.
 from faces (the index's own rule); a frame with no face is "no people" rather than a body's medium shot.
 
 **Made to mean the same as Apple's** (D407), so no threshold changed: faces are looked for on the frame and on a copy
-at half size (big faces), kept from 0.6; the box is made square like Apple's (side 0.89 × YuNet's height, its middle
+at half size (big faces), kept from 0.6, except a shape found at under 0.7 whose aligned face has no detail at all (a
+call's blurred, enlarged background showed such shapes, which Apple Vision never takes for faces); the box is made square like Apple's (side 0.89 × YuNet's height, its middle
 0.08 × the height lower: measured, Apple's side ÷ this side has a median of 1.000); the five points come in the
 helper's order. How usable a face is as a picture (capture quality, which decides fingerprints from 0.15) is a
 documented rule: `0.72 × √confidence × sharpness × facing the camera × size`, sharpness being the Laplacian variance

@@ -37,6 +37,21 @@ const (
 // FaceMin is the lowest YuNet score at which a face counts.
 const FaceMin = 0.6
 
+// A shape YuNet is unsure of (under blobScore) whose aligned face has no
+// detail at all (sharpness under blobSharp) isn't a face: a call's blurred,
+// enlarged copy of the picture behind it shows round shapes YuNet scores
+// 0.50–0.66 at a sharpness under 2, which Apple Vision never takes for faces.
+// Of the 806 shapes YuNet found in the fixtures' frames and the faceset, each
+// was under 2 (those shapes, and specks a few pixels wide) or 9 and over
+// (D407).
+const (
+	blobScore = 0.7
+	blobSharp = 5.0
+)
+
+// featureless says a shape found as a face is one of those.
+func featureless(score, sharpness float64) bool { return score < blobScore && sharpness < blobSharp }
+
 // faceFinder runs YuNet.
 type faceFinder struct {
 	m *onnx.Model

@@ -8,13 +8,16 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/metavert-io/metarush/internal/app"
+	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/evidence"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/testutil/fakescreen"
 	"github.com/metavert-io/metarush/internal/testutil/testapp"
+	"github.com/metavert-io/metarush/internal/tools"
 )
 
 func jobsOf(t *testing.T, ctx context.Context, a interface {
@@ -105,5 +108,40 @@ func TestCatchUpLooksAtOlderClipsOnAMac(t *testing.T) {
 	}
 	if outs, _ := RunSteps(ctx, a, steps); outs[0].Ran {
 		t.Fatal("ran twice")
+	}
+}
+
+// A computer that gains the open models catches older clips up (D405): with
+// none it waits like any computer that can't look (nothing recorded), and
+// once they are added the same step queues the clips not looked at yet.
+func TestCatchUpOnAComputerThatGainsTheOpenModels(t *testing.T) {
+	a := testapp.New(t)
+	if !a.Tools.Has(tools.FFmpeg) {
+		t.Skip("taking frames needs ffmpeg")
+	}
+	ctx := context.Background()
+	p, err := ops.CallTyped[ops.ProjectOut](ctx, a, "project.create", ops.ProjectCreateIn{Name: "Old clips"}, ops.Caller{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := clip(t, a, p.Project.ID, "old.mov", nil, 2)
+	a.Cfg.SetScreenIndexChoice(config.ScreenOpenModels)
+	a.Cfg.Tools.ModelsDir = t.TempDir()
+	a.Tools.Rescan(a.Cfg.Tools)
+	steps := []Step{{Name: "visual-index", Version: 2, Run: visualIndex}}
+	outs, err := RunSteps(ctx, a, steps)
+	if err != nil || outs[0].Ran || !outs[0].NotHere {
+		t.Fatalf("without the open models: %+v %v", outs, err)
+	}
+	staged := fakescreen.Stage(t)
+	staged.Apply(&a.Cfg.Tools)
+	a.Tools.Rescan(a.Cfg.Tools)
+	outs, err = RunSteps(ctx, a, steps)
+	if err != nil || !outs[0].Ran || outs[0].Summary != "looking at what's on screen in 1 clip" {
+		t.Fatalf("with them: %+v %v", outs, err)
+	}
+	js := jobsOf(t, ctx, a, a.DB, jobs.TypeVisual)
+	if len(js) != 1 || js[0].AssetID != old {
+		t.Fatalf("one visual job for the clip not looked at: %+v", js)
 	}
 }

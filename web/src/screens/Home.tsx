@@ -437,7 +437,8 @@ function InboxSection({ assets, loading, error, onRetry, updatedAt, fetching }: 
         meta={assets.length ? `${plural(assets.length, 'clip')} not in a project yet` : undefined}
         action={
           <>
-            <Freshness at={updatedAt || undefined} fetching={fetching} onRefresh={onRetry} />
+            {/* On a phone the row keeps to the screen with New project from inbox: the refresh stays on wider screens. */}
+            <Freshness at={updatedAt || undefined} fetching={fetching} onRefresh={onRetry} className="max-sm:hidden" />
             <Link to={libraryLink()} className="inline-flex h-7 items-center gap-1.5 rounded-[8px] px-2 text-[12.5px] text-accent-text hover:bg-accent-soft">
               <Books size={13} /> Library
             </Link>

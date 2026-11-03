@@ -1506,10 +1506,10 @@ func (m *Manager) describeRecipeFromVideo(ctx context.Context, call *cliCall, a 
 		in.From, view.VideoFrom, view.Title = addr, addr, "the video at "+host
 	}
 	// A clip already here (or the clip a link already became): read its card, nothing changes.
-	ref := from
+	ref, isRef := from, false
 	if !link {
 		if card, err := recipeOp[videoCardSeen](ctx, m, "footage.whatItDoes", map[string]string{"assetId": ref}); err == nil {
-			view.Video, view.VideoFrom, view.Title = card.Clip.Title, card.Clip.Link, card.Clip.Title
+			view.Video, view.VideoFrom, view.Title, isRef = card.Clip.Title, card.Clip.Link, card.Clip.Title, card.Clip.Reference
 			a.Title = clip("Start a recipe from "+quoted(clip(card.Clip.Title, 80)), 160)
 			if card.Card.Ready {
 				view.Does = card.Card.Lines
@@ -1523,6 +1523,8 @@ func (m *Manager) describeRecipeFromVideo(ctx context.Context, call *cliCall, a 
 	if link {
 		a.Title = "Start a recipe from the video at " + host
 		a.Details = append(a.Details, "It comes in as a reference: someone else's video, kept to learn from, that no cut plays.")
+	} else if isRef {
+		a.Details = append(a.Details, "It is a reference: someone else's video, kept to learn from, that no cut plays.")
 	} else if in.Reference {
 		a.Details = append(a.Details, "It becomes a reference: someone else's video, kept to learn from, that no cut plays.")
 	}

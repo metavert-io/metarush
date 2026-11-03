@@ -62,6 +62,52 @@ func shortVideo(looked bool) Input {
 
 func near(a, b float64) bool { return math.Abs(a-b) <= 0.3 }
 
+// A point whose first word wasn't heard ("Third," lost by the recognizer, as
+// Parakeet loses it on the fixture) still gets its part: the intro announced
+// three fixes, so the body has three parts, each a point.
+func TestCardKeepsAnAnnouncedListWhenAPointIsNotHeard(t *testing.T) {
+	in := shortVideo(true)
+	var ws []Word
+	for _, w := range in.Words {
+		if w.Text != "Third," {
+			ws = append(ws, w)
+		}
+	}
+	in.Words = ws
+	c := Build(in)
+	var parts []WhatSection
+	for _, s := range c.Sections {
+		if s.Kind == KindBody {
+			parts = append(parts, s)
+		}
+	}
+	if len(parts) != 3 || !near(parts[0].From, 6.5) || !near(parts[1].From, 10.5) || !near(parts[2].From, 14.5) || !near(parts[2].To, 18.5) {
+		t.Fatalf("three parts at the cuts: %+v", parts)
+	}
+	if !strings.HasPrefix(parts[2].Does, "the third point") {
+		t.Errorf("the unheard point is still a point: %q", parts[2].Does)
+	}
+	// Without the announcement, the parts follow the length and the points heard.
+	for i, w := range in.Words {
+		if w.Text == "three" {
+			in.Words[i].Text = "some"
+		}
+	}
+	if n := countKind(Build(in).Sections, KindBody); n != 2 {
+		t.Errorf("two points heard, nothing announced: %d parts", n)
+	}
+}
+
+func countKind(ss []WhatSection, kind string) int {
+	n := 0
+	for _, s := range ss {
+		if s.Kind == kind {
+			n++
+		}
+	}
+	return n
+}
+
 func TestCardFindsTheSectionsOfAShort(t *testing.T) {
 	c := Build(shortVideo(true))
 	want := []struct {

@@ -831,9 +831,15 @@ func (b *builder) sections() []WhatSection {
 		if d > 120 {
 			n = int(math.Round(l / 40))
 		}
-		// A list ("First, … Second, …") has a part per point.
+		// A list ("First, … Second, …") has a part per point, and so has a
+		// list the hook or intro announces ("three fixes"): a point whose
+		// first word wasn't heard still gets its part.
 		if k := listCount(b.sentences, from, ctaFrom); k >= 2 {
 			n = max(n, k)
+		}
+		announced := announcedCount(b.sentences, from)
+		if announced >= 2 {
+			n = max(n, announced)
 		}
 		n = max(1, min(n, 6))
 		minLen := math.Max(2.5, l/float64(2*n))
@@ -878,7 +884,7 @@ func (b *builder) sections() []WhatSection {
 				why = "where the end card begins"
 			}
 			s := b.section(KindBody, name, title, round1(edges[i].at), round1(edges[i+1].at), why)
-			if count > 1 && listWordIn(b.sentences, s.From, s.To) {
+			if count > 1 && (listWordIn(b.sentences, s.From, s.To) || announced == count) {
 				s.Does = ordinal(i+1) + " point: " + s.Does
 			}
 			out = append(out, s)
@@ -902,6 +908,42 @@ func listCount(ss []sentence, from, to float64) int {
 		}
 	}
 	return n
+}
+
+// countWords are the numbers a video announces its list with.
+var countWords = map[string]int{"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6}
+
+// listNouns are what a list is of ("three fixes", "5 ways").
+var listNouns = map[string]bool{"tips": true, "fixes": true, "ways": true, "steps": true, "things": true, "reasons": true, "mistakes": true,
+	"secrets": true, "rules": true, "hacks": true, "ideas": true, "lessons": true, "tricks": true, "habits": true, "signs": true,
+	"questions": true, "examples": true, "tools": true, "apps": true, "books": true, "points": true, "myths": true, "facts": true,
+	"keys": true, "parts": true, "stages": true, "levels": true, "places": true, "foods": true, "moves": true, "exercises": true}
+
+// announcedCount is the length of a list said before the body starts
+// ("Here are three fixes that work."): a number with what it counts within
+// the next three words; 0 when none is said.
+func announcedCount(ss []sentence, before float64) int {
+	for _, s := range ss {
+		if s.from >= before-0.3 {
+			break
+		}
+		var ts []string
+		for _, w := range s.words {
+			ts = append(ts, tokens(w.Text)...)
+		}
+		for i, t := range ts {
+			n, ok := countWords[t]
+			if !ok {
+				continue
+			}
+			for j := i + 1; j < len(ts) && j <= i+3; j++ {
+				if listNouns[ts[j]] {
+					return n
+				}
+			}
+		}
+	}
+	return 0
 }
 
 func listWordIn(ss []sentence, from, to float64) bool {

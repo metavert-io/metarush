@@ -567,10 +567,11 @@ MetaRush can start a recipe: `recipe.fromVideo` (`metarush recipe from-video <li
    - its length and shape;
    - its **sections** with times: the hook (the first sentence, else the first pause or cut, within a fifth of the
      video), an intro (to the strongest pause or cut a few seconds later), the body's parts (at its strongest pauses,
-     cuts, new words on screen and the points of a list: "First, … Second, …"), a call to action (the last stretch
-     asking people to follow, subscribe, visit…), an end card (after the last words, when a cut, words on screen or
-     black say so); each says what happens in it in MetaRush's own words ("a question to camera, with words on
-     screen", "one person speaks to camera", "a voice over pictures");
+     cuts and new words on screen; a part per point of a list — "First, … Second, …" — or per point the hook or
+     intro announces, "three fixes", so a point whose first word wasn't heard keeps its part), a call to action (the
+     last stretch asking people to follow, subscribe, visit…), an end card (after the last words, when a cut, words
+     on screen or black say so); each says what happens in it in MetaRush's own words ("a question to camera, with
+     words on screen", "one person speaks to camera", "a voice over pictures");
    - pacing: shots and their lengths, words a minute, how much of it someone speaks, pauses;
    - who speaks and how much;
    - captions burned in: words on screen that are what is being said then — how much of the speech they cover, how

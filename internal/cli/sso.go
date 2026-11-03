@@ -283,6 +283,11 @@ func ssoTestCmd() *cobra.Command {
 // runSSOTest starts a test sign-in, opens it in this computer's browser and
 // waits (10 minutes at most) for how it went.
 func runSSOTest(c *cobra.Command, a *app.App, noOpen bool) (*sso.TestResult, error) {
+	if !healthy(a.Cfg) {
+		// The provider sends the browser back to the dashboard, which must be running.
+		return nil, failErr(c, apperr.New(apperr.NotConfigured, "MetaRush's dashboard isn't running on this computer, and the test sign-in comes back to it.").
+			WithHint("Start MetaRush, then test again.").WithCommand("metarush dashboard"))
+	}
 	started := time.Now()
 	out, err := ops.CallTyped[auth.SSOTestOut](c.Context(), a, "auth.sso.test", ops.EmptyIn{}, ops.Caller{Human: true})
 	if err != nil {

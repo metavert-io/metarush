@@ -243,6 +243,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("/export/timeline", s.exportTimeline).Methods("POST")
 	api.HandleFunc("/export/reveal", s.exportReveal).Methods("POST")
 	api.HandleFunc("/export/download", s.exportDownload).Methods("GET")
+	api.HandleFunc("/deliver", s.deliverHere).Methods("POST")        // D422: the dashboard's Deliver, into a folder MetaRush chooses
 	api.HandleFunc("/recipes/export", s.recipeExport).Methods("GET") // D219: recipe files between workspaces
 	api.HandleFunc("/recipes/import", s.recipeImport).Methods("POST")
 	api.HandleFunc("/abilities/export", s.abilityExport).Methods("GET") // D292: ability files between workspaces

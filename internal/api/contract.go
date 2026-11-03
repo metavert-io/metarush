@@ -60,6 +60,8 @@ func ContractTypes() []ContractType {
 		{"sendToEditorIn", SendToEditorIn{}},
 		{"sendToEditorOut", SendToEditorOut{}},
 		{"exportRevealIn", ExportRevealIn{}},
+		{"deliverHereIn", DeliverHereIn{}},
+		{"deliverHereOut", DeliverHereOut{}},
 		{"folderChooseIn", FolderChooseIn{}},
 		{"folderChooseOut", FolderChooseOut{}},
 		{"storageMovePlanIn", StorageMovePlanIn{}},

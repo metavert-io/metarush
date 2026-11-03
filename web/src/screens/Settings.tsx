@@ -32,6 +32,7 @@ import { WorkspaceExport } from './settings/WorkspaceExport';
 import { DatabaseMove } from './settings/DatabaseMove';
 import { Handover } from './settings/Handover';
 import { ShipGateSettings } from './settings/ShipGateSettings';
+import { ContentCredentialsSettings } from './settings/ContentCredentials';
 import { ReviewLinkSettings } from './settings/ReviewLinkSettings';
 import { LogPage, LogSettingsCard } from './Log';
 import { RemoteAccessSettings } from './settings/RemoteAccess';
@@ -294,6 +295,20 @@ function SectionBody({ id }: { id: SettingsSectionId }) {
         <OwnerOnly note>
           <StorageSection />
         </OwnerOnly>
+      );
+    case 'delivery':
+      // Everyone reads it; owners choose and set up the certificate (D418, D424).
+      return (
+        <div className="space-y-6">
+          <ContentCredentialsSettings />
+          <p className="text-[12.5px] text-muted">
+            Whether versions wait for the quality check and sign-offs before they go out is in{' '}
+            <Link to="/settings/general#ship-gate" className="text-accent-text hover:underline">
+              Settings → General
+            </Link>
+            .
+          </p>
+        </div>
       );
     case 'components':
       // Everyone sees what is here; owners add and remove (D327).

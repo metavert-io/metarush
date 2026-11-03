@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle, HandPalm, Seal, ShieldWarning, Wrench } from '@phosphor-icons/react';
+import { CheckCircle, HandPalm, PaperPlaneTilt, Seal, ShieldWarning, Wrench } from '@phosphor-icons/react';
 import type { ops } from '@metarush/schema';
 import { call, toApiError } from '../api/client';
 import { useOp } from '../api/queries';
 import { askInProject } from '../layout/assistant/store';
+import { useDeliver } from './DeliverDialog';
 import { absolute, stamp } from '../lib/format';
 import { useDialog } from '../ui/Dialog';
 import { Badge, Button, ErrorPanel, Skeleton, Theirs, cx } from '../ui/primitives';
@@ -35,6 +36,7 @@ export function ShipGate({ projectId, revisionId, className }: { projectId: stri
   const dialog = useDialog();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
+  const deliver = useDeliver();
   const refresh = () => {
     for (const k of QUERIES) void qc.invalidateQueries({ queryKey: [k] });
   };
@@ -129,6 +131,11 @@ export function ShipGate({ projectId, revisionId, className }: { projectId: stri
           {held && overridable.length > 0 ? (
             <Button size="sm" variant="secondary" icon={<ShieldWarning size={13} />} onClick={() => void anyway()} disabled={busy !== null} data-ship-anyway>
               Deliver anyway…
+            </Button>
+          ) : null}
+          {g.ready && g.renders.length > 0 ? (
+            <Button size="sm" variant="primary" icon={<PaperPlaneTilt size={13} />} onClick={() => void deliver(revisionId, `version ${g.number}`)} disabled={busy !== null} data-ship-deliver>
+              Deliver…
             </Button>
           ) : null}
         </div>

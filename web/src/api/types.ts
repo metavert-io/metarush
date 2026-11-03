@@ -303,6 +303,9 @@ export type WatchRevealOut = ops.WatchRevealOut;
 /* "Send to editing app": /api/export/timeline runs export.timeline into a folder MetaRush chooses (D92). */
 export type SendToEditorIn = api.SendToEditorIn;
 export type SendToEditorOut = api.SendToEditorOut;
+/* The dashboard's Deliver: /api/deliver runs deliver.export into a folder MetaRush chooses (D422). */
+export type DeliverHereIn = api.DeliverHereIn;
+export type DeliverHereOut = api.DeliverHereOut;
 export type ExportTimelineOut = ops.ExportTimelineOut;
 /* Moving the media from Settings → Storage (D112): /api/storage/{choose,plan,move}, then storage.status. */
 export type StorageTarget = ops.StorageTarget;

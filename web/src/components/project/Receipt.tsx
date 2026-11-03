@@ -223,6 +223,28 @@ export function ReceiptTab({ projectId, revisionId }: { projectId: string; revis
         </section>
       ) : null}
 
+      {(d.signed ?? []).length ? (
+        <section aria-label="Content Credentials" data-receipt-signed>
+          <h3 className="mb-1 text-[14px] font-semibold">Content Credentials</h3>
+          <p className="mb-2 text-[12px] text-subtle">Delivered videos that carry a signed record of how they were made, each read back and checked when it was delivered.</p>
+          <ul className="divide-y divide-line rounded-[12px] hairline">
+            {(d.signed ?? []).map((x, i) => (
+              <li key={i} className="px-3 py-2 text-[13px]" data-receipt-signed-file>
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-medium">Version {x.number}</span>
+                  <span className="text-muted">{x.delivery.test ? 'signed with a test certificate (verifiers show it as unknown)' : <>signed by <Theirs>“{x.delivery.signer}”</Theirs></>}</span>
+                  {x.delivery.verified ? <Badge tone="ok">Checked</Badge> : null}
+                  <span className="text-muted" title={absolute(x.delivery.at)}>
+                    {stamp(x.delivery.at)}
+                  </span>
+                </div>
+                <div className="mt-0.5 break-all text-[12px] text-subtle">{x.delivery.file}</div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {d.logged.length ? (
         <section aria-label="The activity log's count">
           <h3 className="mb-1 text-[14px] font-semibold">Requests the activity log recorded</h3>

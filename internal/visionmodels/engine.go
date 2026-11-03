@@ -145,6 +145,8 @@ func (e *Engine) Look(img image.Image, o vision.Options) (vision.Frame, error) {
 	if err != nil {
 		return f, err
 	}
+	var pic [4]float64
+	fill, looked := false, false
 	for _, fa := range found {
 		if fa.score < FaceMin {
 			continue
@@ -152,6 +154,15 @@ func (e *Engine) Look(img image.Image, o vision.Options) (vision.Frame, error) {
 		sharp := alignedSharpness(p, ordered(fa.pts))
 		if featureless(fa.score, sharp) {
 			continue // a blurred shape, not a face
+		}
+		if !looked {
+			// A picture laid over a blurred copy of itself (D445): the
+			// copy's faces aren't the frame's.
+			pic, fill = sharpPicture(p)
+			looked = true
+		}
+		if fill && outsidePicture(fa.box, pic) {
+			continue
 		}
 		f.Faces = append(f.Faces, toFace(fa, p.w, p.h, qualityOf(fa, sharp)))
 	}

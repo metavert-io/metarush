@@ -40,6 +40,38 @@ import (
 	"github.com/metavert-io/metarush/internal/visual"
 )
 
+// fill is a way editors fit a landscape shot to another shape: the shot in
+// the middle at the frame's width, over a copy of it enlarged to cover the
+// frame and blurred (sigma in the frame's pixels).
+type fill struct {
+	name  string
+	w, h  int
+	sigma float64
+}
+
+var fills = []fill{{"9:16", 540, 960, 20}, {"1:1", 720, 720, 16}, {"4:5", 576, 720, 16}}
+
+// inCopy says a face (0–1 of the frame) has its middle outside the shot, in
+// the blurred copy (the shot is 16:9 at the frame's width).
+func (f fill) inCopy(b vision.Box) bool {
+	ph := float64(f.w) * 9 / 16 / float64(f.h)
+	cy := b[1] + b[3]/2
+	return cy < (1-ph)/2 || cy > (1+ph)/2
+}
+
+// fillVideo makes the fill of a video.
+func fillVideo(t *testing.T, ts *tools.Set, src string, f fill) string {
+	t.Helper()
+	out := filepath.Join(t.TempDir(), "fill.mp4")
+	graph := fmt.Sprintf("[0:v]split[a][b];[a]scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,gblur=sigma=%g[bg];[b]scale=%d:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2",
+		f.w, f.h, f.w, f.h, f.sigma, f.w)
+	if _, err := ts.Run(context.Background(), tools.Spec{Tool: tools.FFmpeg, Args: []string{"-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", src,
+		"-filter_complex", graph, "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", out}}); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
 func fixture(t *testing.T, rel string) string {
 	t.Helper()
 	p := filepath.Join("..", "..", "tests", "fixtures", rel)
@@ -294,6 +326,57 @@ func TestCompareBackends(t *testing.T) {
 			pearson(all.qApple, all.qOpen), mean(all.qApple), mean(all.qOpen), 100*below(all.qApple, 0.15), 100*below(all.qOpen, 0.15))
 		t.Logf("TIME: Apple Vision %.0f ms a frame, the open models %.0f ms a frame (%d frames; this computer's load: see uptime)",
 			float64(appleTime.Milliseconds())/float64(nFrames), float64(openTime.Milliseconds())/float64(nFrames), nFrames)
+
+		// Fills (D445): visual-b's talking head and the garden call made
+		// vertical, square and 4:5 over a blurred, enlarged copy of themselves,
+		// as editors do. Faces in the copy are counted apart from the picture's.
+		for _, k := range []struct {
+			video string
+			dur   float64
+			cuts  []float64
+			f     fill
+		}{
+			{"visual-b", 24, []float64{8, 14, 20}, fills[0]}, {"visual-b", 24, []float64{8, 14, 20}, fills[1]}, {"visual-b", 24, []float64{8, 14, 20}, fills[2]},
+			{"garden-call", 71.5, nil, fills[0]}, {"garden-call", 71.5, nil, fills[1]}, {"garden-call", 71.5, nil, fills[2]},
+		} {
+			f := k.f
+			src := fillVideo(t, l.ts, videos[k.video], f)
+			dir := framesOf(t, l.ts, src, 1)
+			a, _ := lookAll(t, l.apple, dir, vision.Options{Text: "off", Landmarks: true})
+			o, _ := lookAll(t, l.openLk, dir, vision.Options{Text: "off", Landmarks: true})
+			var s faceStats
+			inCopy := map[string]int{}
+			for name, af := range a {
+				s.compare(af, o[name])
+				for way, fr := range map[string]vision.Frame{"apple": af, "open": o[name]} {
+					for _, fc := range fr.Faces {
+						if fc.Conf >= 0.5 && f.inCopy(fc.Box) {
+							inCopy[way]++
+						}
+					}
+				}
+			}
+			t.Logf("FILL %s %s: %d frames; faces Apple %d, open %d, both %d (Apple only %d, open only %d); in the blurred copy: Apple %d, open %d",
+				k.video, f.name, s.frames, s.appleFaces, s.openFaces, s.matched, s.appleOnly, s.openOnly, inCopy["apple"], inCopy["open"])
+			// End to end: what the index says, and where following movement looks.
+			for _, way := range []string{"apple", "open"} {
+				lk := map[string]looker.Looker{"apple": l.apple, "open": l.openLk}[way]
+				ix, err := visual.Run(context.Background(), l.ts, src, k.dur, nil, k.cuts, "original", t.TempDir(), nil, visual.RunOptions{Looker: lk})
+				if err != nil {
+					t.Fatal(err)
+				}
+				outside, all := 0, 0
+				for _, fs := range ix.Faces {
+					for _, b := range fs.Boxes {
+						all++
+						if f.inCopy(b) {
+							outside++
+						}
+					}
+				}
+				t.Logf("FILL %s %s indexed with %s: %s; faces in the blurred copy %d of %d", k.video, f.name, way, ix.Summary, outside, all)
+			}
+		}
 	}
 
 	// The index each way, end to end: the words on screen, shot types,

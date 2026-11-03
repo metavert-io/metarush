@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -430,5 +431,147 @@ func TestFound(t *testing.T) {
 	}
 	if !Found(m) {
 		t.Fatal("30 sure pixels in 10,000 are a subject (more than 0.2%)")
+	}
+}
+
+// scene is a made-up picture with detail everywhere: soft colour fields with
+// hard-edged blocks and stripes (as a frame of footage has).
+func scene(w, h int, seed int64) *picture {
+	p := &picture{w: w, h: h, px: make([]float32, 3*w*h)}
+	r := rand.New(rand.NewSource(seed))
+	type block struct {
+		x, y, w, h int
+		c          [3]float32
+	}
+	var blocks []block
+	for i := 0; i < 40; i++ {
+		blocks = append(blocks, block{r.Intn(w), r.Intn(h), 4 + r.Intn(w/5), 4 + r.Intn(h/5), [3]float32{float32(r.Intn(256)), float32(r.Intn(256)), float32(r.Intn(256))}})
+	}
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			i := 3 * (y*w + x)
+			v := float32(128 + 60*math.Sin(float64(x)/17) + 40*math.Cos(float64(y)/11))
+			p.px[i], p.px[i+1], p.px[i+2] = v, 255-v, v/2+60
+			if (x/3+y/5)%7 == 0 {
+				p.px[i] = 250
+			}
+			for _, b := range blocks {
+				if x >= b.x && x < b.x+b.w && y >= b.y && y < b.y+b.h {
+					p.px[i], p.px[i+1], p.px[i+2] = b.c[0], b.c[1], b.c[2]
+				}
+			}
+		}
+	}
+	return p
+}
+
+// blurred is p blurred with three passes of a box of radius r (about a
+// Gaussian of sigma r).
+func blurred(p *picture, r int) *picture {
+	out := &picture{w: p.w, h: p.h, px: append([]float32{}, p.px...)}
+	for pass := 0; pass < 3; pass++ {
+		for _, across := range []bool{true, false} {
+			src := append([]float32{}, out.px...)
+			for y := 0; y < p.h; y++ {
+				for x := 0; x < p.w; x++ {
+					for c := 0; c < 3; c++ {
+						s := float32(0)
+						for k := -r; k <= r; k++ {
+							xx, yy := x, y
+							if across {
+								xx = min(max(x+k, 0), p.w-1)
+							} else {
+								yy = min(max(y+k, 0), p.h-1)
+							}
+							s += src[3*(yy*p.w+xx)+c]
+						}
+						out.px[3*(y*p.w+x)+c] = s / float32(2*r+1)
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+// fillOf lays pic in the middle of a w×h frame over a copy of it enlarged to
+// cover the frame and blurred (as editors make a landscape shot vertical);
+// plain lays it over a flat colour instead. It returns where the picture is.
+func fillOf(pic *picture, w, h, blur int, plain bool) (*picture, [4]float64) {
+	k := math.Min(float64(w)/float64(pic.w), float64(h)/float64(pic.h))
+	pw, ph := int(math.Round(float64(pic.w)*k)), int(math.Round(float64(pic.h)*k))
+	fg := pic.resized(pw, ph)
+	s := math.Max(float64(w)/float64(pic.w), float64(h)/float64(pic.h))
+	cw, ch := int(math.Round(float64(pic.w)*s)), int(math.Round(float64(pic.h)*s))
+	cover := pic.resized(cw, ch)
+	out := &picture{w: w, h: h, px: make([]float32, 3*w*h)}
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			sx, sy := x+(cw-w)/2, y+(ch-h)/2
+			copy(out.px[3*(y*w+x):3*(y*w+x)+3], cover.px[3*(sy*cw+sx):3*(sy*cw+sx)+3])
+		}
+	}
+	if plain {
+		for i := range out.px {
+			out.px[i] = 12
+		}
+	} else {
+		out = blurred(out, blur)
+	}
+	x0, y0 := (w-pw)/2, (h-ph)/2
+	for y := 0; y < ph; y++ {
+		copy(out.px[3*((y0+y)*w+x0):3*((y0+y)*w+x0+pw)], fg.px[3*y*pw:3*(y+1)*pw])
+	}
+	return out, [4]float64{float64(x0), float64(y0), float64(pw), float64(ph)}
+}
+
+// A picture laid over a blurred, enlarged copy of itself is found, with its
+// place, whichever way it lies (D445); letterbox bars, a frame with detail
+// everywhere and a subject before a plain backdrop aren't fills.
+func TestSharpPicture(t *testing.T) {
+	land := scene(320, 180, 1)
+	port := scene(180, 320, 2)
+	for _, c := range []struct {
+		name string
+		pic  *picture
+		w, h int
+		blur int
+	}{
+		{"9:16 from landscape", land, 270, 480, 6}, {"square from landscape", land, 360, 360, 8},
+		{"4:5 from landscape", land, 288, 360, 5}, {"landscape from portrait", port, 480, 270, 6},
+	} {
+		frame, want := fillOf(c.pic, c.w, c.h, c.blur, false)
+		got, ok := sharpPicture(frame)
+		if !ok {
+			t.Errorf("%s: not found", c.name)
+			continue
+		}
+		for i := range got {
+			if math.Abs(got[i]-want[i]) > 0.04*float64(max(c.w, c.h)) {
+				t.Errorf("%s: picture %v, want %v", c.name, got, want)
+				break
+			}
+		}
+		// A face in the copy is outside the picture; one in the picture isn't.
+		inPicture := [4]float64{want[0] + want[2]/3, want[1] + want[3]/3, want[2] / 6, want[3] / 6}
+		inCopy := [4]float64{float64(c.w) / 3, 2, float64(c.w) / 4, float64(c.h) / 8} // at the top: the copy, in a tall frame
+		if c.w > c.h {
+			inCopy = [4]float64{2, float64(c.h) / 3, float64(c.w) / 8, float64(c.h) / 4} // at the left, in a wide one
+		}
+		if outsidePicture(inPicture, got) || !outsidePicture(inCopy, got) {
+			t.Errorf("%s: faces placed wrongly against %v", c.name, got)
+		}
+	}
+	letterbox, _ := fillOf(land, 270, 480, 0, true)
+	busy := scene(270, 480, 3)
+	backdrop := blurred(scene(270, 480, 4), 30)
+	subject := scene(120, 220, 5)
+	for y := 0; y < subject.h; y++ {
+		copy(backdrop.px[3*((130+y)*270+75):3*((130+y)*270+75+subject.w)], subject.px[3*y*subject.w:3*(y+1)*subject.w])
+	}
+	for name, p := range map[string]*picture{"letterbox": letterbox, "detail everywhere": busy, "a subject before a backdrop": backdrop} {
+		if box, ok := sharpPicture(p); ok {
+			t.Errorf("%s taken for a fill: %v", name, box)
+		}
 	}
 }

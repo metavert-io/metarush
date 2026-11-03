@@ -342,6 +342,17 @@ export function WelcomePage() {
           ? 'You were invited to make videos together. Choose the name others see and a password; you sign in with your email and that password from now on.'
           : 'Choose a new password for your account. Once it is saved you are signed in here, and signed out everywhere else.'}
       </p>
+      {invite && info.sso && !insecure ? (
+        // Passwords kept beside the organization's account (D431): either way joins.
+        <div className="mt-6 space-y-3" data-welcome-sso>
+          <SSOSignInButton sso={info.sso} invite={token} label={`Join with ${info.sso.title}`} onError={setError} />
+          <div className="flex items-center gap-3 pt-3 text-[12px] text-subtle" aria-hidden>
+            <span className="h-px flex-1 bg-line" />
+            or choose a password
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </div>
+      ) : null}
       <form className="mt-6 space-y-4" onSubmit={(e) => void submit(e)} data-welcome-form data-welcome-kind={info.kind} noValidate>
         <TextField label="Your email" type="email" name="email" autoComplete="username" readOnly value={info.email} help="You sign in with this email." />
         {invite ? <TextField label="Your name" name="name" autoComplete="name" maxLength={80} value={name} onChange={setName} help="How others see you in MetaRush." data-welcome-name /> : null}

@@ -35,6 +35,9 @@ func (e *env) ask(t *testing.T, in aiwork.MakeIn) *aiwork.MakeOut {
 		t.Fatalf("not allowed: %v", est.Problems)
 	}
 	in.MaxUSD = usd(est.USD)
+	if in.Options.AspectRatio == "" { // the price is agreed for the shape it shows (D394)
+		in.Options.AspectRatio = est.AspectRatio
+	}
 	out, err := call[aiwork.MakeOut](t, e.a, "ai.make", in, false)
 	if err != nil {
 		t.Fatal(err)

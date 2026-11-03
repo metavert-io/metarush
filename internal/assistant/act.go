@@ -217,7 +217,10 @@ func (m *Manager) runCard(ctx context.Context, a *app.App, caller ops.Caller, c 
 	} else if err == nil {
 		res, err = ops.Call(ctx, a, act.Op, input, recipeCaller(act, caller)) // Recipes: the daemon's engine takes a card's run on (D211)
 	}
-	if staleRecipe(act, err) || staleShape(act, err) { // the plan or the shape changed, so nothing started; the card is planned again (D211, D394)
+	if staleRecipe(act, err) { // Recipes: the plan changed, so nothing started; Act plans the card again (D211)
+		return act, err
+	}
+	if staleShape(act, err) { // its price didn't say the shape: nothing started, the card is priced again (D394)
 		return act, err
 	}
 	m.finishCard(ctx, &act, res, err)

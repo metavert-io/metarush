@@ -99,9 +99,12 @@ func planPresenter(ctx context.Context, a *app.App, in *MakeIn, test bool) (*pla
 		return nil, err
 	}
 	o := models.GenOptions{AspectRatio: in.Options.AspectRatio}
-	// A presenter's clip goes into a cut: its shape unless asked (D385).
-	if err := p.cutShape(ctx, a, in.Branch, &o); err != nil {
-		return nil, err
+	// A presenter's clip goes into a cut: its shape unless asked (D385). A
+	// presenter's test clip is for no cut: the service's own shape.
+	if !test {
+		if err := p.cutShape(ctx, a, in.Branch, &o); err != nil {
+			return nil, err
+		}
 	}
 	bg := strings.TrimSpace(in.Options.Background)
 	if strings.EqualFold(bg, "green") {

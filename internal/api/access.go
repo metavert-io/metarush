@@ -221,8 +221,10 @@ func (s *Server) hostGuard(next http.Handler) http.Handler {
 		if login := strings.ToLower(remote.DecodeHeader(r.Header.Get("Tailscale-User-Login"))); login != "" && onTailnet {
 			acc.login, acc.name = login, remote.DecodeHeader(r.Header.Get("Tailscale-User-Name"))
 		}
-		if rm.IdentitySignIn() && acc.login != "" && !rm.Allowed(acc.login) && auth.TailscaleOn(r.Context(), s.App) {
-			// Tailscale identity counts only when it signs people in (D183, D431).
+		if rm.IdentitySignIn() && acc.login != "" && !rm.Allowed(acc.login) && auth.Method(r.Context(), s.App) == models.AuthTailscale {
+			// Tailscale identity counts only when it is the sign-in method (D183).
+			// Kept beside an organization's sign-in (D431), an account that isn't
+			// listed signs in with the organization's account instead.
 			s.refuse(w, r, refusedNotListed, acc.login)
 			return
 		}
@@ -359,8 +361,9 @@ func (s *Server) signedIn(w http.ResponseWriter, r *http.Request) (person, bool,
 	if have && sess.Public != acc.public {
 		have = false // a session is only good where it was made
 	}
-	if auth.TailscaleOn(ctx, s.App) && acc.public && rm.IdentitySignIn() && acc.login != "" {
-		// hostGuard already turned away accounts that aren't on the list.
+	if auth.TailscaleOn(ctx, s.App) && acc.public && rm.IdentitySignIn() && acc.login != "" && rm.Allowed(acc.login) {
+		// Only listed accounts (hostGuard turns the rest away when Tailscale is
+		// the method; kept beside an organization's sign-in they sign in that way).
 		if have && sess.Login == acc.login {
 			return person{UserID: sess.UserID, UserName: sess.UserName, Email: emailOf(sess.Login), Login: sess.Login, Via: "tailscale", token: token}, true, nil
 		}

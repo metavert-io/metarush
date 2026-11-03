@@ -583,6 +583,18 @@ func TestOrganizationSignInFromAnotherComputer(t *testing.T) {
 	if s, code := sessionOf(t, r.tailnet("maya@example.com", "Maya")); code != 200 || s.Access.SignedInWith != "tailscale" {
 		t.Fatalf("Tailscale kept beside it: %d %+v", code, s)
 	}
+	// A Tailscale account that isn't listed isn't turned away: it signs in
+	// with the organization's account.
+	ob := r.tailnet("owner-elsewhere@example.com", "Sam")
+	if _, code := sessionOf(t, ob); code != 401 {
+		t.Fatal("an unlisted Tailscale account signed in by itself")
+	}
+	if res := r.signInWith(ob, fakeoidc.Person{Sub: "sub-sam", Email: "sam@example.com", EmailVerified: fakeoidc.Verified(true)}, nil); res.StatusCode != http.StatusFound || strings.Contains(res.Header.Get("Location"), "signin") {
+		t.Fatalf("an unlisted Tailscale account signing in with the organization's account: %d %s", res.StatusCode, res.Header.Get("Location"))
+	}
+	if s, code := sessionOf(t, ob); code != 200 || s.Access.SignedInWith != "sso" || s.User.ID != r.a.Cfg.User.ID {
+		t.Fatalf("the owner from another computer: %d %+v", code, s)
+	}
 	// The method changes only at this computer.
 	if res, env, _ := mb.do("POST", "/api/ops/auth.sso.test", map[string]any{}, true, nil); res.StatusCode == 200 || env.Error.Details["reason"] == nil {
 		t.Fatalf("a member's test from elsewhere: %d", res.StatusCode)

@@ -93,12 +93,12 @@ func SuggestCutName(p *models.Project, branch string, head *models.Revision) str
 	}
 	shape := ""
 	if head != nil {
-		switch head.Spec.Output.Preset {
-		case editspec.PresetVertical:
+		switch head.Spec.Output.Shape().Shape { // the one shape rule (D376)
+		case editspec.ShapeVertical:
 			shape = "vertical "
-		case "landscape-1080p":
+		case editspec.ShapeLandscape:
 			shape = "landscape "
-		case "square-1080":
+		case editspec.ShapeSquare:
 			shape = "square "
 		}
 		if d := head.Duration; d > 0 {

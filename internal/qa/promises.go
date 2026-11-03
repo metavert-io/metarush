@@ -249,6 +249,7 @@ func (r *run) promiseShape(m measures.Measure) promiseResult {
 		preset := map[string]string{"landscape": editspec.PresetLandscape, "vertical": editspec.PresetVertical, "square": editspec.PresetSquare}[m.Shape]
 		out := r.in.Spec.Output
 		out.Preset, out.Width, out.Height = preset, editspec.Presets[preset][0], editspec.Presets[preset][1]
+		out.Platform = editspec.PlatformFor(editspec.Shape(m.Shape), out.Platform) // its margins too (D387)
 		res.fix.Ops = []editspec.Op{{Op: "setOutput", Output: &out}}
 	}
 	return res

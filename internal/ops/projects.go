@@ -311,7 +311,15 @@ func init() {
 			if len(in.Brief.Deliverables) > 12 {
 				return nil, invalid("A brief takes 12 places the video goes at most.")
 			}
-			in.Brief.Deliverables = deliverablesOf(in.Brief.Deliverables)
+			// A place whose words name no shape takes the project's (D386).
+			id := in.ID
+			in.Brief.Deliverables = deliverablesOf(in.Brief.Deliverables, func() string {
+				p, err := resolveProject(ctx, a, id)
+				if err != nil {
+					return editspec.PresetLandscape
+				}
+				return deliverableFallback(ctx, a, p)
+			})
 			set["brief"] = *in.Brief
 		}
 		if in.TransitionStyle != nil {

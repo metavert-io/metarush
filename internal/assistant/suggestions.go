@@ -116,7 +116,7 @@ func (m *Manager) Suggestions(ctx context.Context, in AssistantSuggestionsIn) (*
 		} else {
 			add("Check the latest render for problems", "Check the latest render for problems before I post it.", "there is a render")
 		}
-		if rev.Spec.Output.Preset == "vertical-1080p" {
+		if rev.Spec.Output.Shape().Shape == editspec.ShapeVertical {
 			add("Make a 16:9 version", "Make a 16:9 landscape version of the current cut.", "the cut is vertical")
 		} else {
 			add("Make a vertical version", "Make a 9:16 vertical version of the current cut for social.", "the cut is not vertical")

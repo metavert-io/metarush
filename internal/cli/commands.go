@@ -1068,7 +1068,10 @@ func printRevisionShow(o *ops.RevisionShowOut, details bool) {
 	if r.Rationale != "" {
 		fmt.Println("Why: " + r.Rationale)
 	}
-	shape := presetWords(r.Output.Preset)
+	shape := r.Shape.Word // the one shape rule (D376)
+	if shape == "" {
+		shape = presetWords(r.Output.Preset)
+	}
 	if r.Output.Width > 0 {
 		shape += fmt.Sprintf(" %d×%d", r.Output.Width, r.Output.Height)
 	}

@@ -208,6 +208,18 @@ try {
   await recorder(page).locator('[data-camera-picker]').selectOption(camValues.find((v) => v));
   await recorder(page).locator('[data-source="camera"] video').waitFor({ timeout: 15_000 });
   check('the fake camera shows in its bubble', true);
+  // D392: the page says the shape being recorded — what the camera really gives — and shows it whole.
+  const camVideo = recorder(page).locator('[data-source="camera"] video');
+  const said = recorder(page).locator('[data-camera-shape]');
+  await said.waitFor({ timeout: 15_000 });
+  await waitFor(async () => !!(await camVideo.getAttribute('data-preview-shape')), 15_000, 'the camera picture’s size');
+  const words = ((await said.textContent()) ?? '').trim();
+  const size = words.match(/\((\d+)×(\d+)\)/)?.slice(1).join('x');
+  check(
+    'the page says the shape being recorded, and shows the whole picture',
+    /^Recording (widescreen|vertical|square) \(\d+×\d+\)\.$/.test(words) && size === (await camVideo.getAttribute('data-preview-shape')) && (await camVideo.evaluate((v) => getComputedStyle(v).objectFit)) === 'contain',
+    `${words} · ${await camVideo.getAttribute('data-preview-shape')}`,
+  );
   await recorder(page).getByRole('radio', { name: 'Camera in a corner' }).click();
   await recorder(page).getByRole('radio', { name: 'Paste a script' }).click();
   await recorder(page).locator('[data-script]').fill('Welcome to the demo of the new dashboard.\n\nHere is where the recordings land.\n\nAnd that is how you record your screen.');

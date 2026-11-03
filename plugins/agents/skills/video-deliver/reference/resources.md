@@ -46,7 +46,9 @@ stay). Name only folders the person means: a folder of a repository is their art
 | a repository card | `metarush resources make stats <repo> --json` (name, languages, files, contributors, licence) |
 
 Pick code people can read on a phone: 8–30 lines, the part that matters, `--highlight` the 2–4 lines you talk
-about (at most 80 lines; long lines are shortened). Each picture records exactly where it came from
+about (at most 80 lines; long lines are shortened). Say the project (`--project <id>`, and `--cut <name>` for a cut
+other than its main one): a slide for a vertical or square cut is drawn to fit it — narrower, long code lines
+wrapped, a card's numbers in rows, a Mermaid flowchart turned to run down — and a newer commit's version keeps that. Each picture records exactly where it came from
 (`repo@commit:file:lines`), and the delivery notes credit it. Look at what you made before using it:
 `metarush resources path <name>` → Read the picture.
 

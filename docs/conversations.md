@@ -271,7 +271,10 @@ names (a dropped folder keeps its relative paths) and offers **Make a conversati
 
 ## Outputs
 
-- **The episode**: `conversation cut` writes 16:9 by default (`--shape vertical|square` for others).
+- **The episode**: `conversation cut` writes the shape asked (`--shape vertical|square|landscape`), else the shape of
+  the cut it replaces, else the project's when something says (its cuts, brief or footage), else 16:9 (D386); people
+  talking together are stacked when the frame is taller than wide. Captions follow the house style of the project's
+  Content Settings (on or off, its look), else they are on for a vertical cut (D390).
 - **Best moments**: `metarush conversation moments <conversation>` proposes stretches that stand on their own: they
   start cleanly (a turn's first sentence, or after a pause) and end cleanly (the turn ends or a pause follows), stay
   out of call talk and dead air and have no pause of 2 s inside; 15–60 s by default (`--min`, `--max`). Each says

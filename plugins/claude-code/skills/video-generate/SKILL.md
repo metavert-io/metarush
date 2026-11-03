@@ -56,7 +56,10 @@ offering something new, the person may already have a take they like.
 
 ## 2. Write the request with them
 - A **shot from words**: what is in it, the light, the camera ("slow push in", "from above"), the mood. Keep their
-  words; offer a fuller prompt and say what you added. 3 to 10 seconds (default 6). Wide (16:9) or tall (9:16).
+  words; offer a fuller prompt and say what you added. 3 to 10 seconds (default 6). Wide (16:9) or tall (9:16):
+  leave the shape out and MetaRush makes the shot in the shape of the cut it is for (`--cut <name>` for a cut other
+  than the main one), else the project's; the estimate's `shapeWhy` says which and why — tell the person before
+  they agree to the price, and add `--aspect` only when they ask for another shape.
 - **Draft or final**: drafts (360p or 720p) are cheap, for choosing; final (1080p or 4K, upscaled) when the shot is
   settled. Suggest a draft first. Say that the price grows with every second and every take.
 - **Takes**: `--takes 2` to `4` makes several different versions at once to choose from; each costs the same.

@@ -248,14 +248,40 @@ async function main() {
   const summary = (await panel.locator('[data-estimate-summary]').textContent()) ?? '';
   check('the price comes first', /About \$0\.\d\d for a 3-second shot, draft \(360p\), wide, made with Google Gemini/.test(summary), summary);
   check('the button carries the price', /Generate \(about \$0\.1\d\)/.test((await go.textContent()) ?? ''), (await go.textContent()) ?? '');
+  // The shape (D385): nobody chose one, so MetaRush makes it in the project's shape (its footage is widescreen) and
+  // says so before the price is agreed; choosing tall says which would fit, and one click goes back.
+  const shapeBox = panel.locator('[data-generate-shape]');
+  const shapeWhy = panel.locator('[data-generate-shape-why]');
+  await shapeWhy.waitFor({ timeout: 20_000 });
+  check(
+    'the shape follows the project, said before the price',
+    (await shapeBox.getAttribute('data-generate-shape')) === 'auto' &&
+      /^Wide \(16:9\), because most of its footage is widescreen\.$/.test(((await shapeWhy.textContent()) ?? '').trim()) &&
+      (await shapeBox.locator('[data-value="16:9"]').getAttribute('aria-checked')) === 'true',
+    (await shapeWhy.textContent()) ?? '',
+  );
+  await shapeBox.locator('[data-value="9:16"]').click();
+  await waitFor(async () => /Tall \(9:16\), as asked\. Most of its footage is widescreen: wide \(16:9\) would fit it\./.test((await shapeWhy.textContent()) ?? ''), 'the chosen shape against the project', 20_000);
+  check('a chosen shape that doesn’t fit says which would', await panel.locator('[data-generate-shape-reset]').isVisible(), (await shapeWhy.textContent()) ?? '');
+  await shot(page, 'generate-shape-chosen', panel);
+  await panel.locator('[data-generate-shape-reset]').click();
+  await waitFor(async () => (await shapeBox.getAttribute('data-generate-shape')) === 'auto' && /because most of its footage/.test((await shapeWhy.textContent()) ?? ''), 'back to the project’s shape', 20_000);
+  await waitFor(async () => /^Generate \(about \$0\.\d\d\)$/.test(((await go.textContent()) ?? '').trim()) && (await go.isEnabled()), 'the price again', 20_000);
   await shot(page, 'generate-panel', panel);
+  const sent = [];
+  const listen = (req) => {
+    if (req.method() === 'POST' && req.url().endsWith('/api/ops/generate.shot')) sent.push(req.postDataJSON());
+  };
+  page.on('request', listen);
   const callsBefore = (await fakeCalls()).create ?? 0;
   await go.click();
   await toast(page, 'Asked for the shot');
   let list = await api(page, 'generate.list', { projectId: P, limit: 50 });
   const firstId = list.generations[0]?.id;
   const [first] = await settled(page, [firstId], 'the first shot');
+  page.off('request', listen);
   check('the shot was made', first.state === 'done' && first.clips.length === 1, first.summary);
+  check('the panel sent no shape, and MetaRush made it the project’s', sent.length === 1 && !('aspectRatio' in (sent[0] ?? {})) && first.params.aspectRatio === '16:9', JSON.stringify({ sent, made: first.params.aspectRatio }));
   await panel.locator('li[data-generation="done"]').first().waitFor({ timeout: 20_000 });
   const clipId = first.clips[0]?.assetId;
   await page.locator('[data-ai-badge]').first().waitFor({ timeout: 20_000 });

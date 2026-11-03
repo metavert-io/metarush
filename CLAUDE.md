@@ -1171,8 +1171,23 @@ Read `docs/architecture.md` before structural changes.
   through `ops.ProjectShape` (main cut, any cut, deliverables, footage majority with rotation, else vertical
   `known=false`). The server sends shapes (`RevisionSummary.shape`, `CutView.shape`, `ProjectShowOut.shape`,
   `ProjectSummary.headShape`, card frames' sizes); the dashboard reads them (`useServedShape`, `ShapeSkeleton`) and
-  shows frames whole at their own ratio (`frameAspect`, object-contain). Starter outputs, `Normalize`, call cuts,
-  timeline imports, generated shots and other readers of a preset alone wait for stage 2.
+  shows frames whole at their own ratio (`frameAspect`, object-contain).
+- **Everything new follows the shape; saved versions never redraw** (stage 2, D385–D393; `internal/editspec/shapechoice.go`,
+  `reshape.go`, `ops/projectshape.go`): `ProjectShape` counts the brief's platforms after its deliverables;
+  `ops.CutShape` (a named cut or version, else the project's) and `ops.NewCutOutput` choose; `editspec.NewCutShape`
+  gives a whole spec without a size its cut's (a rewrite) or the project's (bound into the confirmation), so
+  `Normalize`'s vertical only serves older specs; call cuts (`callOutput`, else widescreen; captions by the house
+  style, `captionsOn`), deliverables without shape words, timeline imports and Remotion first cuts (`CutSizeFor`: 4:5
+  stays 4:5) start in the shape that says. Generated shots (`GenShotIn.cut`; `RatioFor` to what the model makes;
+  `GenEstimate.shapeFrom|shapeWhy|fitsCut`; the panel sends a shape only when chosen, `components/generate/shot.ts`),
+  AI pictures for a cut and presenter clips take the cut's. `editspec.PlatformFor` picks the platform (so the
+  margins) for a shape; `SafeAreaFor` is unchanged. A render in another shape is `Render.shapeRule: 1` with its own
+  key and `editspec.ForRender` → `Reshape` (engine layout rule, platform, middle captions, faces) for that render and
+  its QA only; older renders keep the size swap. `ops.PickRender` gives review links, drafts and posts the version's
+  own shape. The recorder asks for the project's shape (`record/camera.ts`, `resizeMode: none`, previews contain);
+  slides for a cut fit it (`video/render/slideshape.mjs`, `madeWith.shape`). Guard: `TestShapeChoicesLeaveSavedPlansAlone`
+  (`testdata/shape-plans-2.golden.json`, written from main at 761c769: every guard case in every preset, a phone
+  platform at every size, a spec with no size).
 - **Testing and coverage** (D194, D195, docs/testing.md): five layers (static → Go tests on a real MongoDB → several
   machines in one process (`tests/e2e`) → browser runs with fakes → Mac-only and live services); `scripts/check.sh
   --quick|--full|--release` runs them; test databases are copies of a per-process template and stale ones are swept

@@ -7,7 +7,7 @@ import (
 )
 
 // Choices MetaRush makes for new things from a shape (stage 2 of the shape
-// work, D385–D392). Like the shape rule itself (D376), they choose and show:
+// work, D385–D393). Like the shape rule itself (D376), they choose and show:
 // none of them is read when a saved version is drawn, so its plan stays what
 // it was (D383, TestPlansAtEveryShapeStayTheSame).
 

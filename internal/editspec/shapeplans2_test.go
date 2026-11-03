@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// Stage 2 of the shape work (D385–D392) chooses shapes for new things — new
+// Stage 2 of the shape work (D385–D393) chooses shapes for new things — new
 // cuts, generated media, renders in another shape asked for from now on —
 // and never redraws a saved version. This guard extends
 // TestPlansAtEveryShapeStayTheSame to every rule stage 2 touches:

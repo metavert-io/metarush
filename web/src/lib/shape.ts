@@ -10,18 +10,23 @@ import type { OutputShape } from '../api/types';
 
 export type Shape = OutputShape['shape'];
 
-/** A frame whose long side is at most 15% longer than its short side is square (whole numbers, like Go). */
-export const SQUARE_PERCENT = 115;
+/**
+ * The renderer's thresholds (video/src/core/layout.ts orientationOf, Go's
+ * editspec.LandscapeAbove / VerticalBelow): width ÷ height above 1.15 is
+ * landscape, below 0.87 vertical, else square.
+ */
+export const LANDSCAPE_ABOVE = 1.15;
+export const VERTICAL_BELOW = 0.87;
 
 const PRESETS: Record<string, [number, number]> = { 'vertical-1080p': [1080, 1920], 'landscape-1080p': [1920, 1080], 'square-1080': [1080, 1080] };
 
 /** The shape of a width × height frame (undefined when either is missing). */
 export function shapeOf(w?: number, h?: number): Shape | undefined {
   if (!w || !h || w <= 0 || h <= 0) return undefined;
-  const long = Math.max(w, h);
-  const short = Math.min(w, h);
-  if (long * 100 <= short * SQUARE_PERCENT) return 'square';
-  return h > w ? 'vertical' : 'landscape';
+  const r = w / h;
+  if (r > LANDSCAPE_ABOVE) return 'landscape';
+  if (r < VERTICAL_BELOW) return 'vertical';
+  return 'square';
 }
 
 /** The shape as people say it: landscape is "widescreen". */

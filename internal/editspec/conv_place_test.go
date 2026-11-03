@@ -2,6 +2,7 @@ package editspec
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -82,6 +83,15 @@ func convPlacementSpecs() map[string]*Spec {
 	e.Conversations["call"] = p
 	e.Clips[0].Shots = []Shot{{At: 0, Member: "gallery"}, {At: 2.2, Member: "sam"}}
 	out["gallery-view"] = e
+
+	// Clips with no shots at sizes near square (D383): the layout they show by
+	// default is the engine's own, whatever MetaRush's shape rule says.
+	for _, wh := range [][2]int{{1080, 1200}, {1080, 1240}, {1080, 1242}, {1000, 1150}, {1087, 1250}} {
+		n := base()
+		n.Clips[0].Shots = nil
+		n.Output.Width, n.Output.Height = wh[0], wh[1]
+		out[fmt.Sprintf("no-shots-%dx%d", wh[0], wh[1])] = n
+	}
 
 	for _, s := range out {
 		Normalize(s)

@@ -1232,6 +1232,1916 @@
       }
     }
   },
+  "no-shots-1000x1150": {
+    "hash": "9366801c56b90ea99c75f5da519f099952eab259ae82f518dbe9cf5b82376c35",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "9366801c56b90ea99c75f5da519f099952eab259ae82f518dbe9cf5b82376c35",
+      "media": "",
+      "width": 1000,
+      "height": 1150,
+      "fps": 30,
+      "durationInFrames": 240,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 69,
+        "bottom": 92,
+        "left": 60,
+        "right": 60
+      },
+      "clips": [
+        {
+          "id": "talk",
+          "assetId": "conv:call",
+          "from": 0,
+          "durationInFrames": 240,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 8,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1000,
+          "sourceHeight": 1150,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "conversation": {
+            "name": "call",
+            "shots": [
+              {
+                "from": 0,
+                "durationInFrames": 240,
+                "kind": "layout",
+                "layout": "stacked",
+                "tiles": [
+                  {
+                    "member": "maya",
+                    "assetId": "ast_01jabcdefghjkmnpqrstvwxyj0",
+                    "rect": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 1000,
+                      "h": 572
+                    },
+                    "video": {
+                      "x": -8.4,
+                      "y": -0,
+                      "w": 1016.9,
+                      "h": 572
+                    },
+                    "trimBefore": 0,
+                    "playbackRate": 1,
+                    "tag": {
+                      "name": "Maya",
+                      "title": "Host"
+                    }
+                  },
+                  {
+                    "member": "sam",
+                    "assetId": "ast_01jabcdefghjkmnpqrstvwxys0",
+                    "rect": {
+                      "x": 0,
+                      "y": 578,
+                      "w": 1000,
+                      "h": 572
+                    },
+                    "video": {
+                      "x": -307.4,
+                      "y": -106.2,
+                      "w": 1307.4,
+                      "h": 735.4
+                    },
+                    "trimBefore": 0,
+                    "playbackRate": 1.0001,
+                    "delay": 15,
+                    "tag": {
+                      "name": "Sam"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "audio": [
+        {
+          "id": "talk/maya",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyj0",
+          "role": "dialogue",
+          "from": 0,
+          "durationInFrames": 240,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "source",
+          "playbackRate": 1,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.12589
+            },
+            {
+              "f": 24,
+              "g": 0.12589
+            },
+            {
+              "f": 25,
+              "g": 0.21878
+            },
+            {
+              "f": 26,
+              "g": 0.87096
+            },
+            {
+              "f": 27,
+              "g": 1
+            },
+            {
+              "f": 87,
+              "g": 1
+            },
+            {
+              "f": 88,
+              "g": 0.63096
+            },
+            {
+              "f": 89,
+              "g": 0.39811
+            },
+            {
+              "f": 90,
+              "g": 0.25119
+            },
+            {
+              "f": 91,
+              "g": 0.15849
+            },
+            {
+              "f": 92,
+              "g": 0.12589
+            },
+            {
+              "f": 239,
+              "g": 0.12589
+            }
+          ],
+          "conversation": "talk",
+          "member": "maya"
+        },
+        {
+          "id": "talk/sam",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxys0",
+          "role": "dialogue",
+          "from": 15,
+          "durationInFrames": 225,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "source",
+          "playbackRate": 1.0001,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.12589
+            },
+            {
+              "f": 69,
+              "g": 0.12589
+            },
+            {
+              "f": 70,
+              "g": 0.21878
+            },
+            {
+              "f": 71,
+              "g": 0.87096
+            },
+            {
+              "f": 72,
+              "g": 1
+            },
+            {
+              "f": 155,
+              "g": 1
+            },
+            {
+              "f": 156,
+              "g": 0.66069
+            },
+            {
+              "f": 157,
+              "g": 0.41687
+            },
+            {
+              "f": 158,
+              "g": 0.26303
+            },
+            {
+              "f": 159,
+              "g": 0.16596
+            },
+            {
+              "f": 160,
+              "g": 0.12589
+            },
+            {
+              "f": 224,
+              "g": 0.12589
+            }
+          ],
+          "conversation": "talk",
+          "member": "sam"
+        }
+      ],
+      "dialogueRanges": [
+        {
+          "from": 30,
+          "to": 160
+        }
+      ],
+      "captions": {
+        "style": "clean",
+        "position": "lower",
+        "uppercase": false,
+        "precision": "word",
+        "showSpeakers": true,
+        "lines": [
+          {
+            "from": 30,
+            "to": 90,
+            "text": "So tell me about it",
+            "speaker": "Maya",
+            "words": [
+              {
+                "text": "So",
+                "from": 30,
+                "to": 37,
+                "emphasis": false
+              },
+              {
+                "text": "tell",
+                "from": 38,
+                "to": 48,
+                "emphasis": false
+              },
+              {
+                "text": "me",
+                "from": 49,
+                "to": 56,
+                "emphasis": false
+              },
+              {
+                "text": "about",
+                "from": 57,
+                "to": 68,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 70,
+                "to": 77,
+                "emphasis": false
+              }
+            ]
+          },
+          {
+            "from": 90,
+            "to": 160,
+            "text": "Well we built it twice actually",
+            "speaker": "Sam",
+            "words": [
+              {
+                "text": "Well",
+                "from": 90,
+                "to": 100,
+                "emphasis": false
+              },
+              {
+                "text": "we",
+                "from": 101,
+                "to": 108,
+                "emphasis": false
+              },
+              {
+                "text": "built",
+                "from": 110,
+                "to": 121,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 123,
+                "to": 129,
+                "emphasis": false
+              },
+              {
+                "text": "twice",
+                "from": 131,
+                "to": 142,
+                "emphasis": false
+              },
+              {
+                "text": "actually",
+                "from": 144,
+                "to": 160,
+                "emphasis": false
+              }
+            ]
+          }
+        ]
+      },
+      "overlays": [],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": false,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 6,
+          "releaseFrames": 6
+        },
+        "voiceRanges": [],
+        "targetLufs": -16,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "estimatedLufs": -22.505,
+        "masterGainDb": 0
+      }
+    }
+  },
+  "no-shots-1080x1200": {
+    "hash": "ef6273b9eea0a47d32e517108d539ceed9e0798726bde8eb6e59b90dd2c38e0b",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "ef6273b9eea0a47d32e517108d539ceed9e0798726bde8eb6e59b90dd2c38e0b",
+      "media": "",
+      "width": 1080,
+      "height": 1200,
+      "fps": 30,
+      "durationInFrames": 240,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 72,
+        "bottom": 96,
+        "left": 64,
+        "right": 64
+      },
+      "clips": [
+        {
+          "id": "talk",
+          "assetId": "conv:call",
+          "from": 0,
+          "durationInFrames": 240,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 8,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1080,
+          "sourceHeight": 1200,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "conversation": {
+            "name": "call",
+            "shots": [
+              {
+                "from": 0,
+                "durationInFrames": 240,
+                "kind": "layout",
+                "layout": "stacked",
+                "tiles": [
+                  {
+                    "member": "maya",
+                    "assetId": "ast_01jabcdefghjkmnpqrstvwxyj0",
+                    "rect": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 1080,
+                      "h": 597
+                    },
+                    "video": {
+                      "x": -0,
+                      "y": -0,
+                      "w": 1080,
+                      "h": 607.5
+                    },
+                    "trimBefore": 0,
+                    "playbackRate": 1,
+                    "tag": {
+                      "name": "Maya",
+                      "title": "Host"
+                    }
+                  },
+                  {
+                    "member": "sam",
+                    "assetId": "ast_01jabcdefghjkmnpqrstvwxys0",
+                    "rect": {
+                      "x": 0,
+                      "y": 603,
+                      "w": 1080,
+                      "h": 597
+                    },
+                    "video": {
+                      "x": -308.6,
+                      "y": -112.8,
+                      "w": 1388.6,
+                      "h": 781.1
+                    },
+                    "trimBefore": 0,
+                    "playbackRate": 1.0001,
+                    "delay": 15,
+                    "tag": {
+                      "name": "Sam"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "audio": [
+        {
+          "id": "talk/maya",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyj0",
+          "role": "dialogue",
+          "from": 0,
+          "durationInFrames": 240,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "source",
+          "playbackRate": 1,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.12589
+            },
+            {
+              "f": 24,
+              "g": 0.12589
+            },
+            {
+              "f": 25,
+              "g": 0.21878
+            },
+            {
+              "f": 26,
+              "g": 0.87096
+            },
+            {
+              "f": 27,
+              "g": 1
+            },
+            {
+              "f": 87,
+              "g": 1
+            },
+            {
+              "f": 88,
+              "g": 0.63096
+            },
+            {
+              "f": 89,
+              "g": 0.39811
+            },
+            {
+              "f": 90,
+              "g": 0.25119
+            },
+            {
+              "f": 91,
+              "g": 0.15849
+            },
+            {
+              "f": 92,
+              "g": 0.12589
+            },
+            {
+              "f": 239,
+              "g": 0.12589
+            }
+          ],
+          "conversation": "talk",
+          "member": "maya"
+        },
+        {
+          "id": "talk/sam",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxys0",
+          "role": "dialogue",
+          "from": 15,
+          "durationInFrames": 225,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "source",
+          "playbackRate": 1.0001,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.12589
+            },
+            {
+              "f": 69,
+              "g": 0.12589
+            },
+            {
+              "f": 70,
+              "g": 0.21878
+            },
+            {
+              "f": 71,
+              "g": 0.87096
+            },
+            {
+              "f": 72,
+              "g": 1
+            },
+            {
+              "f": 155,
+              "g": 1
+            },
+            {
+              "f": 156,
+              "g": 0.66069
+            },
+            {
+              "f": 157,
+              "g": 0.41687
+            },
+            {
+              "f": 158,
+              "g": 0.26303
+            },
+            {
+              "f": 159,
+              "g": 0.16596
+            },
+            {
+              "f": 160,
+              "g": 0.12589
+            },
+            {
+              "f": 224,
+              "g": 0.12589
+            }
+          ],
+          "conversation": "talk",
+          "member": "sam"
+        }
+      ],
+      "dialogueRanges": [
+        {
+          "from": 30,
+          "to": 160
+        }
+      ],
+      "captions": {
+        "style": "clean",
+        "position": "lower",
+        "uppercase": false,
+        "precision": "word",
+        "showSpeakers": true,
+        "lines": [
+          {
+            "from": 30,
+            "to": 90,
+            "text": "So tell me about it",
+            "speaker": "Maya",
+            "words": [
+              {
+                "text": "So",
+                "from": 30,
+                "to": 37,
+                "emphasis": false
+              },
+              {
+                "text": "tell",
+                "from": 38,
+                "to": 48,
+                "emphasis": false
+              },
+              {
+                "text": "me",
+                "from": 49,
+                "to": 56,
+                "emphasis": false
+              },
+              {
+                "text": "about",
+                "from": 57,
+                "to": 68,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 70,
+                "to": 77,
+                "emphasis": false
+              }
+            ]
+          },
+          {
+            "from": 90,
+            "to": 160,
+            "text": "Well we built it twice actually",
+            "speaker": "Sam",
+            "words": [
+              {
+                "text": "Well",
+                "from": 90,
+                "to": 100,
+                "emphasis": false
+              },
+              {
+                "text": "we",
+                "from": 101,
+                "to": 108,
+                "emphasis": false
+              },
+              {
+                "text": "built",
+                "from": 110,
+                "to": 121,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 123,
+                "to": 129,
+                "emphasis": false
+              },
+              {
+                "text": "twice",
+                "from": 131,
+                "to": 142,
+                "emphasis": false
+              },
+              {
+                "text": "actually",
+                "from": 144,
+                "to": 160,
+                "emphasis": false
+              }
+            ]
+          }
+        ]
+      },
+      "overlays": [],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": false,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 6,
+          "releaseFrames": 6
+        },
+        "voiceRanges": [],
+        "targetLufs": -16,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "estimatedLufs": -22.505,
+        "masterGainDb": 0
+      }
+    }
+  },
+  "no-shots-1080x1240": {
+    "hash": "62b7c2e9a31c26e0a128de66ac33b520b1ae4ee8861816e0ae55146db219f285",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "62b7c2e9a31c26e0a128de66ac33b520b1ae4ee8861816e0ae55146db219f285",
+      "media": "",
+      "width": 1080,
+      "height": 1240,
+      "fps": 30,
+      "durationInFrames": 240,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 74,
+        "bottom": 99,
+        "left": 64,
+        "right": 64
+      },
+      "clips": [
+        {
+          "id": "talk",
+          "assetId": "conv:call",
+          "from": 0,
+          "durationInFrames": 240,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 8,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1080,
+          "sourceHeight": 1240,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "conversation": {
+            "name": "call",
+            "shots": [
+              {
+                "from": 0,
+                "durationInFrames": 240,
+                "kind": "layout",
+                "layout": "stacked",
+                "tiles": [
+                  {
+                    "member": "maya",
+                    "assetId": "ast_01jabcdefghjkmnpqrstvwxyj0",
+                    "rect": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 1080,
+                      "h": 617
+                    },
+                    "video": {
+                      "x": -8.4,
+                      "y": -0,
+                      "w": 1096.9,
+                      "h": 617
+                    },
+                    "trimBefore": 0,
+                    "playbackRate": 1,
+                    "tag": {
+                      "name": "Maya",
+                      "title": "Host"
+                    }
+                  },
+                  {
+                    "member": "sam",
+                    "assetId": "ast_01jabcdefghjkmnpqrstvwxys0",
+                    "rect": {
+                      "x": 0,
+                      "y": 623,
+                      "w": 1080,
+                      "h": 617
+                    },
+                    "video": {
+                      "x": -330.3,
+                      "y": -114.6,
+                      "w": 1410.3,
+                      "h": 793.3
+                    },
+                    "trimBefore": 0,
+                    "playbackRate": 1.0001,
+                    "delay": 15,
+                    "tag": {
+                      "name": "Sam"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "audio": [
+        {
+          "id": "talk/maya",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyj0",
+          "role": "dialogue",
+          "from": 0,
+          "durationInFrames": 240,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "source",
+          "playbackRate": 1,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.12589
+            },
+            {
+              "f": 24,
+              "g": 0.12589
+            },
+            {
+              "f": 25,
+              "g": 0.21878
+            },
+            {
+              "f": 26,
+              "g": 0.87096
+            },
+            {
+              "f": 27,
+              "g": 1
+            },
+            {
+              "f": 87,
+              "g": 1
+            },
+            {
+              "f": 88,
+              "g": 0.63096
+            },
+            {
+              "f": 89,
+              "g": 0.39811
+            },
+            {
+              "f": 90,
+              "g": 0.25119
+            },
+            {
+              "f": 91,
+              "g": 0.15849
+            },
+            {
+              "f": 92,
+              "g": 0.12589
+            },
+            {
+              "f": 239,
+              "g": 0.12589
+            }
+          ],
+          "conversation": "talk",
+          "member": "maya"
+        },
+        {
+          "id": "talk/sam",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxys0",
+          "role": "dialogue",
+          "from": 15,
+          "durationInFrames": 225,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "source",
+          "playbackRate": 1.0001,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.12589
+            },
+            {
+              "f": 69,
+              "g": 0.12589
+            },
+            {
+              "f": 70,
+              "g": 0.21878
+            },
+            {
+              "f": 71,
+              "g": 0.87096
+            },
+            {
+              "f": 72,
+              "g": 1
+            },
+            {
+              "f": 155,
+              "g": 1
+            },
+            {
+              "f": 156,
+              "g": 0.66069
+            },
+            {
+              "f": 157,
+              "g": 0.41687
+            },
+            {
+              "f": 158,
+              "g": 0.26303
+            },
+            {
+              "f": 159,
+              "g": 0.16596
+            },
+            {
+              "f": 160,
+              "g": 0.12589
+            },
+            {
+              "f": 224,
+              "g": 0.12589
+            }
+          ],
+          "conversation": "talk",
+          "member": "sam"
+        }
+      ],
+      "dialogueRanges": [
+        {
+          "from": 30,
+          "to": 160
+        }
+      ],
+      "captions": {
+        "style": "clean",
+        "position": "lower",
+        "uppercase": false,
+        "precision": "word",
+        "showSpeakers": true,
+        "lines": [
+          {
+            "from": 30,
+            "to": 90,
+            "text": "So tell me about it",
+            "speaker": "Maya",
+            "words": [
+              {
+                "text": "So",
+                "from": 30,
+                "to": 37,
+                "emphasis": false
+              },
+              {
+                "text": "tell",
+                "from": 38,
+                "to": 48,
+                "emphasis": false
+              },
+              {
+                "text": "me",
+                "from": 49,
+                "to": 56,
+                "emphasis": false
+              },
+              {
+                "text": "about",
+                "from": 57,
+                "to": 68,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 70,
+                "to": 77,
+                "emphasis": false
+              }
+            ]
+          },
+          {
+            "from": 90,
+            "to": 160,
+            "text": "Well we built it twice actually",
+            "speaker": "Sam",
+            "words": [
+              {
+                "text": "Well",
+                "from": 90,
+                "to": 100,
+                "emphasis": false
+              },
+              {
+                "text": "we",
+                "from": 101,
+                "to": 108,
+                "emphasis": false
+              },
+              {
+                "text": "built",
+                "from": 110,
+                "to": 121,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 123,
+                "to": 129,
+                "emphasis": false
+              },
+              {
+                "text": "twice",
+                "from": 131,
+                "to": 142,
+                "emphasis": false
+              },
+              {
+                "text": "actually",
+                "from": 144,
+                "to": 160,
+                "emphasis": false
+              }
+            ]
+          }
+        ]
+      },
+      "overlays": [],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": false,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 6,
+          "releaseFrames": 6
+        },
+        "voiceRanges": [],
+        "targetLufs": -16,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "estimatedLufs": -22.505,
+        "masterGainDb": 0
+      }
+    }
+  },
+  "no-shots-1080x1242": {
+    "hash": "f931e2969686f85cc497b2131f5f77c9d11cc285841ae53e136604960f175d09",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "f931e2969686f85cc497b2131f5f77c9d11cc285841ae53e136604960f175d09",
+      "media": "",
+      "width": 1080,
+      "height": 1242,
+      "fps": 30,
+      "durationInFrames": 240,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 74,
+        "bottom": 99,
+        "left": 64,
+        "right": 64
+      },
+      "clips": [
+        {
+          "id": "talk",
+          "assetId": "conv:call",
+          "from": 0,
+          "durationInFrames": 240,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 8,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1080,
+          "sourceHeight": 1242,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "conversation": {
+            "name": "call",
+            "shots": [
+              {
+                "from": 0,
+                "durationInFrames": 240,
+                "kind": "layout",
+                "layout": "stacked",
+                "tiles": [
+                  {
+                    "member": "maya",
+                    "assetId": "ast_01jabcdefghjkmnpqrstvwxyj0",
+                    "rect": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 1080,
+                      "h": 618
+                    },
+                    "video": {
+                      "x": -9.3,
+                      "y": -0,
+                      "w": 1098.7,
+                      "h": 618
+                    },
+                    "trimBefore": 0,
+                    "playbackRate": 1,
+                    "tag": {
+                      "name": "Maya",
+                      "title": "Host"
+                    }
+                  },
+                  {
+                    "member": "sam",
+                    "assetId": "ast_01jabcdefghjkmnpqrstvwxys0",
+                    "rect": {
+                      "x": 0,
+                      "y": 624,
+                      "w": 1080,
+                      "h": 618
+                    },
+                    "video": {
+                      "x": -332.6,
+                      "y": -114.8,
+                      "w": 1412.6,
+                      "h": 794.6
+                    },
+                    "trimBefore": 0,
+                    "playbackRate": 1.0001,
+                    "delay": 15,
+                    "tag": {
+                      "name": "Sam"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "audio": [
+        {
+          "id": "talk/maya",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyj0",
+          "role": "dialogue",
+          "from": 0,
+          "durationInFrames": 240,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "source",
+          "playbackRate": 1,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.12589
+            },
+            {
+              "f": 24,
+              "g": 0.12589
+            },
+            {
+              "f": 25,
+              "g": 0.21878
+            },
+            {
+              "f": 26,
+              "g": 0.87096
+            },
+            {
+              "f": 27,
+              "g": 1
+            },
+            {
+              "f": 87,
+              "g": 1
+            },
+            {
+              "f": 88,
+              "g": 0.63096
+            },
+            {
+              "f": 89,
+              "g": 0.39811
+            },
+            {
+              "f": 90,
+              "g": 0.25119
+            },
+            {
+              "f": 91,
+              "g": 0.15849
+            },
+            {
+              "f": 92,
+              "g": 0.12589
+            },
+            {
+              "f": 239,
+              "g": 0.12589
+            }
+          ],
+          "conversation": "talk",
+          "member": "maya"
+        },
+        {
+          "id": "talk/sam",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxys0",
+          "role": "dialogue",
+          "from": 15,
+          "durationInFrames": 225,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "source",
+          "playbackRate": 1.0001,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.12589
+            },
+            {
+              "f": 69,
+              "g": 0.12589
+            },
+            {
+              "f": 70,
+              "g": 0.21878
+            },
+            {
+              "f": 71,
+              "g": 0.87096
+            },
+            {
+              "f": 72,
+              "g": 1
+            },
+            {
+              "f": 155,
+              "g": 1
+            },
+            {
+              "f": 156,
+              "g": 0.66069
+            },
+            {
+              "f": 157,
+              "g": 0.41687
+            },
+            {
+              "f": 158,
+              "g": 0.26303
+            },
+            {
+              "f": 159,
+              "g": 0.16596
+            },
+            {
+              "f": 160,
+              "g": 0.12589
+            },
+            {
+              "f": 224,
+              "g": 0.12589
+            }
+          ],
+          "conversation": "talk",
+          "member": "sam"
+        }
+      ],
+      "dialogueRanges": [
+        {
+          "from": 30,
+          "to": 160
+        }
+      ],
+      "captions": {
+        "style": "clean",
+        "position": "lower",
+        "uppercase": false,
+        "precision": "word",
+        "showSpeakers": true,
+        "lines": [
+          {
+            "from": 30,
+            "to": 90,
+            "text": "So tell me about it",
+            "speaker": "Maya",
+            "words": [
+              {
+                "text": "So",
+                "from": 30,
+                "to": 37,
+                "emphasis": false
+              },
+              {
+                "text": "tell",
+                "from": 38,
+                "to": 48,
+                "emphasis": false
+              },
+              {
+                "text": "me",
+                "from": 49,
+                "to": 56,
+                "emphasis": false
+              },
+              {
+                "text": "about",
+                "from": 57,
+                "to": 68,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 70,
+                "to": 77,
+                "emphasis": false
+              }
+            ]
+          },
+          {
+            "from": 90,
+            "to": 160,
+            "text": "Well we built it twice actually",
+            "speaker": "Sam",
+            "words": [
+              {
+                "text": "Well",
+                "from": 90,
+                "to": 100,
+                "emphasis": false
+              },
+              {
+                "text": "we",
+                "from": 101,
+                "to": 108,
+                "emphasis": false
+              },
+              {
+                "text": "built",
+                "from": 110,
+                "to": 121,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 123,
+                "to": 129,
+                "emphasis": false
+              },
+              {
+                "text": "twice",
+                "from": 131,
+                "to": 142,
+                "emphasis": false
+              },
+              {
+                "text": "actually",
+                "from": 144,
+                "to": 160,
+                "emphasis": false
+              }
+            ]
+          }
+        ]
+      },
+      "overlays": [],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": false,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 6,
+          "releaseFrames": 6
+        },
+        "voiceRanges": [],
+        "targetLufs": -16,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "estimatedLufs": -22.505,
+        "masterGainDb": 0
+      }
+    }
+  },
+  "no-shots-1087x1250": {
+    "hash": "ae10bffe3842ffaeed4c2ff8c5b1d5967d3a6e8b7e822c7551e19fb4831d25bb",
+    "plan": {
+      "schemaVersion": 1,
+      "revisionId": "rev_legacy",
+      "projectId": "prj_legacy",
+      "specHash": "ae10bffe3842ffaeed4c2ff8c5b1d5967d3a6e8b7e822c7551e19fb4831d25bb",
+      "media": "",
+      "width": 1087,
+      "height": 1250,
+      "fps": 30,
+      "durationInFrames": 240,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 75,
+        "bottom": 100,
+        "left": 65,
+        "right": 65
+      },
+      "clips": [
+        {
+          "id": "talk",
+          "assetId": "conv:call",
+          "from": 0,
+          "durationInFrames": 240,
+          "trimBefore": 0,
+          "sourceIn": 0,
+          "sourceOut": 8,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1087,
+          "sourceHeight": 1250,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "conversation": {
+            "name": "call",
+            "shots": [
+              {
+                "from": 0,
+                "durationInFrames": 240,
+                "kind": "layout",
+                "layout": "stacked",
+                "tiles": [
+                  {
+                    "member": "maya",
+                    "assetId": "ast_01jabcdefghjkmnpqrstvwxyj0",
+                    "rect": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 1087,
+                      "h": 621.5
+                    },
+                    "video": {
+                      "x": -8.9,
+                      "y": -0,
+                      "w": 1104.9,
+                      "h": 621.5
+                    },
+                    "trimBefore": 0,
+                    "playbackRate": 1,
+                    "tag": {
+                      "name": "Maya",
+                      "title": "Host"
+                    }
+                  },
+                  {
+                    "member": "sam",
+                    "assetId": "ast_01jabcdefghjkmnpqrstvwxys0",
+                    "rect": {
+                      "x": 0,
+                      "y": 628.5,
+                      "w": 1087,
+                      "h": 621.5
+                    },
+                    "video": {
+                      "x": -333.6,
+                      "y": -115.4,
+                      "w": 1420.6,
+                      "h": 799.1
+                    },
+                    "trimBefore": 0,
+                    "playbackRate": 1.0001,
+                    "delay": 15,
+                    "tag": {
+                      "name": "Sam"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "audio": [
+        {
+          "id": "talk/maya",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxyj0",
+          "role": "dialogue",
+          "from": 0,
+          "durationInFrames": 240,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "source",
+          "playbackRate": 1,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.12589
+            },
+            {
+              "f": 24,
+              "g": 0.12589
+            },
+            {
+              "f": 25,
+              "g": 0.21878
+            },
+            {
+              "f": 26,
+              "g": 0.87096
+            },
+            {
+              "f": 27,
+              "g": 1
+            },
+            {
+              "f": 87,
+              "g": 1
+            },
+            {
+              "f": 88,
+              "g": 0.63096
+            },
+            {
+              "f": 89,
+              "g": 0.39811
+            },
+            {
+              "f": 90,
+              "g": 0.25119
+            },
+            {
+              "f": 91,
+              "g": 0.15849
+            },
+            {
+              "f": 92,
+              "g": 0.12589
+            },
+            {
+              "f": 239,
+              "g": 0.12589
+            }
+          ],
+          "conversation": "talk",
+          "member": "maya"
+        },
+        {
+          "id": "talk/sam",
+          "assetId": "ast_01jabcdefghjkmnpqrstvwxys0",
+          "role": "dialogue",
+          "from": 15,
+          "durationInFrames": 225,
+          "trimBefore": 0,
+          "gainDb": 0,
+          "fadeInFrames": 0,
+          "fadeOutFrames": 0,
+          "duckUnderDialogue": false,
+          "duckDb": 0,
+          "bus": "source",
+          "playbackRate": 1.0001,
+          "gain": [
+            {
+              "f": 0,
+              "g": 0.12589
+            },
+            {
+              "f": 69,
+              "g": 0.12589
+            },
+            {
+              "f": 70,
+              "g": 0.21878
+            },
+            {
+              "f": 71,
+              "g": 0.87096
+            },
+            {
+              "f": 72,
+              "g": 1
+            },
+            {
+              "f": 155,
+              "g": 1
+            },
+            {
+              "f": 156,
+              "g": 0.66069
+            },
+            {
+              "f": 157,
+              "g": 0.41687
+            },
+            {
+              "f": 158,
+              "g": 0.26303
+            },
+            {
+              "f": 159,
+              "g": 0.16596
+            },
+            {
+              "f": 160,
+              "g": 0.12589
+            },
+            {
+              "f": 224,
+              "g": 0.12589
+            }
+          ],
+          "conversation": "talk",
+          "member": "sam"
+        }
+      ],
+      "dialogueRanges": [
+        {
+          "from": 30,
+          "to": 160
+        }
+      ],
+      "captions": {
+        "style": "clean",
+        "position": "lower",
+        "uppercase": false,
+        "precision": "word",
+        "showSpeakers": true,
+        "lines": [
+          {
+            "from": 30,
+            "to": 90,
+            "text": "So tell me about it",
+            "speaker": "Maya",
+            "words": [
+              {
+                "text": "So",
+                "from": 30,
+                "to": 37,
+                "emphasis": false
+              },
+              {
+                "text": "tell",
+                "from": 38,
+                "to": 48,
+                "emphasis": false
+              },
+              {
+                "text": "me",
+                "from": 49,
+                "to": 56,
+                "emphasis": false
+              },
+              {
+                "text": "about",
+                "from": 57,
+                "to": 68,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 70,
+                "to": 77,
+                "emphasis": false
+              }
+            ]
+          },
+          {
+            "from": 90,
+            "to": 160,
+            "text": "Well we built it twice actually",
+            "speaker": "Sam",
+            "words": [
+              {
+                "text": "Well",
+                "from": 90,
+                "to": 100,
+                "emphasis": false
+              },
+              {
+                "text": "we",
+                "from": 101,
+                "to": 108,
+                "emphasis": false
+              },
+              {
+                "text": "built",
+                "from": 110,
+                "to": 121,
+                "emphasis": false
+              },
+              {
+                "text": "it",
+                "from": 123,
+                "to": 129,
+                "emphasis": false
+              },
+              {
+                "text": "twice",
+                "from": 131,
+                "to": 142,
+                "emphasis": false
+              },
+              {
+                "text": "actually",
+                "from": 144,
+                "to": 160,
+                "emphasis": false
+              }
+            ]
+          }
+        ]
+      },
+      "overlays": [],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": false,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 6,
+          "releaseFrames": 6
+        },
+        "voiceRanges": [],
+        "targetLufs": -16,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "estimatedLufs": -22.505,
+        "masterGainDb": 0
+      }
+    }
+  },
   "sub-frame-starts": {
     "hash": "b77fd938d0a4df1194155d73ee3813b7ea3b0126268460de0086a04cf048a4fe",
     "plan": {

@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { shapeOf, sizeShape, outputShape, presetFor, frameAspect, shapeWord, shapeMaxWidth } = await import(path.join(here, '..', 'src', 'lib', 'shape.ts'));
+// The renderer's own rule: what lays out captions, templates and motion graphics.
+const { orientationOf } = await import(path.join(here, '..', '..', 'video', 'src', 'core', 'layout.ts'));
 const v = JSON.parse(readFileSync(path.join(here, '..', '..', 'internal', 'editspec', 'testdata', 'shapes.json'), 'utf8'));
 
 let failed = 0;
@@ -25,6 +27,7 @@ check('there are cases', v.sizes.length > 10 && v.outputs.length > 4);
 for (const c of v.sizes) {
   const want = c.shape || undefined;
   check(`shapeOf(${c.width}, ${c.height}) = ${want}`, shapeOf(c.width, c.height) === want, shapeOf(c.width, c.height));
+  if (want) check(`the renderer's orientationOf(${c.width}, ${c.height}) = ${want}`, orientationOf(c.width, c.height) === want, orientationOf(c.width, c.height));
   const s = sizeShape(c.width, c.height);
   if (!want) {
     check(`sizeShape(${c.width}, ${c.height}) is nothing`, s === undefined, s);
@@ -51,4 +54,4 @@ if (failed) {
   console.error(`${failed} shape case(s) failed`);
   process.exit(1);
 }
-console.log(`shapes: ${v.sizes.length + v.outputs.length} shared cases agree with Go`);
+console.log(`shapes: ${v.sizes.length + v.outputs.length} shared cases agree with Go and the renderer`);

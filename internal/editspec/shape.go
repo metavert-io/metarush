@@ -14,25 +14,29 @@ const (
 	ShapeSquare    Shape = "square"
 )
 
-// SquarePercent is the one threshold (D376): a frame whose long side is at
-// most 15% longer than its short side is square; past it the longer side
-// decides. 4:5 (1.25) is vertical, 5:4 landscape, 1:1 and 1080×1200 square.
-// Whole numbers only, so Go and TypeScript can never round differently.
-const SquarePercent = 115
+// The one rule's thresholds (D376) are the renderer's own
+// (video/src/core/layout.ts orientationOf, which lays out captions, templates
+// and motion graphics): width ÷ height above 1.15 is landscape, below 0.87
+// vertical, else square. QA, motion checks and the dashboard use the same, so
+// what MetaRush says about a shape is what the renderer draws. The cases in
+// testdata/shapes.json hold Go, the dashboard and the renderer to it.
+const (
+	LandscapeAbove = 1.15
+	VerticalBelow  = 0.87
+)
 
 // ShapeOf is the shape of a width × height frame ("" when either is missing).
 func ShapeOf(w, h int) Shape {
 	if w <= 0 || h <= 0 {
 		return ""
 	}
-	long, short := max(w, h), min(w, h)
-	switch {
-	case long*100 <= short*SquarePercent:
-		return ShapeSquare
-	case h > w:
+	switch r := float64(w) / float64(h); {
+	case r > LandscapeAbove:
+		return ShapeLandscape
+	case r < VerticalBelow:
 		return ShapeVertical
 	}
-	return ShapeLandscape
+	return ShapeSquare
 }
 
 // Word is the shape as people say it: landscape is "widescreen".

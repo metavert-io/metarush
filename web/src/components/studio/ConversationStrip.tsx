@@ -3,7 +3,6 @@ import { media } from '../../api/client';
 import type { AssetSummary, Clip, Shot, Spec } from '../../api/types';
 import { speedOf } from '../../lib/editops';
 import { cx } from '../../ui/primitives';
-import { outputShape } from '../../lib/shape';
 
 /*
  * A conversation clip on the timeline (D102): its shots side by side — who is
@@ -39,8 +38,9 @@ export function defaultShot(clip: Clip, spec: Spec): Shot {
   const pics = (pin?.members ?? []).filter((m) => m.use !== 'sound').map((m) => m.id);
   if (pics.length === 1) return { at: clip.in, member: pics[0] };
   if (pics.length > 3) return { at: clip.in, layout: 'grid' };
-  // Go's defaultShot: stacked in a vertical cut by the one shape rule (D376).
-  return { at: clip.in, layout: outputShape(spec.output)?.shape === 'vertical' ? 'stacked' : 'side-by-side' };
+  // Go's defaultShot exactly: taller than wide, not the shape rule, so saved versions draw as they always did (D383).
+  const vertical = (spec.output.height ?? 0) > (spec.output.width ?? 0);
+  return { at: clip.in, layout: vertical ? 'stacked' : 'side-by-side' };
 }
 
 /** What a shot shows, in plain words. */

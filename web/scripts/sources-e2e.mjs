@@ -263,7 +263,7 @@ async function main() {
   check('the shot starts on the photo', /Starts on/.test((await panel.locator('[data-generate-frames]').textContent()) ?? ''));
   await panel.locator('[data-no-people]').check();
   const go = panel.locator('[data-generate-go]');
-  await waitFor(async () => /^Generate \(about \$\d+\.\d\d\)$/.test(((await go.textContent()) ?? '').trim()) && (await go.isEnabled()), 'the price on the button', 30_000);
+  await waitFor(async () => /^Generate (wide |tall )?\(about \$\d+\.\d\d\)$/.test(((await go.textContent()) ?? '').trim()) && (await go.isEnabled()), 'the price on the button', 30_000);
   await shot(page, 'generate-from-photo', panel);
   const toasted = page.getByText('Asked for the shot').first().waitFor({ timeout: 180_000 }).then(() => true, () => false);
   await go.click();

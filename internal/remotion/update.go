@@ -132,14 +132,13 @@ func addClip(ctx context.Context, a *app.App, s *models.RemotionSource, r *model
 	return savePlan(ctx, a, editspec.Plan{BaseRevisionID: rev.ID, Branch: rev.Branch, Instruction: instruction, Origin: "remotion:use", Ops: []editspec.Op{op}})
 }
 
-// outputFor picks a first cut's frame from the composition's shape.
+// outputFor picks a first cut's frame from the composition's own shape
+// (D389: a preset's ratio at its size, any other kept with its short side
+// 1080), widescreen when it says none.
 func outputFor(r *models.RemotionRender) editspec.Output {
 	o := editspec.Output{Preset: editspec.PresetLandscape, FPS: 30}
-	switch {
-	case r.Height > r.Width:
-		o.Preset = editspec.PresetVertical
-	case r.Height == r.Width:
-		o.Preset = editspec.PresetSquare
+	if size, _ := editspec.CutSizeFor(r.Width, r.Height); size.Preset != "" || size.Width > 0 {
+		o.Preset, o.Width, o.Height = size.Preset, size.Width, size.Height
 	}
 	for _, f := range []int{24, 25, 30, 50, 60} {
 		if math.Abs(r.FPS-float64(f)) < 0.01 {

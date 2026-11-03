@@ -332,6 +332,30 @@ func NewCutDefaults(s *Spec, base *Spec, style ...*HouseStyle) bool {
 	return sound || framing || styled
 }
 
+// NewCutShape gives a whole cut that names no shape (no size and no preset)
+// one (D386): the shape of the cut it replaces (base, a full rewrite), else
+// start — its project's (ops.NewCutOutput) — with that platform when it
+// names none. It reports whether it gave one. Normalize's vertical is then
+// only ever reached by specs saved before, which keep it (D383).
+func NewCutShape(s *Spec, base *Spec, start Output) bool {
+	o := &s.Output
+	if o.Preset != "" || (o.Width > 0 && o.Height > 0) {
+		return false
+	}
+	from := start
+	if base != nil {
+		from = base.Output
+	}
+	if from.Preset == "" && (from.Width <= 0 || from.Height <= 0) {
+		return false
+	}
+	o.Preset, o.Width, o.Height = from.Preset, from.Width, from.Height
+	if o.Platform == "" {
+		o.Platform = from.Platform
+	}
+	return true
+}
+
 // newCutFraming writes how a new cut frames its crops: faces kept in frame
 // (output.framing "faces"), or the house style's framing. A full rewrite keeps
 // the framing of the cut it replaces, and adds nothing to a cut made before

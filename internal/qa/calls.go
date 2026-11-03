@@ -171,6 +171,7 @@ func (r *run) projectRules() {
 				preset := map[string]string{"landscape": editspec.PresetLandscape, "vertical": editspec.PresetVertical, "square": editspec.PresetSquare}[want]
 				out := r.in.Spec.Output
 				out.Preset, out.Width, out.Height = preset, editspec.Presets[preset][0], editspec.Presets[preset][1]
+				out.Platform = editspec.PlatformFor(editspec.Shape(want), out.Platform) // its margins too (D387)
 				r.add(&models.QAFinding{Severity: models.QAWarning, Kind: "rule_broken", Basis: models.QAObserved, From: 0, To: r.total(),
 					Message: fmt.Sprintf("%s: the video is %s.", ruleWords(rule), shapeWords(got)),
 					Fix:     &models.QAFix{Summary: "Make it " + shapeWords(want) + ".", Ops: []editspec.Op{{Op: "setOutput", Output: &out}}}})

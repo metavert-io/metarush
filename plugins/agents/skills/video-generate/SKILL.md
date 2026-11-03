@@ -24,7 +24,8 @@ take, a variation, an extension or an edit is always a **new** clip; nothing rep
 1. **Price first, then the person's yes.** Every request starts with `metarush generate estimate … --json`. Tell the
    person what it makes and what it costs ("a 6-second draft shot, wide, about $0.23"), and what is left of the
    project's budget and today's limit. Only after they agree, run the make command with `--max-cost` set to the price
-   they agreed to (never more). Never make shots on your own initiative, never "just try one", never repeat a request
+   they agreed to (never more) and `--aspect` set to the estimate's `aspectRatio`, always: the price is agreed for
+   that shape, and MetaRush refuses a price without it rather than spend it on another one. Never make shots on your own initiative, never "just try one", never repeat a request
    because you didn't like the result: ask.
 2. **No one's likeness without their look and consent.** Never put a real person's name or description in a prompt
    to make them appear. A real person appears only through their **approved look** (`--look <name>`), which needs
@@ -54,7 +55,10 @@ offering something new, the person may already have a take they like.
 
 ## 2. Write the request with them
 - A **shot from words**: what is in it, the light, the camera ("slow push in", "from above"), the mood. Keep their
-  words; offer a fuller prompt and say what you added. 3 to 10 seconds (default 6). Wide (16:9) or tall (9:16).
+  words; offer a fuller prompt and say what you added. 3 to 10 seconds (default 6). Wide (16:9) or tall (9:16):
+  leave the shape out and MetaRush makes the shot in the shape of the cut it is for (`--cut <name>` for a cut other
+  than the main one), else the project's; the estimate's `shapeWhy` says which and why — tell the person before
+  they agree to the price, and add `--aspect` only when they ask for another shape.
 - **Draft or final**: drafts (360p or 720p) are cheap, for choosing; final (1080p or 4K, upscaled) when the shot is
   settled. Suggest a draft first. Say that the price grows with every second and every take.
 - **Takes**: `--takes 2` to `4` makes several different versions at once to choose from; each costs the same.
@@ -111,7 +115,8 @@ cloud transcripts. Price first with `metarush ai estimate <kind> [words] --proje
 voice, sound-effect, music, voice-change, dubbing, transcription): it names the model and why (the usual one, or the
 one the project's Content Settings choose), up to two other models (cheaper, better — offer them, never pick for the
 person), the model's licence terms (say when they depend on the person's plan or say nothing about commercial use)
-and what the service keeps. After the person's yes, `metarush ai make <kind> … --max-cost <price>`. Pictures land in
+and what the service keeps. After the person's yes, `metarush ai make <kind> … --max-cost <price>`, with `--aspect` set to the estimate's
+`aspectRatio` whenever it has one (pictures for a cut, presenter clips): the price is agreed for that shape. Pictures land in
 the resources library, sound and dubs in Sources, a cloud transcript replaces the clip's words (the local one is free
 and stays the default: only on request). A dub in the speakers' own voices, speech in a copied voice and pictures of a
 named person need those people's consent; copying a voice (`metarush ai voices copy`) and choosing which services a

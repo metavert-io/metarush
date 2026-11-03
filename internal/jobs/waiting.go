@@ -23,11 +23,14 @@ const (
 	// WaitComponent: the computers that could run it lack a component a
 	// person adds in Settings → Components (D326).
 	WaitComponent = "needs_component"
+	// WaitNewer: the computers running MetaRush are too old to run it (a
+	// render in another shape, D396); a newer MetaRush on any of them does.
+	WaitNewer = "needs_newer"
 )
 
 // WaitReason explains why a queued job is not running yet.
 type WaitReason struct {
-	Code           string `json:"code" jsonschema:"enum=battery,enum=heavy_disabled,enum=no_worker,enum=busy,enum=retry_backoff,enum=starting,enum=needs_component"`
+	Code           string `json:"code" jsonschema:"enum=battery,enum=heavy_disabled,enum=no_worker,enum=busy,enum=retry_backoff,enum=starting,enum=needs_component,enum=needs_newer"`
 	Text           string `json:"text"`
 	Machine        string `json:"machine,omitempty"`
 	BatteryPercent *int   `json:"batteryPercent,omitempty"`
@@ -82,6 +85,20 @@ func Why(j models.Job, workers []models.WorkerDevice, now time.Time) *WaitReason
 					return &WaitReason{Code: WaitComponent, Machine: w.Name, Component: l.Component, Text: l.Says}
 				}
 			}
+		}
+	}
+	if len(capable) == 0 && j.Type == TypeRenderShape {
+		// Computers that render, but with a MetaRush too old for a copy in
+		// another shape (D396): it waits for a newer one, never drawn the old way.
+		var older []models.WorkerDevice
+		for _, w := range workers {
+			if Online(w, now) && handles(w, TypeRender) {
+				older = append(older, w)
+			}
+		}
+		if len(older) > 0 {
+			return &WaitReason{Code: WaitNewer, Machine: older[0].Name,
+				Text: "It waits for a computer with a newer MetaRush: " + names(older) + " can render, but not a copy in another shape. Update MetaRush there, or start a newer one."}
 		}
 	}
 	if len(capable) == 0 && j.Installation != "" {
@@ -166,6 +183,8 @@ func doing(typ string) string {
 		return "make transcripts"
 	case TypeRender:
 		return "render videos"
+	case TypeRenderShape:
+		return "render copies in another shape"
 	case TypeQA:
 		return "run quality checks"
 	case TypeDiarize:
@@ -223,62 +242,42 @@ func names(ws []models.WorkerDevice) string {
 // Label is a person-facing name for a job type.
 func Label(typ string) string { return label(typ) }
 
+// typeLabels name every job type for people (TestEveryJobTypeIsNamed holds
+// them to the types in queue.go).
+var typeLabels = map[string]string{
+	TypeThumbnail:       "thumbnail",
+	TypeContactSheet:    "frame grid",
+	TypeWaveform:        "waveform",
+	TypeTranscribe:      "transcription",
+	TypeRender:          "render",
+	TypeRenderShape:     "render",
+	TypeQA:              "quality check",
+	TypeProxy:           "preview copy",
+	TypeMezzanine:       "steady copy",
+	TypeEvidence:        "scene analysis",
+	TypeDiarize:         "speaker detection",
+	TypeVoiceover:       "narration",
+	TypeImport:          "link import",
+	TypeResourceUpload:  "copy of a linked file",
+	TypeVisual:          "look at what's on screen",
+	TypeDescribe:        "scene descriptions",
+	TypeFetch:           "repository or web page",
+	TypeStorageMove:     "media move",
+	TypeGenerate:        "piece of AI work",
+	TypeRemotionImport:  "Remotion project",
+	TypeRemotionRender:  "clip from a Remotion project",
+	TypeInspect:         "measurements for fixes",
+	TypePrepare:         "fixed copy",
+	TypeRemotionTask:    "work on a Remotion project",
+	TypeRemotionRefresh: "refresh of a Remotion project",
+	TypeRemotionPush:    "changes sent back to a repository",
+	TypeAbilityRun:      "run of an ability",
+	TypeSwitches:        "picture changes",
+}
+
 func label(typ string) string {
-	switch typ {
-	case TypeThumbnail:
-		return "thumbnail"
-	case TypeContactSheet:
-		return "frame grid"
-	case TypeWaveform:
-		return "waveform"
-	case TypeTranscribe:
-		return "transcription"
-	case TypeRender:
-		return "render"
-	case TypeQA:
-		return "quality check"
-	case TypeProxy:
-		return "preview copy"
-	case TypeMezzanine:
-		return "steady copy"
-	case TypeEvidence:
-		return "scene analysis"
-	case TypeDiarize:
-		return "speaker detection"
-	case TypeVoiceover:
-		return "narration"
-	case TypeImport:
-		return "link import"
-	case TypeResourceUpload:
-		return "copy of a linked file"
-	case TypeVisual:
-		return "look at what's on screen"
-	case TypeDescribe:
-		return "scene descriptions"
-	case TypeFetch:
-		return "repository or web page"
-	case TypeStorageMove:
-		return "media move"
-	case TypeGenerate:
-		return "piece of AI work"
-	case TypeRemotionImport:
-		return "Remotion project"
-	case TypeRemotionRender:
-		return "clip from a Remotion project"
-	case TypeInspect:
-		return "measurements for fixes"
-	case TypePrepare:
-		return "fixed copy"
-	case TypeRemotionTask:
-		return "work on a Remotion project"
-	case TypeRemotionRefresh:
-		return "refresh of a Remotion project"
-	case TypeRemotionPush:
-		return "changes sent back to a repository"
-	case TypeAbilityRun:
-		return "run of an ability"
-	case TypeSwitches:
-		return "picture changes"
+	if l, ok := typeLabels[typ]; ok {
+		return l
 	}
 	return typ
 }

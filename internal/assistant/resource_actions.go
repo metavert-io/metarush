@@ -284,7 +284,7 @@ func (m *Manager) describeResourceMake(ctx context.Context, c *conv, call *cliCa
 		return
 	}
 	in := ops.ResourceMakeIn{Kind: kind, Repo: repo, Version: clip(strings.TrimSpace(call.Flags["version"]), 80), Theme: theme, Name: name,
-		Title: clip(strings.TrimSpace(call.Flags["title"]), 200), ProjectID: prj, Workspace: hasBool(call, "workspace")}
+		Title: clip(strings.TrimSpace(call.Flags["title"]), 200), ProjectID: prj, Cut: clip(strings.TrimSpace(call.Flags["cut"]), 80), Workspace: hasBool(call, "workspace")}
 	from := "From “" + repo + "”"
 	if in.Version != "" {
 		from += " at " + in.Version

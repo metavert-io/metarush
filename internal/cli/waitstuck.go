@@ -98,7 +98,7 @@ var waitingWork = map[string]struct {
 	jobs.TypeWaveform: {"waveforms", true}, jobs.TypeMezzanine: {"steady copies", true}, jobs.TypeEvidence: {"finding scenes and pauses", false},
 	jobs.TypeTranscribe: {"transcripts", true}, jobs.TypeDiarize: {"telling voices apart", false}, jobs.TypeQA: {"quality checks", true},
 	jobs.TypeSwitches: {"finding where the picture changes", false}, jobs.TypeInspect: {"measuring clips for their fixes", false},
-	jobs.TypePrepare: {"fixed copies", true}, jobs.TypeRender: {"renders", true}, jobs.TypeVisual: {"seeing what's on screen", false},
+	jobs.TypePrepare: {"fixed copies", true}, jobs.TypeRender: {"renders", true}, jobs.TypeRenderShape: {"copies in another shape", true}, jobs.TypeVisual: {"seeing what's on screen", false},
 	jobs.TypeRemotionImport: {"bringing in Remotion projects", false}, jobs.TypeRemotionRender: {"clips from Remotion projects", true},
 	jobs.TypeRemotionTask: {"work on Remotion projects", false}, jobs.TypeRemotionRefresh: {"refreshing Remotion projects", false},
 	jobs.TypeRemotionPush: {"sending changes back to a repository", false},

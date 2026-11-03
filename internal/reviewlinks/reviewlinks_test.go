@@ -1558,3 +1558,39 @@ func TestARestoredCopyLeavesTheLinksPagesAlone(t *testing.T) {
 		t.Fatalf("left in the bucket: %v", keys)
 	}
 }
+
+// A review link picks the version's own shape (D391): a newer vertical copy
+// of a widescreen version isn't what the link plays while the widescreen
+// review copy is there; with only the vertical copy, the link plays it and
+// says which shape is shared.
+func TestAReviewLinkPicksTheVersionsOwnShape(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	later := w.render.CreatedAt.Add(time.Minute)
+	vertical := w.render
+	vertical.ID, vertical.Preset, vertical.CreatedAt, vertical.CompletedAt, vertical.ShapeRule = ids.New(ids.Render), "vertical-1080p", later, &later, 1
+	out := *w.render.Output
+	out.Width, out.Height = 1080, 1920
+	vertical.Output = &out
+	if err := w.a.DB.Insert(ctx, store.CRenders, vertical); err != nil {
+		t.Fatal(err)
+	}
+	plan := call[reviewlinks.SharePlanOut](t, w.a, "share.plan", reviewlinks.SharePlanIn{ProjectID: w.p.ID}, ops.Caller{})
+	if !plan.May || plan.ReviewCopy != w.render.ID || plan.ReviewCopyShape != "widescreen" {
+		t.Fatalf("the link should play the widescreen review copy, not the newer vertical one: %+v", plan)
+	}
+	for _, x := range plan.Warnings {
+		if strings.Contains(x, "copy is used") {
+			t.Fatalf("its own shape is shared: %q", x)
+		}
+	}
+	if err := w.a.DB.Update(ctx, store.CRenders, w.a.WorkspaceID(), w.render.ID, bson.M{"$set": bson.M{"state": models.RenderFailed}}); err != nil {
+		t.Fatal(err)
+	}
+	plan = call[reviewlinks.SharePlanOut](t, w.a, "share.plan", reviewlinks.SharePlanIn{ProjectID: w.p.ID}, ops.Caller{})
+	said := strings.Join(plan.Warnings, " ")
+	if !plan.May || plan.ReviewCopy != vertical.ID || plan.ReviewCopyShape != "vertical" ||
+		!strings.Contains(said, "Version 1 is widescreen, but it has no review copy in that shape yet, so its vertical copy is used.") {
+		t.Fatalf("with only the vertical copy, the link plays it and says so: %+v", plan)
+	}
+}

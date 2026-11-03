@@ -161,6 +161,7 @@ func New(a *app.App) *Worker {
 	// only while the renderer is ready or being set up (renderer.Usable).
 	if a.Tools.Has(tools.Node) {
 		w.handlers[jobs.TypeRender] = renderHandler
+		w.handlers[jobs.TypeRenderShape] = renderHandler // a copy in another shape (D396)
 		// Remotion sources (D131–D138): bringing one in (pinned to the machine
 		// that asked) and rendering its compositions into clips (any machine).
 		w.handlers[jobs.TypeRemotionImport] = remotionImportHandler
@@ -315,7 +316,7 @@ func (w *Worker) JobTypes() []string {
 	w.hmu.RLock()
 	defer w.hmu.RUnlock()
 	for t := range w.handlers {
-		if (t == jobs.TypeRender || t == jobs.TypeRemotionImport || t == jobs.TypeRemotionRender || t == jobs.TypeRemotionTask || t == jobs.TypeRemotionRefresh) && !renderer.New(w.App.Cfg, w.App.Tools).Usable() {
+		if (jobs.IsRender(t) || t == jobs.TypeRemotionImport || t == jobs.TypeRemotionRender || t == jobs.TypeRemotionTask || t == jobs.TypeRemotionRefresh) && !renderer.New(w.App.Cfg, w.App.Tools).Usable() {
 			continue
 		}
 		out = append(out, t)
@@ -344,7 +345,7 @@ func (w *Worker) handler(t string) Handler {
 // componentGated are the job types a component brings (D324): Refresh adds
 // or takes them away as components are added or removed.
 var componentGated = []string{jobs.TypeProxy, jobs.TypeThumbnail, jobs.TypeContactSheet, jobs.TypeWaveform, jobs.TypeMezzanine, jobs.TypeEvidence,
-	jobs.TypeQA, jobs.TypeSwitches, jobs.TypeInspect, jobs.TypePrepare, jobs.TypeTranscribe, jobs.TypeDiarize, jobs.TypeRender, jobs.TypeRemotionImport,
+	jobs.TypeQA, jobs.TypeSwitches, jobs.TypeInspect, jobs.TypePrepare, jobs.TypeTranscribe, jobs.TypeDiarize, jobs.TypeRender, jobs.TypeRenderShape, jobs.TypeRemotionImport,
 	jobs.TypeRemotionRender, jobs.TypeRemotionTask, jobs.TypeRemotionRefresh, jobs.TypeRemotionPush, jobs.TypeVisual}
 
 // Refresh looks again at what this computer can do after a component was
@@ -394,7 +395,7 @@ func (w *Worker) Lacks() []models.WorkerLack {
 	}
 	lack(jobs.TypeTranscribe, tx)
 	lack(jobs.TypeDiarize, tx)
-	for _, t := range []string{jobs.TypeRender, jobs.TypeRemotionImport, jobs.TypeRemotionRender, jobs.TypeRemotionTask, jobs.TypeRemotionRefresh} {
+	for _, t := range []string{jobs.TypeRender, jobs.TypeRenderShape, jobs.TypeRemotionImport, jobs.TypeRemotionRender, jobs.TypeRemotionTask, jobs.TypeRemotionRefresh} {
 		lack(t, renderer.Component)
 	}
 	if runtime.GOOS == "darwin" {
@@ -835,7 +836,7 @@ func (w *Worker) settled(ctx context.Context, j *models.Job, state string, resul
 	// (D187) rings the bell only when it failed or its check found something:
 	// the cut shows it ready, and every hand edit would otherwise ring twice.
 	follow, _ := j.Payload["follow"].(bool)
-	if j.Type == jobs.TypeRender && j.RenderID != "" && state != models.JobCanceled && (!follow || state != models.JobSucceeded) {
+	if jobs.IsRender(j.Type) && j.RenderID != "" && state != models.JobCanceled && (!follow || state != models.JobSucceeded) {
 		notify.RenderOutcome(ctx, a, j.RenderID)
 	}
 	if j.Type == jobs.TypeQA && state == models.JobSucceeded {
@@ -868,7 +869,7 @@ func (w *Worker) settled(ctx context.Context, j *models.Job, state string, resul
 			notify.ImportFailed(ctx, a, done)
 		}
 	}
-	if j.Type == jobs.TypeRender && j.RenderID != "" && state == models.JobSucceeded {
+	if jobs.IsRender(j.Type) && j.RenderID != "" && state == models.JobSucceeded {
 		if noQA, _ := j.Payload["noQA"].(bool); !noQA {
 			w.queueQA(ctx, j)
 		}

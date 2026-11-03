@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 )
@@ -163,11 +164,8 @@ func keepCmd() *cobra.Command {
 
 // deliverableShapeWords says a deliverable's shape in plain words.
 func deliverableShapeWords(preset string) string {
-	switch {
-	case strings.HasPrefix(preset, "vertical"):
-		return "vertical"
-	case strings.HasPrefix(preset, "square"):
-		return "square"
+	if w := (editspec.Output{Preset: preset}).Shape().Word; w != "" { // the one shape rule (D376)
+		return w
 	}
 	return "widescreen"
 }

@@ -369,6 +369,19 @@ func prepare(ctx context.Context, a *app.App, raw json.RawMessage, allowUnlock b
 			applyKitToNewCut(ctx, a, p.spec, p.project.ID)
 			style, _, _ = content.StyleFor(ctx, a, p.project.ID)
 		}
+		// A whole cut that names no shape keeps its cut's, else starts in its
+		// project's (D386); the confirmation binds the project's shape, which
+		// may change before the change is saved.
+		if !p.spec.Output.Shape().Known() {
+			var start editspec.Output
+			if parentSpec == nil {
+				var ps ProjectShapeOut
+				start, ps = NewCutOutput(ctx, a, &p.project)
+				sum := sha256.Sum256([]byte(p.planHash + "|shape:" + ps.Key() + "|" + start.Platform))
+				p.planHash = hex.EncodeToString(sum[:])
+			}
+			editspec.NewCutShape(p.spec, parentSpec, start)
+		}
 		// A new cut gets the current sound at cuts (speech leveling, click-free
 		// straight cuts) and framing, or the house style's; a full rewrite
 		// keeps the settings of the cut it replaces.

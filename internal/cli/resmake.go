@@ -214,7 +214,8 @@ Read the repository first: metarush resources path widget.`,
 	fl.StringVar(&in.Theme, "theme", "", "dark or light (default: from the brand kit)")
 	fl.StringVar(&in.Name, "name", "", "short name (a name that is already there gets a new version)")
 	fl.StringVar(&in.Title, "title", "", "display name")
-	fl.StringVar(&in.ProjectID, "project", "", "the project it goes into (default: next to the repository)")
+	fl.StringVar(&in.ProjectID, "project", "", "the project it goes into (default: next to the repository); drawn to fit the project's shape")
+	fl.StringVar(&in.Cut, "cut", "", "the cut it is made for (with --project): drawn to fit that cut's shape")
 	fl.BoolVar(&in.Workspace, "workspace", false, "the workspace library")
 	addDetailsFlag(c, &details)
 	return c

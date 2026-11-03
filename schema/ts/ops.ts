@@ -5448,7 +5448,7 @@ updatedAt: string
  * via the `definition` "WaitReason".
  */
 export interface WaitReason {
-code: ("battery" | "heavy_disabled" | "no_worker" | "busy" | "retry_backoff" | "starting" | "needs_component")
+code: ("battery" | "heavy_disabled" | "no_worker" | "busy" | "retry_backoff" | "starting" | "needs_component" | "needs_newer")
 text: string
 machine?: string
 batteryPercent?: number
@@ -6425,7 +6425,7 @@ presenter?: string
  */
 line?: number
 /**
- * The cut whose narration line it is (default: the main one).
+ * The cut it is for: a presenter's narration line comes from it (default: the main one); a picture or a presenter's clip is made in its shape unless options say one (D385).
  */
 branch?: string
 /**
@@ -6497,6 +6497,14 @@ here?: boolean
 allowed: boolean
 problems?: string[]
 notes?: string[]
+/**
+ * The shape it is made in (16:9, 9:16…) when it has one: send it with the agreed price.
+ */
+aspectRatio?: string
+/**
+ * The shape it is made in for the cut it is for, and why.
+ */
+shape?: string
 summary: string
 cost: CostEstimate
 }
@@ -11937,6 +11945,10 @@ format?: ("mermaid" | "d2" | "")
 source?: string
 theme?: ("dark" | "light" | "")
 caption?: string
+/**
+ * The shape of the cut it was drawn to fit; absent: drawn wide.
+ */
+shape?: ("vertical" | "square" | "")
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -15089,6 +15101,7 @@ result?: PlanResult
 applied?: Applied
 summary: string
 why?: string[]
+shape?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -15322,7 +15335,7 @@ branch?: string
  */
 style?: ("podcast" | "interview" | "panel" | "reactions" | "broll")
 /**
- * Default landscape (16:9).
+ * Default: the shape of the cut it replaces, else the project's when something says (its cuts, brief or footage), else landscape (16:9).
  */
 shape?: ("landscape" | "vertical" | "square")
 from?: number
@@ -15338,7 +15351,7 @@ broll?: string[]
  */
 layout?: ("side-by-side" | "stacked" | "pip" | "grid")
 /**
- * Captions with each person's name (default: on for vertical, off otherwise).
+ * Captions with each person's name (default: as the house style of the project's Content Settings says; with none: on for vertical, off otherwise).
  */
 captions?: boolean
 /**
@@ -15387,6 +15400,7 @@ result?: PlanResult
 applied?: Applied
 summary: string
 why?: string[]
+shape?: string
 suggestions: CleanupInfo[]
 }
 /**
@@ -15507,6 +15521,7 @@ result?: PlanResult
 applied?: Applied
 summary: string
 why?: string[]
+shape?: string
 conversation: CallInfo
 members: CallMatchMember[]
 jobId?: string
@@ -15685,6 +15700,7 @@ result?: PlanResult
 applied?: Applied
 summary: string
 why?: string[]
+shape?: string
 projectId?: string
 /**
  * The new project's name.
@@ -18480,6 +18496,8 @@ seconds?: number
  * MetaRush made it by itself.
  */
 follow?: boolean
+shape?: string
+otherShape?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -20389,6 +20407,12 @@ takes: number
 seconds: number
 resolution: string
 aspectRatio: string
+shapeFrom?: ("" | "asked" | "cut" | "project" | "look" | "same" | "default")
+shapeWhy?: string
+/**
+ * The shape that fits the cut (or project) it is for, when something says.
+ */
+fitsCut?: string
 quality: string
 upscaled?: boolean
 /**
@@ -20658,7 +20682,14 @@ look?: string
  * How long (the model's range; default 6).
  */
 seconds?: number
+/**
+ * The shape; default: the shape of the cut it is for (cut), else the project's, else the look's usual one, else the model's (D385).
+ */
 aspectRatio?: ("" | "16:9" | "9:16")
+/**
+ * The cut the shot is for (its name or a version): it is made in that cut's shape (default: the project's).
+ */
+cut?: string
 /**
  * draft (cheaper, to try ideas) or final; default draft.
  */
@@ -26163,6 +26194,10 @@ qa?: RenderQA
  * MetaRush made this review copy by itself to follow the cut's latest version.
  */
 follow?: boolean
+/**
+ * A render in another shape than its version's: 1 re-picks what depends on the shape (call layouts, platform and margins, captions, framing); absent changes only the size.
+ */
+shapeRule?: number
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -26194,9 +26229,9 @@ ratio: string
 word: string
 preset?: ("vertical-1080p" | "landscape-1080p" | "square-1080")
 /**
- * Where it comes from: the latest version of its main cut (else of any cut), the brief's deliverables, the shape most of its footage is in, or MetaRush's default (vertical) when nothing says.
+ * Where it comes from: the latest version of its main cut (else of any cut), the brief's deliverables, the brief's platforms, the shape most of its footage is in, or MetaRush's default (vertical) when nothing says.
  */
-from: ("cut" | "deliverables" | "footage" | "default")
+from: ("cut" | "deliverables" | "platforms" | "footage" | "default")
 known: boolean
 branch?: string
 revisionId?: string
@@ -28867,6 +28902,7 @@ result?: PlanResult
 applied?: Applied
 summary: string
 why?: string[]
+shape?: string
 branch: string
 newCut: boolean
 projectId: string
@@ -31886,6 +31922,10 @@ title?: string
  * The project it goes into (ID or name); default: next to the repository.
  */
 projectId?: string
+/**
+ * The cut it is made for (its name or a version; with projectId): drawn to fit that cut's shape. A project without a cut: the project's shape; neither: drawn wide.
+ */
+cut?: string
 workspace?: boolean
 }
 /**
@@ -32993,6 +33033,10 @@ projectName: string
 revisionId?: string
 revisionNumber?: number
 reviewCopy?: string
+/**
+ * The shape of the review copy the link plays: widescreen, vertical or square.
+ */
+reviewCopyShape?: string
 title: string
 days: number
 maxDays: number

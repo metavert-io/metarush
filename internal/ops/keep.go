@@ -11,6 +11,7 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/content"
+	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/keep"
 	"github.com/metavert-io/metarush/internal/media"
 	"github.com/metavert-io/metarush/internal/models"
@@ -204,8 +205,12 @@ func KeepDescribe(kind, text string, d models.KeepDetail, project string, st Kee
 		}
 		if len(d.Deliverables) > 0 {
 			var ds []string
-			for _, dl := range deliverablesOf(d.Deliverables) {
-				ds = append(ds, dl.Name+" ("+map[string]string{"landscape-1080p": "widescreen", "vertical-1080p": "vertical", "square-1080": "square"}[dl.Preset]+")")
+			for _, dl := range deliverablesOf(d.Deliverables, nil) {
+				if w := (editspec.Output{Preset: dl.Preset}).Shape().Word; w != "" {
+					ds = append(ds, dl.Name+" ("+w+")")
+				} else {
+					ds = append(ds, dl.Name) // its shape is the project's when kept
+				}
 			}
 			parts = append(parts, "where it goes: "+strings.Join(ds, ", "))
 		}
@@ -255,9 +260,12 @@ func linkWords(u string) string {
 	return k
 }
 
-// deliverablesOf fills in each deliverable's shape from its words.
-func deliverablesOf(ds []models.Deliverable) []models.Deliverable {
+// deliverablesOf fills in each deliverable's shape from its words; a place
+// whose words name no shape takes fallback's (the project's, D386; nil leaves
+// it to be filled when the brief is saved).
+func deliverablesOf(ds []models.Deliverable, fallback func() string) []models.Deliverable {
 	out := make([]models.Deliverable, 0, len(ds))
+	shape := ""
 	for _, d := range ds {
 		d.Name = strings.TrimSpace(d.Name)
 		if d.Name == "" {
@@ -265,6 +273,12 @@ func deliverablesOf(ds []models.Deliverable) []models.Deliverable {
 		}
 		if d.Preset == "" || d.Platform == "" {
 			preset, platform := DeliverableShape(d.Name)
+			if preset == "" && d.Preset == "" && fallback != nil {
+				if shape == "" {
+					shape = fallback()
+				}
+				preset = shape
+			}
 			if d.Preset == "" {
 				d.Preset = preset
 			}
@@ -277,9 +291,21 @@ func deliverablesOf(ds []models.Deliverable) []models.Deliverable {
 	return out
 }
 
+// deliverableFallback is the shape a place whose words name none needs
+// (D386): the project's when something says, else widescreen, as before.
+func deliverableFallback(ctx context.Context, a *app.App, p *models.Project) string {
+	if p != nil {
+		if ps := ProjectShape(ctx, a, p); ps.Known && ps.Preset != "" {
+			return ps.Preset
+		}
+	}
+	return editspec.PresetLandscape
+}
+
 // DeliverableShape is the shape and platform a place needs, from its words:
-// email, a website, YouTube or a presentation widescreen; shorts, reels,
-// TikTok, stories or social media vertical; a square feed square.
+// email, a website, YouTube, a presentation or a screen widescreen; shorts,
+// reels, TikTok, stories or social media vertical; a square feed square.
+// Words that name none give no preset (deliverablesOf: the project's shape).
 func DeliverableShape(name string) (preset, platform string) {
 	n := strings.ToLower(name)
 	switch {
@@ -294,7 +320,12 @@ func DeliverableShape(name string) (preset, platform string) {
 	case strings.Contains(n, "youtube"):
 		return "landscape-1080p", "youtube"
 	}
-	return "landscape-1080p", "generic"
+	for _, w := range []string{"email", "e-mail", "mail", "web", "site", "page", "presentation", "slides", "screen", "tv", "television", "widescreen", "landscape", "horizontal", "16:9", "desktop", "linkedin", "vimeo", "event", "conference"} {
+		if strings.Contains(n, w) {
+			return "landscape-1080p", "generic"
+		}
+	}
+	return "", "generic"
 }
 
 // mergeBrief adds what a keep card brings to a brief: fields given replace
@@ -313,7 +344,7 @@ func mergeBrief(b models.Brief, d models.KeepDetail) models.Brief {
 	for _, x := range b.Deliverables {
 		have[keep.Norm(x.Name)] = true
 	}
-	for _, x := range deliverablesOf(d.Deliverables) {
+	for _, x := range deliverablesOf(d.Deliverables, nil) {
 		if !have[keep.Norm(x.Name)] {
 			have[keep.Norm(x.Name)] = true
 			b.Deliverables = append(b.Deliverables, x)

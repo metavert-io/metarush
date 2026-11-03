@@ -154,7 +154,7 @@ func (f *aiFlags) add(c *cobra.Command, estimate bool) {
 	fl.BoolVar(&f.in.NoPeople, "no-people", false, "you say the pictures show no real people")
 	fl.StringVar(&f.in.Presenter, "presenter", "", "presenters: who reads it (a presenter's short name, or stock:<id>; default for a dubbed presenter clip: the same presenter)")
 	fl.IntVar(&f.in.Line, "line", 0, "presenters: read this narration line of the project's cut (1 is the first) instead of a clip")
-	fl.StringVar(&f.in.Branch, "cut", "", "presenters: the cut whose narration line it is (default: the main one)")
+	fl.StringVar(&f.in.Branch, "cut", "", "the cut it is for: a picture or a presenter's clip is made in its shape (unless --aspect says), and a presenter reads its narration line (default: the main one)")
 	fl.StringVar(&o.Background, "background", "", "presenters: a colour behind the presenter (#rrggbb, or green), for one filmed against a green screen")
 	if !estimate {
 		fl.Float64Var(&f.maxCost, "max-cost", 0, "the most you agree to pay, in US dollars (from the estimate)")
@@ -232,18 +232,29 @@ func runAI(c *cobra.Command, op string, in any, maxUSD **float64, dry, wait, det
 			}
 			v := est.USD
 			*maxUSD = &v
+			// The price agreed here is for the shape the estimate showed (D394).
+			if mi, ok := in.(*aiwork.MakeIn); ok && mi.Options.AspectRatio == "" {
+				mi.Options.AspectRatio = est.AspectRatio
+			}
 		}
 	}
 	b, _ := json.Marshal(in)
 	res, err := ops.Call(ctx, a, op, b, caller)
 	if err != nil {
 		ae := apperr.From(err)
+		d, _ := ae.Details.(map[string]any)
 		if ae.Code == apperr.ConfirmRequired && !jsonMode(c) {
-			if d, ok := ae.Details.(map[string]any); ok {
-				if v, ok := d["estimateUsd"].(float64); ok {
-					ae = ae.WithCommand(sameCommandWith(c, "--max-cost", strconv.FormatFloat(v, 'f', 3, 64)))
+			if v, ok := d["estimateUsd"].(float64); ok {
+				extra := []string{"--max-cost", strconv.FormatFloat(v, 'f', 3, 64)}
+				if est, ok := d["estimate"].(aiwork.AIEstimate); ok && est.AspectRatio != "" && c.Flags().Lookup("aspect") != nil && !c.Flags().Changed("aspect") {
+					extra = append(extra, "--aspect", est.AspectRatio)
 				}
+				ae = ae.WithCommand(sameCommandWith(c, extra...))
 			}
+		}
+		if ar, _ := d["aspectRatio"].(string); d["reason"] == "shape_not_agreed" && ar != "" && !jsonMode(c) {
+			// --max-cost without --aspect (D394): the shape to say, by the flag just typed without it.
+			return fail(c, apperr.Conflict, ae.Message+" Say the shape with the price: --aspect "+ar+".", ae.Hint)
 		}
 		return failErr(c, ae)
 	}
@@ -285,6 +296,9 @@ func printAIEstimate(e *aiwork.AIEstimate, details bool) {
 	fmt.Println(e.Summary)
 	for _, in := range e.Inputs {
 		fmt.Println("  sends " + in)
+	}
+	if e.Shape != "" {
+		fmt.Println("  shape: " + e.Shape)
 	}
 	switch e.Choice {
 	case "content-settings":

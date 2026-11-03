@@ -76,6 +76,9 @@ func ShapeOfSize(w, h int) OutputShape {
 	return OutputShape{Shape: s, Width: w, Height: h, Aspect: float64(int(float64(w)/float64(h)*10000+0.5)) / 10000, Ratio: ratio, Word: s.Word()}
 }
 
+// Known reports a size (a shape that isn't the zero value).
+func (s OutputShape) Known() bool { return s.Shape != "" }
+
 // Key names the exact size ("1080x1920"): two frames are drawn alike only
 // when their keys match, whatever their shape's word.
 func (s OutputShape) Key() string {

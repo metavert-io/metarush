@@ -349,15 +349,9 @@ func MakesWords(d *models.RecipeDoc) string {
 	if m := strings.TrimSpace(d.Makes); m != "" && (d.From == nil || d.From.RevisionID == "") {
 		return m
 	}
-	shape := editspec.PresetLabel(d.Cut.Output.Preset)
+	shape := d.Cut.Output.Shape().Word // the one shape rule (D376)
 	if shape == "" {
-		shape = "widescreen"
-		if d.Cut.Output.Width > 0 && d.Cut.Output.Height > d.Cut.Output.Width {
-			shape = "vertical"
-		}
-	}
-	if shape == "landscape" {
-		shape = "widescreen"
+		shape = "widescreen" // a cut that names no shape, as these words always said
 	}
 	out := "one " + shape + " video"
 	switch l := d.Length; {

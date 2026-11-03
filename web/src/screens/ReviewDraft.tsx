@@ -170,7 +170,8 @@ function ReviewCopy({ packet: p }: { packet: Packet }) {
   const rc = p.reviewCopy;
   // The version's shape as the server says it (D376).
   const shape = p.revision?.shape;
-  const vertical = shape?.shape === 'vertical';
+  // The copy shown is in the version's own shape unless it has none yet (D391): then its own.
+  const vertical = rc?.otherShape ? rc.shape === 'vertical' : shape?.shape === 'vertical';
   return (
     <section aria-label="Review copy" data-review-copy={rc?.state ?? 'none'}>
       {rc?.state === 'available' ? (
@@ -185,6 +186,7 @@ function ReviewCopy({ packet: p }: { packet: Packet }) {
       )}
       <div className="mt-2 flex flex-wrap items-center gap-3 text-[12.5px] text-muted">
         {rc?.state === 'available' ? <span>{rc.said}.</span> : null}
+        {rc?.otherShape ? <span data-other-shape>{rc.otherShape}</span> : null}
         {p.revision && p.baseRevisionId ? (
           <Link to={`/p/${p.revision.projectId}/compare?left=${p.baseRevisionId}&right=${p.revision.id}`} className="ml-auto font-medium text-accent-text hover:underline" data-compare>
             Compare side by side

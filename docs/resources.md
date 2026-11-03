@@ -398,6 +398,12 @@ repository is refreshed, code slides follow their lines to where they moved (a n
 changed stays, with a note), cards are drawn again, diagrams stay. `--name` of an existing resource adds a new
 version of it.
 
+Made for a project (`--project`, and `--cut` for a cut other than its main one), a slide is drawn to fit the cut's
+shape (D393, `render/slideshape.mjs`): for a vertical or square cut, code slides are narrower with long lines wrapped
+under themselves, cards put their numbers in rows, and a Mermaid flowchart that runs across (`LR`/`RL`) is turned to
+run down (a D2 diagram's top-level `direction` likewise). How it was made records the shape (`madeWith.shape`), and a
+newer commit's version keeps it. A widescreen cut, or a slide made for no project, is drawn exactly as before.
+
 ## Slides
 
 Six vetted templates show these (and any picture) in the brand's colours and font, full-frame, in every shape of

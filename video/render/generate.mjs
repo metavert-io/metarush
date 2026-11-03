@@ -22,6 +22,7 @@ import { parseArgs } from 'node:util';
 import { UsageError, chromiumOptions, emit, ensureBrowserInstalled, fail, log, pinCwd, remotionVersion, watchdog } from './shared.mjs';
 import { hostPort } from './motion/jail.mjs';
 import { openSession } from './motion/session.mjs';
+import { fitShape, turnForShape, viewportWidth } from './slideshape.mjs';
 
 const require = createRequire(import.meta.url);
 const VERSIONS = {
@@ -132,7 +133,7 @@ pre { margin: 0; padding: 22px 0 26px; font: 400 26px/1.58 "MR Mono", monospace;
 .ln.hl { background: ${rgba(accent, light ? 0.16 : 0.18)}; box-shadow: inset 5px 0 0 ${accent}; } .ln.hl .n { opacity: 0.95; color: ${accent}; }
 `;
   const body = `<div id="panel"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="path">${esc(h.path)}</span><span class="lines">${esc(h.lines)}</span><span class="repo">${esc(h.repo)}</span></div><pre>${rows}</pre></div>`;
-  return { html: pageHTML(body, css), info: { lang } };
+  return { html: pageHTML(body, css + fitShape(input.shape, 'code')), info: { lang } };
 };
 
 // --- repository cards ------------------------------------------------------------
@@ -177,7 +178,7 @@ h1 { margin: 10px 0 0; font: 700 54px/1.08 "MR Sans"; letter-spacing: -0.02em; w
 ${langs.length ? `<div class="bar">${bar}</div><div class="legend">${legend}</div>` : ''}
 <div class="stats">${stat(input.files, 'files')}${input.stars ? stat(input.stars, 'stars') : ''}${input.contributors ? stat(input.contributors, 'recent contributors') : ''}${input.license ? stat(input.license, 'licence') : ''}${stat(input.commit, `commit, ${input.committedAt ?? ''}`)}</div>
 ${topics ? `<div class="chips">${topics}</div>` : ''}</div>`;
-  return { html: pageHTML(body, css) };
+  return { html: pageHTML(body, css + fitShape(input.shape, 'stats')) };
 };
 
 // --- diagrams ----------------------------------------------------------------------
@@ -259,7 +260,7 @@ const run = async (kind, args) => {
   const session = await openSession({ plan: { overlays: [], clips: [], audio: [], sources: {} }, extraLoopback: [hostPort(server.base)], chromiumOptions, log });
   try {
     const page = await session.browser.newPage({ context: () => null, logLevel: 'warn', indent: false, pageIndex: 0, onBrowserLog: null, onLog: () => {} });
-    await page.setViewport({ width: kind === 'stats' ? 1300 : 2600, height: 1200, deviceScaleFactor: 2 });
+    await page.setViewport({ width: viewportWidth(kind, input.shape), height: 1200, deviceScaleFactor: 2 });
     await page.goto({ url: `${server.base}/page.html`, timeout: 60000 });
     let result;
     if (kind === 'diagram') {
@@ -276,7 +277,7 @@ const run = async (kind, args) => {
           const r = await m.render('metarush-diagram', source);
           return { svg: r.svg };
         },
-        input.source,
+        turnForShape(input.source, input.shape),
         mermaidConfig(input),
       );
       if (svg?.error) throw new UsageError(`Mermaid can't read the diagram: ${svg.error}`);

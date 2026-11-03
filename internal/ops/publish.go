@@ -210,7 +210,7 @@ func notByAgents(a *app.App) error {
 }
 
 // finalRender is a version's newest final render of a shape (any shape when
-// preset is "": landscape first).
+// preset is "": the version's own first, D391, else widescreen, else any).
 func finalRender(ctx context.Context, a *app.App, rev *models.Revision, preset string) (*models.Render, []string, error) {
 	var renders []models.Render
 	if err := a.DB.Find(ctx, store.CRenders, a.WorkspaceID(), bson.M{"revisionId": rev.ID, "state": models.RenderAvailable, "quality": "final"}, &renders,
@@ -232,6 +232,11 @@ func finalRender(ctx context.Context, a *app.App, rev *models.Revision, preset s
 	sort.Strings(shapes)
 	if preset != "" {
 		return byPreset[preset], shapes, nil
+	}
+	for _, p := range shapes {
+		if r := byPreset[p]; InOwnShape(r, rev) {
+			return r, shapes, nil
+		}
 	}
 	if r := byPreset[editspec.PresetLandscape]; r != nil {
 		return r, shapes, nil

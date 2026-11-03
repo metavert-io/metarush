@@ -179,6 +179,12 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 		return nil, apperr.New(apperr.ConfirmRequired, "%s", msg).WithHint("Nothing was sent or spent.").
 			WithDetails(map[string]any{"estimateUsd": est.USD, "estimate": est})
 	}
+	// A price agreed is agreed for a shape (D394).
+	if estimateFirst {
+		if err := p.shapeAgreed(); err != nil {
+			return nil, err
+		}
+	}
 	// From here on the takes are made as a unit: a browser that goes away in the middle must not leave
 	// money set aside without a generation, or a generation without its job.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
@@ -356,6 +362,9 @@ func testLook(ctx context.Context, a *app.App, in *LookTestIn) (*GenRunOut, erro
 		// Test shots are short drafts at the lowest quality: they show the likeness, cheaply.
 		if err := p.resolveSettings("", 3, firstNonEmpty(l.Defaults.AspectRatio, st.aspect), "draft", "360p"); err != nil {
 			return nil, err
+		}
+		if ar := p.params.AspectRatio; ar != "" { // a look's test isn't for any cut
+			p.shapeFrom, p.shapeWhy = "look", upperFirst(shapeWords(ar))+" ("+ar+"), the look's usual shape."
 		}
 		var tags []string
 		for _, s := range l.Stills {

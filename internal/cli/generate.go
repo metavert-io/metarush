@@ -53,7 +53,8 @@ func (f *shotFlags) add(c *cobra.Command, estimate bool) {
 	fl.StringVar(&f.in.ProjectID, "project", "", "the project the shot is for")
 	fl.StringVar(&f.in.Look, "look", "", "who (or which character) appears: a look's short name")
 	fl.IntVar(&f.in.Seconds, "seconds", 0, "how long (3 to 10; default 6)")
-	fl.StringVar(&f.aspect, "aspect", "", "16:9 (wide, default) or 9:16 (tall)")
+	fl.StringVar(&f.aspect, "aspect", "", "16:9 (wide) or 9:16 (tall); default: the shape of the cut it is for (--cut), else the project's")
+	fl.StringVar(&f.in.Cut, "cut", "", "the cut the shot is for (its name or a version): made in that cut's shape")
 	fl.StringVar(&f.in.Quality, "quality", "", "draft (cheaper, default) or final")
 	fl.StringVar(&f.in.Resolution, "resolution", "", "360p, 720p, 1080p or 4k (overrides --quality)")
 	fl.StringVar(&f.in.Model, "model", "", "the video model (default: the team's; vertex/veo-3.1-fast-generate-001 or vertex/veo-3.1-generate-001 for Veo through Google Cloud)")
@@ -154,6 +155,9 @@ func genShotCmd(estimate bool) *cobra.Command {
 
 // runGenerate asks for generations: with no agreed price, a person at a
 // terminal sees the estimate and says yes; otherwise the op refuses plainly.
+// GenEstimateOf is a shot's estimate as an error's details carry it.
+type GenEstimateOf = generate.GenEstimate
+
 func runGenerate(c *cobra.Command, op string, in any, maxUSD **float64, dry, wait, details bool) error {
 	a, err := openApp(c, "cli")
 	if err != nil {
@@ -184,17 +188,28 @@ func runGenerate(c *cobra.Command, op string, in any, maxUSD **float64, dry, wai
 		}
 		v := est.USD
 		*maxUSD = &v
+		// The price agreed here is for the shape the estimate showed (D394).
+		if s, ok := in.(*generate.GenShotIn); ok && s.AspectRatio == "" {
+			s.AspectRatio = est.AspectRatio
+		}
 	}
 	b, _ := json.Marshal(in)
 	res, err := ops.Call(ctx, a, op, b, ops.Caller{Human: isInteractive()})
 	if err != nil {
 		ae := apperr.From(err)
+		d, _ := ae.Details.(map[string]any)
 		if ae.Code == apperr.ConfirmRequired && !jsonMode(c) {
-			if d, ok := ae.Details.(map[string]any); ok {
-				if v, ok := d["estimateUsd"].(float64); ok {
-					ae = ae.WithCommand(sameCommandWith(c, "--max-cost", strconv.FormatFloat(v, 'f', 3, 64)))
+			if v, ok := d["estimateUsd"].(float64); ok {
+				extra := []string{"--max-cost", strconv.FormatFloat(v, 'f', 3, 64)}
+				if est, ok := d["estimate"].(GenEstimateOf); ok && est.AspectRatio != "" && c.Flags().Lookup("aspect") != nil && !c.Flags().Changed("aspect") {
+					extra = append(extra, "--aspect", est.AspectRatio)
 				}
+				ae = ae.WithCommand(sameCommandWith(c, extra...))
 			}
+		}
+		if ar, _ := d["aspectRatio"].(string); d["reason"] == "shape_not_agreed" && ar != "" && !jsonMode(c) {
+			// --max-cost without --aspect (D394): the shape to say, by the flag just typed without it.
+			return fail(c, apperr.Conflict, ae.Message+" Say the shape with the price: --aspect "+ar+".", ae.Hint)
 		}
 		return failErr(c, ae)
 	}
@@ -255,6 +270,9 @@ func costWords(v generate.GenView) string {
 
 func printEstimate(e *generate.GenEstimate, details bool) {
 	fmt.Println(e.Summary)
+	if e.ShapeWhy != "" {
+		fmt.Println("  shape: " + e.ShapeWhy)
+	}
 	for _, r := range e.References {
 		fmt.Println("  " + r)
 	}

@@ -163,6 +163,12 @@ func (m *Manager) runAuto(c *conv, id string) {
 	}
 	a := m.autoApp(c, act)
 	done, err := m.runCard(ctx, a, ops.Caller{}, c, act, ConversationActIn{ReviewCopy: act.SavesVersion})
+	if staleShape(act, err) {
+		// Its price didn't say the shape: priced again, waiting for a person (D394).
+		m.replanShape(ctx, c, act, err)
+		m.tellClaudeSoon(c)
+		return
+	}
 	if err != nil {
 		// A check before the change failed: the card says so (it ran by itself).
 		done = act

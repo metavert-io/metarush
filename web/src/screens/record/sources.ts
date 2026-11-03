@@ -1,4 +1,6 @@
 import { NoAnswer, openWithDeadline } from '../../lib/deadline';
+import type { Shape } from '../../lib/shape';
+import { cameraConstraints, croppedByBrowser, ownSizeConstraints } from './camera';
 
 /*
  * The screen recorder's sources (D258, D262): the screen through the
@@ -97,20 +99,36 @@ export async function listCameras(): Promise<CameraDevice[]> {
     .filter((d, i, list) => list.findIndex((x) => x.id === d.id) === i);
 }
 
-/** Opens a camera (720p at 30 frames a second where it can). */
-export async function openCamera(deviceId?: string): Promise<MediaStream> {
+/**
+ * Opens a camera in the project's shape where it can (cameraConstraints, D395):
+ * only the camera's own modes. A browser that refuses the "own modes only"
+ * setting gets the camera at its own size; one that crops or stretches the
+ * picture anyway (it says so in the track's settings) has it opened again at
+ * its own size — the recording is always the camera's whole picture.
+ */
+export async function openCamera(deviceId?: string, shape?: Shape): Promise<MediaStream> {
   if (!window.isSecureContext) throw new SourceError('camera', 'insecure', 'The camera only works on a secure page.');
   if (!navigator.mediaDevices?.getUserMedia) throw new SourceError('camera', 'unsupported', 'This browser cannot use the camera.');
-  try {
-    return await openWithDeadline(
-      () =>
-        navigator.mediaDevices.getUserMedia({
-          video: { ...(deviceId ? { deviceId: { exact: deviceId } } : {}), width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
-        }),
+  const open = (video: MediaTrackConstraints) =>
+    openWithDeadline(
+      () => navigator.mediaDevices.getUserMedia({ video }),
       'camera',
       'camera',
       (late) => late.getTracks().forEach((t) => t.stop()),
     );
+  try {
+    let s: MediaStream;
+    try {
+      s = await open(cameraConstraints(deviceId, shape));
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === 'OverconstrainedError')) throw e;
+      s = await open(ownSizeConstraints(deviceId));
+    }
+    if (croppedByBrowser(s.getVideoTracks()[0]?.getSettings() as { resizeMode?: string })) {
+      s.getTracks().forEach((t) => t.stop());
+      s = await open(ownSizeConstraints(deviceId));
+    }
+    return s;
   } catch (e) {
     throw sourceProblem('camera', e);
   }

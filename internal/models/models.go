@@ -1042,6 +1042,11 @@ type Render struct {
 	// Follow: MetaRush made this review copy by itself, because it follows the
 	// cut's latest version (D187); nobody asked for it.
 	Follow bool `bson:"follow,omitempty" json:"follow,omitempty" jsonschema:"description=MetaRush made this review copy by itself to follow the cut's latest version."`
+	// ShapeRule is how a render in another shape than its version's is drawn
+	// (editspec.ReshapeRule, D388): 1 re-picks the call layouts, the platform
+	// and its margins, where middle captions sit and the framing for that
+	// shape; absent (renders asked for before) changes only the size.
+	ShapeRule int `bson:"shapeRule,omitempty" json:"shapeRule,omitempty" jsonschema:"description=A render in another shape than its version's: 1 re-picks what depends on the shape (call layouts\\, platform and margins\\, captions\\, framing); absent changes only the size."`
 }
 
 // RenderLabel names a render in plain words (D188): "Review copy of version

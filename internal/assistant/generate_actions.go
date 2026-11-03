@@ -2,11 +2,13 @@ package assistant
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/metavert-io/metarush/internal/aiwork"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/costs"
 	"github.com/metavert-io/metarush/internal/generate"
@@ -55,7 +57,7 @@ func (m *Manager) describeGenerate(ctx context.Context, c *conv, call *cliCall, 
 	case "generate shot":
 		in := generate.GenShotIn{ProjectID: call.Flags["project"], Prompt: clip(strings.TrimSpace(firstNonEmpty(call.Flags["prompt"], strings.Join(call.Args, " "))), 4000),
 			Look: clip(call.Flags["look"], 80), Seconds: num("seconds"), Quality: call.Flags["quality"], Resolution: call.Flags["resolution"], Model: clip(call.Flags["model"], 120),
-			Images: listFlag(call, "image"), NoPeople: hasBool(call, "no-people"), Takes: num("takes"), Origin: origin}
+			Images: listFlag(call, "image"), NoPeople: hasBool(call, "no-people"), Takes: num("takes"), Cut: clip(call.Flags["cut"], 80), Origin: origin}
 		if in.ProjectID == "" {
 			in.ProjectID = c.projectID()
 		}
@@ -90,7 +92,8 @@ func (m *Manager) describeGenerate(ctx context.Context, c *conv, call *cliCall, 
 			unavailable(a, "Make a generated shot", "MetaRush could not price it: "+firstLine(apperr.From(err).Message))
 			return
 		}
-		in.MaxUSD = &est.USD
+		// The price is agreed for the shape it shows (D394).
+		in.MaxUSD, in.AspectRatio = &est.USD, est.AspectRatio
 		m.generateCard(a, est, "generate.shot", in, in.Prompt)
 	case "generate again", "generate extend", "generate edit":
 		var op string
@@ -187,6 +190,9 @@ func (m *Manager) generateCard(a *AssistantAction, est *generate.GenEstimate, op
 		shape = "tall"
 	}
 	a.Details = append(a.Details, fmt.Sprintf("%s (%s), %s, made with %s", q, videogen.ResolutionLabel(est.Resolution), shape, est.ProviderTitle))
+	if est.ShapeWhy != "" && est.ShapeFrom != "same" { // why that shape (D385)
+		a.Details = append(a.Details, strings.TrimSuffix(est.ShapeWhy, "."))
+	}
 	if est.Consent.OK && est.Consent.Message != "" {
 		a.Details = append(a.Details, est.Consent.Message)
 	}
@@ -224,4 +230,76 @@ func clockSecs(s string) (float64, error) {
 		return float64(m)*60 + sec, err
 	}
 	return strconv.ParseFloat(s, 64)
+}
+
+// errShapeNotAgreed is a priced card whose price doesn't say the shape it
+// would be made in (D394): one saved before the shape was agreed with the
+// price. It is priced again in place, never made in a shape chosen now.
+var errShapeNotAgreed = apperr.New(apperr.Conflict, "The price on this card didn't say the shape it would be made in, so it was priced again with its shape. Look at it again.").
+	WithHint("Nothing was sent or spent.").WithDetails(map[string]any{"reason": "shape_not_agreed"})
+
+// shapelessShot reports a priced shot card that doesn't carry its shape.
+func shapelessShot(act AssistantAction) bool {
+	if act.Op != "generate.shot" {
+		return false
+	}
+	var in generate.GenShotIn
+	return json.Unmarshal([]byte(act.Input), &in) == nil && in.MaxUSD != nil && in.AspectRatio == ""
+}
+
+// staleShape reports a priced card that can't be made because its price
+// didn't say its shape (D394): shapelessShot, or one MetaRush refused.
+func staleShape(act AssistantAction, err error) bool {
+	return err != nil && (act.Op == "generate.shot" || act.Op == "ai.make") && errReason(err) == "shape_not_agreed"
+}
+
+// replanShape prices a card again in place, with the shape it would be made
+// in now, for a person to look at (D394; Auto never runs it on its own).
+func (m *Manager) replanShape(ctx context.Context, c *conv, act AssistantAction, err error) {
+	if !staleShape(act, err) {
+		return
+	}
+	ectx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 60*time.Second)
+	defer cancel()
+	fresh := act
+	fresh.Details, fresh.Estimate, fresh.Error, fresh.Unavailable = nil, nil, "", ""
+	fresh.State, fresh.Auto, fresh.AutoMode, fresh.AutoPriced = ActionPending, false, false, false
+	switch act.Op {
+	case "generate.shot":
+		var in generate.GenShotIn
+		if json.Unmarshal([]byte(act.Input), &in) != nil {
+			return
+		}
+		in.MaxUSD, in.AspectRatio = nil, ""
+		est, err := callOp[generate.GenEstimate](ectx, m, "generate.estimate", in)
+		if err != nil {
+			unavailable(&fresh, act.Title, "MetaRush could not price it again: "+firstLine(apperr.From(err).Message))
+			break
+		}
+		in.MaxUSD, in.AspectRatio = &est.USD, est.AspectRatio
+		m.generateCard(&fresh, est, "generate.shot", in, in.Prompt)
+	case "ai.make":
+		var in aiwork.MakeIn
+		if json.Unmarshal([]byte(act.Input), &in) != nil {
+			return
+		}
+		in.MaxUSD = nil
+		est, err := callOp[aiwork.AIEstimate](ectx, m, "ai.estimate", in)
+		if err != nil {
+			unavailable(&fresh, act.Title, "MetaRush could not price it again: "+firstLine(apperr.From(err).Message))
+			break
+		}
+		in.MaxUSD = &est.USD
+		if est.AspectRatio != "" {
+			in.Options.AspectRatio = est.AspectRatio
+		}
+		m.aiCard(&fresh, est, in)
+	}
+	fresh.Details = append([]string{"Priced again with the shape it is made in: the price it had didn't say"}, fresh.Details...)
+	if fresh.State == ActionUnavailable {
+		fresh.Op, fresh.Input = "", ""
+	}
+	c.putCard(fresh)
+	m.save(c, true)
+	m.changed(c.id)
 }

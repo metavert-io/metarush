@@ -61,6 +61,8 @@ METARUSH_MONGODB_URI="$URI" MR init --yes --test-db --secrets env --db-name "$DB
 echo "METARUSH_MONGODB_URI=$URI" > "$H/.env"; chmod 600 "$H/.env"
 P=$(MR project create "Launch video" --json | J 'd["data"]["project"]["id"]')
 echo "project $P"
+# A vertical project (D395): the camera is asked for vertical; the fake camera only makes widescreen.
+MR project update "$P" --deliverable "social shorts" --json | J '"its shape: %s" % d["data"]["project"]["brief"]["deliverables"][0]["preset"]'
 
 step "the fake microphone's sound: beeps at irregular times (they line the files up by sound)"
 python3 -I - "$BASE/mic.wav" <<'EOF'

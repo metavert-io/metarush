@@ -106,7 +106,7 @@ EOF
 TOK=$(MR edit check --plan "$H/cut.json" --json | J 'd["data"]["confirmToken"]')
 MR edit apply --plan "$H/cut.json" --confirm "$TOK" --json | J '"cut: version %d" % d["data"]["revision"]["number"]'
 # One generated shot in this project, then another project: "the one used last" is the project of the last shot.
-MR generate shot "a watering can on a garden table" --project "$P" --seconds 3 --resolution 360p --max-cost 0.5 --wait --json </dev/null | J '"a shot made earlier: %s" % d["data"]["generations"][0]["state"]'
+MR generate shot "a watering can on a garden table" --project "$P" --seconds 3 --resolution 360p --aspect 16:9 --max-cost 0.5 --wait --json </dev/null | J '"a shot made earlier: %s" % d["data"]["generations"][0]["state"]'
 MR project create "Other film" --json >/dev/null
 
 step "the dashboard on 127.0.0.1:$PORT (with its worker, which makes the fixed copies)"

@@ -122,7 +122,7 @@ type JobShowOut struct {
 
 var jobKindLabel = map[string]string{
 	jobs.TypeProxy: "Preview copy", jobs.TypeThumbnail: "Thumbnail", jobs.TypeContactSheet: "Frame grid", jobs.TypeWaveform: "Waveform",
-	jobs.TypeMezzanine: "Steady copy", jobs.TypeEvidence: "Scene analysis", jobs.TypeTranscribe: "Transcription", jobs.TypeRender: "Render", jobs.TypeQA: "Quality check",
+	jobs.TypeMezzanine: "Steady copy", jobs.TypeEvidence: "Scene analysis", jobs.TypeTranscribe: "Transcription", jobs.TypeRender: "Render", jobs.TypeRenderShape: "Render", jobs.TypeQA: "Quality check",
 	jobs.TypeVoiceover:       "Narration",
 	jobs.TypeDiarize:         "Speaker detection",
 	jobs.TypeImport:          "Import from a link",
@@ -303,7 +303,7 @@ func adviceFor(j *models.Job) string {
 		return "The transcriber on that machine is missing a file it needs. Run the setup check from Settings on that machine, then try again."
 	case strings.Contains(e, "not installed") || strings.Contains(e, "not on path") || strings.Contains(e, "executable file not found"):
 		return "A program this needs isn't installed on that machine. Run the setup check from Settings there to see what to install, then try again."
-	case j.Type == jobs.TypeRender && strings.HasPrefix(e, "render ") && strings.Contains(e, "not found"):
+	case jobs.IsRender(j.Type) && strings.HasPrefix(e, "render ") && strings.Contains(e, "not found"):
 		// The worker waited for the render a few times first (renderRecord).
 		return "MetaRush couldn't find this render, even after waiting for it, so trying again won't help. Render the version again."
 	case strings.Contains(e, "not found in this workspace") || strings.Contains(e, "not found"):
@@ -449,7 +449,7 @@ func JobDetail(ctx context.Context, a *app.App, id string) (*JobShowOut, error) 
 	}
 	// Title.
 	switch {
-	case j.Type == jobs.TypeRender && rd != nil:
+	case jobs.IsRender(j.Type) && rd != nil:
 		quality := map[string]string{"review": "Review", "final": "Final"}[rd.Quality]
 		out.Title = fmt.Sprintf("%s render of %s, version %d", orName(quality, "Render"), orName(projectName, "a project"), rd.RevisionNumber)
 	case j.Type == jobs.TypeQA && rd != nil:
@@ -510,7 +510,7 @@ func JobDetail(ctx context.Context, a *app.App, id string) (*JobShowOut, error) 
 	}
 	// What it produced.
 	if j.State == models.JobSucceeded {
-		switch j.Type {
+		switch jobs.Kind(j.Type) {
 		case jobs.TypeTranscribe:
 			if asset != nil && asset.Transcript != nil {
 				t := asset.Transcript

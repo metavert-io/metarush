@@ -248,6 +248,14 @@
           },
           "type": "array"
         },
+        "aspectRatio": {
+          "type": "string",
+          "description": "The shape it is made in (16:9, 9:16…) when it has one: send it with the agreed price."
+        },
+        "shape": {
+          "type": "string",
+          "description": "The shape it is made in for the cut it is for, and why."
+        },
         "summary": {
           "type": "string"
         },
@@ -541,7 +549,7 @@
         "branch": {
           "type": "string",
           "maxLength": 80,
-          "description": "The cut whose narration line it is (default: the main one)."
+          "description": "The cut it is for: a presenter's narration line comes from it (default: the main one); a picture or a presenter's clip is made in its shape unless options say one (D385)."
         },
         "noPeople": {
           "type": "boolean",
@@ -8617,7 +8625,7 @@
             "vertical",
             "square"
           ],
-          "description": "Default landscape (16:9)."
+          "description": "Default: the shape of the cut it replaces, else the project's when something says (its cuts, brief or footage), else landscape (16:9)."
         },
         "from": {
           "type": "number",
@@ -8656,7 +8664,7 @@
         },
         "captions": {
           "type": "boolean",
-          "description": "Captions with each person's name (default: on for vertical, off otherwise)."
+          "description": "Captions with each person's name (default: as the house style of the project's Content Settings says; with none: on for vertical, off otherwise)."
         },
         "nameTags": {
           "type": "boolean",
@@ -8778,6 +8786,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "shape": {
+          "type": "string"
         },
         "suggestions": {
           "items": {
@@ -9202,6 +9213,9 @@
           },
           "type": "array"
         },
+        "shape": {
+          "type": "string"
+        },
         "conversation": {
           "$ref": "#/$defs/CallInfo"
         },
@@ -9564,6 +9578,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "shape": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -9724,6 +9741,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "shape": {
+          "type": "string"
         },
         "projectId": {
           "type": "string"
@@ -19310,6 +19330,12 @@
         "follow": {
           "type": "boolean",
           "description": "MetaRush made it by itself."
+        },
+        "shape": {
+          "type": "string"
+        },
+        "otherShape": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -24002,6 +24028,25 @@
         "aspectRatio": {
           "type": "string"
         },
+        "shapeFrom": {
+          "type": "string",
+          "enum": [
+            "",
+            "asked",
+            "cut",
+            "project",
+            "look",
+            "same",
+            "default"
+          ]
+        },
+        "shapeWhy": {
+          "type": "string"
+        },
+        "fitsCut": {
+          "type": "string",
+          "description": "The shape that fits the cut (or project) it is for, when something says."
+        },
         "quality": {
           "type": "string"
         },
@@ -24980,7 +25025,13 @@
             "",
             "16:9",
             "9:16"
-          ]
+          ],
+          "description": "The shape; default: the shape of the cut it is for (cut), else the project's, else the look's usual one, else the model's (D385)."
+        },
+        "cut": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "The cut the shot is for (its name or a version): it is made in that cut's shape (default: the project's)."
         },
         "quality": {
           "type": "string",
@@ -42574,10 +42625,11 @@
           "enum": [
             "cut",
             "deliverables",
+            "platforms",
             "footage",
             "default"
           ],
-          "description": "Where it comes from: the latest version of its main cut (else of any cut), the brief's deliverables, the shape most of its footage is in, or MetaRush's default (vertical) when nothing says."
+          "description": "Where it comes from: the latest version of its main cut (else of any cut), the brief's deliverables, the brief's platforms, the shape most of its footage is in, or MetaRush's default (vertical) when nothing says."
         },
         "known": {
           "type": "boolean"
@@ -50157,6 +50209,9 @@
           },
           "type": "array"
         },
+        "shape": {
+          "type": "string"
+        },
         "branch": {
           "type": "string"
         },
@@ -56189,6 +56244,10 @@
         "follow": {
           "type": "boolean",
           "description": "MetaRush made this review copy by itself to follow the cut's latest version."
+        },
+        "shapeRule": {
+          "type": "integer",
+          "description": "A render in another shape than its version's: 1 re-picks what depends on the shape (call layouts, platform and margins, captions, framing); absent changes only the size."
         }
       },
       "additionalProperties": false,
@@ -57992,6 +58051,15 @@
         },
         "caption": {
           "type": "string"
+        },
+        "shape": {
+          "type": "string",
+          "enum": [
+            "vertical",
+            "square",
+            ""
+          ],
+          "description": "The shape of the cut it was drawn to fit; absent: drawn wide."
         }
       },
       "additionalProperties": false,
@@ -58072,6 +58140,11 @@
         "projectId": {
           "type": "string",
           "description": "The project it goes into (ID or name); default: next to the repository."
+        },
+        "cut": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "The cut it is made for (its name or a version; with projectId): drawn to fit that cut's shape. A project without a cut: the project's shape; neither: drawn wide."
         },
         "workspace": {
           "type": "boolean"
@@ -61554,6 +61627,10 @@
         },
         "reviewCopy": {
           "type": "string"
+        },
+        "reviewCopyShape": {
+          "type": "string",
+          "description": "The shape of the review copy the link plays: widescreen, vertical or square."
         },
         "title": {
           "type": "string"
@@ -71660,7 +71737,8 @@
             "busy",
             "retry_backoff",
             "starting",
-            "needs_component"
+            "needs_component",
+            "needs_newer"
           ]
         },
         "text": {

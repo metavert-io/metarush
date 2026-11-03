@@ -262,7 +262,17 @@ func readTimeline(ctx context.Context, a *app.App, file, content, name, projectR
 	if err != nil {
 		return nil, err
 	}
-	st.spec = st.flat.Spec(interchange.SpecOptions{Uses: uses})
+	so := interchange.SpecOptions{Uses: uses}
+	if st.project != nil {
+		// A timeline that says no size takes its project's shape (D389).
+		if ps := ProjectShape(ctx, a, st.project); ps.Known {
+			so.Frame = editspec.Output{Preset: ps.Preset}
+			if ps.Preset == "" {
+				so.Frame.Width, so.Frame.Height = ps.Width, ps.Height
+			}
+		}
+	}
+	st.spec = st.flat.Spec(so)
 	st.out = timelineOut(st, footage)
 	return st, nil
 }

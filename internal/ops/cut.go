@@ -577,22 +577,6 @@ func projectAssetIDs(ctx context.Context, a *app.App, projectID string) []string
 	return out
 }
 
-// starterOutput picks the shape and platform for a project's first sheet from
-// its brief.
-func starterOutput(b models.Brief) editspec.Output {
-	o := editspec.Output{Preset: editspec.PresetVertical}
-	for _, pl := range b.Platforms {
-		pl = strings.ToLower(strings.TrimSpace(pl))
-		switch pl {
-		case "youtube":
-			return editspec.Output{Preset: editspec.PresetLandscape, Platform: pl}
-		case "shorts", "tiktok", "reels":
-			return editspec.Output{Preset: editspec.PresetVertical, Platform: pl}
-		}
-	}
-	return o
-}
-
 func baseNote(r *models.Revision) string {
 	parts := []string{"r" + strconv.Itoa(r.Number), r.CreatedAt.Local().Format("2 Jan 2006 15:04")}
 	if r.CreatedBy.UserName != "" {
@@ -830,8 +814,10 @@ func init() {
 		info := newSheetInfo(ctx, a)
 		out := &CutShowOut{ProjectID: p.ID, SheetURL: dashboardURL(a, links.CutSheet(p.ID, ""))}
 		if r == nil {
-			// No cut yet: a starting sheet that lists the project's footage.
-			starter := &editspec.Spec{Title: p.Name, Output: starterOutput(p.Brief), Clips: []editspec.Clip{}}
+			// No cut yet: a starting sheet that lists the project's footage,
+			// in the project's shape (D386).
+			start, _ := NewCutOutput(ctx, a, p)
+			starter := &editspec.Spec{Title: p.Name, Output: start, Clips: []editspec.Clip{}}
 			editspec.Normalize(starter)
 			out.Starter = true
 			out.Sheet = cutsheet.Print(starter, cutsheet.Options{ProjectID: p.ID, Branch: in.Branch, Info: info, Footage: projectAssetIDs(ctx, a, p.ID)})

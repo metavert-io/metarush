@@ -18,3 +18,5 @@ internal/cli/machine.go | choose another file with --out | machine ci-key when i
 internal/cli/providers.go | Pass --yes | removing a key without a terminal to confirm in: the flag that confirms it
 internal/cli/describe.go | the scenes file is not a JSON array | footage describe --save reads a file Claude writes; the error is about that file's format
 internal/cli/recipe.go | or write over it with --force | checkout writes a file of the command being typed; its override is a flag, offered only after the refusal is said in words
+internal/cli/generate.go | Say the shape with the price: --aspect | the command just typed had --max-cost without --aspect: the flag that says the shape agreed with the price (D394)
+internal/cli/ai.go | Say the shape with the price: --aspect | the command just typed had --max-cost without --aspect: the flag that says the shape agreed with the price (D394)

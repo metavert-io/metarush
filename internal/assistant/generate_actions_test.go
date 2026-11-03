@@ -109,3 +109,91 @@ func TestGenerateRequestsBecomePricedCards(t *testing.T) {
 		t.Fatalf("who and how: %+v", gs[0])
 	}
 }
+
+// A shot card whose price didn't say its shape — one saved before the shape
+// was agreed with the price (D394) — is never made in a shape chosen now:
+// confirming it, or Auto running it, prices it again in place with its shape
+// for the person to look at, and nothing is sent until they confirm that.
+func TestACardPricedWithoutItsShapeIsPricedAgain(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("needs ffmpeg")
+	}
+	key := "gk-" + strings.Repeat("Qq7", 10) + "-card"
+	fake := fakevideogen.New(key)
+	defer fake.Close()
+	t.Setenv(videogen.EnvGeminiBaseURL, fake.URL)
+	t.Setenv(providers.EnvVar(videogen.GeminiName), key)
+	a := testApp(t, "")
+	projectID, _, _ := fixture(t, a)
+	ctx := context.Background()
+	m := withFake(t, a, fakeclaude.Options{Script: &fakeclaude.Script{Default: &fakeclaude.Turn{Steps: []fakeclaude.Step{
+		denied(`metarush generate shot "a red paper boat drifting on a pond" --project ` + projectID + ` --seconds 3 --quality draft --json`),
+		denied(`metarush generate shot "a blue paper boat drifting on a pond" --project ` + projectID + ` --seconds 3 --quality draft --json`),
+		text("I asked you to confirm the shots."),
+	}}}})
+	out, err := m.Ask(ctx, AssistantAskIn{AssistantMessageIn: AssistantMessageIn{Prompt: "make two shots of a paper boat", ProjectID: projectID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cv := waitIdle(t, m, out.Conversation.ID)
+	if len(cv.Actions) != 2 {
+		t.Fatalf("two cards: %+v", cv.Actions)
+	}
+	var fresh generate.GenShotIn
+	if err := json.Unmarshal([]byte(cv.Actions[0].Input), &fresh); err != nil || fresh.MaxUSD == nil || fresh.AspectRatio == "" {
+		t.Fatalf("a new card carries the shape its price was shown for: %+v %v", fresh, err)
+	}
+	// Both cards as they were saved before: the price without the shape.
+	c, err := m.live(ctx, cv.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := func(act AssistantAction) AssistantAction {
+		var in generate.GenShotIn
+		_ = json.Unmarshal([]byte(act.Input), &in)
+		in.AspectRatio = ""
+		b, _ := json.Marshal(in)
+		act.Input = string(b)
+		return act
+	}
+	confirmed, auto := old(cv.Actions[0]), old(cv.Actions[1])
+	auto.State, auto.Auto, auto.AutoPriced = ActionRunning, true, true
+	c.putCard(confirmed)
+	c.putCard(auto)
+
+	// The person confirms the old card: priced again, nothing made.
+	dash := *a
+	dash.Actor.Via = "dashboard"
+	raw, _ := json.Marshal(ConversationActIn{ID: cv.ID, ActionID: confirmed.ID, Quiet: true})
+	if _, err := ops.Call(ctx, &dash, "assistant.act", raw, ops.Caller{Human: true, Remote: true}); errReason(err) != "shape_not_agreed" {
+		t.Fatalf("an old card is refused as not agreed for a shape: %v", err)
+	}
+	// Auto runs the other old card: priced again too, and it waits for a person.
+	m.runAuto(c, auto.ID)
+	if fake.Calls("create") != 0 {
+		t.Fatal("nothing may be made in a shape nobody agreed to")
+	}
+	cards, _ := c.cardsFor([]string{confirmed.ID, auto.ID})
+	for _, x := range cards {
+		var in generate.GenShotIn
+		if err := json.Unmarshal([]byte(x.Input), &in); err != nil || in.AspectRatio == "" || in.MaxUSD == nil || x.State != ActionPending || x.AutoPriced ||
+			len(x.Details) == 0 || !strings.HasPrefix(x.Details[0], "Priced again with the shape it is made in") {
+			t.Fatalf("priced again in place, with its shape, waiting for a person: %+v %+v", x, in)
+		}
+	}
+	// Confirming the card priced again makes the shot, in that shape.
+	raw, _ = json.Marshal(ConversationActIn{ID: cv.ID, ActionID: confirmed.ID, Quiet: true})
+	res, err := ops.Call(ctx, &dash, "assistant.act", raw, ops.Caller{Human: true, Remote: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done := res.(*ConversationActOut).Action; done.State != ActionDone {
+		t.Fatalf("confirmed again: %+v", done)
+	}
+	var again generate.GenShotIn
+	_ = json.Unmarshal([]byte(cards[0].Input), &again)
+	var gs []models.Generation
+	if err := a.DB.Find(ctx, store.CGenerations, a.WorkspaceID(), nil, &gs); err != nil || len(gs) != 1 || gs[0].Params.AspectRatio != again.AspectRatio {
+		t.Fatalf("one shot, asked for in the shape it was priced for (%s): %+v %v", again.AspectRatio, gs, err)
+	}
+}

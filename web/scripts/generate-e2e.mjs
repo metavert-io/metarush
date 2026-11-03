@@ -244,18 +244,48 @@ async function main() {
   await page.keyboard.press('Home');
   await panel.getByText('Length: 3 seconds').waitFor();
   const go = panel.locator('[data-generate-go]');
-  await waitFor(async () => /^Generate \(about \$0\.\d\d\)$/.test(((await go.textContent()) ?? '').trim()) && (await go.isEnabled()), 'the price on the button', 20_000);
+  await waitFor(async () => /^Generate (wide |tall )?\(about \$0\.\d\d\)$/.test(((await go.textContent()) ?? '').trim()) && (await go.isEnabled()), 'the price on the button', 20_000);
   const summary = (await panel.locator('[data-estimate-summary]').textContent()) ?? '';
   check('the price comes first', /About \$0\.\d\d for a 3-second shot, draft \(360p\), wide, made with Google Gemini/.test(summary), summary);
-  check('the button carries the price', /Generate \(about \$0\.1\d\)/.test((await go.textContent()) ?? ''), (await go.textContent()) ?? '');
+  check('the button carries the price', /Generate wide \(about \$0\.1\d\)/.test((await go.textContent()) ?? ''), (await go.textContent()) ?? '');
+  // The shape (D385): nobody chose one, so MetaRush makes it in the project's shape (its widescreen cut) and
+  // says so before the price is agreed; choosing tall says which would fit, and one click goes back.
+  const shapeBox = panel.locator('[data-generate-shape]');
+  const shapeWhy = panel.locator('[data-generate-shape-why]');
+  await shapeWhy.waitFor({ timeout: 20_000 });
+  check(
+    'the shape follows the project, said before the price',
+    (await shapeBox.getAttribute('data-generate-shape')) === 'auto' &&
+      /^Wide \(16:9\), because its cut “[^”]+” is widescreen\.$/.test(((await shapeWhy.textContent()) ?? '').trim()) &&
+      (await shapeBox.locator('[data-value="16:9"]').getAttribute('aria-checked')) === 'true',
+    (await shapeWhy.textContent()) ?? '',
+  );
+  await shapeBox.locator('[data-value="9:16"]').click();
+  await waitFor(async () => /Tall \(9:16\), as asked\. Its cut “[^”]+” is widescreen: wide \(16:9\) would fit it\./.test((await shapeWhy.textContent()) ?? ''), 'the chosen shape against the project', 20_000);
+  check('a chosen shape that doesn’t fit says which would', await panel.locator('[data-generate-shape-reset]').isVisible(), (await shapeWhy.textContent()) ?? '');
+  await shot(page, 'generate-shape-chosen', panel);
+  await panel.locator('[data-generate-shape-reset]').click();
+  await waitFor(async () => (await shapeBox.getAttribute('data-generate-shape')) === 'auto' && /^Wide \(16:9\), because its cut/.test((await shapeWhy.textContent()) ?? ''), 'back to the project’s shape', 20_000);
+  await waitFor(async () => /^Generate (wide |tall )?\(about \$0\.\d\d\)$/.test(((await go.textContent()) ?? '').trim()) && (await go.isEnabled()), 'the price again', 20_000);
   await shot(page, 'generate-panel', panel);
+  const sent = [];
+  const listen = (req) => {
+    if (req.method() === 'POST' && req.url().endsWith('/api/ops/generate.shot')) sent.push(req.postDataJSON());
+  };
+  page.on('request', listen);
   const callsBefore = (await fakeCalls()).create ?? 0;
   await go.click();
   await toast(page, 'Asked for the shot');
   let list = await api(page, 'generate.list', { projectId: P, limit: 50 });
   const firstId = list.generations[0]?.id;
   const [first] = await settled(page, [firstId], 'the first shot');
+  page.off('request', listen);
   check('the shot was made', first.state === 'done' && first.clips.length === 1, first.summary);
+  check(
+    'nobody chose a shape, and the agreed price carried the one it was shown for (D394)',
+    sent.length === 1 && sent[0]?.aspectRatio === '16:9' && typeof sent[0]?.maxUsd === 'number' && first.params.aspectRatio === '16:9' && (await shapeBox.getAttribute('data-generate-shape')) === 'auto',
+    JSON.stringify({ sent, made: first.params.aspectRatio }),
+  );
   await panel.locator('li[data-generation="done"]').first().waitFor({ timeout: 20_000 });
   const clipId = first.clips[0]?.assetId;
   await page.locator('[data-ai-badge]').first().waitFor({ timeout: 20_000 });
@@ -329,10 +359,10 @@ async function main() {
     const why = (await panel.locator('[data-estimate-problem]').first().textContent()) ?? '';
     check('a prompt naming someone is refused without their look and consent', why.includes('names Ada') && (await panel.locator('[data-generate-go]').isDisabled()), why);
     await shot(page, 'consent-refused', panel);
-    let r = await op(page, 'generate.shot', { projectId: P, prompt: 'Ada waves from a paper boat', seconds: 3, resolution: '360p', maxUsd: 1 });
+    let r = await op(page, 'generate.shot', { projectId: P, prompt: 'Ada waves from a paper boat', seconds: 3, resolution: '360p', aspectRatio: '16:9', maxUsd: 1 });
     check('…and the server refuses it too', !r.ok && r.code === 'E_CONSENT_REQUIRED', `${r.code}`);
     const adaFace = (await api(page, 'people.show', { id: ada.id })).faces[0];
-    r = await op(page, 'generate.shot', { projectId: P, prompt: 'the camera pulls back', seconds: 3, resolution: '360p', from: { assetId: adaFace.assetId, at: adaFace.at }, noPeople: true, maxUsd: 1 });
+    r = await op(page, 'generate.shot', { projectId: P, prompt: 'the camera pulls back', seconds: 3, resolution: '360p', from: { assetId: adaFace.assetId, at: adaFace.at }, noPeople: true, aspectRatio: '16:9', maxUsd: 1 });
     check('a frame showing someone is refused without their consent, even when said to show nobody', !r.ok && r.code === 'E_CONSENT_REQUIRED', `${r.code}: ${r.message}`);
     r = await op(page, 'looks.create', { person: ada.id, title: 'Ada', description: 'Ada, short dark hair', stills: [{ assetId: adaFace.assetId, at: adaFace.at }] });
     check('a person’s look is refused without their consent', !r.ok && r.code === 'E_CONSENT_REQUIRED', `${r.code}`);

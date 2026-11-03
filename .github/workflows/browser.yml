@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [about, abilities, accounts, catalogue, components, content, keep, playback, recipes, recorder, remotion, review-desk, windows]
+        suite: [about, abilities, accounts, catalogue, components, content, keep, motion-shapes, playback, recipes, recorder, remotion, review-desk, windows]
     steps:
       - name: chosen?
         id: chosen

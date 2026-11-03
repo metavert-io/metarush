@@ -175,9 +175,19 @@ func submitRender(ctx context.Context, a *app.App, r *models.Revision, in *Rende
 	if _, err := motion.RequireApproved(ctx, a.DB, a.WorkspaceID(), &r.Spec); err != nil {
 		return nil, err
 	}
+	// A render in another shape than the version's re-picks what depends on
+	// the shape (D388). Its key says so, so a copy asked for before keeps
+	// what it drew and a new ask gets a new one.
+	shapeRule := 0
+	if preset != "" && preset != r.Spec.Output.Preset && (editspec.Output{Preset: preset}).Shape().Shape != r.Spec.Output.Shape().Shape {
+		shapeRule = editspec.ReshapeRule
+	}
 	key := in.IdempotencyKey
 	if key == "" {
 		key = renderKey(r.ID, preset, quality)
+		if shapeRule > 0 {
+			key += fmt.Sprintf(":shape-%d", shapeRule)
+		}
 	}
 	// reuse answers with the render that an existing job for the same key makes.
 	reuse := func(j *models.Job) (*RenderOut, bool) {
@@ -185,7 +195,7 @@ func submitRender(ctx context.Context, a *app.App, r *models.Revision, in *Rende
 		if err := a.DB.GetByID(ctx, store.CRenders, a.WorkspaceID(), j.RenderID, &rd); err != nil {
 			return nil, false
 		}
-		w, _ := OnlineWorkers(ctx, a, jobs.TypeRender)
+		w, _ := OnlineWorkers(ctx, a, j.Type)
 		return &RenderOut{Render: rd, Job: j, Created: false, Workers: len(w), Note: "This version was already rendered this way, so here is that render.", URL: dashboardURL(a, "/renders/"+rd.ID)}, true
 	}
 	// Reuse an existing render for the same key unless it failed/canceled.
@@ -221,7 +231,7 @@ func submitRender(ctx context.Context, a *app.App, r *models.Revision, in *Rende
 	}
 	jobID := ids.New(ids.Job)
 	rd := models.Render{ID: ids.New(ids.Render), WorkspaceID: a.WorkspaceID(), ProjectID: r.ProjectID, RevisionID: r.ID, RevisionNumber: r.Number, SpecHash: r.SpecHash,
-		Preset: preset, Quality: quality, JobID: jobID, State: models.RenderQueued, CreatedBy: a.Actor, CreatedAt: now, Follow: follow}
+		Preset: preset, Quality: quality, JobID: jobID, State: models.RenderQueued, CreatedBy: a.Actor, CreatedAt: now, Follow: follow, ShapeRule: shapeRule}
 	if err := a.DB.Insert(ctx, store.CRenders, rd); err != nil {
 		return nil, err
 	}
@@ -229,7 +239,11 @@ func submitRender(ctx context.Context, a *app.App, r *models.Revision, in *Rende
 	if follow {
 		payload["follow"] = true
 	}
-	j, created, err := a.Queue.Enqueue(ctx, jobs.EnqueueOptions{ID: jobID, Type: jobs.TypeRender, IdempotencyKey: key, Priority: 15, Heavy: quality == "final" || follow, ProjectID: r.ProjectID, RenderID: rd.ID,
+	jobType := jobs.TypeRender
+	if shapeRule > 0 {
+		jobType = jobs.TypeRenderShape // only builds that know the rule take it (D396)
+	}
+	j, created, err := a.Queue.Enqueue(ctx, jobs.EnqueueOptions{ID: jobID, Type: jobType, IdempotencyKey: key, Priority: 15, Heavy: quality == "final" || follow, ProjectID: r.ProjectID, RenderID: rd.ID,
 		Payload: payload, MaxAttempts: 2, Actor: a.Actor})
 	if err != nil {
 		// No job will ever make this render: take it back, so nothing waits for it.
@@ -250,10 +264,13 @@ func submitRender(ctx context.Context, a *app.App, r *models.Revision, in *Rende
 		action = "render.follow"
 	}
 	a.Audit(ctx, action, "render", rd.ID, rd.ProjectID, map[string]any{"revisionId": r.ID, "preset": preset, "quality": quality})
-	w, _ := OnlineWorkers(ctx, a, jobs.TypeRender)
+	w, _ := OnlineWorkers(ctx, a, jobType)
 	out := &RenderOut{Render: rd, Job: j, Created: true, Workers: len(w), URL: dashboardURL(a, "/renders/"+rd.ID)}
 	if len(w) == 0 {
 		out.Note = "It's waiting to start: no machine running MetaRush can render right now. Start MetaRush on a computer that renders, or render it here in the terminal."
+		if old, _ := OnlineWorkers(ctx, a, jobs.TypeRender); jobType == jobs.TypeRenderShape && len(old) > 0 {
+			out.Note = "It's waiting for a computer with a newer MetaRush: the ones running now render, but not a copy in another shape. Update MetaRush on one of them, or render it here in the terminal."
+		}
 	}
 	return out, nil
 }
@@ -278,7 +295,11 @@ func init() {
 			return nil, notFound("render", in.ID)
 		}
 		j, _ := a.Queue.Get(ctx, rd.JobID)
-		w, _ := OnlineWorkers(ctx, a, jobs.TypeRender)
+		typ := jobs.TypeRender
+		if j != nil {
+			typ = j.Type
+		}
+		w, _ := OnlineWorkers(ctx, a, typ)
 		return &RenderOut{Render: rd, Job: j, Workers: len(w), URL: dashboardURL(a, "/renders/"+rd.ID)}, nil
 	})
 	Def("render.list", "List renders", Flags{}, func(ctx context.Context, a *app.App, in *RenderListIn) (*RenderListOut, error) {
@@ -353,6 +374,9 @@ func init() {
 			if v != "" {
 				filter[k] = v
 			}
+		}
+		if in.Type == jobs.TypeRender { // renders of both kinds (D396)
+			filter["type"] = bson.M{"$in": bson.A{jobs.TypeRender, jobs.TypeRenderShape}}
 		}
 		js, err := a.Queue.List(ctx, filter, in.Limit)
 		if err != nil {

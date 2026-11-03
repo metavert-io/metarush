@@ -754,8 +754,14 @@ where the video goes. You hear a change in the preview before you save it ([docs
   and vertical.
 - **One shape rule, one project shape**: whether a video is vertical, widescreen or square is decided by one rule
   everywhere, the renderer's own (wider than 1.15 is widescreen, narrower than 0.87 vertical), and a project's shape comes from its main cut, else any cut,
-  else the brief's deliverables, else the shape most of its footage is in. `metarush project show` says it and why;
+  else the brief's deliverables, else the platforms the brief names, else the shape most of its footage is in. `metarush project show` says it and why;
   the dashboard shows every cut, version and loading box at the shape the server says.
+- **Everything new follows the video's shape**: new cuts, conversation cuts, imported timelines and Remotion first
+  cuts start in the project's (or their own) shape; generated shots, AI pictures for a cut and presenter clips are
+  made in the cut's shape, the estimate saying which and why (`metarush generate shot … --cut <cut>`); a render in
+  another shape (`render submit --preset`) re-picks call layouts, margins, captions and framing for that copy only;
+  review links and posts use the version's own shape; the recorder asks the camera for the project's shape; slides
+  made for a vertical cut fit it (`resources make … --cut`). Saved versions are always drawn exactly as they were.
 
 ### Project motion graphics, approved by a person
 When no template fits (a route drawn on a map, a counter, a chart that builds), Claude Code can write a small Remotion
@@ -1415,7 +1421,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush recording list [--project <id>]` / `recording show <id> [--details]` | screen recordings made in the dashboard: tracks, length, footage, projects |
 | `metarush recording cut <id> [--layout pip\|side-by-side\|screen\|camera] [--apply]` / `recording link <id> --project <id>` / `recording finish <id> --keep` | start a cut from a recording, link it into a project, keep what arrived after a closed tab |
 | `metarush conversation import <folder> --project <id>` / `conversation create --project <id> --members a.mov b.mov --names "Ana,Bo"` | a call's recordings (Zoom, Riverside, SquadCast, one per person) lined up as one conversation |
-| `metarush conversation cut "<name>" --style podcast\|interview\|panel\|reactions\|broll [--shape vertical] [--apply]` | the automatic cut: whoever talks, reactions, both on screen when they talk together, a reason per shot |
+| `metarush conversation cut "<name>" --style podcast\|interview\|panel\|reactions\|broll [--shape vertical] [--apply]` | the automatic cut: whoever talks, reactions, both on screen when they talk together, a reason per shot; in the shape of the cut it replaces, else the project's; captions as the house style says |
 | `metarush conversation angle --project <id> --at 0:31.2 --member sam` / `--layout side-by-side` | change what a conversation clip shows from a moment on |
 | `metarush conversation cleanup "<name>"` / `conversation decide "<name>" c1 --accept` | call talk, silences, frozen webcams, dropouts and app labels to accept or skip |
 | `metarush conversation match "<name>" --apply` / `conversation nudge "<name>" --member sam --frames 1` | matching webcams (measured); a recording a frame later |
@@ -1492,7 +1498,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush resources link ~/Brand --project <project>` / `resources folders` / `resources folder Brand --upload all` / `resources unlink Brand` | a linked folder kept in step (per machine; large files upload when a cut first uses them; a file that couldn't be added is tried again, at once with `--rescan`) |
 | `metarush resources add https://github.com/acme/widget --project <project> --wait` / `resources add https://acme.com --depth 1 --wait` | a GitHub repository pinned at a commit, or a dated web page snapshot (and the same-site pages it links to) |
 | `metarush resources path widget` / `resources show widget` | a repository's read-only copy for Claude to read / its overview (README, languages, history, what was made from it) |
-| `metarush resources make code widget --file main.go --lines 40-72` / `make diagram widget --from arch.mmd` / `make stats widget` | a code slide, an architecture diagram (Mermaid or D2) or a repository card, with exact provenance |
+| `metarush resources make code widget --file main.go --lines 40-72` / `make diagram widget --from arch.mmd` / `make stats widget` | a code slide, an architecture diagram (Mermaid or D2) or a repository card, with exact provenance; `--project <p> [--cut <cut>]` draws it to fit a vertical or square cut |
 | `metarush resources refresh widget --wait` | a repository's newest commit or a page's new snapshot (new versions; `metarush cut update` moves cuts to them) |
 | `metarush resources pictures widget [--keep art/characters] [--drop art/old] [--wait]` | the pictures a repository keeps from its folders, each a picture of its own pinned to the commit; keep another folder's or stop keeping one in step |
 | `metarush motion new <name>` → `motion check motion/<name> --project <id>` | start a project motion graphic from a working example; check it (imports, types, test frames, contact sheet, preview) |
@@ -1516,7 +1522,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 |---|---|
 | `metarush providers set elevenlabs` / `providers status elevenlabs` | add this machine's ElevenLabs key (hidden prompt), check it |
 | `metarush providers set gemini` / `generate settings --project <id>` | add this machine's Google Gemini key; models, prices, the project's budget and today's limit |
-| `metarush generate estimate "a red paper boat on a pond" --project <id> --seconds 3` / `generate shot … --max-cost 0.20 [--wait]` | price a generated shot (the estimate's parts: the video, what is sent, the thinking allowance), then make it with the price you agreed to — or, with your estimates off, within your budgets (`--from <clip>@0:12`, `--look <name>`, `--takes 3`) |
+| `metarush generate estimate "a red paper boat on a pond" --project <id> --seconds 3` / `generate shot … --max-cost 0.20 [--wait]` | price a generated shot (the estimate's parts: the video, what is sent, the thinking allowance), then make it with the price you agreed to — or, with your estimates off, within your budgets (`--from <clip>@0:12`, `--look <name>`, `--takes 3`); made in the shape of the cut it is for (`--cut <cut>`, else the project's) unless `--aspect` says otherwise |
 | `metarush generate again\|extend\|edit <clip>` / `generate list --project <id>` / `generate show <generation>` | new takes, a longer or changed copy (each priced first); what was made and how |
 | `metarush consent record --person <name> --self --adult --statement "…"` / `looks create\|test\|approve` | consent and looks for a person's likeness (people only) |
 | `metarush ai models [--kind music]` / `ai estimate picture "a kite" --project <id>` / `ai make music "calm guitar" --seconds 30 --max-cost 0.08` | AI services: models with prices and terms; price, then make a picture, speech, a sound effect, music, a voice change (`--clip`), a dub (`--into es`) or a cloud transcript |
@@ -1550,7 +1556,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 ### Review and delivery
 | Command | What it does |
 |---|---|
-| `metarush render submit --revision <id> --quality review --wait` | real MP4 (a review copy: quick, half size) |
+| `metarush render submit --revision <id> --quality review --wait` | real MP4 (a review copy: quick, half size); `--preset vertical-1080p` makes a copy in another shape, with the call layouts, margins, captions and framing of that shape |
 | `metarush render follow [on\|off]` | whether a review copy of each cut's latest version is made by itself about a minute after the last change (on by default) |
 | `metarush revision waiting` · `revision ask-review <version>` | what waits for review (Claude's drafts and ones someone asked about); ask for a version to be reviewed |
 | `metarush qa run <render-or-revision> --wait` / `metarush qa show <id>` | decode + check the render, frames to look at |

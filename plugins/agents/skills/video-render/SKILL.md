@@ -15,7 +15,9 @@ See [reference/cli.md](reference/cli.md).
    version ("r3", "the energetic one"), find it in `revisions`. Note its output preset and approval state.
 2. **Render.** `metarush render submit --revision <rev> --quality review --wait --json` for a quick look, or
    `--quality final` for delivery. Add `--preset landscape-1080p|square-1080|vertical-1080p` only if the user asked
-   for a different shape than the revision's. `--wait` renders in this terminal when no worker is online (it can
+   for a different shape than the revision's: that copy re-picks what depends on the shape for itself only (people
+   in a call stacked when it is taller than wide, the platform's margins, captions, faces kept in frame) and the
+   version itself stays as it is. `--wait` renders in this terminal when no worker is online (it can
    take a few minutes; say so). Identical requests reuse the existing render.
 3. **Verify, don't assume.** The command only succeeds when the MP4 exists, decodes, and matches the planned
    duration and size. If it fails, tell the person what went wrong and what to do next, in the error's own plain

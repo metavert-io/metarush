@@ -208,6 +208,22 @@ try {
   await recorder(page).locator('[data-camera-picker]').selectOption(camValues.find((v) => v));
   await recorder(page).locator('[data-source="camera"] video').waitFor({ timeout: 15_000 });
   check('the fake camera shows in its bubble', true);
+  // D392: the page says the shape being recorded — what the camera really gives — and shows it whole.
+  const camVideo = recorder(page).locator('[data-source="camera"] video');
+  const said = recorder(page).locator('[data-camera-shape]');
+  await said.waitFor({ timeout: 15_000 });
+  await waitFor(async () => !!(await camVideo.getAttribute('data-preview-shape')), 15_000, 'the camera picture’s size');
+  const words = ((await said.textContent()) ?? '').trim();
+  const size = words.match(/\((\d+)×(\d+)\)/)?.slice(1).join('x');
+  // The project is vertical and the fake camera makes only widescreen (D395): it is asked for vertical among its
+  // own modes, records its whole widescreen picture, and the page says so plainly.
+  const camSize = await camVideo.getAttribute('data-preview-shape');
+  check(
+    'a camera that can’t record the project’s shape records its own, said plainly, shown whole',
+    /^Recording widescreen \(\d+×\d+\): the camera can't record vertical, so the cut frames it vertical\.$/.test(words) && size === camSize &&
+      Number(camSize?.split('x')[0]) > Number(camSize?.split('x')[1]) && (await camVideo.evaluate((v) => getComputedStyle(v).objectFit)) === 'contain',
+    `${words} · ${camSize}`,
+  );
   await recorder(page).getByRole('radio', { name: 'Camera in a corner' }).click();
   await recorder(page).getByRole('radio', { name: 'Paste a script' }).click();
   await recorder(page).locator('[data-script]').fill('Welcome to the demo of the new dashboard.\n\nHere is where the recordings land.\n\nAnd that is how you record your screen.');
@@ -247,6 +263,8 @@ try {
   const r = list.recordings[0].recording;
   const ids = Object.fromEntries(r.tracks.map((t) => [t.id, t.assetId]));
   check('three tracks became footage', ['screen', 'camera', 'voice'].every((k) => ids[k]), JSON.stringify(ids));
+  const camMedia = (await api(page, 'asset.show', { id: ids.camera })).asset.media;
+  check('the camera’s file is its whole picture, not cropped to the project’s shape', `${camMedia.width}x${camMedia.height}` === camSize, `${camMedia.width}x${camMedia.height}, camera ${camSize}`);
   check('the pause is recorded on the clock', r.pauses?.length === 1 && Math.abs(r.pauses[0].length - 1.5) < 0.4, JSON.stringify(r.pauses));
   const durs = {};
   for (const [k, id] of Object.entries(ids)) durs[k] = (await api(page, 'asset.show', { id })).asset.media.duration;

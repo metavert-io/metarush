@@ -10,9 +10,11 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/content"
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
+	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/visual"
 )
 
@@ -33,7 +35,7 @@ type CallCutIn struct {
 	Project string `json:"project,omitempty" jsonschema:"pattern=^prj_[0-9a-z]{26}$,description=The project whose cut it becomes (default: the conversation's)."`
 	Branch  string `json:"branch,omitempty" jsonschema:"pattern=^[a-z][a-z0-9-]*$"`
 	Style   string `json:"style,omitempty" jsonschema:"enum=podcast,enum=interview,enum=panel,enum=reactions,enum=broll,description=Default podcast (or the conversation's last style)."`
-	Shape   string `json:"shape,omitempty" jsonschema:"enum=landscape,enum=vertical,enum=square,description=Default landscape (16:9)."`
+	Shape   string `json:"shape,omitempty" jsonschema:"enum=landscape,enum=vertical,enum=square,description=Default: the shape of the cut it replaces\\, else the project's when something says (its cuts\\, brief or footage)\\, else landscape (16:9)."`
 	// From and To limit it to a stretch of the conversation (its clock, seconds).
 	From *float64 `json:"from,omitempty" jsonschema:"minimum=0"`
 	To   *float64 `json:"to,omitempty" jsonschema:"minimum=0"`
@@ -44,7 +46,7 @@ type CallCutIn struct {
 	// BRoll is footage for cutaways (broll style): IDs, titles or file names.
 	BRoll    []string `json:"broll,omitempty" jsonschema:"maxItems=50"`
 	Layout   string   `json:"layout,omitempty" jsonschema:"enum=side-by-side,enum=stacked,enum=pip,enum=grid,description=The layout when people talk together (default: side by side on landscape\\, stacked on vertical\\, grid for three or more)."`
-	Captions *bool    `json:"captions,omitempty" jsonschema:"description=Captions with each person's name (default: on for vertical\\, off otherwise)."`
+	Captions *bool    `json:"captions,omitempty" jsonschema:"description=Captions with each person's name (default: as the house style of the project's Content Settings says; with none: on for vertical\\, off otherwise)."`
 	NameTags *bool    `json:"nameTags,omitempty" jsonschema:"description=Name tags the first time each person is seen (default on)."`
 	Apply    bool     `json:"apply,omitempty"`
 	// Origin is where the new version says it came from (versions' origin;
@@ -104,15 +106,79 @@ func shapeOf(shape string) (string, string, error) {
 	return "", "", invalid("shape is landscape, vertical or square, not %q", shape)
 }
 
-// splitLayout is the layout for people talking together on a shape.
-func splitLayout(preset string, people int) string {
+// callOutput is the frame a new cut of a conversation is made in (D386): the
+// shape asked for; else the shape of the cut it replaces (the branch's
+// latest version), else the project's when something says (its cuts, brief
+// or footage: ops.ProjectShape), at its own size (4:5 stays 4:5); else
+// widescreen, as conversation cuts always started.
+func callOutput(ctx context.Context, a *app.App, projectID, branch, shape string) (editspec.Output, string, error) {
+	if shape == "" && projectID != "" {
+		var p models.Project
+		if err := a.DB.GetByID(ctx, store.CProjects, a.WorkspaceID(), projectID, &p); err == nil {
+			ps := ops.ProjectShape(ctx, a, &p)
+			if b := p.Branches[firstNonEmpty(branch, "main")]; b.Head != "" {
+				if cs, err := ops.CutShape(ctx, a, &p, firstNonEmpty(branch, "main")); err == nil {
+					ps = cs
+				}
+			}
+			if ps.Known {
+				_, platform, _ := shapeOf(string(ps.Shape))
+				out := editspec.Output{Preset: ps.Preset, Platform: platform}
+				if out.Preset == "" {
+					out.Width, out.Height = ps.Width, ps.Height
+				}
+				return out, upperFirst(ps.Word) + " " + ps.Ratio + ", because " + lowerFirst(ps.Why), nil
+			}
+		}
+	}
+	preset, platform, err := shapeOf(shape)
+	out := editspec.Output{Preset: preset, Platform: platform}
+	s := out.Shape()
+	why := upperFirst(s.Word) + " " + s.Ratio + ", as asked."
+	if shape == "" {
+		why = upperFirst(s.Word) + " " + s.Ratio + ": nothing says the project's shape yet, and conversation cuts start widescreen."
+	}
+	return out, why, err
+}
+
+// splitLayout is the layout for people talking together in a frame: the
+// engine's own rule for a clip without shots (editspec defaultShot) —
+// stacked when the frame is taller than wide, else side by side; a grid for
+// four or more.
+func splitLayout(out editspec.Output, people int) string {
+	s := out.Shape()
 	switch {
 	case people > 3:
 		return editspec.LayoutGrid
-	case preset == editspec.PresetVertical:
+	case s.Height > s.Width:
 		return editspec.LayoutStacked
 	}
 	return editspec.LayoutSideBySide
+}
+
+// captionsOn is whether a new conversation cut has captions (D390): as the
+// house style of the Content Settings the project uses says, with its look,
+// size and place; with none (or one that leaves it to each cut), on for a
+// frame taller than wide (phones play without sound), as it always was.
+func captionsOn(ctx context.Context, a *app.App, projectID string, out editspec.Output, asked *bool) *editspec.Captions {
+	on := splitLayout(out, 2) == editspec.LayoutStacked
+	c := &editspec.Captions{Enabled: true, ShowSpeakers: true, Style: editspec.CaptionClean, Position: "lower"}
+	if h, _, _ := content.StyleFor(ctx, a, projectID); h != nil && h.Captions != nil {
+		if h.Captions.On != nil {
+			on = *h.Captions.On
+		}
+		c.Style, c.Size, c.Position = firstNonEmpty(h.Captions.Look, c.Style), h.Captions.Size, firstNonEmpty(h.Captions.Position, c.Position)
+		if c.Size == editspec.CaptionMedium {
+			c.Size = ""
+		}
+	}
+	if asked != nil {
+		on = *asked
+	}
+	if !on {
+		return nil
+	}
+	return c
 }
 
 // pinFor is the conversation as a new cut pins it: its alignment and
@@ -198,12 +264,11 @@ func autoCutWith(ctx context.Context, a *app.App, in *CallCutIn, remember bool) 
 	if !ok {
 		return nil, invalid("style is %s, not %q", strings.Join(styleNames(), ", "), styleName)
 	}
-	preset, platform, err := shapeOf(in.Shape)
+	out, shapeWhy, err := callOutput(ctx, a, pid, in.Branch, in.Shape)
 	if err != nil {
 		return nil, err
 	}
-	fps := projectFPS(ctx, a, pid)
-	out := editspec.Output{Preset: preset, FPS: fps, Platform: platform, Framing: editspec.FramingFaces}
+	out.FPS, out.Framing = projectFPS(ctx, a, pid), editspec.FramingFaces
 	pr, err := prepare(ctx, a, c, pid, out)
 	if err != nil {
 		return nil, err
@@ -221,7 +286,7 @@ func autoCutWith(ctx context.Context, a *app.App, in *CallCutIn, remember bool) 
 	people := len(pr.pin.PictureMembers())
 	layout := in.Layout
 	if layout == "" {
-		layout = splitLayout(preset, people)
+		layout = splitLayout(out, people)
 	}
 	ci := &cutInput{pin: pr.pin, view: pr.view, from: from, to: to, style: st, layout: layout, names: pr.names}
 	if st.Interviewer {
@@ -279,13 +344,7 @@ func autoCutWith(ctx context.Context, a *app.App, in *CallCutIn, remember bool) 
 	if len(spec.Clips) == 0 {
 		return nil, invalid("nothing is said in that stretch")
 	}
-	captions := preset == editspec.PresetVertical
-	if in.Captions != nil {
-		captions = *in.Captions
-	}
-	if captions {
-		spec.Captions = &editspec.Captions{Enabled: true, ShowSpeakers: true, Style: editspec.CaptionClean, Position: "lower"}
-	}
+	spec.Captions = captionsOn(ctx, a, pid, out, in.Captions)
 	if in.NameTags == nil || *in.NameTags {
 		spec.Overlays = nameTags(spec, pr)
 	}
@@ -313,7 +372,7 @@ func autoCutWith(ctx context.Context, a *app.App, in *CallCutIn, remember bool) 
 			}
 		}
 	}
-	po := &CallPlanOut{Result: res, Why: why, Changes: []string{fmt.Sprintf("%s: %d clips and %d shots, %s long", st.Label, len(spec.Clips), shots, secs(totalLength(spec)))}}
+	po := &CallPlanOut{Result: res, Why: why, Shape: shapeWhy, Changes: []string{fmt.Sprintf("%s: %d clips and %d shots, %s long", st.Label, len(spec.Clips), shots, secs(totalLength(spec)))}}
 	po.Summary = fmt.Sprintf("Ready: an automatic %s cut of %s with %d shots, each with its reason.", strings.ToLower(st.Label), c.Name, shots)
 	if in.Apply {
 		po.Applied = applyResult(ctx, a, res)
@@ -504,7 +563,7 @@ func angle(ctx context.Context, a *app.App, in *CallAngleIn) (*CallPlanOut, erro
 	pin := s.Conversations[editspec.ConvName(c.AssetID)]
 	shots := append([]editspec.Shot(nil), c.Shots...)
 	if len(shots) == 0 {
-		shots = []editspec.Shot{{At: c.In, Layout: splitLayout(s.Output.Preset, len(pin.PictureMembers()))}}
+		shots = []editspec.Shot{{At: c.In, Layout: splitLayout(s.Output, len(pin.PictureMembers()))}}
 	}
 	at := round3(in.At)
 	idx := -1
@@ -601,4 +660,32 @@ func init() {
 	ops.Offer("conversation.cut", ops.Offering{ID: "automatic-call-cut", Group: "edit", Title: "Automatic call cuts",
 		Does:  "Cuts a call automatically — whoever is talking, reactions, split layouts — and explains each choice.",
 		Words: []string{"edit the podcast", "switch to the speaker"}, Needs: ops.Needs{Works: []string{"editing"}}})
+}
+
+func firstNonEmpty(vs ...string) string {
+	for _, v := range vs {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func upperFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	return strings.ToUpper(string(r[0])) + string(r[1:])
+}
+
+func lowerFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	if len(r) > 1 && r[1] >= 'A' && r[1] <= 'Z' {
+		return s // an initialism
+	}
+	return strings.ToLower(string(r[0])) + string(r[1:])
 }

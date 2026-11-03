@@ -759,9 +759,9 @@ print("priced first: %s" % e["summary"])
 assert e["allowed"] and 0.05 < e["usd"] < 0.5, "a 3-second draft costs cents"'
 MR generate shot "a red paper boat drifting on a pond" --project "$PG" --seconds 3 --resolution 360p --json </dev/null | J '"without an agreed price → %s: %s" % (d["error"]["code"], d["error"]["message"])' || true
 api generate.configure "{\"projectId\":\"$PG\",\"budgetUsd\":0.05}" | J '"a person set the project budget to $%.2f" % d["data"]["projectBudgetUsd"]'
-MR generate shot "a red paper boat drifting on a pond" --project "$PG" --seconds 3 --resolution 360p --max-cost 0.5 --json </dev/null | J '"over the project budget → %s: %s" % (d["error"]["code"], d["error"]["message"])' || true
+MR generate shot "a red paper boat drifting on a pond" --project "$PG" --seconds 3 --resolution 360p --aspect 16:9 --max-cost 0.5 --json </dev/null | J '"over the project budget → %s: %s" % (d["error"]["code"], d["error"]["message"])' || true
 api generate.configure "{\"projectId\":\"$PG\",\"budgetUsd\":5}" >/dev/null
-GID=$(MR generate shot "a red paper boat drifting on a pond" --project "$PG" --seconds 3 --resolution 360p --max-cost 0.5 --wait --json </dev/null | J 'd["data"]["generations"][0]["id"]')
+GID=$(MR generate shot "a red paper boat drifting on a pond" --project "$PG" --seconds 3 --resolution 360p --aspect 16:9 --max-cost 0.5 --wait --json </dev/null | J 'd["data"]["generations"][0]["id"]')
 MR generate show "$GID" --json | CHECK '
 g = d["data"]
 print("made: %s Charged $%.3f (%s), deleted at the provider: %s" % (g["summary"], g["outcome"]["actual"]["usd"], g["outcome"]["actual"]["basis"], g["forgotten"]["ok"]))
@@ -775,9 +775,12 @@ assert b["project"]["heldUsd"] == 0 and b["project"]["spentUsd"] > 0, "set aside
 curl -s "http://127.0.0.1:$GF/__calls" | CHECK '
 print("the fake Gemini saw: %s" % {k: d.get(k) for k in ("create", "get", "delete", "interactionsKept", "filesKept")})
 assert d["interactionsKept"] == 0 and d["filesKept"] == 0 and not d["problems"], "nothing left at the provider; the key never in an address"'
+# A price agreed without the shape (D394): the project has widescreen footage now (the shot above), so the shape
+# MetaRush would choose isn't one the price said — refused, nothing sent.
+MR generate shot "a paper boat at noon" --project "$PG" --seconds 3 --resolution 360p --max-cost 0.5 --json </dev/null | J '"a price without its shape → %s: %s" % (d["error"]["code"], d["error"]["message"])' || true
 # A key whose Google project is on the free tier (D178): Google accepts the request, then answers every status check
 # with a 429 "limit: 0 … on Free Tier" (as on 2026-10-20). The first such answer ends it, plainly and at no cost.
-MR generate shot "[fake:free-tier] a paper boat at dusk" --project "$PG" --seconds 3 --resolution 360p --max-cost 0.5 --wait --json </dev/null > "$H/free-tier.json" || true
+MR generate shot "[fake:free-tier] a paper boat at dusk" --project "$PG" --seconds 3 --resolution 360p --aspect 16:9 --max-cost 0.5 --wait --json </dev/null > "$H/free-tier.json" || true
 CHECK < "$H/free-tier.json" '
 g = d["data"]["generations"][0]
 print("a free-tier key: %s Charged $%.2f (%s); asked Google to delete it: %s" % (g["summary"], g["settled"]["usd"], g["outcome"]["actual"]["basis"], g["forgotten"]["ok"]))
@@ -787,7 +790,7 @@ assert "https://ai.dev/rate-limit" in g["outcome"]["hint"] and g["forgotten"]["o
 MR generate settings --project "$PG" --json | CHECK '
 assert d["data"]["budget"]["project"]["heldUsd"] == 0, "nothing still set aside for it"'
 MR generate estimate "Samantha waves from a paper boat" --project "$PG" --seconds 3 --resolution 360p --json | J '"a prompt naming Samantha → allowed=%s: %s" % (d["data"]["allowed"], d["data"]["consent"]["message"])'
-MR generate shot "Samantha waves from a paper boat" --project "$PG" --seconds 3 --resolution 360p --max-cost 0.5 --json </dev/null | J '"…and making it → %s" % d["error"]["code"]' || true
+MR generate shot "Samantha waves from a paper boat" --project "$PG" --seconds 3 --resolution 360p --aspect 16:9 --max-cost 0.5 --json </dev/null | J '"…and making it → %s" % d["error"]["code"]' || true
 MR consent record --person Samantha --self --adult --statement "I agree to MetaRush making videos with my likeness." --json </dev/null | J '"consent recorded by a script → %s" % d["error"]["code"]' || true
 cat > "$H/gplan.json" <<EOF
 {"projectId":"$PG","instruction":"open on the generated shot","rationale":"An establishing shot of the pond.",

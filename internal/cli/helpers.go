@@ -342,7 +342,7 @@ func waitJobsOpt(c *cobra.Command, a *app.App, jobIDs []string, timeout time.Dur
 			return
 		}
 		for _, j := range pending {
-			if j.Type == jobs.TypeRender || j.Type == jobs.TypeRemotionImport || j.Type == jobs.TypeRemotionRender || j.Type == jobs.TypeRemotionTask || j.Type == jobs.TypeRemotionRefresh {
+			if jobs.IsRender(j.Type) || j.Type == jobs.TypeRemotionImport || j.Type == jobs.TypeRemotionRender || j.Type == jobs.TypeRemotionTask || j.Type == jobs.TypeRemotionRefresh {
 				// The first render asked for in a terminal sets this version's
 				// renderer up here when no daemon did it yet.
 				if err := setUpRendererIfNew(c, a, quiet); err != nil {
@@ -623,7 +623,7 @@ func payloadString(j *models.Job, key string) string {
 // doing is what a running job does, in plain words ("Transcribing “Kitchen
 // chat”", "Making the review copy of version 3").
 func (w *jobWords) doing(ctx context.Context, j *models.Job) string {
-	switch j.Type {
+	switch jobs.Kind(j.Type) {
 	case jobs.TypeRender:
 		if r := w.render(ctx, j); r != nil {
 			return "Making " + renderWords(r.Quality, r.RevisionNumber)
@@ -689,7 +689,7 @@ func (w *jobWords) doing(ctx context.Context, j *models.Job) string {
 
 // subject is what a job worked on, to start a line about how it went.
 func (w *jobWords) subject(ctx context.Context, j *models.Job) string {
-	switch j.Type {
+	switch jobs.Kind(j.Type) {
 	case jobs.TypeRender, jobs.TypeQA:
 		if r := w.render(ctx, j); r != nil {
 			if j.Type == jobs.TypeQA {
@@ -743,7 +743,7 @@ func (w *jobWords) outcome(ctx context.Context, j *models.Job) string {
 	switch j.State {
 	case models.JobSucceeded:
 		switch {
-		case j.Type == jobs.TypeRender:
+		case jobs.IsRender(j.Type):
 			return subject + " is ready."
 		case j.Type == jobs.TypeQA:
 			return subject + " is done."

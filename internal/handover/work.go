@@ -50,7 +50,7 @@ var jobWords = map[string]string{
 	jobs.TypeImport: "a link import", jobs.TypeGenerate: "AI work (a generated shot, a voice, a picture…)", jobs.TypeFetch: "a repository or web page being read",
 	jobs.TypeDescribe: "a scene description", jobs.TypeStorageMove: "a move of the media", jobs.TypeResourceUpload: "a file from a linked folder being sent",
 	jobs.TypeRemotionImport: "a Remotion project being brought in", jobs.TypeRemotionRefresh: "a Remotion refresh", jobs.TypeRemotionPush: "changes sent back to a repository",
-	jobs.TypeAbilityRun: "an ability's run", jobs.TypeVoiceover: "an AI voice", jobs.TypeRender: "a render", jobs.TypeTranscribe: "a transcript",
+	jobs.TypeAbilityRun: "an ability's run", jobs.TypeVoiceover: "an AI voice", jobs.TypeRender: "a render", jobs.TypeRenderShape: "a render", jobs.TypeTranscribe: "a transcript",
 }
 
 func wordsFor(j models.Job) string {

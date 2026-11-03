@@ -1,6 +1,41 @@
 # Changelog
 
 ## Unreleased
+- **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
+  request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
+  made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says
+  which shape and why, the button says the shape you are agreeing to, and if you pick another, the panel says which
+  would fit the cut. A price you agree to is for that shape, and the shape always goes with it — from the dashboard,
+  Claude's cards and the terminal (`--max-cost` with `--aspect`): if the cut changed in between, nothing is made in
+  another shape — you are asked to look at the new price (a card in Claude's panel is priced again in place). AI pictures made for a cut, and
+  presenter clips, take the cut's shape the same way; pictures for no cut are made as before.
+- **New cuts start in your project's shape**. A project's first cut sheet, a cut written without a shape, an automatic
+  cut of a conversation and a recorded layout start in the shape the project already says — its cuts, where the brief
+  says it goes (YouTube, Shorts, TikTok, Reels count too), or most of its footage — instead of always vertical (or always
+  widescreen for conversations). A whole cut written again keeps its shape. Versions you saved are drawn exactly as
+  before.
+- **A vertical copy of a widescreen cut looks like a vertical cut**. Rendering a version in another shape now stacks
+  the people of a call instead of squeezing them side by side, uses the margins of the platform for that shape (Shorts
+  for a YouTube video), keeps faces in frame and moves middle captions lower on a wider picture — for that copy only;
+  the version and its own renders don't change, and copies made before stay as they are. Only a computer with this
+  MetaRush makes such a copy: with older ones only, it waits and says so.
+- **Timelines from other editors keep their shape**. A 4:5 timeline becomes a 4:5 cut (it became 9:16), and any other
+  shape is kept as near as MetaRush can, said when it isn't exact; a timeline that says no size takes the project's
+  shape. A Remotion composition's first cut keeps its shape too.
+- **Captions on a conversation cut follow your house style**. An automatic conversation cut has captions when the
+  house style says so, in its look, and none when it says none; with no house style, vertical cuts still get them.
+- **Review links and posts use the version's own shape**. A review link plays the review copy in the version's shape
+  even when a copy in another shape was made later, and says so when only another shape is ready; drafts and posting
+  pick the same way.
+- **The recorder records your camera in your project's shape when it can, and shows it whole**. The camera is asked
+  for the project's shape among its own modes (a phone or a turned camera can record vertical), never cropped by the
+  browser; a camera that can't records its own whole picture and the page says so; the previews show the whole
+  picture at its real shape.
+- **Slides made for a vertical cut fit it**. A code slide, a repository card or a diagram made for a vertical or
+  square cut (`metarush resources make … --project … --cut …`) is drawn narrower — long code lines wrapped, the card's
+  numbers in rows, a flowchart that runs down — so it reads on a phone; a newer commit's version keeps that shape.
+- **Where a video goes takes the project's shape when its words don't say one**. "Client review" in a vertical
+  project's brief is vertical; "by email", "on the website" and other screens are widescreen as before.
 - **Motion graphics are drawn in the shape of the cuts that use them, even without a project**. A graphic checked
   outside its project was drawn tall even when every cut using it is widescreen. Its test frames now follow the
   project's cuts that use it, else the project's shape; with no project, the cuts anywhere in your workspace that use

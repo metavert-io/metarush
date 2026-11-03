@@ -770,6 +770,9 @@ var jobPhrases = map[string]jobWords{
 	"voiceover":     {"making the voiceover for", "made the voiceover for", "make the voiceover for"},
 	"visual":        {"looking at what's on screen in", "looked at what's on screen in", "look at what's on screen in"},
 	"describe":      {"describing the scenes of", "described the scenes of", "describe the scenes of"},
+	"inspect":       {"measuring for fixes in", "measured for fixes in", "measure for fixes in"},
+	"prepare":       {"making a fixed copy of", "made a fixed copy of", "make a fixed copy of"},
+	"switches":      {"finding where the picture changes in", "found where the picture changes in", "find where the picture changes in"},
 }
 
 // jobThing is what a job worked on: "a review copy of Spring promo, version 4".
@@ -792,7 +795,7 @@ func jobThing(e *Entry, n *Names) (words jobWords, thing string) {
 	}
 	project := n.project(firstNonEmpty(e.Refs.ProjectID, rn.ProjectID))
 	switch typ {
-	case "render":
+	case "render", "render-shape": // a copy in another shape is a render too (D396)
 		if quality == "final" {
 			return jobWords{"rendering", "made", "render"}, "the final video of " + project + version
 		}
@@ -910,6 +913,10 @@ func jobThing(e *Entry, n *Names) (words jobWords, thing string) {
 			}
 		}
 		return jobWords{"sending", "sent", "send"}, thing
+	case "resource-upload":
+		return jobWords{"copying", "copied", "copy"}, "a file from a linked folder into the storage"
+	case "fetch":
+		return jobWords{"getting", "got", "get"}, "a repository or web page for " + project
 	case "storage_move":
 		to := "new storage"
 		if e.Job != nil {

@@ -49,7 +49,7 @@ type MakeIn struct {
 	// Line is a narration line of the project's cut whose sound the
 	// presenter reads (1 is the first line; instead of a clip).
 	Line   int    `json:"line,omitempty" jsonschema:"minimum=0,maximum=10000,description=Presenters: a narration line of the project's cut to read (1 is the first)."`
-	Branch string `json:"branch,omitempty" jsonschema:"maxLength=80,description=The cut whose narration line it is (default: the main one)."`
+	Branch string `json:"branch,omitempty" jsonschema:"maxLength=80,description=The cut it is for: a presenter's narration line comes from it (default: the main one); a picture or a presenter's clip is made in its shape unless options say one (D385)."`
 	// NoPeople: the person says the pictures show no real people.
 	NoPeople bool     `json:"noPeople,omitempty" jsonschema:"description=You say the pictures show no real people (needed when MetaRush can't tell)."`
 	MaxUSD   *float64 `json:"maxUsd,omitempty" jsonschema:"minimum=0,description=The most you agree to pay\\, in US dollars (from the estimate). Required unless your estimates are off (Settings → Preferences)."`
@@ -136,12 +136,17 @@ type AIEstimate struct {
 	// here, nor an ability, which brings its own keys: D278, D281).
 	KeyNeeded bool `json:"keyNeeded" jsonschema:"description=The provider takes a key kept on this computer."`
 	// Here: the model runs on this computer — free, no key, nothing leaves it (D278).
-	Here     bool           `json:"here,omitempty" jsonschema:"description=It runs on this computer: free\\, no key\\, and nothing leaves it."`
-	Allowed  bool           `json:"allowed"`
-	Problems []string       `json:"problems,omitempty"`
-	Notes    []string       `json:"notes,omitempty"`
-	Summary  string         `json:"summary"`
-	Cost     costs.Estimate `json:"cost"`
+	Here     bool     `json:"here,omitempty" jsonschema:"description=It runs on this computer: free\\, no key\\, and nothing leaves it."`
+	Allowed  bool     `json:"allowed"`
+	Problems []string `json:"problems,omitempty"`
+	Notes    []string `json:"notes,omitempty"`
+	// AspectRatio is the shape it is made in when it has one: what a price
+	// agreed to says, sent with it (options.aspectRatio, D394).
+	AspectRatio string `json:"aspectRatio,omitempty" jsonschema:"description=The shape it is made in (16:9\\, 9:16…) when it has one: send it with the agreed price."`
+	// Shape is the shape it is made in for a cut, and why (D385).
+	Shape   string         `json:"shape,omitempty" jsonschema:"description=The shape it is made in for the cut it is for\\, and why."`
+	Summary string         `json:"summary"`
+	Cost    costs.Estimate `json:"cost"`
 }
 
 // Work states as people read them (those of generated video).

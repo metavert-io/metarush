@@ -15,6 +15,7 @@ import { GENERATE_QUERIES, useGenerateRuns, useStopGeneration } from './RunDialo
 import { frameThumb, StartPicker, type Frame } from './StartPicker';
 import { AI_KINDS, AIWork, type AIKind } from './AIWork';
 import { PresenterWork } from './Presenters';
+import { agreedRequest, chosenAgainstCut, shotRequest, shownAspect, type ShotAspect } from './shot';
 
 /*
  * Generate a shot (D123–D127): a prompt, who appears (a look), the length,
@@ -29,7 +30,8 @@ import { PresenterWork } from './Presenters';
 
 export type { Frame };
 
-const frameRef = (f: Frame) => (f.picture ? { picture: f.picture } : { assetId: f.assetId!, at: f.at ?? 0 });
+/** The shape the price is for, on the button that agrees to it (D394): "Generate tall (about $0.13)". */
+const shapeOnButton = (ar?: string) => (ar === '9:16' ? 'tall ' : ar === '16:9' ? 'wide ' : '');
 
 const clockOf = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 
@@ -63,7 +65,9 @@ export function GeneratePanel({ data, start: given, end, onClearFrames, onOpenCl
   const [prompt, setPrompt] = useState('');
   const [look, setLook] = useState('');
   const [seconds, setSeconds] = useState(6);
-  const [aspect, setAspect] = useState<'16:9' | '9:16'>('16:9');
+  // The shape only when the person chooses one: otherwise MetaRush makes it in
+  // the shape of the cut it is for, and the estimate says which and why (D385).
+  const [aspect, setAspect] = useState<ShotAspect>('');
   const [quality, setQuality] = useState<'draft' | 'final'>('draft');
   const [resolution, setResolution] = useState('');
   const [takes, setTakes] = useState('1');
@@ -81,29 +85,16 @@ export function GeneratePanel({ data, start: given, end, onClearFrames, onOpenCl
   const res = resolution || (quality === 'final' ? (s?.finalResolution ?? '1080p') : (s?.draftResolution ?? '720p'));
   const resChoices = quality === 'final' ? ['1080p', '4k'] : ['360p', '720p'];
 
-  // The usual length and shape fill in once, unless the person already chose.
+  // The usual length fills in once, unless the person already chose.
   const chosen = useRef(false);
   useEffect(() => {
     if (!s || chosen.current) return;
     chosen.current = true;
     if (s.seconds) setSeconds(s.seconds);
-    if (s.aspectRatio === '9:16') setAspect('9:16');
   }, [s]);
 
   const input = useMemo<GenShotIn>(
-    () => ({
-      projectId,
-      prompt: prompt.trim(),
-      seconds,
-      aspectRatio: aspect,
-      quality,
-      resolution: res as GenShotIn['resolution'],
-      takes: Number(takes),
-      ...(look && !start ? { look } : {}),
-      ...(start ? { from: frameRef(start) } : {}),
-      ...(start && end ? { to: frameRef(end) } : {}),
-      ...(noPeople ? { noPeople: true } : {}),
-    }),
+    () => shotRequest({ projectId, prompt, seconds, aspect, quality, resolution: res, takes, look, start, end, noPeople }),
     [projectId, prompt, seconds, aspect, quality, res, takes, look, start, end, noPeople],
   );
 
@@ -147,7 +138,8 @@ export function GeneratePanel({ data, start: given, end, onClearFrames, onOpenCl
     if (!ready) return;
     setSending(true);
     try {
-      const out = await call('generate.shot', { ...input, ...(priced && est ? { maxUsd: est.usd } : {}) });
+      // The price and the shape it was shown for go together (D394).
+      const out = await call('generate.shot', priced && est ? agreedRequest(input, est) : input);
       GENERATE_QUERIES.forEach((q) => void qc.invalidateQueries({ queryKey: [q] }));
       toast({ tone: 'success', title: 'Asked for the shot', body: out.summary });
       setPrompt('');
@@ -325,20 +317,32 @@ export function GeneratePanel({ data, start: given, end, onClearFrames, onOpenCl
                 className="w-full accent-[var(--accent)]"
               />
             </div>
-            <div>
+            <div data-generate-shape={aspect || 'auto'}>
               <div className="mb-1.5 text-[12.5px] font-medium text-muted">Shape</div>
               <Segmented
                 label="Shape"
-                value={aspect}
-                onChange={(v) => {
-                  chosen.current = true;
-                  setAspect(v);
-                }}
+                value={shownAspect(aspect, est)}
+                onChange={(v) => setAspect(v)}
                 items={[
-                  { value: '16:9', label: 'Wide' },
-                  { value: '9:16', label: 'Tall' },
+                  { value: '16:9' as const, label: 'Wide' },
+                  { value: '9:16' as const, label: 'Tall' },
                 ]}
               />
+              {est?.shapeWhy ? (
+                <p className="mt-1.5 text-[12px] leading-snug text-subtle" data-generate-shape-why>
+                  {est.shapeWhy}
+                  {chosenAgainstCut(aspect, est) ? (
+                    <>
+                      {' '}
+                      <button type="button" className="font-medium text-accent-text hover:underline" onClick={() => setAspect('')} data-generate-shape-reset>
+                        Make it {est.fitsCut === '9:16' ? 'tall' : 'wide'}
+                      </button>
+                    </>
+                  ) : null}
+                </p>
+              ) : !aspect ? (
+                <p className="mt-1.5 text-[12px] leading-snug text-subtle">Made in the shape of the cut it is for, unless you choose.</p>
+              ) : null}
             </div>
             <div>
               <div className="mb-1.5 text-[12.5px] font-medium text-muted">Quality</div>
@@ -398,7 +402,7 @@ export function GeneratePanel({ data, start: given, end, onClearFrames, onOpenCl
             {estError ? <ErrorPanel compact error={estError} className="mt-2" /> : null}
           </div>
           <Button variant="primary" icon={<Sparkle size={14} weight="fill" />} disabled={!ready} loading={sending} onClick={() => void go()} data-generate-go data-estimates-first={estimatesFirst ? 'on' : 'off'}>
-            {est && priced ? `Generate (${estimateWords(est.usd)})` : 'Generate'}
+            {est && priced ? `Generate ${shapeOnButton(est.aspectRatio)}(${estimateWords(est.usd)})` : 'Generate'}
           </Button>
           <p className="text-[12px] leading-relaxed text-subtle">Nothing is sent until you press it. Google adds an invisible watermark (SynthID) to everything it makes.</p>
         </div>

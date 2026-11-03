@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, CheckCircle, Info, Key, Sparkle, StopCircle, WarningCircle } from '@phosphor-icons/react';
 import { call } from '../../api/client';
 import { useOp } from '../../api/queries';
+import { agreedMake } from './shot';
 import type { AIEstimate, AIMakeIn, AIVoiceCopyIn, AIWorkView, GenOptions, ProjectShowOut } from '../../api/types';
 import { useToast } from '../../ui/Toast';
 import { useEstimatesFirst } from '../../lib/preferences';
@@ -263,7 +264,9 @@ export function AIWork({ kind, data, onOpenClip }: { kind: AIKind; data: Project
     setSending(true);
     try {
       const maxUsd = priced && est ? { maxUsd: est.usd } : {};
-      const out = kind === 'voice-copy' ? await call('ai.voices.copy', { ...copyIn, ...maxUsd }) : await call('ai.make', { ...makeIn, ...maxUsd });
+      // The price and the shape it was shown for go together (D394).
+      const out =
+        kind === 'voice-copy' ? await call('ai.voices.copy', { ...copyIn, ...maxUsd }) : await call('ai.make', priced && est ? agreedMake(makeIn, est) : makeIn);
       ['ai.list', 'ai.voices', 'activity.summary', 'project.show', 'resources.list'].forEach((q) => void qc.invalidateQueries({ queryKey: [q] }));
       toast({ tone: 'success', title: 'Asked for it', body: out.summary });
       setPrompt('');

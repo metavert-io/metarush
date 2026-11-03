@@ -15374,6 +15374,9 @@
         },
         "says": {
           "type": "string"
+        },
+        "failed": {
+          "$ref": "#/$defs/Failure"
         }
       },
       "additionalProperties": false,
@@ -18893,8 +18896,13 @@
         "likeness": {
           "type": "boolean"
         },
-        "edited": {
-          "type": "boolean"
+        "work": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            ""
+          ]
         },
         "presenter": {
           "type": "string"
@@ -21791,6 +21799,23 @@
         "title",
         "faces",
         "summary"
+      ]
+    },
+    "Failure": {
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at",
+        "why"
       ]
     },
     "FavoriteVoice": {
@@ -58450,6 +58475,9 @@
         },
         "edit": {
           "type": "boolean"
+        },
+        "aiKind": {
+          "type": "string"
         },
         "ability": {
           "$ref": "#/$defs/AbilityMadeWith"

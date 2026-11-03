@@ -5,8 +5,9 @@ package c2pa
 // The real c2patool, once by hand on a computer that has it (never in CI,
 // never downloaded by a test): a short video ffmpeg makes, signed through
 // MetaRush's own signer with a test certificate and a brought-style chain of
-// each key kind, read back, and the signed file searched for names that must
-// never be in it.
+// each key kind, read back (the copy carrying exactly the signature MetaRush
+// made), the signed file searched for names that must never be in it; and the
+// reviewer's attack on a signing in progress (D436).
 //
 //	METARUSH_REAL_C2PATOOL=/path/to/c2patool go test -tags c2pareal -run TestRealC2patool -v ./internal/c2pa/
 
@@ -15,6 +16,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,6 +25,7 @@ import (
 	"time"
 
 	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/testutil/fakec2patool"
 	"github.com/metavert-io/metarush/internal/tools"
 )
 
@@ -36,7 +39,7 @@ func TestRealC2patool(t *testing.T) {
 		t.Skip("no ffmpeg")
 	}
 	ts := tools.New(config.Tools{C2PATool: bin})
-	tool := Tool{Tools: ts}
+	tool := Tool{Tools: ts, Dir: filepath.Join(t.TempDir(), "private")}
 	ctx := context.Background()
 	if why := tool.Ready(ctx); why != "" {
 		t.Fatal(why)
@@ -72,13 +75,17 @@ func TestRealC2patool(t *testing.T) {
 	})
 	for name, cred := range creds {
 		out := filepath.Join(dir, strings.ReplaceAll(name, " ", "-")+".mp4")
-		s, err := tool.Sign(ctx, SignIn{Video: in, Out: out, Manifest: def, Credential: cred})
+		s, err := tool.Sign(ctx, SignIn{Video: in, Manifest: def, Credential: cred})
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
 		if !s.Verified || s.Signatures != 1 {
 			t.Fatalf("%s: %+v (%s)", name, s, s.Problem)
 		}
+		if err := os.Link(s.Path, out); err != nil {
+			t.Fatal(err)
+		}
+		s.Remove()
 		h, err := ManifestHash(out)
 		if err != nil || h != s.ManifestHash {
 			t.Fatalf("%s: manifest hash %s %v", name, h, err)
@@ -137,4 +144,72 @@ func TestRealC2patool(t *testing.T) {
 	if r, err := tool.Read(ctx, in); err != nil || !r.None {
 		t.Fatalf("the unsigned video: %+v %v", r, err)
 	}
+}
+
+// The reviewer's attack with the real c2patool (D436): c2patool waits (a
+// wrapper that pauses, then becomes c2patool with the same process, environment
+// and descriptors) while this test reads its environment and arguments as any
+// program of the person's can, looks for a socket to the signer and runs the
+// signer from outside; then it signs, with exactly one signature.
+func TestRealC2patoolIsNoOracle(t *testing.T) {
+	bin := os.Getenv("METARUSH_REAL_C2PATOOL")
+	if bin == "" {
+		t.Skip("METARUSH_REAL_C2PATOOL names no c2patool")
+	}
+	dir := t.TempDir()
+	hold := filepath.Join(dir, "hold")
+	_ = os.WriteFile(hold, nil, 0o600)
+	// The stand-in waits, then becomes the real c2patool (the same process).
+	wrapper, _ := fakec2patool.Write(t, fakec2patool.State{Hold: hold, Exec: bin})
+	tool := Tool{Tools: tools.New(config.Tools{C2PATool: wrapper}), Dir: filepath.Join(dir, "private")}
+	cred, _ := MakeTest("", time.Now())
+	def, _ := Manifest{Version: "0.16.0-dev", Parts: []Part{{What: "footage", SHA256: strings.Repeat("1", 64), Format: "video/mp4"}}}.Definition()
+	in := filepath.Join(dir, "in.mp4")
+	if err := WriteSample(in); err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		s   *Signed
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		s, err := tool.Sign(context.Background(), SignIn{Video: in, Manifest: def, Credential: cred})
+		done <- result{s, err}
+	}()
+	pid := 0
+	for deadline := time.Now().Add(time.Minute); pid == 0; time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("c2patool never started")
+		}
+		if b, err := os.ReadFile(hold + ".ready"); err == nil {
+			_, _ = fmt.Sscan(string(b), &pid)
+		}
+	}
+	seen := processSays(t, pid)
+	t.Logf("what c2patool's process shows:\n%s", seen)
+	for _, never := range []string{"METARUSH_C2PA", "TICKET", "SOCKET", ".sock"} {
+		if strings.Contains(strings.ToUpper(seen), strings.ToUpper(never)) {
+			t.Errorf("c2patool's environment or arguments carry %q", never)
+		}
+	}
+	_ = filepath.WalkDir(tool.Dir, func(p string, d os.DirEntry, err error) error {
+		if st, e := os.Lstat(p); e == nil && st.Mode()&os.ModeSocket != 0 {
+			t.Errorf("a socket to the signer: %s", p)
+		}
+		return nil
+	})
+	exe, _ := os.Executable()
+	cmd := exec.Command(exe, SignerCommand)
+	cmd.Stdin = bytes.NewReader(append(append([]byte(nil), sigStructure...), `{"claim":"the attacker's"}`...))
+	if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), errOutsider) {
+		t.Errorf("the signer run from outside: %q %v", out, err)
+	}
+	_ = os.Remove(hold)
+	res := <-done
+	if res.err != nil || !res.s.Verified || res.s.Signatures != 1 {
+		t.Fatalf("the signing: %+v %v", res.s, res.err)
+	}
+	res.s.Remove()
+	t.Log("nothing reached the signer from outside; the signing carries its one signature")
 }

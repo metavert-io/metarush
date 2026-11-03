@@ -2642,8 +2642,13 @@
         "likeness": {
           "type": "boolean"
         },
-        "edited": {
-          "type": "boolean"
+        "work": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            ""
+          ]
         },
         "presenter": {
           "type": "string"

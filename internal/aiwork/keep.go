@@ -160,7 +160,7 @@ func (r *runner) keepPicture(ctx context.Context, path string, size int64, mime 
 		return nil, err
 	}
 	src := models.ResourceSource{Kind: "generated", Tool: g.ProviderTitle + " · " + g.ModelTitle, At: time.Now().UTC(), Machine: r.a.Cfg.Installation.Name,
-		MadeWith: &models.ResourceMadeWith{Kind: resources.MakeAI, GenerationID: g.ID, Provider: g.Provider, ProviderTitle: g.ProviderTitle, Model: g.Model,
+		MadeWith: &models.ResourceMadeWith{Kind: resources.MakeAI, AIKind: g.Kind, GenerationID: g.ID, Provider: g.Provider, ProviderTitle: g.ProviderTitle, Model: g.Model,
 			Prompt: generate.Clip(g.Prompt, 300), Likeness: len(g.ConsentIDs) > 0}}
 	if m, err := aiservices.ModelFor(g.Provider, g.Kind, g.Model); err == nil {
 		src.MadeWith.Watermark = m.Watermark

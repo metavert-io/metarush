@@ -734,7 +734,11 @@ func (g *ShipGateOut) record() *DeliveryGate {
 			d.Held = append(d.Held, h.ShipHold)
 		}
 	}
-	if g.On && len(d.Held) > 0 {
+	anyway := false // a note covers what holds it with the gate off too (D418)
+	for _, h := range g.Holds {
+		anyway = anyway || (h.Covered && h.Anyway)
+	}
+	if (g.On && len(d.Held) > 0) || anyway {
 		d.SentAnyway = g.SentAnyway
 	}
 	return d
@@ -1059,9 +1063,11 @@ func overrideVersion(ctx context.Context, a *app.App, in *ShipOverrideIn) (*Ship
 	if err != nil {
 		return nil, err
 	}
+	// What holds it now: with the gate off, only what holds anyway (D418:
+	// Content Credentials the settings require), so a note can cover that too.
 	var holds []models.ShipHold
 	for _, h := range g.Holds {
-		if h.Overridable && !h.Covered {
+		if h.Overridable && !h.Covered && (g.On || h.holdsAnyway()) {
 			holds = append(holds, h.ShipHold)
 		}
 	}
@@ -1071,7 +1077,7 @@ func overrideVersion(ctx context.Context, a *app.App, in *ShipOverrideIn) (*Ship
 				WithHint("Take the changed words out of the cut and make a new version.")
 		}
 	}
-	if !g.On {
+	if !g.On && len(holds) == 0 {
 		return nil, apperr.New(apperr.Conflict, "Nothing holds version %d: %s", rev.Number, lowerFirst(g.Why)).WithHint("Deliver it as it is.")
 	}
 	if len(holds) == 0 {

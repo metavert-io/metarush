@@ -11985,6 +11985,7 @@ prompt?: string
 watermark?: string
 likeness?: boolean
 edit?: boolean
+aiKind?: string
 ability?: AbilityMadeWith
 repoId?: string
 repoSha?: string
@@ -13572,6 +13573,7 @@ tool?: string
 ready: boolean
 problems: string[]
 says: string
+failed?: Failure
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -13589,6 +13591,14 @@ validUntil: string
 alg: ("es256" | "es384" | "es512" | "ps256" | "ed25519")
 test: boolean
 certificates: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "Failure".
+ */
+export interface Failure {
+at: string
+why: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -18311,7 +18321,7 @@ provider: string
 model: string
 look?: string
 likeness?: boolean
-edited?: boolean
+work?: ("made" | "edited" | "")
 presenter?: string
 consent?: string
 presenterWatermark?: string

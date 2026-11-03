@@ -17,9 +17,12 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -38,12 +41,34 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// fakeTool is a c2patool stand-in with its state and the log of its calls.
+// fakeTool is a c2patool stand-in with its state and the log of its calls;
+// its signings work in a private folder of the test's.
 func fakeTool(t *testing.T, st fakec2patool.State) (Tool, string) {
 	t.Helper()
 	st.Log = filepath.Join(t.TempDir(), "calls.jsonl")
 	tool, _ := fakec2patool.Write(t, st)
-	return Tool{Tools: tools.New(config.Tools{C2PATool: tool})}, st.Log
+	return Tool{Tools: tools.New(config.Tools{C2PATool: tool}), Dir: filepath.Join(t.TempDir(), "private")}, st.Log
+}
+
+// leftIn lists what is left in a tool's private folder.
+func leftIn(t *testing.T, tool Tool) []string {
+	t.Helper()
+	es, _ := os.ReadDir(tool.Dir)
+	var out []string
+	for _, e := range es {
+		out = append(out, e.Name())
+	}
+	return out
+}
+
+// signingDir is the private folder a logged signing worked in (its manifest's).
+func signingDir(c fakec2patool.Call) string {
+	for i, a := range c.Args {
+		if a == "--manifest" && i+1 < len(c.Args) {
+			return filepath.Dir(c.Args[i+1])
+		}
+	}
+	return ""
 }
 
 func video(t *testing.T) string {
@@ -101,13 +126,16 @@ func TestSignThroughMetaRushsOwnSigner(t *testing.T) {
 	}
 	tool, log := fakeTool(t, fakec2patool.State{})
 	in := video(t)
-	out := filepath.Join(t.TempDir(), "signed.mp4")
-	s, err := tool.Sign(context.Background(), SignIn{Video: in, Out: out, Manifest: definition(t), Credential: cred})
+	s, err := tool.Sign(context.Background(), SignIn{Video: in, Manifest: definition(t), Credential: cred})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !s.Verified || s.Problem != "" || s.Signatures != 1 {
+	if !s.Verified || s.Problem != "" || s.Signatures != 1 || filepath.Dir(filepath.Dir(s.Path)) != tool.Dir {
 		t.Fatalf("signed: %+v", s)
+	}
+	out := s.Path
+	if st, err := os.Stat(filepath.Dir(out)); err != nil || st.Mode().Perm() != 0o700 {
+		t.Fatalf("the signing's folder: %v %v", st.Mode(), err)
 	}
 	h, err := ManifestHash(out)
 	if err != nil || h != s.ManifestHash || len(h) != 64 {
@@ -130,30 +158,44 @@ func TestSignThroughMetaRushsOwnSigner(t *testing.T) {
 			t.Fatalf("the key is in c2patool's arguments or environment: %.20s…", f)
 		}
 	}
+	// Nothing that leads to the signer either: no socket, no ticket.
 	for _, c := range calls {
 		for _, e := range c.Env {
 			k, _, _ := strings.Cut(e, "=")
-			if strings.HasPrefix(k, "C2PA_") || k == "C2PATOOL_SETTINGS" || k == secretpath.SigningKeyEnv {
+			if strings.HasPrefix(k, "C2PA_") || k == "C2PATOOL_SETTINGS" || k == secretpath.SigningKeyEnv || strings.HasPrefix(k, "METARUSH_C2PA") {
 				t.Errorf("c2patool got %s", k)
 			}
 		}
 	}
-	// The folder c2patool worked in (socket, link, manifest) is gone: the one
-	// its signer was in (other packages' tests may be signing meanwhile).
-	dirs := 0
-	for _, c := range calls {
-		for i, a := range c.Args {
-			if a == "--signer-path" && i+1 < len(c.Args) {
-				dir := filepath.Dir(strings.Fields(c.Args[i+1])[0])
-				dirs++
-				if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
-					t.Errorf("the signing's folder was left: %s (%v)", dir, err)
-				}
-			}
-		}
+	// The signed copy carries exactly MetaRush's signature, and the folder
+	// c2patool worked in goes with it once the copy is placed.
+	store, err := manifestStore(out)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if dirs != 1 {
-		t.Fatalf("%d signings", dirs)
+	if sigs, err := StoreSignatures(store); err != nil || len(sigs) != 1 {
+		t.Fatalf("the copy's signatures: %d %v", len(sigs), err)
+	}
+	dir := signingDir(calls[0])
+	if dir != filepath.Dir(out) {
+		t.Fatalf("c2patool worked in %s, the copy is in %s", dir, out)
+	}
+	s.Remove()
+	if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the signing's folder was left: %s (%v)", dir, err)
+	}
+	// (Reading the copy back after this works on a copy of it.)
+	out = filepath.Join(t.TempDir(), "signed.mp4")
+	s2, err := tool.Sign(context.Background(), SignIn{Video: in, Manifest: definition(t), Credential: cred})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(s2.Path, out); err != nil {
+		t.Fatal(err)
+	}
+	s2.Remove()
+	if left := leftIn(t, tool); len(left) != 0 {
+		t.Fatalf("left in the private folder: %v", left)
 	}
 	// Reading the signed copy says the same; the render itself carries nothing.
 	rep, err := tool.Read(context.Background(), out)
@@ -174,10 +216,11 @@ func TestSignThroughMetaRushsOwnSigner(t *testing.T) {
 func TestACopyThatDoesntCheckOut(t *testing.T) {
 	cred, _ := MakeTest("", time.Now())
 	tool, _ := fakeTool(t, fakec2patool.State{TamperAfterSign: true})
-	s, err := tool.Sign(context.Background(), SignIn{Video: video(t), Out: filepath.Join(t.TempDir(), "x.mp4"), Manifest: definition(t), Credential: cred})
+	s, err := tool.Sign(context.Background(), SignIn{Video: video(t), Manifest: definition(t), Credential: cred})
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer s.Remove()
 	if s.Verified || !strings.Contains(s.Problem, "the video's bytes don't match what was signed") {
 		t.Fatalf("tampered copy: %+v", s)
 	}
@@ -186,33 +229,31 @@ func TestACopyThatDoesntCheckOut(t *testing.T) {
 func TestAC2patoolThatSignsByItselfIsRefused(t *testing.T) {
 	cred, _ := MakeTest("", time.Now())
 	tool, _ := fakeTool(t, fakec2patool.State{OwnKey: true})
-	out := filepath.Join(t.TempDir(), "x.mp4")
-	_, err := tool.Sign(context.Background(), SignIn{Video: video(t), Out: out, Manifest: definition(t), Credential: cred})
+	_, err := tool.Sign(context.Background(), SignIn{Video: video(t), Manifest: definition(t), Credential: cred})
 	if err == nil || !strings.Contains(err.Error(), "without MetaRush signing them") {
 		t.Fatalf("own key: %v", err)
 	}
-	if _, err := os.Stat(out); !os.IsNotExist(err) {
-		t.Fatal("the copy it signed by itself was kept")
+	if left := leftIn(t, tool); len(left) != 0 {
+		t.Fatalf("the copy it signed by itself was kept: %v", left)
 	}
 }
 
 func TestSignFailsPlainly(t *testing.T) {
 	cred, _ := MakeTest("", time.Now())
 	tool, _ := fakeTool(t, fakec2patool.State{FailSign: "the certificate is invalid"})
-	out := filepath.Join(t.TempDir(), "x.mp4")
-	_, err := tool.Sign(context.Background(), SignIn{Video: video(t), Out: out, Manifest: definition(t), Credential: cred})
+	_, err := tool.Sign(context.Background(), SignIn{Video: video(t), Manifest: definition(t), Credential: cred})
 	if err == nil || !strings.Contains(err.Error(), "c2patool couldn't put Content Credentials into the video") {
 		t.Fatalf("failed signing: %v", err)
 	}
-	if _, err := os.Stat(out); !os.IsNotExist(err) {
-		t.Fatal("a copy was left behind")
+	if left := leftIn(t, tool); len(left) != 0 {
+		t.Fatalf("a copy was left behind: %v", left)
 	}
 }
 
 func TestTheRealC2patoolIsNeverRunUnderGoTest(t *testing.T) {
 	cred, _ := MakeTest("", time.Now())
-	tool := Tool{Tools: tools.New(config.Tools{})}
-	if _, err := tool.Sign(context.Background(), SignIn{Video: video(t), Out: filepath.Join(t.TempDir(), "x.mp4"), Manifest: definition(t), Credential: cred}); err != errRealInTest {
+	tool := Tool{Tools: tools.New(config.Tools{}), Dir: t.TempDir()}
+	if _, err := tool.Sign(context.Background(), SignIn{Video: video(t), Manifest: definition(t), Credential: cred}); err != errRealInTest {
 		t.Fatalf("sign: %v", err)
 	}
 	if _, err := tool.Read(context.Background(), video(t)); err != errRealInTest {
@@ -238,23 +279,23 @@ func TestSignerSignsOnlySignatureInputs(t *testing.T) {
 	}
 }
 
-// c2patool runs MetaRush's signer once for --signer-info and once to sign;
-// each run reaches the MetaRush that started it every time (a second, empty
-// write after MetaRush had answered and closed once broke the pipe on Linux).
+// c2patool runs MetaRush's signer once for --signer-info and once to sign,
+// each a process of its own that inherits the socket; every run reaches the
+// MetaRush that started c2patool, and exactly one claim is signed.
 func TestSignerReachesMetaRushEveryTime(t *testing.T) {
 	cred, err := MakeTest("", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess, err := newSession(cred, "")
+	sess, err := newSession(t.TempDir(), cred, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer sess.close()
-	f := strings.Fields(sess.signerPath())
+	f := strings.Fields(sess.signer)
 	run := func(stdin []byte, args ...string) ([]byte, error) {
 		cmd := exec.Command(f[0], append(f[1:], args...)...)
-		cmd.Env = append(os.Environ(), sess.env()...)
+		cmd.ExtraFiles = []*os.File{sess.peer} // as c2patool passes it on
 		if stdin != nil {
 			cmd.Stdin = bytes.NewReader(stdin)
 		}
@@ -266,7 +307,7 @@ func TestSignerReachesMetaRushEveryTime(t *testing.T) {
 		}
 		return out, nil
 	}
-	for i := 0; i < 40; i++ {
+	for i := 0; i < maxInfos; i++ {
 		out, err := run(nil, "--signer-info")
 		var info signerInfo
 		if err != nil || json.Unmarshal(out, &info) != nil || info.SignCert == "" || info.Alg != AlgES256 {
@@ -283,8 +324,160 @@ func TestSignerReachesMetaRushEveryTime(t *testing.T) {
 	if !ecdsa.Verify(pub, d[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) {
 		t.Fatal("the signature doesn't verify")
 	}
-	if sess.signatures() != 1 {
-		t.Fatalf("signed %d times", sess.signatures())
+	// A second claim is refused: one signing, one signature.
+	if out, err := run(append(append([]byte(nil), sigStructure...), "another claim"...)); err == nil || !strings.Contains(err.Error(), "more than one claim") {
+		t.Fatalf("a second claim: %q %v", out, err)
+	}
+	if got := sess.returned(); len(got) != 1 || !bytes.Equal(got[0], sig) {
+		t.Fatalf("returned: %d", len(got))
+	}
+}
+
+// The reviewer's attack (D436): while a signing runs, anything else of the
+// person's reads c2patool's environment and arguments and looks for a way
+// to the signer, then asks it for a signature of its own. There is none: no
+// socket file, no ticket, nothing in c2patool's environment; the signer run
+// from outside says so and signs nothing; the signing goes on with exactly
+// its one signature.
+func TestTheSignerIsNoOracle(t *testing.T) {
+	cred, err := MakeTest("", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	hold := filepath.Join(t.TempDir(), "hold")
+	if err := os.WriteFile(hold, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tool, log := fakeTool(t, fakec2patool.State{Hold: hold})
+	type result struct {
+		s   *Signed
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		s, err := tool.Sign(context.Background(), SignIn{Video: video(t), Manifest: definition(t), Credential: cred})
+		done <- result{s, err}
+	}()
+	var pid int
+	for deadline := time.Now().Add(time.Minute); pid == 0; time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("c2patool never got to signing")
+		}
+		if b, err := os.ReadFile(hold + ".ready"); err == nil {
+			_, _ = fmt.Sscan(string(b), &pid)
+		}
+	}
+	// 1. c2patool's environment and arguments, as the person's other programs see them.
+	seen := processSays(t, pid)
+	for _, never := range []string{"METARUSH_C2PA", "TICKET", "SOCKET", ".sock"} {
+		if strings.Contains(strings.ToUpper(seen), strings.ToUpper(never)) {
+			t.Errorf("c2patool's environment or arguments carry %q:\n%s", never, seen)
+		}
+	}
+	// 2. Every socket in the signing's folder and the private folder: none to connect to.
+	var sockets []string
+	_ = filepath.WalkDir(tool.Dir, func(p string, d os.DirEntry, err error) error {
+		if err == nil {
+			if st, err := os.Lstat(p); err == nil && st.Mode()&os.ModeSocket != 0 {
+				sockets = append(sockets, p)
+			}
+		}
+		return nil
+	})
+	if len(sockets) > 0 {
+		t.Errorf("sockets to reach the signer: %v", sockets)
+	}
+	for _, sock := range sockets {
+		if c, err := net.Dial("unix", sock); err == nil {
+			c.Close()
+			t.Errorf("connected to %s", sock)
+		}
+	}
+	// 3. The signer run by something else: no socket handed to it, or another one.
+	exe, _ := os.Executable()
+	claim := append(append([]byte(nil), sigStructure...), `{"claim":"the attacker's"}`...)
+	outsider := func(extra *os.File, stdin []byte, args ...string) (string, error) {
+		cmd := exec.Command(exe, append([]string{SignerCommand}, args...)...)
+		if extra != nil {
+			cmd.ExtraFiles = []*os.File{extra}
+		}
+		if stdin != nil {
+			cmd.Stdin = bytes.NewReader(stdin)
+		}
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	if out, err := outsider(nil, nil, "--signer-info"); err == nil || !strings.Contains(out, errOutsider) {
+		t.Errorf("the signer run from outside answered: %q %v", out, err)
+	}
+	if out, err := outsider(nil, claim); err == nil || !strings.Contains(out, errOutsider) {
+		t.Errorf("the signer run from outside signed: %q %v", out, err)
+	}
+	r, w, _ := os.Pipe()
+	if out, err := outsider(r, claim); err == nil || !strings.Contains(out, errOutsider) {
+		t.Errorf("the signer with a pipe signed: %q %v", out, err)
+	}
+	r.Close()
+	w.Close()
+	// Let the signing go on: it gets exactly its one signature.
+	_ = os.Remove(hold)
+	res := <-done
+	if res.err != nil || !res.s.Verified || res.s.Signatures != 1 {
+		t.Fatalf("the signing: %+v %v", res.s, res.err)
+	}
+	res.s.Remove()
+	if calls := fakec2patool.Calls(log); len(calls) < 1 {
+		t.Fatal("no calls logged")
+	}
+}
+
+// processSays is a process's arguments and environment, as another program
+// of the same person reads them (ps -E on a Mac, /proc elsewhere).
+func processSays(t *testing.T, pid int) string {
+	t.Helper()
+	if runtime.GOOS == "linux" {
+		env, _ := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
+		args, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+		return strings.ReplaceAll(string(args)+"\n"+string(env), "\x00", " ")
+	}
+	out, err := exec.Command("/bin/ps", "-E", "-ww", "-o", "command=", "-p", strconv.Itoa(pid)).Output()
+	if err != nil {
+		t.Fatalf("ps: %v", err)
+	}
+	if !strings.Contains(string(out), "HOME=") {
+		t.Fatalf("ps showed no environment: %q", out)
+	}
+	return string(out)
+}
+
+// What c2patool (or anything it runs) may ask for: one claim's signature.
+// More is refused and the signing fails; a claim of its own first leaves its
+// video unsigned by MetaRush; a signature in the copy other than the one
+// MetaRush returned is refused. Nothing is left behind.
+func TestOneSignaturePerSigningAndOnlyOurs(t *testing.T) {
+	cred, err := MakeTest("", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name string
+		st   fakec2patool.State
+		want string
+	}{
+		{"23 more claims", fakec2patool.State{ExtraSigns: 23}, "more than one signing needs"},
+		{"a claim of its own first", fakec2patool.State{StealFirst: true}, "more than one signing needs"},
+		{"another signature in the copy", fakec2patool.State{SwapSignature: true}, "signature MetaRush didn't make"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			tool, _ := fakeTool(t, c.st)
+			s, err := tool.Sign(context.Background(), SignIn{Video: video(t), Manifest: definition(t), Credential: cred})
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("signed: %+v %v", s, err)
+			}
+			if left := leftIn(t, tool); len(left) != 0 {
+				t.Fatalf("left behind: %v", left)
+			}
+		})
 	}
 }
 

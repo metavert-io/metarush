@@ -3,10 +3,7 @@ package ops
 import (
 	"context"
 	"math"
-	"sort"
 	"time"
-
-	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/editspec"
@@ -39,8 +36,10 @@ func generatedIn(it *deliveryItem, order []string, used map[string][]string) *De
 		if usedAs == nil {
 			c.UsedAs = []string{}
 		}
+		c.Work = models.AIWorkMade
 		if gs := s.Generated; gs != nil {
 			c.GenerationID, c.Provider, c.Model, c.Look, c.Likeness, c.Kind = gs.GenerationID, gs.ProviderTitle, gs.Model, gs.Look, gs.Likeness, gs.Kind
+			c.Work = models.AIWorkOf(gs.Kind, false)
 			if gs.Watermark != "" {
 				g.Watermark = gs.Watermark
 			}
@@ -83,57 +82,46 @@ func generatedIn(it *deliveryItem, order []string, used map[string][]string) *De
 	return g
 }
 
-// aiPictures adds the pictures an AI service made that the cut pins (D226):
-// they are disclosed like generated clips. The notice says "material" when
-// nothing generated is video.
+// aiPictures adds the pictures an AI service made, or changed with
+// generative AI, that the cut shows — its own pins and its nested cuts'
+// (D226, D435) — and the AI voices its nested cuts' narration plays: they
+// are disclosed like generated clips. Pictures AI only improved (a
+// background taken away, made larger) aren't AI-generated material: the
+// record's pictures say what AI did to them. The notice says "material"
+// when nothing generated is video.
 func aiPictures(a *app.App, it *deliveryItem, g *DeliveryGenerated) *DeliveryGenerated {
-	pins := it.rev.Spec.Resources
-	if len(pins) > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		ids := bson.A{}
-		for _, p := range pins {
-			ids = append(ids, p.ID)
+	_, pics, pieces := it.ai(context.Background(), a)
+	byID := map[string]shownPicture{}
+	for _, p := range pics {
+		byID[p.ResourceID+"@"+p.SHA256] = p
+	}
+	for _, p := range pieces {
+		if !models.AIDisclosed(p.Work) {
+			continue
 		}
-		var rs []models.Resource
-		_ = a.DB.Find(ctx, store.CResources, a.WorkspaceID(), bson.M{"_id": bson.M{"$in": ids}}, &rs)
-		byID := map[string]*models.Resource{}
-		for i := range rs {
-			byID[rs[i].ID] = &rs[i]
-		}
-		names := make([]string, 0, len(pins))
-		for n := range pins {
-			names = append(names, n)
-		}
-		sort.Strings(names)
-		for _, n := range names {
-			pin := pins[n]
-			r := byID[pin.ID]
-			if r == nil {
-				continue
+		switch {
+		case p.ResourceID != "":
+			pic := byID[p.ResourceID+"@"+p.SHA256]
+			used := "picture:" + pic.Name
+			if pic.Nested != "" {
+				used += " (in " + pic.Nested + ")"
 			}
-			v := r.Version(pin.SHA256)
-			if v == nil || v.Source.MadeWith == nil || v.Source.MadeWith.Kind != "ai" {
-				continue
-			}
-			mw := v.Source.MadeWith
 			if g == nil {
 				g = &DeliveryGenerated{Clips: []DeliveryGeneratedClip{}}
 			}
-			// A real person's likeness, made with their consent: said on the picture or on its record.
-			likeness := mw.Likeness
-			if !likeness && mw.GenerationID != "" {
-				var rec models.Generation
-				if a.DB.GetByID(ctx, store.CGenerations, a.WorkspaceID(), mw.GenerationID, &rec) == nil {
-					likeness = len(rec.ConsentIDs) > 0
-				}
-			}
-			g.Clips = append(g.Clips, DeliveryGeneratedClip{Kind: "picture", ResourceID: r.ID, Title: firstNonEmpty(r.Title, r.Name), GenerationID: mw.GenerationID,
-				Provider: mw.ProviderTitle, Model: mw.Model, SHA256: pin.SHA256, UsedAs: []string{"picture:" + n}, Likeness: likeness, Edited: mw.Edit})
-			g.Likeness = g.Likeness || likeness
-			if mw.Watermark != "" {
+			g.Clips = append(g.Clips, DeliveryGeneratedClip{Kind: "picture", ResourceID: p.ResourceID, Title: p.Title, GenerationID: p.GenerationID,
+				Provider: p.Provider, Model: p.Model, SHA256: p.SHA256, UsedAs: []string{used}, Likeness: p.Likeness, Work: p.Work})
+			g.Likeness = g.Likeness || p.Likeness
+			if mw := pic.MadeWith; mw != nil && mw.Watermark != "" {
 				g.Watermark = mw.Watermark
 			}
+		case p.TakeID != "" && p.Nested != "":
+			// A nested cut's AI narration (the cut's own is the record's narration).
+			if g == nil {
+				g = &DeliveryGenerated{Clips: []DeliveryGeneratedClip{}}
+			}
+			g.Clips = append(g.Clips, DeliveryGeneratedClip{AssetID: p.AssetID, Kind: "voice", Title: p.Title, Provider: p.Provider, Model: p.Model,
+				SHA256: p.SHA256, UsedAs: []string{"narration in nested cut:" + p.Nested}, Work: p.Work})
 		}
 	}
 	if g == nil {
@@ -266,7 +254,7 @@ func withChangedWords(it *deliveryItem, g *DeliveryGenerated, cw []DeliveryChang
 			title = as.DisplayTitle()
 		}
 		g.Clips = append(g.Clips, DeliveryGeneratedClip{AssetID: w.Sound, Kind: "voice", Title: title, GenerationID: w.GenerationID, Provider: w.Provider, Model: w.Model,
-			Likeness: true, SHA256: w.SHA256, UsedAs: []string{"said:" + w.ChangeID}, Seconds: math.Round((w.To-w.From)*10) / 10})
+			Likeness: true, SHA256: w.SHA256, UsedAs: []string{"said:" + w.ChangeID}, Seconds: math.Round((w.To-w.From)*10) / 10, Work: models.AIWorkMade})
 	}
 	g.Likeness = true
 	g.Notice = models.DisclosureNotice(true)

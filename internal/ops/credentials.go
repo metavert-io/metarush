@@ -82,6 +82,9 @@ type CredentialsHere struct {
 	Ready    bool     `json:"ready"`
 	Problems []string `json:"problems"`
 	Says     string   `json:"says"`
+	// Failed is the last signing here that failed, until one works again
+	// (Try it on a sample, or the next delivery that signs).
+	Failed *c2pa.Failure `json:"failed,omitempty"`
 }
 
 // credentialsHere looks at this computer without reading the key.
@@ -102,8 +105,13 @@ func credentialsHere(ctx context.Context, a *app.App) CredentialsHere {
 		h.Certificate, h.SetAt, h.SetBy, h.Kept = &cert, &at, sv.SetBy, sv.Kept
 		h.Problems = append(h.Problems, sv.Problems...)
 	}
-	if why := (c2pa.Tool{Tools: a.Tools}).Ready(ctx); why != "" {
+	if why := c2pa.NewTool(a.Cfg, a.Tools).Ready(ctx); why != "" {
 		h.Problems = append(h.Problems, sentenceStart(why)+".")
+	}
+	if sv != nil && sv.Failed != nil && len(h.Problems) == 0 {
+		// The last signing here failed (D437): it works again once one does.
+		h.Problems = append(h.Problems, failedWords(sv.Failed))
+		h.Failed = sv.Failed
 	}
 	h.Ready = len(h.Problems) == 0
 	switch {
@@ -119,6 +127,11 @@ func credentialsHere(ctx context.Context, a *app.App) CredentialsHere {
 		h.Says += "."
 	}
 	return h
+}
+
+// failedWords says that the last signing here failed, and why.
+func failedWords(f *c2pa.Failure) string {
+	return fmt.Sprintf("The last signing on this computer failed (%s): %s. Try it on a sample to check it works again.", f.At.UTC().Format("2 Jan 2006, 15:04 UTC"), strings.TrimSuffix(f.Why, "."))
 }
 
 func orWords(s, d string) string {
@@ -246,7 +259,7 @@ func setupCredentials(ctx context.Context, a *app.App, in *CredentialsSetupIn) (
 	a.Audit(ctx, "credentials.setup", "workspace", a.WorkspaceID(), "", map[string]any{"machine": a.Cfg.Installation.Name, "test": f.Test,
 		"fingerprint": f.Fingerprint, "signer": f.Signer, "alg": f.Alg, "validUntil": f.ValidUntil})
 	out := &CredentialsSetupOut{}
-	if (c2pa.Tool{Tools: a.Tools}).Ready(ctx) == "" {
+	if c2pa.NewTool(a.Cfg, a.Tools).Ready(ctx) == "" {
 		if tried, err := tryCredentials(ctx, a); err == nil {
 			out.Tried = tried
 		}
@@ -301,11 +314,15 @@ func tryCredentials(ctx context.Context, a *app.App) (*CredentialsTestOut, error
 		}
 		return nil, err
 	}
-	tool := c2pa.Tool{Tools: a.Tools}
+	tool := c2pa.NewTool(a.Cfg, a.Tools)
 	if why := tool.Ready(ctx); why != "" {
 		return nil, apperr.New(apperr.ToolMissing, "%s.", sentenceStart(why)).WithHint("Add it in Settings → Components.").WithCommand("metarush components add content-credentials")
 	}
-	dir, err := os.MkdirTemp("", "metarush-credentials-test-")
+	tsa, why := timestampFor(ctx, a)
+	if why != "" {
+		return nil, apperr.New(apperr.NotConfigured, "%s", why).WithHint("Change the timestamp service in Settings → Delivery, or stop using one.").WithCommand("metarush credentials on --no-timestamp")
+	}
+	dir, err := os.MkdirTemp(tool.Dir, "sample-")
 	if err != nil {
 		return nil, err
 	}
@@ -318,9 +335,16 @@ func tryCredentials(ctx context.Context, a *app.App) (*CredentialsTestOut, error
 	if err != nil {
 		return nil, err
 	}
-	s, err := tool.Sign(ctx, c2pa.SignIn{Video: in, Out: filepath.Join(dir, "signed.mp4"), Manifest: def, Credential: cred, TimestampURL: timestampURL(ctx, a)})
+	s, err := tool.Sign(ctx, c2pa.SignIn{Video: in, Manifest: def, Credential: cred, TimestampURL: tsa})
 	if err != nil {
+		_ = c2pa.RecordFailure(a.Cfg, "signing a sample failed: "+lowerFirst(strings.TrimSuffix(apperr.From(err).Message, ".")), time.Now())
 		return nil, err
+	}
+	defer s.Remove()
+	if s.Verified {
+		c2pa.ClearFailure(a.Cfg)
+	} else {
+		_ = c2pa.RecordFailure(a.Cfg, "a sample's credentials didn't check out after signing ("+s.Problem+")", time.Now())
 	}
 	f := cred.Facts()
 	out := &CredentialsTestOut{Verified: s.Verified, Signer: f.Signer, Test: f.Test, ManifestHash: s.ManifestHash, Problem: s.Problem, Tool: a.Tools.Version(ctx, tools.C2PATool)}
@@ -335,12 +359,18 @@ func tryCredentials(ctx context.Context, a *app.App) (*CredentialsTestOut, error
 	return out, nil
 }
 
-// timestampURL is the timestamp service the workspace chose ("" none).
-func timestampURL(ctx context.Context, a *app.App) string {
-	if ws := workspaceCredentials(ctx, a); ws != nil {
-		return ws.TimestampURL
+// timestampFor is the timestamp service the workspace chose ("" none),
+// checked again before each signing: why it won't be asked when its name
+// no longer leads only to the internet (D438).
+func timestampFor(ctx context.Context, a *app.App) (url, why string) {
+	ws := workspaceCredentials(ctx, a)
+	if ws == nil || ws.TimestampURL == "" {
+		return "", ""
 	}
-	return ""
+	if why := c2pa.TimestampHostProblem(ctx, ws.TimestampURL); why != "" {
+		return "", why
+	}
+	return ws.TimestampURL, ""
 }
 
 // ---- checking a file ----
@@ -374,7 +404,7 @@ func checkCredentials(ctx context.Context, a *app.App, in *CredentialsCheckIn) (
 	if st, err := os.Stat(p); err != nil || st.IsDir() {
 		return nil, apperr.New(apperr.NotFound, "There's no video at that path.").WithDetails(map[string]any{"path": p})
 	}
-	tool := c2pa.Tool{Tools: a.Tools}
+	tool := c2pa.NewTool(a.Cfg, a.Tools)
 	if why := tool.Ready(ctx); why != "" {
 		return nil, apperr.New(apperr.ToolMissing, "%s.", sentenceStart(why)).WithHint("Add it in Settings → Components.").WithCommand("metarush components add content-credentials")
 	}
@@ -449,14 +479,18 @@ func setWorkspaceCredentials(ctx context.Context, a *app.App, in *CredentialsSet
 	if old != nil {
 		set.TimestampURL = old.TimestampURL
 	}
-	if in.TimestampURL != nil {
+	if in.TimestampURL != nil && strings.TrimSpace(*in.TimestampURL) != set.TimestampURL {
+		// The timestamp service is a person's choice, as an owner (D438):
+		// what it receives is a fingerprint of the signature, nothing of the client's.
+		if !callerOf(ctx).Human {
+			return nil, apperr.New(apperr.HumanOnly, "Only a person can choose a timestamp service for Content Credentials.").
+				WithHint("Choose it yourself in Settings → Delivery, or in your own terminal.").WithCommand("metarush credentials " + in.Mode + " --timestamp-url <address>")
+		}
 		u := strings.TrimSpace(*in.TimestampURL)
 		if u != "" {
-			if why := c2pa.TimestampProblem(u); why != "" {
+			if why := c2pa.TimestampHostProblem(ctx, u); why != "" {
 				return nil, invalid("%s", why)
 			}
-		} else if set.TimestampURL != "" && !callerOf(ctx).Human {
-			return nil, apperr.New(apperr.HumanOnly, "Only a person can stop timestamping Content Credentials.").WithCommand("metarush credentials " + in.Mode + " --no-timestamp")
 		}
 		set.TimestampURL = u
 	}
@@ -482,15 +516,24 @@ func credentialsHold(ctx context.Context, a *app.App, p *models.Project) *GateHo
 	}
 	// A stable key per reason, so a note covers only what the person saw.
 	key := "credentials:none"
+	paths := []GatePath{{Label: "Set them up", Link: links.Credentials(), Command: "metarush credentials setup", People: true}}
 	if sv, err := c2pa.Public(a.Cfg); err == nil && sv != nil {
-		key = "credentials:tool"
-		if len(sv.Problems) > 0 {
+		switch {
+		case len(sv.Problems) > 0:
 			key = "credentials:certificate:" + sv.Certificate.Fingerprint[:12]
+		case h.Failed != nil:
+			// The last signing failed (D437): trying again clears it, or a note covers it.
+			key = fmt.Sprintf("credentials:failed:%s:%d", sv.Certificate.Fingerprint[:12], h.Failed.At.Unix())
+			paths = []GatePath{{Label: "Try it on a sample", Op: "credentials.test", Input: map[string]any{}, Command: "metarush credentials test"}, paths[0]}
+		default:
+			key = "credentials:tool"
 		}
 	}
-	return &GateHold{ShipHold: models.ShipHold{Key: key, Kind: models.HoldCredentials,
-		Says: "Its videos must carry Content Credentials, and this computer can't sign them: " + lowerFirst(strings.TrimSuffix(h.Problems[0], ".")) + "."},
-		Paths: []GatePath{{Label: "Set them up", Link: links.Credentials(), Command: "metarush credentials setup", People: true}}}
+	says := "Its videos must carry Content Credentials, and this computer can't sign them: " + lowerFirst(strings.TrimSuffix(h.Problems[0], ".")) + "."
+	if strings.HasPrefix(key, "credentials:failed:") {
+		says = "Its videos must carry Content Credentials, and " + lowerFirst(h.Problems[0])
+	}
+	return &GateHold{ShipHold: models.ShipHold{Key: key, Kind: models.HoldCredentials, Says: says}, Paths: paths}
 }
 
 func init() {

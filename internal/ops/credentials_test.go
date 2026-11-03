@@ -12,7 +12,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,6 +56,21 @@ func credentialsApp(t *testing.T, st fakec2patool.State) (*app.App, string) {
 		t.Fatal(err)
 	}
 	return a, st.Log
+}
+
+// credentialsAppState is credentialsApp with the stand-in's state file, to
+// change what it does between steps.
+func credentialsAppState(t *testing.T, st fakec2patool.State) (*app.App, string) {
+	t.Helper()
+	keyring.MockInit()
+	a := testapp.New(t)
+	tool, state := fakec2patool.Write(t, st)
+	a.Cfg.Tools.C2PATool = tool
+	a.Tools.Rescan(a.Cfg.Tools)
+	if err := a.DB.Insert(context.Background(), store.CWorkspaces, models.Workspace{ID: a.WorkspaceID(), WorkspaceID: a.WorkspaceID(), Name: "T"}); err != nil {
+		t.Fatal(err)
+	}
+	return a, state
 }
 
 // approvedWithRender is a version of a new project, approved, with a final
@@ -335,12 +352,14 @@ func TestDeliveryWithoutWorkingCredentials(t *testing.T) {
 	if left, _ := filepath.Glob(filepath.Join(dir2, ".*")); len(left) > 0 {
 		t.Fatalf("the copy that didn't check out was left: %v", left)
 	}
-	// Required (the gate off): nothing is delivered at all.
+	// Required (the gate off): nothing is delivered at all. This computer
+	// remembers that its last signing failed (D437), so the version is held
+	// before anything is tried; a sample that works lets it try again.
 	do[ops.CredentialsStatusOut](t, bad, "credentials.set", ops.CredentialsSetIn{Mode: models.CredentialsRequired})
 	dir3 := t.TempDir()
 	err := doErr(bad, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid2}, Out: dir3}, person)
-	if code(err) != "E_HELD" || !strings.Contains(err.Error(), "must carry Content Credentials") || !strings.Contains(err.Error(), "Nothing was written") {
-		t.Fatalf("required, didn't check out: %v", err)
+	if code(err) != "E_HELD" || !strings.Contains(err.Error(), "must carry Content Credentials") || !strings.Contains(err.Error(), "the last signing on this computer failed") {
+		t.Fatalf("required, after a signing that didn't check out: %v", err)
 	}
 	if entries, _ := os.ReadDir(dir3); len(entries) != 0 {
 		t.Fatalf("written anyway: %v", entries)
@@ -380,25 +399,32 @@ func TestShipGateCanRequireContentCredentials(t *testing.T) {
 	// "Required" is its own choice: with the gate off it holds the version
 	// too (and nothing else does), so the page and delivery agree.
 	do[ops.GateSettingsOut](t, a, "delivery.gate.set", ops.GateSetIn{On: false})
-	if g := ready(); g.Ready || g.State != ops.GateHeld || len(g.Holds) != 1 || !g.Holds[0].Anyway || !strings.Contains(g.Summary, "must carry Content Credentials") {
-		t.Fatalf("held with the gate off: %+v", g)
+	off := ready()
+	if off.Ready || off.State != ops.GateHeld || len(off.Holds) != 1 || !off.Holds[0].Anyway || !strings.Contains(off.Summary, "must carry Content Credentials") {
+		t.Fatalf("held with the gate off: %+v", off)
 	}
 	if err := doErr(a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()}, person); code(err) != "E_HELD" || !strings.Contains(err.Error(), "must carry Content Credentials") {
 		t.Fatalf("delivered with the gate off: %v", err)
 	}
-	do[ops.GateSettingsOut](t, a, "delivery.gate.set", ops.GateSetIn{On: true})
 	// A timeline carries none: not held for them.
 	if tg, err := ops.TimelineGate(ctx, a, &p, mustRevision(t, a, rid)); err != nil || holdOf(tg, models.HoldCredentials) {
 		t.Fatalf("a timeline is held for Content Credentials: %+v %v", tg, err)
 	}
-	// A person sends it out without them, with a note.
-	sent := do[ops.ShipGateOut](t, a, "delivery.override", ops.ShipOverrideIn{ShipGateIn: ops.ShipGateIn{ProjectID: p.ID}, Note: "The client agreed to this one without them.", Holds: shownKeys(g)})
+	// A person sends it out without them, with a note — with the gate off too.
+	if err := doErr(a, "delivery.override", ops.ShipOverrideIn{ShipGateIn: ops.ShipGateIn{ProjectID: p.ID}, Note: "The client agreed to this one without them.", Holds: shownKeys(off)}, ops.Caller{}); code(err) != "E_HUMAN_ONLY" {
+		t.Fatalf("an agent sent it anyway: %v", err)
+	}
+	sent := do[ops.ShipGateOut](t, a, "delivery.override", ops.ShipOverrideIn{ShipGateIn: ops.ShipGateIn{ProjectID: p.ID}, Note: "The client agreed to this one without them.", Holds: shownKeys(off)})
 	if !sent.Ready {
 		t.Fatalf("sent anyway: %+v", sent)
 	}
 	out := do[ops.DeliverOut](t, a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()})
 	if c := out.Files[0].ContentCredentials; c == nil || c.Signed || !c.Required || !strings.Contains(c.Problem, "with a note") || len(out.Files[0].SentAnyway) != 1 {
 		t.Fatalf("sent without them: %+v", out.Files[0])
+	}
+	do[ops.GateSettingsOut](t, a, "delivery.gate.set", ops.GateSetIn{On: true})
+	if g := ready(); !g.Ready || g.State != ops.GateSentAnyway {
+		t.Fatalf("the note covers it with the gate on too: %+v", g)
 	}
 	// Set up: nothing holds it, and it goes out signed.
 	do[ops.CredentialsSetupOut](t, a, "credentials.setup", ops.CredentialsSetupIn{Test: true, Organisation: "Example Studio"})
@@ -408,6 +434,113 @@ func TestShipGateCanRequireContentCredentials(t *testing.T) {
 	out = do[ops.DeliverOut](t, a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()})
 	if c := out.Files[0].ContentCredentials; c == nil || !c.Signed || !c.Required || c.Signer != "Example Studio" {
 		t.Fatalf("signed: %+v", c)
+	}
+}
+
+// Required, with the gate on and a certificate (D437): a signing that fails
+// during the delivery stops it and is remembered on this computer, so the
+// version is held for it (Try it on a sample); a person can send it out
+// without them with a note; a signing that works again lets it go signed.
+func TestARequiredSigningThatFailsCanGoOutWithANote(t *testing.T) {
+	a, state := credentialsAppState(t, fakec2patool.State{})
+	do[ops.GateSettingsOut](t, a, "delivery.gate.set", ops.GateSetIn{On: true})
+	p, rid, _ := approvedWithRender(t, a, "Garden story", true)
+	do[ops.CredentialsSetupOut](t, a, "credentials.setup", ops.CredentialsSetupIn{Test: true})
+	do[ops.CredentialsStatusOut](t, a, "content.credentials.set", ops.ContentCredentialsSetIn{ProjectID: p.ID, Mode: models.CredentialsRequired})
+	ready := func() *ops.ShipGateOut {
+		return do[ops.ShipGateOut](t, a, "delivery.ready", ops.ShipGateIn{ProjectID: p.ID})
+	}
+	if g := ready(); !g.Ready {
+		t.Fatalf("set up: %+v", g)
+	}
+	if err := fakec2patool.Save(state, fakec2patool.State{FailSign: "the certificate is invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	err := doErr(a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: dir}, person)
+	if code(err) != "E_HELD" || !strings.Contains(err.Error(), "signing it failed") || !strings.Contains(err.Error(), "Nothing was written") {
+		t.Fatalf("a failing signing: %v", err)
+	}
+	if left, _ := os.ReadDir(dir); len(left) != 0 {
+		t.Fatalf("written anyway: %v", left)
+	}
+	g := ready()
+	if g.Ready || len(g.Holds) != 1 || !strings.HasPrefix(g.Holds[0].Key, "credentials:failed:") || g.Holds[0].Paths[0].Op != "credentials.test" ||
+		!strings.Contains(g.Holds[0].Says, "the last signing on this computer failed") {
+		t.Fatalf("held for the failed signing: %+v", g)
+	}
+	sent := do[ops.ShipGateOut](t, a, "delivery.override", ops.ShipOverrideIn{ShipGateIn: ops.ShipGateIn{ProjectID: p.ID}, Note: "Signing is down; the client takes it without.", Holds: shownKeys(g)})
+	if !sent.Ready {
+		t.Fatalf("sent anyway: %+v", sent)
+	}
+	out := do[ops.DeliverOut](t, a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()})
+	if c := out.Files[0].ContentCredentials; c == nil || c.Signed || !strings.Contains(c.Problem, "with a note") || len(out.Files[0].SentAnyway) != 1 {
+		t.Fatalf("sent without them: %+v", out.Files[0])
+	}
+	// It works again: a sample clears what failed, and the next delivery is signed.
+	if err := fakec2patool.Save(state, fakec2patool.State{}); err != nil {
+		t.Fatal(err)
+	}
+	if tried := do[ops.CredentialsTestOut](t, a, "credentials.test", struct{}{}); !tried.Verified {
+		t.Fatalf("the sample: %+v", tried)
+	}
+	if g := ready(); holdOf(g, models.HoldCredentials) {
+		t.Fatalf("still held: %+v", g)
+	}
+	out = do[ops.DeliverOut](t, a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()})
+	if c := out.Files[0].ContentCredentials; c == nil || !c.Signed || !c.Verified {
+		t.Fatalf("signed again: %+v", c)
+	}
+}
+
+// Two deliveries of one version into one folder (D436): each signs in a
+// private folder of its own, so neither can place the other's copy; one
+// goes out, the other is refused, and what is there is exactly the copy
+// that delivery checked and recorded.
+func TestTwoDeliveriesIntoOneFolderNeverSwapBytes(t *testing.T) {
+	a, _ := credentialsApp(t, fakec2patool.State{})
+	ctx := context.Background()
+	_, rid, _ := approvedWithRender(t, a, "Garden story", false)
+	do[ops.CredentialsSetupOut](t, a, "credentials.setup", ops.CredentialsSetupIn{Test: true})
+	do[ops.CredentialsStatusOut](t, a, "credentials.set", ops.CredentialsSetIn{Mode: models.CredentialsOn})
+	dir := t.TempDir()
+	type result struct {
+		out *ops.DeliverOut
+		err error
+	}
+	results := make(chan result, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			out, err := ops.CallTyped[ops.DeliverOut](ctx, a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: dir}, person)
+			results <- result{out, err}
+		}()
+	}
+	delivered := 0
+	for i := 0; i < 2; i++ {
+		r := <-results
+		if r.err != nil {
+			if code(r.err) != "E_CONFLICT" {
+				t.Fatalf("the other delivery: %v", r.err)
+			}
+			continue
+		}
+		delivered++
+		f := r.out.Files[0]
+		c := f.ContentCredentials
+		b, err := os.ReadFile(f.Path)
+		sum := sha256.Sum256(b)
+		if err != nil || c == nil || !c.Signed || hex.EncodeToString(sum[:]) != c.SHA256 || f.SHA256 != c.SHA256 {
+			t.Fatalf("the placed copy isn't the one recorded: %v %+v", err, c)
+		}
+		if h, err := c2pa.ManifestHash(f.Path); err != nil || h != c.ManifestHash {
+			t.Fatalf("its manifest: %s %v, recorded %s", h, err, c.ManifestHash)
+		}
+	}
+	if delivered != 1 {
+		t.Fatalf("%d deliveries went out", delivered)
+	}
+	if left, _ := filepath.Glob(filepath.Join(dir, ".*")); len(left) > 0 {
+		t.Fatalf("hidden files left: %v", left)
 	}
 }
 
@@ -442,11 +575,28 @@ func TestCredentialsChoiceIsAnOwners(t *testing.T) {
 	if err := doErr(a, "credentials.set", ops.CredentialsSetIn{Mode: models.CredentialsOn}, ops.Caller{}); code(err) != "E_HUMAN_ONLY" {
 		t.Fatalf("an agent asked less: %v", err)
 	}
-	bad := "ftp://timestamps.example"
-	if err := doErr(a, "credentials.set", ops.CredentialsSetIn{Mode: models.CredentialsRequired, TimestampURL: &bad}, person); code(err) != "E_INVALID_INPUT" {
-		t.Fatalf("a timestamp address: %v", err)
+	// A timestamp service: public https names only (D438), a person's choice.
+	was := c2pa.LookupHost
+	t.Cleanup(func() { c2pa.LookupHost = was })
+	c2pa.LookupHost = func(_ context.Context, host string) ([]net.IPAddr, error) {
+		switch host {
+		case "timestamp.example.org":
+			return []net.IPAddr{{IP: net.ParseIP("203.0.113.10")}}, nil
+		case "inside.example.org":
+			return []net.IPAddr{{IP: net.ParseIP("203.0.113.11")}, {IP: net.ParseIP("10.0.0.5")}}, nil
+		}
+		return nil, errors.New("no such host")
 	}
-	good := "http://timestamp.example.org"
+	for _, bad := range []string{"ftp://timestamps.example", "http://timestamp.example.org", "https://127.0.0.1/tsr", "https://[::1]/tsr", "https://localhost/tsr",
+		"https://tsa.local/tsr", "https://intranet/tsr", "https://inside.example.org/tsr", "https://nowhere.example.org/tsr"} {
+		if err := doErr(a, "credentials.set", ops.CredentialsSetIn{Mode: models.CredentialsRequired, TimestampURL: &bad}, person); code(err) != "E_INVALID_INPUT" {
+			t.Errorf("the timestamp address %s: %v", bad, err)
+		}
+	}
+	good := "https://timestamp.example.org/tsr"
+	if err := doErr(a, "credentials.set", ops.CredentialsSetIn{Mode: models.CredentialsRequired, TimestampURL: &good}, ops.Caller{}); code(err) != "E_HUMAN_ONLY" {
+		t.Fatalf("an agent chose a timestamp service: %v", err)
+	}
 	st := do[ops.CredentialsStatusOut](t, a, "credentials.set", ops.CredentialsSetIn{Mode: models.CredentialsRequired, TimestampURL: &good})
 	if st.Mode != models.CredentialsRequired || st.Workspace == nil || st.Workspace.TimestampURL != good || st.Workspace.UpdatedBy.UserName == "" {
 		t.Fatalf("set: %+v", st)

@@ -1,6 +1,7 @@
 package c2pa
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -8,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -16,6 +18,8 @@ import (
 	"time"
 
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/sandbox"
 	"github.com/metavert-io/metarush/internal/tools"
 )
 
@@ -27,6 +31,19 @@ import (
 // refused unless config names it (a stand-in, testutil/fakec2patool).
 type Tool struct {
 	Tools *tools.Set
+	// Dir is where each signing and reading gets a private folder of its own:
+	// the home's private state (0700), which sandboxed steps never see.
+	Dir string
+}
+
+// NewTool is the c2patool runner of an installation.
+func NewTool(cfg *config.Config, ts *tools.Set) Tool {
+	return Tool{Tools: ts, Dir: PrivateDir(cfg)}
+}
+
+// PrivateDir is the home's private state folder, where signings work.
+func PrivateDir(cfg *config.Config) string {
+	return filepath.Join(cfg.Home(), "state", "private")
 }
 
 // MinVersion is the oldest c2patool MetaRush signs with: the first whose
@@ -83,9 +100,8 @@ func settingsFile() []byte {
 
 // SignIn is one signing.
 type SignIn struct {
-	// Video is the file to sign (never changed); Out the signed copy to write
-	// (it must not exist: c2patool writes it, nothing is overwritten).
-	Video, Out string
+	// Video is the file to sign (never changed).
+	Video string
 	// Manifest is the manifest definition (Manifest.Definition).
 	Manifest   []byte
 	Credential *Credential
@@ -95,6 +111,11 @@ type SignIn struct {
 
 // Signed is a signed copy and how it checked out.
 type Signed struct {
+	// Path is the signed copy, in the signing's private folder: the caller
+	// places it (and checks what it placed), then calls Remove.
+	Path string
+	dir  string
+	// SHA256 and Size are the signed copy's.
 	SHA256 string
 	Size   int64
 	// ManifestHash is the SHA-256 of the manifest store in the copy.
@@ -104,17 +125,31 @@ type Signed struct {
 	Report   *Report
 	Verified bool
 	Problem  string
-	// Signatures counts what MetaRush signed for c2patool (one).
+	// Signatures counts what MetaRush signed for c2patool (one), and the
+	// copy carries exactly that signature.
 	Signatures int
 	// Timestamped: a timestamp service vouched for when it was signed.
 	Timestamped bool
 }
 
-// Sign has c2patool write a signed copy of the video with the manifest, then
-// reads the copy back. A copy MetaRush didn't sign, or that can't be read
-// back, is removed and refused; one that doesn't check out is returned with
-// Verified false (the caller doesn't deliver it).
-func (t Tool) Sign(ctx context.Context, in SignIn) (*Signed, error) {
+// Remove throws away the signing's private folder (the signed copy with it).
+func (s *Signed) Remove() {
+	if s != nil && s.dir != "" {
+		_ = os.RemoveAll(s.dir)
+	}
+}
+
+// ErrNotOurs refuses a signed copy whose signature isn't the one MetaRush
+// made in that signing.
+var ErrNotOurs = errors.New("c2pa: the signed copy's signature isn't MetaRush's")
+
+// Sign has c2patool write a signed copy of the video with the manifest into
+// a private folder, then checks that the copy carries exactly the signature
+// MetaRush made and reads it back. A copy MetaRush didn't sign, or one that
+// carries another signature, can't be read back or asked MetaRush for more
+// than its one signature, is thrown away and refused; one that doesn't
+// check out is returned with Verified false (the caller doesn't deliver it).
+func (t Tool) Sign(ctx context.Context, in SignIn) (out *Signed, err error) {
 	if t.Tools == nil {
 		return nil, &tools.ErrMissing{Name: tools.C2PATool}
 	}
@@ -124,21 +159,24 @@ func (t Tool) Sign(ctx context.Context, in SignIn) (*Signed, error) {
 	if in.Credential == nil {
 		return nil, errors.New("c2pa: no credential")
 	}
-	if _, err := os.Lstat(in.Out); err == nil {
-		return nil, fmt.Errorf("c2pa: %s is already there", filepath.Base(in.Out))
-	}
-	sess, err := newSession(in.Credential, in.TimestampURL)
+	sess, err := newSession(t.Dir, in.Credential, in.TimestampURL)
 	if err != nil {
 		return nil, err
 	}
-	defer sess.close()
+	keep := false
+	defer func() {
+		sess.close()
+		if !keep {
+			_ = os.RemoveAll(sess.dir)
+		}
+	}()
 	// c2patool tells a video's format by its name: the render is shown to it
 	// as video.mp4 (a link in the private folder; it only reads it).
 	video, err := nameAsVideo(sess.dir, in.Video, ".mp4")
 	if err != nil {
 		return nil, err
 	}
-	mf, sf := filepath.Join(sess.dir, "manifest.json"), filepath.Join(sess.dir, "settings.json")
+	mf, sf, dst := filepath.Join(sess.dir, "manifest.json"), filepath.Join(sess.dir, "settings.json"), filepath.Join(sess.dir, "signed.mp4")
 	if err := os.WriteFile(mf, in.Manifest, 0o600); err != nil {
 		return nil, err
 	}
@@ -147,10 +185,11 @@ func (t Tool) Sign(ctx context.Context, in SignIn) (*Signed, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, runLimit(in.Video))
 	defer cancel()
-	args := []string{video, "--manifest", mf, "--output", in.Out, "--signer-path", sess.signerPath(), "--settings", sf}
-	res, err := t.Tools.Run(ctx, tools.Spec{Tool: tools.C2PATool, Args: args, Env: append(cleanEnv(sess.dir), sess.env()...), CleanEnv: true, Dir: sess.dir})
+	args := []string{video, "--manifest", mf, "--output", dst, "--signer-path", sess.signer, "--settings", sf}
+	res, err := t.Tools.Run(ctx, tools.Spec{Tool: tools.C2PATool, Args: args, Env: cleanEnv(sess.dir), CleanEnv: true, Dir: sess.dir,
+		ExtraFiles: []*os.File{sess.peer}, OnStart: func(int) { sess.started() }})
+	sess.close() // nothing more is signed in this signing
 	if err != nil {
-		_ = os.Remove(in.Out)
 		var miss *tools.ErrMissing
 		if errors.As(err, &miss) {
 			return nil, err
@@ -165,29 +204,58 @@ func (t Tool) Sign(ctx context.Context, in SignIn) (*Signed, error) {
 		return nil, apperr.Wrap(apperr.ToolFailed, err, "c2patool couldn't put Content Credentials into the video.").
 			WithDetails(map[string]any{"c2patool": said})
 	}
-	out := &Signed{Signatures: sess.signatures()}
-	if out.Signatures == 0 {
+	ours := sess.returned()
+	if len(ours) == 0 {
 		// Never a copy signed with anything but this computer's certificate.
-		_ = os.Remove(in.Out)
 		return nil, apperr.New(apperr.Internal, "c2patool wrote Content Credentials without MetaRush signing them, so the copy was thrown away.")
 	}
-	if out.SHA256, out.Size, err = fileSHA(in.Out); err != nil {
-		_ = os.Remove(in.Out)
+	if why := sess.refused(); why != "" {
+		return nil, apperr.New(apperr.Internal, "c2patool asked MetaRush for more than one signing needs, so the copy was thrown away.").
+			WithDetails(map[string]any{"refused": why})
+	}
+	out = &Signed{Path: dst, dir: sess.dir, Signatures: len(ours)}
+	if out.SHA256, out.Size, err = fileSHA(dst); err != nil {
 		return nil, err
 	}
-	if out.ManifestHash, err = ManifestHash(in.Out); err != nil {
-		out.Problem = "MetaRush can't find the credentials in the signed copy"
-		return out, nil
+	store, err := manifestStore(dst)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "MetaRush can't find the credentials in the signed copy, so it was thrown away.")
 	}
-	rep, err := t.Read(ctx, in.Out)
+	sum := sha256.Sum256(store)
+	out.ManifestHash = hex.EncodeToString(sum[:])
+	// The copy carries exactly the signature MetaRush made, nothing else.
+	inFile, err := StoreSignatures(store)
+	if err != nil {
+		return nil, apperr.Wrap(apperr.Internal, err, "MetaRush can't read the signature in the signed copy, so it was thrown away.")
+	}
+	if !sameSignatures(inFile, ours) {
+		return nil, apperr.Wrap(apperr.Internal, ErrNotOurs, "The signed copy carries a signature MetaRush didn't make for it, so it was thrown away.").
+			WithDetails(map[string]any{"inFile": len(inFile), "made": len(ours)})
+	}
+	rep, err := t.Read(ctx, dst)
 	if err != nil {
 		out.Problem = "c2patool couldn't read the signed copy back"
+		keep = true
 		return out, nil
 	}
 	out.Report = rep
 	out.Verified, out.Problem = rep.Check(in.Credential)
 	out.Timestamped = rep.Signer.Time != ""
+	keep = true
 	return out, nil
+}
+
+// sameSignatures: the signatures in a file are exactly those MetaRush made.
+func sameSignatures(inFile, ours [][]byte) bool {
+	if len(inFile) != len(ours) {
+		return false
+	}
+	for i := range inFile {
+		if !bytes.Equal(inFile[i], ours[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // Read has c2patool read a file's Content Credentials (Report.None: it has none).
@@ -198,7 +266,7 @@ func (t Tool) Read(ctx context.Context, path string) (*Report, error) {
 	if testing.Testing() && !t.Tools.Explicit(tools.C2PATool) {
 		return nil, errRealInTest
 	}
-	dir, err := privateDir()
+	dir, err := privateDir(t.Dir)
 	if err != nil {
 		return nil, err
 	}
@@ -285,18 +353,57 @@ func lastLines(s string, n int) string {
 }
 
 // TimestampProblem says what is wrong with a timestamp service's address
-// ("" nothing): http or https, a host, no sign-in or query in it.
+// ("" nothing): https, a named host (not an address, not this computer or a
+// local network's name), no sign-in or query in it (D438). Where the name
+// leads is checked too, before each signing (the caller's).
 func TimestampProblem(raw string) string {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	switch {
 	case err != nil || u.Host == "":
-		return "That isn't a web address (http://timestamp.example.com)."
-	case u.Scheme != "http" && u.Scheme != "https":
-		return "A timestamp service's address starts with http:// or https://."
+		return "That isn't a web address (https://timestamp.example.com)."
+	case u.Scheme != "https":
+		return "A timestamp service's address starts with https://."
 	case u.User != nil:
 		return "A timestamp service's address carries no sign-in."
 	case u.RawQuery != "" || u.Fragment != "":
 		return "A timestamp service's address has no ? or # part."
+	}
+	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	switch {
+	case net.ParseIP(host) != nil:
+		return "A timestamp service is named by its host name, not an address."
+	case host == "localhost" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal") ||
+		strings.HasSuffix(host, ".lan") || strings.HasSuffix(host, ".home.arpa") || !strings.Contains(host, "."):
+		return "A timestamp service is on the internet, not this computer or a local network."
+	}
+	return ""
+}
+
+// LookupHost resolves a timestamp service's name (a test puts its own here).
+var LookupHost = func(ctx context.Context, host string) ([]net.IPAddr, error) {
+	return net.DefaultResolver.LookupIPAddr(ctx, host)
+}
+
+// TimestampHostProblem says, in plain words, why MetaRush won't ask a
+// timestamp service ("" it may): its address isn't one TimestampProblem
+// takes, or its name doesn't lead only to the internet — never this
+// computer or a local network, as the abilities' proxy refuses (D438).
+// Asked when the address is set and again before each signing.
+func TimestampHostProblem(ctx context.Context, raw string) string {
+	if why := TimestampProblem(raw); why != "" {
+		return why
+	}
+	u, _ := url.Parse(strings.TrimSpace(raw))
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	addrs, err := LookupHost(ctx, u.Hostname())
+	if err != nil || len(addrs) == 0 {
+		return "MetaRush can't find the timestamp service " + u.Hostname() + " (its name leads nowhere just now)."
+	}
+	for _, a := range addrs {
+		if !sandbox.PublicIP(a.IP) {
+			return "The timestamp service " + u.Hostname() + " leads to this computer or a local network, so MetaRush won't ask it."
+		}
 	}
 	return ""
 }

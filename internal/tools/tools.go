@@ -717,6 +717,10 @@ type Spec struct {
 	// OnStart is called with the child's PID once it is running (the assistant
 	// uses it to signal a long-lived Claude Code process).
 	OnStart func(pid int)
+	// ExtraFiles are open files the program inherits as descriptors 3, 4, …
+	// (c2patool's signer reaches MetaRush through one, D436): nothing else is
+	// passed on, as always.
+	ExtraFiles []*os.File
 	// SameGroup keeps the program in this process's group instead of a group
 	// of its own, so whatever stops this process's group stops it too (the
 	// transcription model server's whisper-server: it must never outlive the
@@ -761,6 +765,7 @@ func (s *Set) Run(ctx context.Context, spec Spec) (res *Result, err error) {
 		cmd.Env = append(secretpath.Inheritable(os.Environ()), spec.Env...)
 	}
 	cmd.Stdin = spec.Stdin
+	cmd.ExtraFiles = spec.ExtraFiles
 	if spec.Contained {
 		return s.runContained(ctx, spec, cmd)
 	}

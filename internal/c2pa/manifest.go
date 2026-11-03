@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/metavert-io/metarush/internal/models"
 )
 
 // What a manifest says (D419), checked against C2PA 2.5 and c2pa-rs 0.91.6:
@@ -45,12 +47,12 @@ const (
 	SourceComposite = iptc + "composite"
 )
 
-// How AI took part in a part (Part.AI).
+// How AI took part in a part (Part.AI): models' one answer (D435).
 const (
 	AINone     = ""
-	AIMade     = "made"     // a generative AI model made it
-	AIEdited   = "edited"   // a generative AI model changed captured media
-	AIEnhanced = "enhanced" // an AI model changed it, making nothing new
+	AIMade     = models.AIWorkMade     // a generative AI model made it
+	AIEdited   = models.AIWorkEdited   // a generative AI model changed captured media
+	AIEnhanced = models.AIWorkEnhanced // an AI model changed it, making nothing new
 )
 
 // Part is one thing a video is made of.

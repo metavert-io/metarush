@@ -59,6 +59,53 @@ type Saved struct {
 	Kept        string
 	// Problems say what keeps the certificate from signing now (Public only).
 	Problems []string
+	// Failed is this computer's last signing that failed, until one works.
+	Failed *Failure
+}
+
+// Failure is a signing that failed on this computer (D437): delivery's or a
+// sample's. Where Content Credentials are required, a version waits until a
+// signing works here again (a sample tried, say) or a person sends it out
+// without them with a note. The next signing that works clears it.
+type Failure struct {
+	At  time.Time `json:"at"`
+	Why string    `json:"why"`
+}
+
+func failurePath(cfg *config.Config) string {
+	return filepath.Join(cfg.Home(), "state", "private", "content-credentials-failed.json")
+}
+
+// RecordFailure keeps that a signing failed here, and why (plain words).
+func RecordFailure(cfg *config.Config, why string, at time.Time) error {
+	f := failurePath(cfg)
+	if err := secretpath.Check(f, "a record of a signing", false); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(f), 0o700); err != nil {
+		return err
+	}
+	b, _ := json.Marshal(Failure{At: at.UTC(), Why: why})
+	return os.WriteFile(f, b, 0o600)
+}
+
+// ClearFailure forgets the last failed signing (one worked).
+func ClearFailure(cfg *config.Config) {
+	_ = os.Remove(failurePath(cfg))
+}
+
+// LastFailure is the last signing that failed here and hasn't been followed
+// by one that worked (nil none).
+func LastFailure(cfg *config.Config) *Failure {
+	b, err := os.ReadFile(failurePath(cfg))
+	if err != nil {
+		return nil
+	}
+	var f Failure
+	if json.Unmarshal(b, &f) != nil || f.At.IsZero() {
+		return nil
+	}
+	return &f
 }
 
 func statePath(cfg *config.Config) string {
@@ -101,6 +148,7 @@ func Save(cfg *config.Config, c *Credential, by string, now time.Time) (*Saved, 
 		_ = os.Remove(tmp)
 		return nil, err
 	}
+	ClearFailure(cfg) // a new certificate: what failed before says nothing about it
 	return &Saved{Certificate: c.Facts(), SetAt: st.SetAt, SetBy: by, Kept: kept}, nil
 }
 
@@ -155,7 +203,7 @@ func Public(cfg *config.Config) (*Saved, error) {
 			WithCommand("metarush credentials setup")
 	}
 	c := &Credential{Chain: chain, Alg: st.Alg}
-	return &Saved{Certificate: c.Facts(), SetAt: st.SetAt, SetBy: st.SetBy, Kept: keptHere(cfg), Problems: c.Problems(time.Now())}, nil
+	return &Saved{Certificate: c.Facts(), SetAt: st.SetAt, SetBy: st.SetBy, Kept: keptHere(cfg), Problems: c.Problems(time.Now()), Failed: LastFailure(cfg)}, nil
 }
 
 func keptHere(cfg *config.Config) string {
@@ -189,6 +237,7 @@ func Remove(cfg *config.Config) (bool, error) {
 	if err := os.Remove(statePath(cfg)); err != nil && !os.IsNotExist(err) {
 		return had, err
 	}
+	ClearFailure(cfg)
 	return had, nil
 }
 

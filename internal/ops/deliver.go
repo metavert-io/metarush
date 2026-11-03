@@ -243,9 +243,11 @@ type DeliveryGeneratedClip struct {
 	Model        string `json:"model"`
 	Look         string `json:"look,omitempty"`
 	Likeness     bool   `json:"likeness,omitempty"`
-	// Edited: an AI model changed a picture, making nothing new (its
-	// background taken away, made larger), rather than making it.
-	Edited bool `json:"edited,omitempty"`
+	// Work is what AI did (D435): made it, or edited it with generative AI
+	// (a mouth matched to new words, a voice changed). Enhancements (a
+	// picture's background taken away, made larger) aren't disclosed as
+	// AI-generated: the record's pictures say them (DeliveryResource.AI).
+	Work string `json:"work,omitempty" jsonschema:"enum=made,enum=edited,enum="`
 	// Presenter names who reads the lines in a presenter clip (D277), the
 	// consent a person's presenter relies on, and its watermark ("none" when
 	// the service documents none).
@@ -350,6 +352,9 @@ type DeliveryResource struct {
 	// Provenance is exactly where it came from: repo@commit:path:lines for a
 	// code slide, a repository's commit, a page and the day of its snapshot.
 	Provenance string `json:"provenance,omitempty"`
+	// AI says what an AI model did to it (D435): made, edited or enhanced
+	// ("" nothing).
+	AI string `json:"ai,omitempty" jsonschema:"enum=made,enum=edited,enum=enhanced,enum="`
 }
 
 // DeliveryNestedCut is another project's cut a delivered video plays.
@@ -454,6 +459,21 @@ type deliveryItem struct {
 	// said: the changed words it plays, checked once (heard).
 	said     []SaidHeard
 	saidDone bool
+	// aiUses, aiPics, aiFound: what AI did in it, worked out once (D435).
+	aiUses  []cutUse
+	aiPics  []shownPicture
+	aiFound []aiPiece
+	aiDone  bool
+}
+
+// ai is what AI did in the item's version, worked out once (D435).
+func (it *deliveryItem) ai(ctx context.Context, a *app.App) ([]cutUse, []shownPicture, []aiPiece) {
+	if !it.aiDone {
+		it.aiUses, it.aiPics = aiUsesOf(ctx, a, it)
+		it.aiFound = aiPieces(it.aiUses, it.aiPics)
+		it.aiDone = true
+	}
+	return it.aiUses, it.aiPics, it.aiFound
 }
 
 func init() {
@@ -652,20 +672,14 @@ func init() {
 			sc := buildSidecar(a, it, it.base+".mp4")
 			scs[it] = &sc
 		}
-		creds, err := signDeliveries(ctx, a, items, scs, dir, quality, gates)
+		creds, err := signDeliveries(ctx, a, items, scs, quality, gates)
 		if err != nil {
 			if made {
 				_ = os.Remove(dir) // only when still empty
 			}
 			return nil, err
 		}
-		defer func() { // a signed copy left by a stop part-way (placed ones are gone already)
-			for _, ic := range creds {
-				if ic.tmp != "" {
-					_ = os.Remove(ic.tmp)
-				}
-			}
-		}()
+		defer removeSigned(creds) // the private folders, placed copies or not
 		// 2. Copy, verify, write sidecars.
 		out := &DeliverOut{Dir: dir, Files: []DeliverFile{}, Warnings: []string{}}
 		notes, creditsOnly := false, false
@@ -673,9 +687,9 @@ func init() {
 			o := it.render.Output
 			dst := filepath.Join(dir, it.base+".mp4")
 			ic := creds[it]
-			if ic != nil && ic.tmp != "" {
-				// The signed copy, checked when it was read back: placed as the render's copy would be.
-				if err := placeNoClobber(ic.tmp, dst); err != nil {
+			if ic != nil && ic.signed != nil {
+				// The signed copy, checked when it was read back: placed, then checked again.
+				if err := placeSigned(ic.signed, dst); err != nil {
 					return out, err
 				}
 			} else {
@@ -1092,7 +1106,7 @@ func buildSidecar(a *app.App, it *deliveryItem, file string) DeliverySidecar {
 	// from, and a credit for pictures from the web.
 	for _, shown := range it.extras.ShownResources(&it.rev.Spec) {
 		r, pin := shown.Doc, shown.Pin
-		dr := DeliveryResource{Name: shown.Name, ResourceID: r.ID, Title: r.Title, Kind: r.Kind, SHA256: pin.SHA256, License: r.License, In: shown.In}
+		dr := DeliveryResource{Name: shown.Name, ResourceID: r.ID, Title: r.Title, Kind: r.Kind, SHA256: pin.SHA256, License: r.License, In: shown.In, AI: aiWorkOn(a, it, r.ID, pin.SHA256)}
 		if v := r.Version(pin.SHA256); v != nil {
 			src := v.Source
 			dr.URL, dr.Author, dr.Provenance = src.URL, src.Author, src.Provenance()

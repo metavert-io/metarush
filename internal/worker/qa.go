@@ -117,8 +117,20 @@ func qaHandler(ctx context.Context, w *Worker, j *models.Job, report Report) (ma
 			if v.Source.License != "" {
 				rc.License = v.Source.License
 			}
-			// A picture an AI service made (D226): a promise to disclose it counts it (D300).
-			rc.AI = v.Source.MadeWith != nil && v.Source.MadeWith.Kind == "ai"
+			// A picture an AI service made, or changed with generative AI (D226):
+			// a promise to disclose it counts it (D300); one AI only improved (its
+			// background taken away, made larger) isn't AI-generated (D435: the
+			// same answer the delivery's record and Content Credentials give).
+			if mw := v.Source.MadeWith; mw != nil && mw.Kind == "ai" {
+				kind := mw.AIKind
+				if kind == "" && mw.GenerationID != "" {
+					var g models.Generation
+					if a.DB.GetByID(ctx, store.CGenerations, a.WorkspaceID(), mw.GenerationID, &g) == nil {
+						kind = g.Kind
+					}
+				}
+				rc.AI = models.AIDisclosed(models.AIWorkOf(firstOf(kind, "picture"), mw.Edit))
+			}
 		}
 		resCredits = append(resCredits, rc)
 	}
@@ -368,4 +380,12 @@ func num(v any) float64 {
 		return float64(x)
 	}
 	return 0
+}
+
+// firstOf is a, else b.
+func firstOf(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }

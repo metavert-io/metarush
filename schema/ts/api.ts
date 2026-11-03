@@ -3497,7 +3497,7 @@ provider: string
 model: string
 look?: string
 likeness?: boolean
-edited?: boolean
+work?: ("made" | "edited" | "")
 presenter?: string
 consent?: string
 presenterWatermark?: string

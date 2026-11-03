@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -16,7 +15,7 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/c2pa"
-	"github.com/metavert-io/metarush/internal/editspec"
+	"github.com/metavert-io/metarush/internal/media"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/tools"
@@ -71,28 +70,43 @@ type DeliveryCredentials struct {
 // itemCredentials is one delivered video's signing.
 type itemCredentials struct {
 	rec *DeliveryCredentials
-	// tmp is the signed copy waiting next to where the video goes ("" none).
-	tmp string
+	// signed is the signed copy waiting in its private folder (nil none):
+	// placed where the video goes, then checked again (placeSigned).
+	signed *c2pa.Signed
+}
+
+// removeSigned throws away the signed copies still waiting.
+func removeSigned(creds map[*deliveryItem]*itemCredentials) {
+	for _, ic := range creds {
+		if ic != nil && ic.signed != nil {
+			ic.signed.Remove()
+			ic.signed = nil
+		}
+	}
 }
 
 // signDeliveries signs every final video of a delivery that is to carry
-// Content Credentials, into hidden copies next to where each goes. Where they
-// are required and a signing fails, it removes what it wrote and refuses.
-func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs map[*deliveryItem]*DeliverySidecar, dir, quality string, gates map[string]*ShipGateOut) (map[*deliveryItem]*itemCredentials, error) {
+// Content Credentials, each in a private folder of its own (D436). Where
+// they are required and a signing fails, it throws away what it signed and
+// refuses; a signing that fails is remembered on this computer until one
+// works (D437), so the ship gate holds versions that require them and a
+// person can send one out without them, with a note.
+func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs map[*deliveryItem]*DeliverySidecar, quality string, gates map[string]*ShipGateOut) (map[*deliveryItem]*itemCredentials, error) {
 	out := map[*deliveryItem]*itemCredentials{}
 	var cred *c2pa.Credential
 	var credErr error
 	loaded := false
-	tool := c2pa.Tool{Tools: a.Tools}
-	toolVersion := ""
-	cleanup := func() {
-		for _, ic := range out {
-			if ic.tmp != "" {
-				_ = os.Remove(ic.tmp)
-			}
+	tool := c2pa.NewTool(a.Cfg, a.Tools)
+	toolVersion, tsa := "", ""
+	worked, failed := false, ""
+	defer func() {
+		switch {
+		case failed != "":
+			_ = c2pa.RecordFailure(a.Cfg, failed, time.Now())
+		case worked:
+			c2pa.ClearFailure(a.Cfg)
 		}
-	}
-	tsa := timestampURL(ctx, a)
+	}()
 	for _, it := range items {
 		mode, _ := CredentialsFor(ctx, a, it.proj.ID)
 		if mode == models.CredentialsOff {
@@ -126,21 +140,32 @@ func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs 
 				}
 			}
 			if credErr == nil {
+				var why string
+				if tsa, why = timestampFor(ctx, a); why != "" {
+					credErr = apperr.New(apperr.NotConfigured, "%s", why)
+				}
+			}
+			if credErr == nil {
 				toolVersion = a.Tools.Version(ctx, tools.C2PATool)
 			}
 		}
-		fail := func(why string, err error) error {
+		// fail: this video carries none, and says why; where they are
+		// required nothing is delivered. runtime: a signing that was tried.
+		fail := func(why string, runtime bool, err error) error {
 			rec.Problem = why
 			rec.Says = "This video went out without Content Credentials: " + why + "."
+			if runtime {
+				failed = why
+			}
 			if !rec.Required {
 				return nil
 			}
-			cleanup()
+			removeSigned(out)
 			e := apperr.New(apperr.Held, "Version %d of “%s” wasn't delivered: its videos must carry Content Credentials, and %s. Nothing was written.", it.rev.Number, it.proj.Name, why).
-				WithHint("Fix it on this computer and deliver again (Settings → Delivery tries a sample), or a person sends it out without them, with a note.").
+				WithHint("Try it on a sample (Settings → Delivery) and deliver again, or a person sends it out without them, with a note (Deliver anyway… on the version's page).").
 				WithCommand("metarush credentials test")
 			if err != nil {
-				e = e.WithDetails(map[string]any{"error": apperr.From(err).Message})
+				e = e.WithDetails(map[string]any{"error": apperr.From(err).Message, "anyway": fmt.Sprintf("metarush deliver override %s --version r%d --note \"…\"", it.proj.ID, it.rev.Number)})
 			}
 			return e
 		}
@@ -149,7 +174,7 @@ func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs 
 			if errors.Is(credErr, c2pa.ErrNotSetUp) {
 				why = "no signing certificate is set up on this computer"
 			}
-			if err := fail(why, credErr); err != nil {
+			if err := fail(why, false, credErr); err != nil {
 				return nil, err
 			}
 			continue
@@ -157,43 +182,72 @@ func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs 
 		o := it.render.Output
 		src, err := a.Cache.Ensure(ctx, a.Media, o.StorageKey, o.SHA256, o.Size, nil)
 		if err != nil {
-			cleanup()
+			removeSigned(out)
 			return nil, apperr.Wrap(apperr.Storage, err, "The %s couldn't be copied to this machine, so it wasn't exported.", strings.ToLower(models.RenderLabel(it.render.Quality, it.rev.Number))).
 				WithHint("Check the internet connection and try again.").WithDetails(map[string]any{"renderId": it.render.ID})
 		}
 		m := manifestFor(ctx, a, it, scs[it])
 		def, err := m.Definition()
 		if err != nil {
-			cleanup()
+			removeSigned(out)
 			return nil, err
 		}
-		tmp := filepath.Join(dir, "."+it.base+".signing.mp4")
-		_ = os.Remove(tmp) // a copy an earlier delivery left when it stopped
-		s, err := tool.Sign(ctx, c2pa.SignIn{Video: src, Out: tmp, Manifest: def, Credential: cred, TimestampURL: tsa})
+		s, err := tool.Sign(ctx, c2pa.SignIn{Video: src, Manifest: def, Credential: cred, TimestampURL: tsa})
 		if err != nil {
-			if err := fail("signing it failed: "+lowerFirst(strings.TrimSuffix(apperr.From(err).Message, ".")), err); err != nil {
+			if err := fail("signing it failed: "+lowerFirst(strings.TrimSuffix(apperr.From(err).Message, ".")), true, err); err != nil {
 				return nil, err
 			}
 			continue
 		}
 		if !s.Verified {
-			_ = os.Remove(tmp)
-			why := "its credentials didn't check out after signing (" + s.Problem + ")"
+			s.Remove()
 			rec.Verified = false
-			if err := fail(why, nil); err != nil {
+			if err := fail("its credentials didn't check out after signing ("+s.Problem+")", true, nil); err != nil {
 				return nil, err
 			}
 			continue
 		}
+		worked = true
 		f := cred.Facts()
 		parts, ai, changed := m.Counts()
 		rec.Signed, rec.Verified, rec.Signer, rec.Issuer, rec.TestCertificate = true, true, f.Signer, f.Issuer, f.Test
 		rec.ManifestHash, rec.Fingerprint, rec.Timestamped, rec.SHA256, rec.Size = s.ManifestHash, f.Fingerprint, s.Timestamped, s.SHA256, s.Size
 		rec.Parts, rec.AIParts, rec.ChangedParts, rec.SourceType, rec.Tool = parts, ai, changed, m.SourceType(), toolVersion
 		rec.Says = credentialsSays(rec)
-		ic.tmp = tmp
+		ic.signed = s
 	}
 	return out, nil
+}
+
+// placeSigned puts a signed copy where the video goes — linked when the
+// folders share a disk, else copied and hashed as it is written — never over
+// a file (D436), then checks that what is there is the very copy that
+// checked out, by its SHA-256 and its manifest's, before anything records it.
+func placeSigned(s *c2pa.Signed, dst string) error {
+	if err := os.Link(s.Path, dst); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return placedOver(dst)
+		}
+		if _, e := os.Lstat(dst); e == nil {
+			return placedOver(dst)
+		}
+		if err := copyVerified(s.Path, dst, s.SHA256, "the signed copy"); err != nil {
+			return err
+		}
+	}
+	sha, _ := media.HashFile(dst)
+	mh, _ := c2pa.ManifestHash(dst)
+	if sha != s.SHA256 || mh != s.ManifestHash {
+		_ = os.Remove(dst) // made a moment ago, by this delivery
+		return apperr.New(apperr.Integrity, "The signed copy of %s changed after MetaRush checked it, so it wasn't delivered.", filepath.Base(dst)).
+			WithHint("Deliver it again.").WithDetails(map[string]any{"path": dst, "sha256": sha, "expected": s.SHA256})
+	}
+	return nil
+}
+
+func placedOver(dst string) error {
+	return apperr.New(apperr.Conflict, "A file named %s appeared in that folder while exporting, and MetaRush never overwrites files.", filepath.Base(dst)).
+		WithHint("Choose another folder, or move it and export again.").WithDetails(map[string]any{"path": dst})
 }
 
 // coveredCredentialsHold is the Content Credentials hold a person sent a
@@ -264,121 +318,12 @@ func recordSigned(ctx context.Context, a *app.App, revisionID string, sd models.
 	return err
 }
 
-// manifestFor is what a delivered video's manifest says about it: the parts
-// its record lists, the AI ones first (a part listed twice keeps what AI did
-// to it), by hash and kind only.
+// manifestFor is what a delivered video's manifest says about it (D419,
+// D435): every piece of AI work it plays and shows, its own and its nested
+// cuts', with what AI did, then everything else, by hash and kind only.
 func manifestFor(ctx context.Context, a *app.App, it *deliveryItem, sc *DeliverySidecar) c2pa.Manifest {
-	m := c2pa.Manifest{Version: version.Current().Version}
-	format := func(id string) string {
-		if as, ok := it.assets[id]; ok {
-			return as.MIME
-		}
-		if it.extras != nil {
-			if as, ok := it.extras.Asset(id); ok && as != nil {
-				return as.MIME
-			}
-		}
-		return ""
-	}
-	if sc != nil && sc.Generated != nil {
-		for _, c := range sc.Generated.Clips {
-			p := c2pa.Part{SHA256: c.SHA256, Format: format(c.AssetID), AI: c2pa.AIMade, Made: strings.Trim(strings.Join([]string{c.Provider, c.Model}, ", "), ", ")}
-			switch c.Kind {
-			case "", models.GenKindVideo:
-				p.What = "footage"
-			case "picture":
-				p.What = "picture"
-				if c.Edited {
-					p.AI = c2pa.AIEnhanced
-				}
-			case "voice":
-				p.What = "voice"
-				for _, u := range c.UsedAs {
-					if strings.HasPrefix(u, "said:") {
-						p.What = "words"
-					}
-				}
-			case "lip-sync", "voice-change":
-				p.What, p.AI = c.Kind, c2pa.AIEdited
-			default:
-				p.What = c.Kind
-			}
-			m.Parts = append(m.Parts, p)
-		}
-	}
-	// The narration: each line's recording (an AI voice's made by AI) and a
-	// cleaned-up copy it plays; and the clearer copies of voices.
-	narration := func(assetID string, ai bool, provider string, processed *editspec.ProcessedRef, useProcessed bool) {
-		if as, ok := it.assets[assetID]; ok {
-			p := c2pa.Part{What: "sound", SHA256: as.SHA256, Format: as.MIME}
-			if ai {
-				p.What, p.AI, p.Made = "voice", c2pa.AIMade, providerTitle(provider)
-			}
-			m.Parts = append(m.Parts, p)
-		}
-		if useProcessed && processed != nil {
-			if as, ok := it.assets[processed.AssetID]; ok {
-				m.Parts = append(m.Parts, c2pa.Part{What: "sound", SHA256: as.SHA256, Format: as.MIME, AI: c2pa.AIEnhanced})
-			}
-		}
-	}
-	if v := it.rev.Spec.Voiceover; v != nil {
-		for _, b := range v.Beats {
-			if b.Take != nil {
-				narration(b.Take.AssetID, b.Take.AIVoice, it.takes[b.Take.TakeID].Provider, b.Take.Processed, b.Take.UseProcessed)
-			}
-		}
-		if c := v.Continuous; c != nil {
-			narration(c.AssetID, c.AIVoice, "", c.Processed, c.UseProcessed)
-		}
-	}
-	if mx := it.rev.Spec.Mix; mx != nil {
-		for _, e := range mx.Enhanced {
-			if as, ok := it.assets[e.Variant]; ok {
-				m.Parts = append(m.Parts, c2pa.Part{What: "sound", SHA256: as.SHA256, Format: as.MIME, AI: c2pa.AIEnhanced})
-			}
-		}
-	}
-	if sc != nil {
-		for _, s := range sc.Sources {
-			what := "sound"
-			switch s.Kind {
-			case "video":
-				what = "footage"
-			case "image":
-				what = "picture"
-			}
-			if slices.ContainsFunc(s.UsedAs, func(u string) bool { return strings.HasSuffix(u, "("+editspec.RoleMusic+")") }) {
-				what = "music"
-			}
-			m.Parts = append(m.Parts, c2pa.Part{What: what, SHA256: s.SHA256, Format: format(s.AssetID)})
-		}
-	}
-	// What the cuts it nests play.
-	if it.extras != nil {
-		for _, u := range it.extras.NestedCuts(&it.rev.Spec) {
-			for _, id := range editspec.AssetIDs(u.Source.Spec) {
-				if as, ok := it.extras.Asset(id); ok && as != nil {
-					what := map[string]string{"video": "footage", "image": "picture"}[as.Kind]
-					if what == "" {
-						what = "sound"
-					}
-					m.Parts = append(m.Parts, c2pa.Part{What: what, SHA256: as.SHA256, Format: as.MIME})
-				}
-			}
-		}
-	}
-	if sc != nil {
-		for _, r := range sc.Resources {
-			switch r.Kind {
-			case "image", "svg":
-				m.Parts = append(m.Parts, c2pa.Part{What: "picture", SHA256: r.SHA256})
-			case "pdf":
-				m.Parts = append(m.Parts, c2pa.Part{What: "document", SHA256: r.SHA256})
-			}
-		}
-	}
-	return m
+	uses, _, pieces := it.ai(ctx, a)
+	return manifestFrom(version.Current().Version, uses, pieces, sc)
 }
 
 // providerTitle is an AI service's name as people know it ("" none).

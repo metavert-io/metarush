@@ -9,15 +9,21 @@
 // refuses certificates c2pa-rs refuses (self-signed, no or any extended key
 // usage, not for digital signatures, out of date). The copy it writes holds a
 // Content Credentials box where the real one puts it (a top-level uuid box,
-// purpose "manifest"), whose store is JSON instead of JUMBF/CBOR: the claim,
-// the signature and the chain, so reading it back checks both the signature
-// and the video's bytes.
+// purpose "manifest") with a JUMBF store laid out as c2pa-rs lays it out —
+// the store ("c2pa"), a manifest, its claim (JSON here, where c2pa-rs writes
+// CBOR: the claim, the chain, the signature) and its c2pa.signature box with
+// the COSE_Sign1 — so reading it back checks both the signature and the
+// video's bytes, and MetaRush finds the signature where it finds c2patool's.
 //
 // Its state file can make it fail as tests need: refuse to sign, sign with a
-// key of its own instead of asking (c2patool's built-in test key), or change
-// the copy's bytes after signing (a copy that doesn't check out). Every call
-// is logged with its arguments and its whole environment
-// (METARUSH_FAKE_C2PATOOL_LOG), so tests can look for a key where none may be.
+// key of its own instead of asking (c2patool's built-in test key), change the
+// copy's bytes after signing (a copy that doesn't check out), ask the signer
+// for more than one signature, take the one signature for a claim of its own
+// first, put another signature in the copy than the one it was given, or
+// wait before it signs (so a test can try to reach the signer from outside
+// meanwhile). Every call is logged with its arguments, its whole environment
+// and what it said (METARUSH_FAKE_C2PATOOL_LOG), so tests can look for a key
+// where none may be.
 package fakec2patool
 
 import (
@@ -45,6 +51,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -70,6 +77,21 @@ type State struct {
 	TamperAfterSign bool `json:"tamperAfterSign,omitempty"`
 	// Log is a file that gets every call: arguments and environment (JSON lines).
 	Log string `json:"log,omitempty"`
+	// ExtraSigns: after its own signature it asks the signer to sign this
+	// many claims more (what an oracle would ask).
+	ExtraSigns int `json:"extraSigns,omitempty"`
+	// StealFirst: it asks the signer to sign a claim of its own first, then
+	// signs the video's claim with what it gets (its own key when refused).
+	StealFirst bool `json:"stealFirst,omitempty"`
+	// SwapSignature: the copy carries a signature of its own key's in its
+	// COSE box, not the one the signer gave it.
+	SwapSignature bool `json:"swapSignature,omitempty"`
+	// Hold: before asking the signer it writes Hold+".ready" (its process ID)
+	// and waits, at most two minutes, until the file Hold is gone.
+	Hold string `json:"hold,omitempty"`
+	// Exec: after the hold it becomes this program (the real c2patool) with
+	// its arguments, environment and open descriptors: the same process.
+	Exec string `json:"exec,omitempty"`
 }
 
 // Call is one logged run.
@@ -176,6 +198,18 @@ type claim struct {
 // run is logged once it ends.
 func Main(args []string, stdout, stderr io.Writer) int {
 	st := Load(os.Getenv(stateEnv))
+	if st.Exec != "" {
+		hold(st)
+		var env []string
+		for _, e := range os.Environ() {
+			if !strings.HasPrefix(e, runEnv+"=") && !strings.HasPrefix(e, stateEnv+"=") && !strings.HasPrefix(e, logEnv+"=") {
+				env = append(env, e)
+			}
+		}
+		err := syscall.Exec(st.Exec, append([]string{st.Exec}, args...), env)
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return 1
+	}
 	p := firstNonEmpty(os.Getenv(logEnv), st.Log)
 	if p == "" {
 		return run(st, args, stdout, stderr)
@@ -291,10 +325,15 @@ func sign(st State, path, manifest, output, signer string, force bool, stdout, s
 	if st.FailSign != "" {
 		return fail(stderr, st.FailSign)
 	}
+	hold(st)
 	label := "urn:c2pa:" + randomHex(16)
 	sum := sha256.Sum256(video)
 	cl, _ := json.Marshal(claim{Manifest: def, VideoSHA: hex.EncodeToString(sum[:]), Label: label})
 	toSign := append(append([]byte(nil), sigPrefix...), cl...)
+	if st.StealFirst && signer != "" {
+		bin, base := splitCommand(signer)
+		_, _ = runSigner(bin, base, append(append([]byte(nil), sigPrefix...), `{"claim":"someone else's"}`...))
+	}
 	var alg, chainPEM, tsa string
 	var sig []byte
 	switch {
@@ -329,24 +368,42 @@ func sign(st State, path, manifest, output, signer string, force bool, stdout, s
 			return fail(stderr, why)
 		}
 		sig, err = runSigner(bin, base, toSign)
+		if err != nil && st.StealFirst {
+			// Its one signature went to the other claim: sign with its own key.
+			key, cert := ownKey()
+			alg, chainPEM = "es256", cert
+			d := sha256.Sum256(toSign)
+			r, s, _ := ecdsa.Sign(rand.Reader, key, d[:])
+			sig = make([]byte, 64)
+			r.FillBytes(sig[:32])
+			s.FillBytes(sig[32:])
+			err = nil
+		}
 		if err != nil {
 			return fail(stderr, "User supplied signer process failed. Its stderr output was: \n"+err.Error())
 		}
 		if len(sig) == 0 {
 			return fail(stderr, "User supplied process succeeded, but the external process did not write signature bytes to stdout")
 		}
+		for i := 0; i < st.ExtraSigns; i++ {
+			_, _ = runSigner(bin, base, append(append([]byte(nil), sigPrefix...), fmt.Sprintf(`{"claim":"another %d"}`, i)...))
+		}
 	}
 	if !verify(alg, chainPEM, toSign, sig) {
 		return fail(stderr, "manifest failed validation with: failures:\n      claimSignature.mismatch: claim signature is not valid")
 	}
 	s := store{Label: label, Claim: cl, Signature: base64.StdEncoding.EncodeToString(sig), Alg: alg, Chain: chainPEM, TSA: tsa}
-	body, _ := json.Marshal(s)
-	jumb := make([]byte, 8)
-	binary.BigEndian.PutUint32(jumb, uint32(8+len(body)))
-	copy(jumb[4:], "jumb")
+	cose := sig
+	if st.SwapSignature {
+		key, _ := ownKey()
+		d := sha256.Sum256(toSign)
+		r, ss, _ := ecdsa.Sign(rand.Reader, key, d[:])
+		cose = make([]byte, 64)
+		r.FillBytes(cose[:32])
+		ss.FillBytes(cose[32:])
+	}
 	payload := append(append([]byte{0, 0, 0, 0}, "manifest\x00"...), make([]byte, 8)...)
-	payload = append(payload, jumb...)
-	payload = append(payload, body...)
+	payload = append(payload, storeBox(s, cose)...)
 	box := make([]byte, 8, 8+16+len(payload))
 	binary.BigEndian.PutUint32(box, uint32(8+16+len(payload)))
 	copy(box[4:], "uuid")
@@ -506,12 +563,8 @@ func findStore(b []byte) (store, []byte, bool) {
 				break
 			}
 			body = body[4+9+8:] // version/flags, "manifest\0", offset
-			jumbLen := int(binary.BigEndian.Uint32(body[:4]))
-			if jumbLen < 8 || jumbLen > len(body) {
-				break
-			}
-			var s store
-			if json.Unmarshal(body[8:jumbLen], &s) != nil {
+			s, ok := readStore(body)
+			if !ok {
 				break
 			}
 			rest := append(append([]byte(nil), b[:off]...), b[off+size:]...)
@@ -613,4 +666,94 @@ func randomHex(n int) string {
 	b := make([]byte, n)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// hold writes the process ID next to State.Hold and waits until it is gone.
+func hold(st State) {
+	if st.Hold == "" {
+		return
+	}
+	_ = os.WriteFile(st.Hold+".ready", []byte(fmt.Sprint(os.Getpid())), 0o600)
+	for deadline := time.Now().Add(2 * time.Minute); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if _, err := os.Stat(st.Hold); os.IsNotExist(err) {
+			return
+		}
+	}
+}
+
+// JUMBF as c2pa-rs writes it: a superbox is a "jumb" box whose first box is
+// its description ("jumd": a type UUID, toggles, a label).
+var (
+	uuidStore     = []byte{0x63, 0x32, 0x70, 0x61, 0x00, 0x11, 0x00, 0x10, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71} // c2pa
+	uuidManifest  = []byte{0x63, 0x32, 0x6d, 0x61, 0x00, 0x11, 0x00, 0x10, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71} // c2ma
+	uuidClaim     = []byte{0x63, 0x32, 0x63, 0x6c, 0x00, 0x11, 0x00, 0x10, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71} // c2cl
+	uuidSignature = []byte{0x63, 0x32, 0x63, 0x73, 0x00, 0x11, 0x00, 0x10, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71} // c2cs
+)
+
+func box(typ string, body []byte) []byte {
+	b := make([]byte, 8, 8+len(body))
+	binary.BigEndian.PutUint32(b, uint32(8+len(body)))
+	copy(b[4:], typ)
+	return append(b, body...)
+}
+
+func super(id []byte, label string, children ...[]byte) []byte {
+	d := append(append(append([]byte(nil), id...), 0x03), label+"\x00"...)
+	body := box("jumd", d)
+	for _, c := range children {
+		body = append(body, c...)
+	}
+	return box("jumb", body)
+}
+
+// storeBox is the store: the manifest, its claim (the fake's JSON) and its
+// COSE_Sign1 [protected {1: alg}, {}, nil, signature] with sig in it.
+func storeBox(s store, sig []byte) []byte {
+	claimJSON, _ := json.Marshal(s)
+	cose := []byte{0xd2, 0x84, 0x43, 0xa1, 0x01, 0x26, 0xa0, 0xf6} // tag 18, [bstr {1: -7}, {}, nil, …
+	cose = append(cose, cborBytesHead(len(sig))...)
+	cose = append(cose, sig...)
+	return super(uuidStore, "c2pa",
+		super(uuidManifest, s.Label,
+			super(uuidClaim, "c2pa.claim.v2", box("json", claimJSON)),
+			super(uuidSignature, "c2pa.signature", box("cbor", cose))))
+}
+
+func cborBytesHead(n int) []byte {
+	switch {
+	case n < 24:
+		return []byte{0x40 | byte(n)}
+	case n < 256:
+		return []byte{0x58, byte(n)}
+	default:
+		return []byte{0x59, byte(n >> 8), byte(n)}
+	}
+}
+
+// readStore finds the claim's JSON in a store the fake wrote.
+func readStore(b []byte) (store, bool) {
+	var found store
+	ok := false
+	var walk func(b []byte, depth int)
+	walk = func(b []byte, depth int) {
+		for off := 0; off+8 <= len(b) && depth < 6; {
+			size := int(binary.BigEndian.Uint32(b[off:]))
+			if size < 8 || off+size > len(b) {
+				return
+			}
+			typ, body := string(b[off+4:off+8]), b[off+8:off+size]
+			switch typ {
+			case "jumb":
+				walk(body, depth+1)
+			case "json":
+				var s store
+				if json.Unmarshal(body, &s) == nil && s.Label != "" {
+					found, ok = s, true
+				}
+			}
+			off += size
+		}
+	}
+	walk(b, 0)
+	return found, ok
 }

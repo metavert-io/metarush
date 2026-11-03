@@ -53,6 +53,7 @@ cleanup() {
   [ -n "$ELV" ] && kill "$ELV" 2>/dev/null || true
   go run ./scripts/droptestdb "$URI" "$DB" || true
   [ -z "$DBC" ] || go run ./scripts/droptestdb "$URI" "$DBC" || true
+  [ -z "${SCREEN_LINKS:-}" ] || rm -rf "$SCREEN_LINKS"  # links only
 }
 trap cleanup EXIT
 . scripts/lib/e2e.sh && e2e_run "$DB" "$(dirname "$H")"  # D194: stops what the run started, drops its database, removes its folder when it passes
@@ -66,12 +67,13 @@ export METARUSH_VISION_CACHE="$(dirname "$H")/vision-cache"
 if [ "${METARUSH_SCREEN_INDEX:-}" = "open-models" ]; then
   [ -n "${SCREEN_MODELS:-}" ] || { echo "SCREEN_MODELS: a folder with the open models (go run ./scripts/fetchscreenmodels <folder>)"; exit 1; }
   shared="${METARUSH_MODELS_DIR:-$HOME/.local/share/metarush-models}"
-  mkdir -p "$(dirname "$H")/models"
+  # Links only, beside the run's folder rather than in it (a METARUSH_*_DIR inside a run's folder keeps it).
+  t="${TMPDIR:-/tmp}"; SCREEN_LINKS="$(mktemp -d "${t%/}/metarush-screen-models-XXXXXX")"
   for d in "$shared"/*; do
-    if [ -e "$d" ] && [ "$(basename "$d")" != screen-index ]; then ln -s "$d" "$(dirname "$H")/models/"; fi
+    if [ -e "$d" ] && [ "$(basename "$d")" != screen-index ]; then ln -s "$d" "$SCREEN_LINKS/"; fi
   done
-  ln -s "$SCREEN_MODELS" "$(dirname "$H")/models/screen-index"
-  export METARUSH_MODELS_DIR="$(dirname "$H")/models"
+  ln -s "$SCREEN_MODELS" "$SCREEN_LINKS/screen-index"
+  export METARUSH_MODELS_DIR="$SCREEN_LINKS"
 fi
 # The on-screen steps run where this computer can look (D405): a Mac (Apple Vision, its helper built on first use), or
 # a computer with the open models added.

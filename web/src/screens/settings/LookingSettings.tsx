@@ -6,17 +6,31 @@ import { Badge, ErrorPanel, Segmented, Skeleton } from '../../ui/primitives';
 
 /*
  * Settings → Footage → Looking at your footage: the on-screen index (Apple Vision on a
- * Mac, the open models elsewhere: free, nothing uploaded) and written scene descriptions by the person's
- * own Claude Code (off unless turned on; it uses their Claude Code usage).
+ * Mac, the open models elsewhere: free, nothing uploaded; a Mac can be told to use the open models, D408)
+ * and written scene descriptions by the person's own Claude Code (off unless turned on; it uses their
+ * Claude Code usage).
  */
 export function LookingSettings() {
   const status = useOp('footage.visuals.status', {});
   const describe = useOp('footage.describe.settings', {});
+  const worker = useOp('worker.settings', {});
   const configure = useOpMutation('footage.describe.configure', { invalidate: ['footage.describe.settings'] });
+  const choose = useOpMutation('worker.configure', { invalidate: ['worker.settings', 'footage.visuals.status'] });
   const dialog = useDialog();
   const toast = useToast();
   const s = status.data;
   const d = describe.data;
+  const w = worker.data;
+  // Only a Mac has a choice: Apple Vision (its own way) or the open models other computers use.
+  const looksWith = w?.screenIndexChoices.includes('apple-vision') ? (w.looksWith.backend === 'open-models' ? 'open-models' : 'apple-vision') : undefined;
+  const pick = (v: 'apple-vision' | 'open-models') =>
+    choose.mutate(
+      { screenIndex: v === 'apple-vision' ? 'auto' : 'open-models' },
+      {
+        onSuccess: (o) => toast({ tone: 'success', title: v === 'open-models' ? 'This Mac now looks with the open models' : 'This Mac looks with Apple Vision again', body: o.looksWith.ready ? undefined : o.looksWith.fix || o.looksWith.text }),
+        onError: (e) => toast({ tone: 'error', title: 'Could not change it', body: e.message }),
+      },
+    );
   const set = async (on: boolean) => {
     if (on) {
       const ok = await dialog.confirm({
@@ -65,6 +79,20 @@ export function LookingSettings() {
         </dl>
       ) : status.isLoading ? (
         <Skeleton className="h-20" />
+      ) : null}
+      {looksWith ? (
+        <div className="mt-3 flex flex-wrap items-center gap-3" data-looks-with={looksWith}>
+          <Segmented<'apple-vision' | 'open-models'>
+            label="How this Mac looks at what's on screen"
+            value={looksWith}
+            onChange={(v) => v !== looksWith && pick(v)}
+            items={[
+              { value: 'apple-vision', label: 'Apple Vision' },
+              { value: 'open-models', label: 'Open models' },
+            ]}
+          />
+          <span className="max-w-[60ch] text-[12px] text-subtle">Apple Vision sees more: places, things, animals, gestures and words in more languages. The open models are what Linux uses; choose them here to compare.</span>
+        </div>
       ) : null}
       <h3 className="mb-1 mt-5 text-[13.5px] font-semibold">Scenes, in words</h3>
       <p className="mb-3 max-w-[78ch] text-[12.5px] leading-relaxed text-muted">

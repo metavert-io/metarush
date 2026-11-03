@@ -58,7 +58,10 @@ type WorkerSettingsOut struct {
 	// LooksWith how this computer looks at what's on screen now.
 	ScreenIndex string        `json:"screenIndex" jsonschema:"enum=auto,enum=apple-vision,enum=open-models"`
 	LooksWith   looker.Status `json:"looksWith"`
-	Note        string        `json:"note,omitempty"`
+	// ScreenIndexChoices are the ways this computer can be told to look
+	// (apple-vision only on a Mac).
+	ScreenIndexChoices []string `json:"screenIndexChoices"`
+	Note               string   `json:"note,omitempty"`
 }
 
 // NotificationListIn filters this person's notifications.
@@ -113,7 +116,11 @@ func workerSettings(ctx context.Context, a *app.App) *WorkerSettingsOut {
 	b := power.Read()
 	t := a.Cfg.HeavyBatteryThreshold()
 	out := &WorkerSettingsOut{Installation: a.Cfg.Installation.Name, HeavyBatteryThreshold: t, HeavyEnabled: a.Cfg.Worker.HeavyRenders, Battery: b,
-		FakeBattery: b.Source == "fake", ConfigPath: config.Path(a.Cfg.Home()), ScreenIndex: a.Cfg.ScreenIndexChoice(), LooksWith: looker.Check(ctx, a.Cfg, a.Tools)}
+		FakeBattery: b.Source == "fake", ConfigPath: config.Path(a.Cfg.Home()), ScreenIndex: a.Cfg.ScreenIndexChoice(), LooksWith: looker.Check(ctx, a.Cfg, a.Tools),
+		ScreenIndexChoices: []string{config.ScreenAuto, config.ScreenOpenModels}}
+	if runtime.GOOS == "darwin" {
+		out.ScreenIndexChoices = []string{config.ScreenAuto, config.ScreenAppleVision, config.ScreenOpenModels}
+	}
 	if out.HeavyEnabled {
 		out.DeferringHeavy, out.DeferReason = power.DeferHeavy(b, t)
 	}

@@ -18,13 +18,18 @@ Measurements, run by hand when a recognizer or its settings change (build tag `v
 English recognizers' comparison, the loaded models against the CLI, and the multilingual path
 (`scripts/fetch-speech.sh` fetches openly licensed readings into the gitignored `tests/fixtures/speech/`,
 then `EVAL_SPEECH=tests/fixtures/speech EVAL_LANGS=es go test -tags voiceeval -run TestMultilingual
-./internal/transcribe/`, one language at a time).
+./internal/transcribe/`, one language at a time). The open models that look at what's on screen are compared with
+Apple Vision the same way (build tag `screeneval`: `go run ./scripts/fetchscreenmodels <folder>`, then
+`METARUSH_SCREEN_MODELS=<folder> go test -tags screeneval ./internal/visionmodels/` on a Mac with the fixtures), and
+face recognition with them by `tools/vision/eval/faces.py --with open-models`. On every push their runners run on
+stand-in models with the real ones' shapes (`internal/onnx/onnxtest`, `internal/testutil/fakescreen`) through the
+onnxruntime CI takes from the transcriber's pinned Linux build (`scripts/ci-onnxruntime.sh`, `METARUSH_ORT_LIB`).
 
 Fakes, so no test reaches a real service: `internal/assistant/fakeclaude` (Claude Code), `internal/testutil/fakeeleven`
 (ElevenLabs), `fakevideogen` (Gemini), `faketailscale` and `fakeserve` (Tailscale), `fakeytdlp` (yt-dlp), `fakerclone`
 (rclone and its Google Drives; the real rclone is refused under `go test`), `gcsemu`
 and gofakes3 (buckets), `dblink` (a database link a test can cut), `fakenode`, and a fake `brew` and `gh` where
-needed. Downloads are refused under `go test` (the stabilizer, the face model) unless a local copy is given, and so are
+needed. Downloads are refused under `go test` (the stabilizer, the face model, the open models) unless a local copy is given, and so are
 Google's and ElevenLabs' real addresses (a test that forgets its fake fails before anything is sent).
 
 ## What runs where and when

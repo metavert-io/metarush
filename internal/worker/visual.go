@@ -220,7 +220,7 @@ func macFirst(ctx context.Context, w *Worker, j *models.Job) error {
 	if err != nil || n == 0 {
 		return nil
 	}
-	return &postponed{after: macWait, reason: "A Mac in this workspace sees more in a clip (things, animals, gestures, words in any language), so it gets the first look; this computer looks if it hasn't in a few minutes."}
+	return &postponed{after: macWait, reason: "A Mac in this workspace sees more in a clip (things, animals, gestures, words in more languages), so it gets the first look; this computer looks if it hasn't in a few minutes."}
 }
 
 // printed counts the faces that got fingerprints.

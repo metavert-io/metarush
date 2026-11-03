@@ -883,7 +883,7 @@ func workerCmd() *cobra.Command {
 	var settingsDetails bool
 	settings := &cobra.Command{
 		Use:   "settings",
-		Short: "This machine's battery, and the level below which big jobs wait for the charger",
+		Short: "This machine's battery, the level below which big jobs wait for the charger, and how it looks at what's on screen",
 		RunE: func(c *cobra.Command, _ []string) error {
 			return runOp(c, "worker.settings", ops.WorkerSettingsIn{}, func(o any) { printWorkerSettings(o.(*ops.WorkerSettingsOut), settingsDetails) })
 		},

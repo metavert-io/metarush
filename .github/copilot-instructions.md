@@ -22,7 +22,8 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
   file through `internal/providers` and `internal/secretpath`. New kinds of secret are registered with the activity
   log's redactor. A database address with a password comes from stdin or the environment.
 - External programs run only through `internal/tools` (an allowlist, typed arguments, no shell). Downloads are pinned
-  by URL and SHA-256, checked before use, and refused under `go test`.
+  by URL and SHA-256, checked before use, and refused under `go test`; a model's licence is read from its own
+  repository and recorded with its pin, and is never GPL or for non-commercial use only.
 - Tests never call a real service: use the fakes in `internal/testutil` (fakeeleven, fakeyoutube, fakebucket,
   fakerclone and the rest) and the test MongoDB.
 - Paid AI work is priced first, held to budgets, daily limits and consent, saves its ticket before waiting, and never

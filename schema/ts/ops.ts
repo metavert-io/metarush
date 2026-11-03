@@ -36874,6 +36874,7 @@ fakeBattery?: boolean
 configPath: string
 screenIndex: ("auto" | "apple-vision" | "open-models")
 looksWith: ScreenIndexHere
+screenIndexChoices: string[]
 note?: string
 }
 /**

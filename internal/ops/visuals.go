@@ -364,7 +364,7 @@ func init() {
 		if idx.ByOpenModels() {
 			out.Note = "From the open models on a computer in this workspace, about one frame a second plus the moments the picture changes: they find faces, read text " +
 				"(Latin, Greek, Chinese and Japanese writing; check spelling before quoting it) and see what stands out, but they don't name things, places or animals, " +
-				"or see gestures, so no label here says nothing about the clip. A face has a name where a person confirmed it; \"looks like\" names were recognized by the face and are not confirmed yet " +
+				"or see gestures, so a label missing here says nothing about what is in the clip. A face has a name where a person confirmed it; \"looks like\" names were recognized by the face and are not confirmed yet " +
 				"(\"maybe\" = a question is open). Look at frames (footage frames --at) before claiming anything visual."
 		}
 		return out, nil

@@ -72589,6 +72589,12 @@
         "looksWith": {
           "$ref": "#/$defs/ScreenIndexHere"
         },
+        "screenIndexChoices": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "note": {
           "type": "string"
         }
@@ -72603,7 +72609,8 @@
         "deferringHeavy",
         "configPath",
         "screenIndex",
-        "looksWith"
+        "looksWith",
+        "screenIndexChoices"
       ]
     },
     "WorksItem": {

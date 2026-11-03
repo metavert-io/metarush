@@ -1,6 +1,16 @@
 # Changelog
 
 ## Unreleased
+- **MetaRush sees what's on screen on Linux too**. Off the Mac, open models on your computer now look at every clip —
+  faces and people, the words on screen (Latin, Greek, Chinese and Japanese writing) and what stands out — free and
+  with nothing uploaded, into the same index a Mac makes: faces are recognized across clips, framing follows them,
+  search finds the words, names shown on screen suggest who is who, and the quality check sees faces and text in your
+  renders. Add **Seeing what's on screen** in Settings → Components (about 31 MB). A Mac keeps Apple Vision, which also
+  names places, things and animals and sees gestures, and gets the first look at new clips while it is about; a Mac can
+  use the open models too, to compare (Settings → Footage → Looking at your footage). Face recognition stays as careful
+  as before: in our measurement no face was named as the wrong person with either.
+- **Remove the background on Linux**. The new **Cutting out a picture's subject** component (about 225 MB) cuts a
+  photo's subject out with an open model where Apple Vision isn't there: the pictures fix and AI cut-outs use it.
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says

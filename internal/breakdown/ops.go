@@ -38,6 +38,11 @@ type WhatItDoesOut struct {
 
 func init() {
 	ops.Def("footage.whatItDoes", "Say what a video does, from what MetaRush found in it (no AI service): its length and shape, its sections with times (hook, intro, parts, call to action, end card), pacing (shots, words a minute), who speaks and how much, captions burned in, titles and words on screen, what plays under the voices, and how it ends", ops.Flags{}, whatItDoes)
+	// The menu and find (D269).
+	ops.Offer("footage.whatItDoes", ops.Offering{ID: "what-a-video-does", Group: "understand", Title: "What a video does",
+		Does:  "Says what a video does: its hook, intro, parts, call to action and end card with times, its pacing, captions and music.",
+		Words: []string{"break down a video", "how is this video made", "structure of a video", "video breakdown"},
+		Needs: ops.Needs{Works: []string{"transcripts", "editing"}}})
 }
 
 func whatItDoes(ctx context.Context, a *app.App, in *WhatItDoesIn) (*WhatItDoesOut, error) {

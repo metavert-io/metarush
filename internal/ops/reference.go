@@ -21,8 +21,8 @@ import (
 // away a use), while a cut plays it nowhere; only a person says a video is
 // theirs (footage.reference.mine, people only), which takes the mark off. The
 // edit check refuses a reference clip in a cut's clips or sound
-// (reference_footage, with how to mark it as yours), and a recipe run never
-// takes one as footage.
+// (reference_footage, with how to mark it as yours), and Recipes never take
+// one as footage.
 
 // FootageReferenceIn names a clip.
 type FootageReferenceIn struct {
@@ -135,8 +135,7 @@ func ReferenceWords(as *models.Asset) string {
 // source's hooks so the draft is made at once when MetaRush has looked at the
 // clip. It returns the clip's request as it stands.
 func AskStartFrom(ctx context.Context, a *app.App, assetID string, sf models.StartFromVideo) (*models.StartFromVideo, error) {
-	sf.State, sf.At = models.StartFromWaiting, time.Now().UTC()
-	sf.MakingAt, sf.RecipeID, sf.Recipe, sf.Version, sf.MadeAt, sf.Problem = nil, "", "", 0, nil, ""
+	sf = models.StartFromVideo{For: sf.For, ProjectID: sf.ProjectID, Name: sf.Name, Title: sf.Title, State: models.StartFromWaiting, At: time.Now().UTC()}
 	filter := bson.M{"_id": assetID, "workspaceId": a.WorkspaceID(), "$or": bson.A{bson.M{"startFrom": bson.M{"$exists": false}}, bson.M{"startFrom.state": models.StartFromFailed}}}
 	if _, err := a.DB.C(store.CAssets).UpdateOne(ctx, filter, bson.M{"$set": bson.M{"startFrom": sf, "updatedAt": time.Now().UTC()}}); err != nil {
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't keep what you asked for on the clip.")

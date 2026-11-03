@@ -1700,6 +1700,20 @@ input: MomentsIn
 output: MomentsOut
 }
 /**
+ * Mark a clip as a reference: someone else's video, kept to learn from (what it does, how it is paced), that no cut plays; refused while a cut's latest version plays it
+ */
+"footage.reference": {
+input: FootageReferenceIn
+output: FootageReferenceOut
+}
+/**
+ * Say a reference clip is your own video, so cuts can play it again — people only
+ */
+"footage.reference.mine": {
+input: FootageReferenceIn
+output: FootageReferenceOut
+}
+/**
  * Build a labeled contact sheet (whole asset or a time range) as a local image: smart (one frame per shot, visual changes, new speakers, coverage) or even
  */
 "footage.sheet": {
@@ -1803,6 +1817,13 @@ output: VisualsOut
 "footage.visuals.status": {
 input: VisualStatusIn
 output: VisualStatusOut
+}
+/**
+ * Say what a video does, from what MetaRush found in it (no AI service): its length and shape, its sections with times (hook, intro, parts, call to action, end card), pacing (shots, words a minute), who speaks and how much, captions burned in, titles and words on screen, what plays under the voices, and how it ends
+ */
+"footage.whatItDoes": {
+input: WhatItDoesIn
+output: WhatItDoesOut
 }
 /**
  * Make new takes of a generated shot, made the same way (Generate again, Variations); never replaces a clip
@@ -2811,6 +2832,13 @@ output: RecipeDiffOut
 "recipe.export": {
 input: RecipeExportIn
 output: RecipeExportOut
+}
+/**
+ * Start a recipe from a video you like: a link (YouTube, TikTok, X) or a clip comes in as a reference (someone else's video, kept to learn from, never played in a cut); once MetaRush has looked at it, what it does becomes a recipe draft — your footage in sections shaped like its sections, with their lengths, captions, rules and hints — saved as a draft only a person makes current
+ */
+"recipe.fromVideo": {
+input: RecipeFromVideoIn
+output: RecipeFromVideoOut
 }
 /**
  * Bring in a recipe file another workspace exported: a draft — a new version of the recipe it shares its history with, else a new recipe — with its pictures, footage and code in one project here; its words are data and its code waits for a person's approval here
@@ -7395,6 +7423,8 @@ ticked?: string[]
 fixState?: string
 fixed?: boolean
 fixesFit?: number
+reference?: AssetReference
+startFrom?: StartFromVideo
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -7411,6 +7441,33 @@ words: number
 speakers?: number
 error?: string
 updatedAt: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AssetReference".
+ */
+export interface AssetReference {
+by: Actor
+at: string
+why?: ("" | "start-from" | "marked")
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "StartFromVideo".
+ */
+export interface StartFromVideo {
+for: Actor
+projectId?: string
+name?: string
+title?: string
+at: string
+state: ("waiting" | "making" | "made" | "failed")
+makingAt?: string
+recipeId?: string
+recipe?: string
+version?: number
+madeAt?: string
+problem?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -7762,6 +7819,8 @@ archivedAt?: string
 archivedBy?: Actor
 trash?: AssetTrash
 notOnScreen?: string[]
+reference?: AssetReference
+startFrom?: StartFromVideo
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -9911,10 +9970,11 @@ shape?: string
  * via the `definition` "ActionWork".
  */
 export interface ActionWork {
-kind: ("render" | "qa" | "jobs" | "run")
+kind: ("render" | "qa" | "jobs" | "run" | "draft")
 renderId?: string
 jobIds?: string[]
 runId?: string
+assetId?: string
 what: string
 state: ("running" | "finished" | "failed" | "gone")
 /**
@@ -9980,7 +10040,7 @@ why?: string
  * Recipes: a run's plan with its steps, what saving a cut would vary and keep, or what a draft or a version made current changes.
  */
 export interface RecipeCardView {
-kind: ("run" | "again" | "save" | "update" | "publish" | "picks" | "sheet" | "suggested")
+kind: ("run" | "again" | "save" | "update" | "publish" | "picks" | "sheet" | "suggested" | "fromvideo")
 recipe?: string
 title: string
 link?: string
@@ -10016,6 +10076,18 @@ change?: string
 picks?: RecipeCardPick[]
 reasons?: string[]
 new?: boolean
+/**
+ * The video it starts from, as people name it.
+ */
+video?: string
+/**
+ * Where the video came from (its link).
+ */
+videoFrom?: string
+/**
+ * What the video does, in plain words.
+ */
+does?: string[]
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -13055,6 +13127,8 @@ ticked?: string[]
 fixState?: string
 fixed?: boolean
 fixesFit?: number
+reference?: AssetReference
+startFrom?: StartFromVideo
 where: string
 projects: LibraryRef[]
 collections: LibraryRef[]
@@ -19541,6 +19615,26 @@ frames?: number[]
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "FootageReferenceIn".
+ */
+export interface FootageReferenceIn {
+/**
+ * The clip: its ID or its name.
+ */
+assetId: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "FootageReferenceOut".
+ */
+export interface FootageReferenceOut {
+clip: AssetSummary
+reference: boolean
+changed: boolean
+message: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "SheetIn".
  */
 export interface SheetIn {
@@ -20359,6 +20453,163 @@ ready: boolean
 canBuild: boolean
 text: string
 fix?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WhatItDoesIn".
+ */
+export interface WhatItDoesIn {
+/**
+ * The clip: its ID or its name.
+ */
+assetId: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WhatItDoesOut".
+ */
+export interface WhatItDoesOut {
+clip: WhatClip
+card: WhatItDoes
+message: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WhatClip".
+ */
+export interface WhatClip {
+id: string
+title: string
+reference?: boolean
+link?: string
+platform?: string
+who?: string
+startFrom?: StartFromVideo
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WhatItDoes".
+ */
+export interface WhatItDoes {
+ready: boolean
+waiting: string[]
+missing: string[]
+summary: string
+lines: string[]
+length: number
+shape?: ("" | "vertical" | "landscape" | "square")
+shapeWords?: string
+width?: number
+height?: number
+sections: WhatSection[]
+pacing: WhatPacing
+speakers: WhatSpeaker[]
+captions: WhatCaptions
+graphics: WhatGraphic[]
+sound: WhatSound
+end?: WhatEnd
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WhatSection".
+ */
+export interface WhatSection {
+kind: ("hook" | "intro" | "body" | "call-to-action" | "end-card")
+name: string
+title: string
+from: number
+to: number
+length: number
+does: string
+found: string
+shots: number
+words: number
+speech: number
+question?: boolean
+text?: boolean
+faces?: number
+shot?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WhatPacing".
+ */
+export interface WhatPacing {
+shots: number
+shotSeconds: number
+medianShot: number
+shortest: number
+longest: number
+words: number
+wordsPerMinute: number
+talking: number
+pauses: number
+longestPause: number
+said: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WhatSpeaker".
+ */
+export interface WhatSpeaker {
+label: string
+name?: string
+seconds: number
+/**
+ * Its share of the speech, 0 to 1.
+ */
+share: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WhatCaptions".
+ */
+export interface WhatCaptions {
+looked: boolean
+burned: boolean
+covers: number
+wordsAtATime: number
+position?: ("" | "bottom" | "lower" | "middle" | "top")
+capitals?: boolean
+size?: ("" | "small" | "medium" | "large")
+look?: string
+said: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WhatGraphic".
+ */
+export interface WhatGraphic {
+kind: ("title" | "lower-third" | "end-card" | "label" | "words")
+from: number
+to: number
+where: string
+text: string
+size: ("small" | "medium" | "large")
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WhatSound".
+ */
+export interface WhatSound {
+measured: boolean
+bed?: ("" | "none" | "room" | "sound")
+speech?: number
+under?: number
+below?: number
+throughout?: boolean
+said: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WhatEnd".
+ */
+export interface WhatEnd {
+from: number
+to: number
+text?: string[]
+sound?: boolean
+said: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -21804,6 +22055,10 @@ playlist?: number
  * Look the links up (title, account, length, license) without importing anything.
  */
 dryRun?: boolean
+/**
+ * Bring new videos in as references: someone else's videos, kept to learn from, that no cut plays. A video already in MetaRush stays what it is.
+ */
+reference?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -27854,6 +28109,57 @@ why: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "RecipeFromVideoIn".
+ */
+export interface RecipeFromVideoIn {
+/**
+ * A link to the video (YouTube, TikTok, X or another video site) or a clip already in MetaRush (its ID or name).
+ */
+from: string
+/**
+ * Runs make new cuts in this project (a video from a link comes in there too); without one each run makes a project of its own and the video goes to the Inbox.
+ */
+projectId?: string
+/**
+ * The recipe's short name (default: one made from its title).
+ */
+name?: string
+/**
+ * The recipe's title (default: Like <who>'s video).
+ */
+title?: string
+/**
+ * For a clip already in MetaRush: mark it as a reference too (someone else's video, kept to learn from, that no cut plays). A video from a link always comes in as one.
+ */
+reference?: boolean
+/**
+ * Download the link with this browser's sign-in (for a bot check or sign-in wall).
+ */
+browserSignIn?: ("chrome" | "safari" | "firefox" | "brave" | "edge")
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "RecipeFromVideoOut".
+ */
+export interface RecipeFromVideoOut {
+/**
+ * importing: the video is being brought in; looking: MetaRush is looking at it and the draft follows by itself; drafted: the draft is saved.
+ */
+state: ("importing" | "looking" | "drafted")
+clip?: WhatClip
+card?: WhatItDoes
+recipe?: RecipeRow
+version?: RecipeVersionRow
+sheet?: string
+existing?: boolean
+waiting: string[]
+jobIds: string[]
+import?: ImportOut
+message: string
+next?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "RecipeImportIn".
  */
 export interface RecipeImportIn {
@@ -28363,6 +28669,7 @@ from?: RecipeFrom
  * @maxItems 10
  */
 pack?: RecipeOutput[]
+reference?: RecipeReference
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -28511,6 +28818,16 @@ shape?: ("" | "vertical" | "landscape" | "square")
 style?: string
 captions?: boolean
 named?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "RecipeReference".
+ */
+export interface RecipeReference {
+assetId?: string
+url?: string
+platform?: string
+who?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -35579,6 +35896,8 @@ ticked?: string[]
 fixState?: string
 fixed?: boolean
 fixesFit?: number
+reference?: AssetReference
+startFrom?: StartFromVideo
 where: string
 projects: LibraryRef[]
 collections: LibraryRef[]
@@ -37429,7 +37748,7 @@ resetsAt: string
  * via the `definition` "RecipeCardView".
  */
 export interface RecipeCardView1 {
-kind: ("run" | "again" | "save" | "update" | "publish" | "picks" | "sheet" | "suggested")
+kind: ("run" | "again" | "save" | "update" | "publish" | "picks" | "sheet" | "suggested" | "fromvideo")
 recipe?: string
 title: string
 link?: string
@@ -37465,6 +37784,18 @@ change?: string
 picks?: RecipeCardPick[]
 reasons?: string[]
 new?: boolean
+/**
+ * The video it starts from, as people name it.
+ */
+video?: string
+/**
+ * Where the video came from (its link).
+ */
+videoFrom?: string
+/**
+ * What the video does, in plain words.
+ */
+does?: string[]
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

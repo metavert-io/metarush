@@ -41,6 +41,7 @@ person starts one.`,
 	c.AddCommand(recipeTriggersCmd())                    // D218
 	c.AddCommand(recipeExportCmd(), recipeImportCmd())   // D219
 	c.AddCommand(recipeStartersCmd(), recipeSampleCmd()) // D293, D294
+	c.AddCommand(recipeFromVideoCmd())                   // D400, D401
 	return c
 }
 

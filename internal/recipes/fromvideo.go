@@ -89,6 +89,11 @@ func init() {
 			DraftWhenLooked(ctx, a, assetID)
 		}
 	})
+	// The menu and find (D269): starting from a video someone liked.
+	ops.Offer("recipe.fromVideo", ops.Offering{ID: "start-from-a-video", Group: "make", Title: "Start from a video you like",
+		Does:  "Brings a video you like in as a reference and drafts a recipe shaped like it, for your own footage.",
+		Words: []string{"make a video like this one", "a video like this", "copy how a video is made", "reference video"},
+		Needs: ops.Needs{Works: []string{"transcripts", "editing"}}})
 }
 
 func fromVideo(ctx context.Context, a *app.App, in *RecipeFromVideoIn) (*RecipeFromVideoOut, error) {

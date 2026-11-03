@@ -161,6 +161,13 @@ func (p *parser) bashLabel(c *cliCall, raw string) string {
 		return "Read what's on screen in " + p.thing(arg, "the footage") + rangeLabel(c.Flags["from"], c.Flags["to"])
 	case "footage visuals status":
 		return "Checked whether clips get looked at"
+	case "footage what-it-does": // D399
+		return "Read what " + p.thing(arg, "the video") + " does"
+	case "footage reference": // D398
+		if hasBool(c, "mine") {
+			return "Asked to say a video is someone's own"
+		}
+		return "Asked to mark " + p.thing(arg, "a clip") + " as a reference"
 	case "footage faces", "footage faces list":
 		return "Looked at the faces in " + p.thing(arg, "the footage")
 	case "footage faces name":

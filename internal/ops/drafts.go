@@ -82,9 +82,14 @@ var notDrafted = map[string]string{
 	"draft.save":      "A draft can't hold another draft.",
 	"timeline.import": "A timeline from another editor becomes a cut when a person brings it in, answering for footage it doesn't find: read it (timeline.read) and tell them what would come in.",
 	"draft.decide":    "Only a person decides about drafts.",
-	"project.update":  "A project's name, brief and place are a person's to change: tell them what you'd suggest.",
-	"sound.enhance":   "Clearer voices are made from the recordings first (and in the cloud they cost money), so a person starts them.",
-	"voiceover.tts":   "The AI voice costs money, so a person makes it after seeing the price.",
+	// References and starting from a video (D398, D404): what comes in from
+	// the web and what a person keeps to learn from are a person's to start.
+	"recipe.fromVideo":       "Starting a recipe from a video brings the video in from the web, which a person starts: tell them which video.",
+	"footage.reference":      "Marking a clip as someone else's video is a person's step on its page: tell them which clip and why.",
+	"footage.reference.mine": "Only a person says a video is theirs, on its page.",
+	"project.update":         "A project's name, brief and place are a person's to change: tell them what you'd suggest.",
+	"sound.enhance":          "Clearer voices are made from the recordings first (and in the cloud they cost money), so a person starts them.",
+	"voiceover.tts":          "The AI voice costs money, so a person makes it after seeing the price.",
 	// Words changed in a speaker's own voice (D311): making them, putting them
 	// in and taking them out are a person's steps; making and putting them in
 	// are people only anyway.

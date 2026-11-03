@@ -46,7 +46,8 @@ var readsShow = map[string]string{
 	"footage.describe.settings": "-", "footage.evidence": "W", "footage.faces": "PA", "footage.frames": "PA", "footage.keyframes": "WPA",
 	"footage.language": "-", "footage.captions": "W", "footage.moments": "W", "footage.sheet": "WPA", "footage.speakers": "VW", "footage.speakers.samples": "V",
 	"footage.switches": "WA", "footage.transcript": "W", "footage.visuals": "WPA", "footage.visuals.status": "-",
-	"generate.estimate": "W", "generate.list": "W", "generate.settings": "-", "generate.show": "WPA",
+	"footage.whatItDoes": "W", // what a video does (D399): its sections in MetaRush's words, its words on screen, voices' names
+	"generate.estimate":  "W", "generate.list": "W", "generate.settings": "-", "generate.show": "WPA",
 	"improve.export": "W", "improve.list": "W", "improve.schedule": "-", "improve.show": "W", "improve.signals": "W",
 	"ingest.sessions": "-", "ingest.url.tools": "-", "job.list": "W", "job.show": "W", "keep.list": "W", "library.list": "-",
 	"log.export": "W", "log.hooks.status": "-", "log.list": "W", "log.search": "W", "log.settings": "-", "log.show": "W",

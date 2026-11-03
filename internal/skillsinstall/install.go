@@ -257,6 +257,8 @@ var ReadOnlyCommands = []string{
 	"metarush footage transcript", "metarush footage evidence", "metarush footage moments", "metarush footage frames", "metarush footage sheet",
 	// What's on screen (the on-device index) and the frames a sheet would show: read-only.
 	"metarush footage visuals", "metarush footage visuals status", "metarush footage keyframes", "metarush footage faces list",
+	// What a video does (D399): its sections, pacing, voices, captions, words on screen, music.
+	"metarush footage what-it-does",
 	"metarush edit check", "metarush edit preview", "metarush edit templates", "metarush edit transitions", "metarush edit plan validate", "metarush revision list", "metarush revision show",
 	"metarush revision compare", "metarush revision plan", "metarush render status", "metarush render list", "metarush job list", "metarush job show",
 	"metarush job wait", "metarush schema", "metarush doctor", "metarush ops list", "metarush ops find", "metarush ops describe", "metarush cache status", "metarush sync status", "metarush machine list", "metarush version",

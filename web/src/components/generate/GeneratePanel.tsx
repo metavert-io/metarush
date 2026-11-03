@@ -15,7 +15,7 @@ import { GENERATE_QUERIES, useGenerateRuns, useStopGeneration } from './RunDialo
 import { frameThumb, StartPicker, type Frame } from './StartPicker';
 import { AI_KINDS, AIWork, type AIKind } from './AIWork';
 import { PresenterWork } from './Presenters';
-import { chosenAgainstCut, shotRequest, shownAspect, type ShotAspect } from './shot';
+import { agreedRequest, chosenAgainstCut, shotRequest, shownAspect, type ShotAspect } from './shot';
 
 /*
  * Generate a shot (D123–D127): a prompt, who appears (a look), the length,
@@ -29,6 +29,9 @@ import { chosenAgainstCut, shotRequest, shownAspect, type ShotAspect } from './s
  */
 
 export type { Frame };
+
+/** The shape the price is for, on the button that agrees to it (D394): "Generate tall (about $0.13)". */
+const shapeOnButton = (ar?: string) => (ar === '9:16' ? 'tall ' : ar === '16:9' ? 'wide ' : '');
 
 const clockOf = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 
@@ -135,7 +138,8 @@ export function GeneratePanel({ data, start: given, end, onClearFrames, onOpenCl
     if (!ready) return;
     setSending(true);
     try {
-      const out = await call('generate.shot', { ...input, ...(priced && est ? { maxUsd: est.usd } : {}) });
+      // The price and the shape it was shown for go together (D394).
+      const out = await call('generate.shot', priced && est ? agreedRequest(input, est) : input);
       GENERATE_QUERIES.forEach((q) => void qc.invalidateQueries({ queryKey: [q] }));
       toast({ tone: 'success', title: 'Asked for the shot', body: out.summary });
       setPrompt('');
@@ -398,7 +402,7 @@ export function GeneratePanel({ data, start: given, end, onClearFrames, onOpenCl
             {estError ? <ErrorPanel compact error={estError} className="mt-2" /> : null}
           </div>
           <Button variant="primary" icon={<Sparkle size={14} weight="fill" />} disabled={!ready} loading={sending} onClick={() => void go()} data-generate-go data-estimates-first={estimatesFirst ? 'on' : 'off'}>
-            {est && priced ? `Generate (${estimateWords(est.usd)})` : 'Generate'}
+            {est && priced ? `Generate ${shapeOnButton(est.aspectRatio)}(${estimateWords(est.usd)})` : 'Generate'}
           </Button>
           <p className="text-[12px] leading-relaxed text-subtle">Nothing is sent until you press it. Google adds an invisible watermark (SynthID) to everything it makes.</p>
         </div>

@@ -140,6 +140,9 @@ type AIEstimate struct {
 	Allowed  bool     `json:"allowed"`
 	Problems []string `json:"problems,omitempty"`
 	Notes    []string `json:"notes,omitempty"`
+	// AspectRatio is the shape it is made in when it has one: what a price
+	// agreed to says, sent with it (options.aspectRatio, D394).
+	AspectRatio string `json:"aspectRatio,omitempty" jsonschema:"description=The shape it is made in (16:9\\, 9:16…) when it has one: send it with the agreed price."`
 	// Shape is the shape it is made in for a cut, and why (D385).
 	Shape   string         `json:"shape,omitempty" jsonschema:"description=The shape it is made in for the cut it is for\\, and why."`
 	Summary string         `json:"summary"`

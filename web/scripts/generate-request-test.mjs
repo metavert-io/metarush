@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { shotRequest, shownAspect, chosenAgainstCut, frameRef } = await import(path.join(here, '..', 'src', 'components', 'generate', 'shot.ts'));
+const { shotRequest, shownAspect, chosenAgainstCut, frameRef, agreedRequest } = await import(path.join(here, '..', 'src', 'components', 'generate', 'shot.ts'));
 
 let failed = 0;
 const check = (name, ok, got) => {
@@ -39,6 +39,13 @@ check('frames replace the look', !('look' in framed) && framed.from.assetId === 
 check('a start frame alone', !('to' in shotRequest({ ...base, end: { picture: 'x' } })));
 check('frameRef of a picture', JSON.stringify(frameRef({ picture: 'p', assetId: 'ast_x' })) === '{"picture":"p"}');
 check('no people only when said', shotRequest({ ...base, noPeople: true }).noPeople === true && !('noPeople' in shotRequest(base)));
+
+// The price is agreed for the shape the estimate showed (D394): both are sent.
+const agreed = agreedRequest(auto, { usd: 0.13, aspectRatio: '9:16' });
+check('the agreed price carries the shape it was shown for', agreed.maxUsd === 0.13 && agreed.aspectRatio === '9:16' && agreed.prompt === 'a paper boat', agreed);
+check('the estimate only priced: the request it came from has no shape', !('aspectRatio' in auto));
+check('a chosen shape stays the one sent', agreedRequest(shotRequest({ ...base, aspect: '16:9' }), { usd: 0.2, aspectRatio: '16:9' }).aspectRatio === '16:9');
+check('no shape in the estimate: none invented', !('aspectRatio' in agreedRequest(auto, { usd: 0.1, aspectRatio: '' })));
 
 // What the panel shows: the server's shape until the person chooses.
 check('shows the shape MetaRush will make', shownAspect('', { aspectRatio: '9:16' }) === '9:16');

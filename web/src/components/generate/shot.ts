@@ -47,6 +47,16 @@ export function shotRequest(c: ShotChoices): GenShotIn {
   };
 }
 
+/**
+ * What is sent when the price is agreed (D394): the request with that price and
+ * the shape the estimate showed, so the shot is made in exactly the shape that
+ * was priced — never one MetaRush chooses again after the person said yes.
+ */
+export function agreedRequest(input: GenShotIn, est: Pick<GenEstimate, 'usd' | 'aspectRatio'>): GenShotIn {
+  const shape = est.aspectRatio === '9:16' || est.aspectRatio === '16:9' ? est.aspectRatio : input.aspectRatio;
+  return { ...input, maxUsd: est.usd, ...(shape ? { aspectRatio: shape } : {}) };
+}
+
 /** The shape the panel shows: the person's choice, else the one MetaRush will make. */
 export const shownAspect = (aspect: ShotAspect, est?: Pick<GenEstimate, 'aspectRatio'> | null): ShotAspect =>
   aspect || ((est?.aspectRatio === '9:16' || est?.aspectRatio === '16:9' ? est.aspectRatio : '') as ShotAspect);

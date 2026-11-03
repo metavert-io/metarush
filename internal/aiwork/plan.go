@@ -81,14 +81,19 @@ type plan struct {
 	words    []string // what is sent, in plain words
 	now      time.Time
 	shape    string // the shape it is made in for a cut and why (D385)
+	// shapeSent: the request said the shape (asked, or agreed with the price, D394).
+	shapeSent bool
 }
 
 // cutShape gives work made for a cut — a picture for it, a presenter's clip —
 // that cut's shape when the request names none (D385): the cut named (else,
 // for a presenter, the project's when something says), as near as the model
-// makes. A model that takes no shape makes its own.
+// makes. A model that takes no shape makes its own. A shape the request sends
+// that is the cut's (the shape the estimate showed, agreed with its price,
+// D394) keeps the words saying why.
 func (p *plan) cutShape(ctx context.Context, a *app.App, cut string, o *models.GenOptions) error {
-	if o.AspectRatio != "" || p.projectID == "" || len(p.model.Limits.AspectRatios) == 0 {
+	p.shapeSent = o.AspectRatio != ""
+	if p.projectID == "" || len(p.model.Limits.AspectRatios) == 0 {
 		return nil
 	}
 	var pj models.Project
@@ -97,16 +102,33 @@ func (p *plan) cutShape(ctx context.Context, a *app.App, cut string, o *models.G
 	}
 	cs, err := ops.CutShape(ctx, a, &pj, cut)
 	if err != nil || !cs.Known {
+		if p.shapeSent {
+			return nil // a shape asked for is made whatever the cut says
+		}
 		return err
 	}
-	if ar := editspec.RatioFor(cs.Width, cs.Height, p.model.Limits.AspectRatios, ""); ar != "" {
-		o.AspectRatio = ar
-		p.shape = ar + ", because " + lowerFirst(cs.Why)
-		if x, y := editspec.ParseRatio(ar); editspec.ShapeOf(x, y) != cs.Shape {
-			p.shape += " " + p.model.Title + " makes no " + cs.Word + " ones, so it is the nearest."
-		}
+	ar := editspec.RatioFor(cs.Width, cs.Height, p.model.Limits.AspectRatios, "")
+	if ar == "" || (p.shapeSent && o.AspectRatio != ar) {
+		return nil
+	}
+	o.AspectRatio = ar
+	p.shape = ar + ", because " + lowerFirst(cs.Why)
+	if x, y := editspec.ParseRatio(ar); editspec.ShapeOf(x, y) != cs.Shape {
+		p.shape += " " + p.model.Title + " makes no " + cs.Word + " ones, so it is the nearest."
 	}
 	return nil
+}
+
+// shapeAgreed refuses work whose price was agreed without the shape MetaRush
+// now chooses for its cut (D394): a price agreed for one shape is never spent
+// on another. The estimate says the shape (aspectRatio); the agreement sends it.
+func (p *plan) shapeAgreed() error {
+	if p.shapeSent || p.shape == "" {
+		return nil
+	}
+	return apperr.New(apperr.Conflict, "The price you agreed to didn't say its shape, and it would be made %s. Price it again and agree to its shape.", strings.TrimSuffix(p.shape, ".")).
+		WithHint("Nothing was sent or spent.").WithCommand("metarush ai estimate").
+		WithDetails(map[string]any{"reason": "shape_not_agreed", "aspectRatio": p.req.Options.AspectRatio, "shape": p.shape})
 }
 
 // planNow is the time a plan is made by: the database server's (D360), so a
@@ -880,7 +902,7 @@ func (p *plan) estimate(ctx context.Context, a *app.App) AIEstimate {
 	e := AIEstimate{ProjectID: p.projectID, Kind: p.kind.Kind, KindTitle: p.kind.Title, What: p.kind.What, Task: p.req.Task, Provider: m.Provider, ProviderTitle: m.ProviderTitle,
 		Model: m.ID, ModelTitle: m.Title, Stage: m.Stage, Choice: p.choice.by, Alternatives: p.alts, USD: p.est.USD, Units: p.est.Units, Rate: p.est.Rate,
 		PriceTable: p.est.PriceTable, Licence: m.Licence, Data: p.provider.Data.Summary, Watermark: m.Watermark, RetiredOn: m.RetiredOn,
-		Inputs: p.words, KeyReady: keyReady(a, m.Provider), Notes: append(append([]string{}, p.notes...), p.est.Notes...), Shape: p.shape}
+		Inputs: p.words, KeyReady: keyReady(a, m.Provider), Notes: append(append([]string{}, p.notes...), p.est.Notes...), Shape: p.shape, AspectRatio: p.req.Options.AspectRatio}
 	if e.Alternatives == nil {
 		e.Alternatives = []aiservices.Alternative{}
 	}

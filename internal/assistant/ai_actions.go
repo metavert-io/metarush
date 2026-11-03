@@ -77,6 +77,9 @@ func (m *Manager) describeAI(ctx context.Context, c *conv, call *cliCall, a *Ass
 		return
 	}
 	in.MaxUSD = &est.USD
+	if est.AspectRatio != "" { // the price is agreed for the shape it shows (D394)
+		in.Options.AspectRatio = est.AspectRatio
+	}
 	m.aiCard(a, est, in)
 }
 

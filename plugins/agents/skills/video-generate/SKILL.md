@@ -24,7 +24,8 @@ take, a variation, an extension or an edit is always a **new** clip; nothing rep
 1. **Price first, then the person's yes.** Every request starts with `metarush generate estimate … --json`. Tell the
    person what it makes and what it costs ("a 6-second draft shot, wide, about $0.23"), and what is left of the
    project's budget and today's limit. Only after they agree, run the make command with `--max-cost` set to the price
-   they agreed to (never more). Never make shots on your own initiative, never "just try one", never repeat a request
+   they agreed to (never more) and `--aspect` set to the estimate's `aspectRatio`: the price is agreed for that shape,
+   and MetaRush refuses to spend it on another one. Never make shots on your own initiative, never "just try one", never repeat a request
    because you didn't like the result: ask.
 2. **No one's likeness without their look and consent.** Never put a real person's name or description in a prompt
    to make them appear. A real person appears only through their **approved look** (`--look <name>`), which needs
@@ -114,7 +115,8 @@ cloud transcripts. Price first with `metarush ai estimate <kind> [words] --proje
 voice, sound-effect, music, voice-change, dubbing, transcription): it names the model and why (the usual one, or the
 one the project's Content Settings choose), up to two other models (cheaper, better — offer them, never pick for the
 person), the model's licence terms (say when they depend on the person's plan or say nothing about commercial use)
-and what the service keeps. After the person's yes, `metarush ai make <kind> … --max-cost <price>`. Pictures land in
+and what the service keeps. After the person's yes, `metarush ai make <kind> … --max-cost <price>` (with `--aspect` set to the estimate's
+`aspectRatio` when it has one: the price is agreed for that shape). Pictures land in
 the resources library, sound and dubs in Sources, a cloud transcript replaces the clip's words (the local one is free
 and stays the default: only on request). A dub in the speakers' own voices, speech in a copied voice and pictures of a
 named person need those people's consent; copying a voice (`metarush ai voices copy`) and choosing which services a

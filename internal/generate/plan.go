@@ -63,6 +63,7 @@ type plan struct {
 	// something says (D385); shapeFrom and shapeWhy say who chose the shape.
 	forShape                     *ops.ProjectShapeOut
 	shapeFrom, shapeWhy, fitsCut string
+	shapeSent                    bool // the request said the shape (asked, or the one agreed with the price)
 }
 
 // addConsent records that the request relies on a consent record.
@@ -213,45 +214,68 @@ func firstInt(vs ...int) int {
 // request's; the shape of the cut it is for (or its project's, when
 // something says), as near as the model makes; the look's usual shape; the
 // model's own. Money is never spent on a shape nobody chose when the cut
-// says another. It sets shapeFrom and shapeWhy.
+// says another. It sets shapeFrom and shapeWhy; a shape sent that is the one
+// MetaRush would choose (the shape an estimate showed, agreed with its price,
+// D394) keeps MetaRush's reason.
 func (p *plan) chooseShape(asked, lookAspect string) string {
 	label := func(ar string) string { return upperFirst(shapeWords(ar)) + " (" + ar + ")" }
 	def := p.st.aspect
 	if fs := p.forShape; fs != nil {
 		p.fitsCut = editspec.RatioFor(fs.Width, fs.Height, p.caps.AspectRatios, def)
 	}
-	switch {
-	case asked != "":
-		p.shapeFrom, p.shapeWhy = "asked", label(asked)+", as asked."
-		if fs := p.forShape; fs != nil && p.fitsCut != "" && p.fitsCut != asked {
-			p.shapeWhy += " " + strings.TrimSuffix(fs.Why, ".") + ": " + shapeWords(p.fitsCut) + " (" + p.fitsCut + ") would fit it."
-		}
-		return asked
-	case p.forShape != nil:
-		fs := p.forShape
+	p.shapeSent = asked != ""
+	auto, from, why := p.autoShape(lookAspect, def, label)
+	if asked == "" || asked == auto {
+		p.shapeFrom, p.shapeWhy = from, why
+		return auto
+	}
+	p.shapeFrom, p.shapeWhy = "asked", label(asked)+", as asked."
+	if fs := p.forShape; fs != nil && p.fitsCut != "" && p.fitsCut != asked {
+		p.shapeWhy += " " + strings.TrimSuffix(fs.Why, ".") + ": " + shapeWords(p.fitsCut) + " (" + p.fitsCut + ") would fit it."
+	}
+	return asked
+}
+
+// autoShape is the shape MetaRush chooses for a shot when nobody says one,
+// where it comes from and why.
+func (p *plan) autoShape(lookAspect, def string, label func(string) string) (ar, from, why string) {
+	if fs := p.forShape; fs != nil {
 		if ar := editspec.RatioFor(fs.Width, fs.Height, p.caps.AspectRatios, def); ar != "" {
-			p.shapeFrom = "project"
+			from = "project"
 			if fs.From == ops.ShapeFromCut {
-				p.shapeFrom = "cut"
+				from = "cut"
 			}
-			p.shapeWhy = label(ar) + ", because " + lowerFirst(fs.Why)
+			why = label(ar) + ", because " + lowerFirst(fs.Why)
 			if x, y := editspec.ParseRatio(ar); editspec.ShapeOf(x, y) != fs.Shape {
-				p.shapeWhy += fmt.Sprintf(" %s makes only %s shots, so it is the nearest and the cut frames it %s.", p.caps.Title, ratioList(p.caps.AspectRatios), fs.Word)
+				why += fmt.Sprintf(" %s makes only %s shots, so it is the nearest and the cut frames it %s.", p.caps.Title, ratioList(p.caps.AspectRatios), fs.Word)
 			}
 			if lookAspect != "" && lookAspect != ar && p.look != nil {
-				p.shapeWhy += fmt.Sprintf(" The look “%s” is usually %s.", p.look.Title, shapeWords(lookAspect))
+				why += fmt.Sprintf(" The look “%s” is usually %s.", p.look.Title, shapeWords(lookAspect))
 			}
-			return ar
+			return ar, from, why
 		}
 	}
 	if lookAspect != "" {
-		p.shapeFrom, p.shapeWhy = "look", fmt.Sprintf("%s, the look “%s”'s usual shape.", label(lookAspect), p.look.Title)
-		return lookAspect
+		return lookAspect, "look", fmt.Sprintf("%s, the look “%s”'s usual shape.", label(lookAspect), p.look.Title)
 	}
 	if def != "" {
-		p.shapeFrom, p.shapeWhy = "default", fmt.Sprintf("%s, %s's usual shape: nothing about the project says yet.", label(def), p.caps.Title)
+		return def, "default", fmt.Sprintf("%s, %s's usual shape: nothing about the project says yet.", label(def), p.caps.Title)
 	}
-	return ""
+	return "", "", ""
+}
+
+// shapeAgreed refuses a shot whose price was agreed without its shape when
+// MetaRush chose the shape from something that can change between the
+// estimate and the make — the cut, the project, the look (D394): a price
+// agreed for one shape is never spent on another. The estimate says the
+// shape; the agreement (the dashboard, Claude's cards) sends it.
+func (p *plan) shapeAgreed() error {
+	if p.shapeSent || (p.shapeFrom != "cut" && p.shapeFrom != "project" && p.shapeFrom != "look") {
+		return nil
+	}
+	return apperr.New(apperr.Conflict, "The price you agreed to didn't say the shot's shape, and it would be made %s. Price it again and agree to its shape.", lowerFirst(strings.TrimSuffix(p.shapeWhy, "."))).
+		WithHint("Nothing was sent or spent.").WithCommand("metarush generate estimate").
+		WithDetails(map[string]any{"reason": "shape_not_agreed", "aspectRatio": p.params.AspectRatio, "shapeWhy": p.shapeWhy})
 }
 
 // sameShape says a new take, extension or edit keeps the shape of what it

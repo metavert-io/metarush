@@ -10,6 +10,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/aiservices"
 	"github.com/metavert-io/metarush/internal/aiwork"
+	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/models"
@@ -35,10 +36,20 @@ func TestAPictureForACutIsTheCutsShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(est.Shape, "9:16, because") || !strings.Contains(est.Shape, "is vertical") {
-		t.Fatalf("the estimate should say the cut's shape: %q", est.Shape)
+	if !strings.HasPrefix(est.Shape, "9:16, because") || !strings.Contains(est.Shape, "is vertical") || est.AspectRatio != "9:16" {
+		t.Fatalf("the estimate should say the cut's shape: %q %q", est.Shape, est.AspectRatio)
 	}
-	e.make(t, pic)
+	// A price agreed without the shape it was shown for is refused (D394).
+	unagreed := pic
+	unagreed.MaxUSD = usd(est.USD)
+	if _, err := call[aiwork.MakeOut](t, e.a, "ai.make", unagreed, false); codeOf(err) != apperr.Conflict ||
+		!strings.Contains(err.Error(), "didn't say its shape, and it would be made 9:16, because") {
+		t.Fatalf("a price without its shape: %v", err)
+	}
+	if n := len(e.fake.Requests()); n != 0 {
+		t.Fatalf("nothing is sent for a shape nobody agreed to: %d", n)
+	}
+	e.make(t, pic) // agrees the price with the shape it shows
 	last := func() string {
 		rs := e.fake.Requests()
 		return rs[len(rs)-1].Options.AspectRatio

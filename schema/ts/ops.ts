@@ -6498,6 +6498,10 @@ allowed: boolean
 problems?: string[]
 notes?: string[]
 /**
+ * The shape it is made in (16:9, 9:16…) when it has one: send it with the agreed price.
+ */
+aspectRatio?: string
+/**
  * The shape it is made in for the cut it is for, and why.
  */
 shape?: string

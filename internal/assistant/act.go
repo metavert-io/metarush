@@ -94,7 +94,12 @@ func (m *Manager) Act(ctx context.Context, a *app.App, caller ops.Caller, in Con
 			if len(cards) == 1 {
 				release()                        // a single card stays as it was (try again, or Not now)
 				m.replanRecipe(ctx, c, act, err) // Recipes: a plan that changed shows again on its card (D211)
+				m.replanShape(ctx, c, act, err)  // a price that didn't say the shape is priced again (D394)
 				return nil, err
+			}
+			if staleShape(act, err) { // priced again in place, for a person to look at (D394)
+				m.replanShape(ctx, c, act, err)
+				continue
 			}
 			done = act
 			done.State, done.Error = ActionFailed, apperr.From(err).Message
@@ -207,10 +212,12 @@ func (m *Manager) runCard(ctx context.Context, a *app.App, caller ops.Caller, c 
 		// Studio quality first (people only; the person confirmed this card).
 		err = setUpFor(ctx, a, caller, act.SetUp)
 	}
-	if err == nil {
+	if err == nil && shapelessShot(act) {
+		err = errShapeNotAgreed // a price that didn't say the shape is never spent (D394)
+	} else if err == nil {
 		res, err = ops.Call(ctx, a, act.Op, input, recipeCaller(act, caller)) // Recipes: the daemon's engine takes a card's run on (D211)
 	}
-	if staleRecipe(act, err) { // Recipes: the plan changed, so nothing started; Act plans the card again (D211)
+	if staleRecipe(act, err) || staleShape(act, err) { // the plan or the shape changed, so nothing started; the card is planned again (D211, D394)
 		return act, err
 	}
 	m.finishCard(ctx, &act, res, err)

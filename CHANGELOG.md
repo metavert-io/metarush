@@ -4,7 +4,9 @@
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says
-  which shape and why, and if you pick another, the panel says which would fit the cut. AI pictures made for a cut, and
+  which shape and why, the button says the shape you are agreeing to, and if you pick another, the panel says which
+  would fit the cut. A price you agree to is for that shape: if the cut changed in between, nothing is made in another
+  shape — you are asked to look at the new price (a card in Claude's panel is priced again in place). AI pictures made for a cut, and
   presenter clips, take the cut's shape the same way; pictures for no cut are made as before.
 - **New cuts start in your project's shape**. A project's first cut sheet, a cut written without a shape, an automatic
   cut of a conversation and a recorded layout start in the shape the project already says — its cuts, where the brief

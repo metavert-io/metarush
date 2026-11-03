@@ -79,6 +79,12 @@ func start(ctx context.Context, a *app.App, p *plan, maxUSD *float64, dry bool, 
 		return nil, apperr.New(apperr.ConfirmRequired, "%s", msg).WithHint("Nothing was sent or spent.").
 			WithDetails(map[string]any{"estimateUsd": est.USD, "estimate": est})
 	}
+	// A price agreed is agreed for a shape (D394); free work has no price.
+	if estimateFirst && est.USD > 0 {
+		if err := p.shapeAgreed(); err != nil {
+			return nil, err
+		}
+	}
 	// The exact bytes of what is sent, kept by their content, so the record
 	// names them and a resumed job sends the same bytes.
 	refs, err := materialize(ctx, a, p)

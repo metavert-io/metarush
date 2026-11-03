@@ -54,12 +54,12 @@ func TestAVerticalProjectsShotIsPricedAndMadeVertical(t *testing.T) {
 		est.ShapeWhy != "Tall (9:16), because its brief says “Social shorts” is vertical." {
 		t.Fatalf("a vertical project's shot should be priced tall, saying why: %+v", est)
 	}
-	in.MaxUSD = usd(est.USD)
+	in.MaxUSD, in.AspectRatio = usd(est.USD), est.AspectRatio // the price agreed for the shape it was shown for (D394)
 	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", in, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Generations[0].Params.AspectRatio != "9:16" {
+	if out.Generations[0].Params.AspectRatio != "9:16" || out.Estimate.ShapeFrom != "project" {
 		t.Fatalf("recorded as %q", out.Generations[0].Params.AspectRatio)
 	}
 	if _, err := e.run(t, ctx, out.JobIDs[0]); err != nil {
@@ -126,5 +126,64 @@ func TestAShotForAProjectThatSaysNothing(t *testing.T) {
 	}
 	if est.AspectRatio != "16:9" || est.ShapeFrom != "default" || est.FitsCut != "" || !strings.Contains(est.ShapeWhy, "nothing about the project says yet") {
 		t.Fatalf("estimate %+v", est)
+	}
+}
+
+// A price is agreed for the shape the estimate showed (D394), the reviewer's
+// case: priced wide while nothing said the project's shape, then the project
+// got a vertical cut; the same request with that price and no shape is
+// refused plainly (nothing sent), the agreed shape sent with it is made as
+// agreed, and a shape sent that is MetaRush's own keeps its reason.
+func TestAPriceIsAgreedForItsShape(t *testing.T) {
+	e := setup(t)
+	in := generate.GenShotIn{ProjectID: e.project, Prompt: "a red paper boat drifting on a pond", Seconds: 3, Resolution: "360p"}
+	est, err := call[generate.GenEstimate](t, e.a, "generate.estimate", in, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if est.AspectRatio != "16:9" || est.ShapeFrom != "default" {
+		t.Fatalf("priced wide, nothing says: %+v", est)
+	}
+	e.cutOf(t, "main", editspec.Output{Preset: editspec.PresetVertical, Width: 1080, Height: 1920})
+
+	in.MaxUSD = usd(est.USD)
+	_, err = call[generate.GenRunOut](t, e.a, "generate.shot", in, false)
+	if codeOf(err) != apperr.Conflict || !strings.Contains(err.Error(), "didn't say the shot's shape, and it would be made tall (9:16), because its cut") {
+		t.Fatalf("a price agreed without its shape, now tall: %v", err)
+	}
+	if d, _ := apperr.From(err).Details.(map[string]any); d["reason"] != "shape_not_agreed" || d["aspectRatio"] != "9:16" {
+		t.Fatalf("details: %+v", apperr.From(err).Details)
+	}
+	if e.fake.Calls("create") != 0 {
+		t.Fatal("nothing is sent for a shape nobody agreed to")
+	}
+
+	// The agreed shape sent with the price: made as agreed.
+	in.AspectRatio = est.AspectRatio
+	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", in, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g := out.Generations[0]; g.Params.AspectRatio != "16:9" || out.Estimate.ShapeFrom != "asked" {
+		t.Fatalf("made as agreed: %+v %+v", g.Params, out.Estimate)
+	}
+	// The shape MetaRush would choose, sent with the price: its own reason stays.
+	now, err := call[generate.GenEstimate](t, e.a, "generate.estimate", generate.GenShotIn{ProjectID: e.project, Prompt: in.Prompt, Seconds: 3, Resolution: "360p"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in.AspectRatio, in.MaxUSD = now.AspectRatio, usd(now.USD)
+	out, err = call[generate.GenRunOut](t, e.a, "generate.shot", in, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Generations[0].Params.AspectRatio != "9:16" || out.Estimate.ShapeFrom != "cut" || !strings.HasPrefix(out.Estimate.ShapeWhy, "Tall (9:16), because its cut") {
+		t.Fatalf("agreed tall, MetaRush's own reason kept: %+v", out.Estimate)
+	}
+	// With nothing that can change behind it (the model's own shape), a price alone still makes it.
+	e2 := setup(t)
+	plain := generate.GenShotIn{ProjectID: e2.project, Prompt: "a boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}
+	if _, err := call[generate.GenRunOut](t, e2.a, "generate.shot", plain, false); err != nil {
+		t.Fatalf("nothing says the shape: the model's own, as always: %v", err)
 	}
 }

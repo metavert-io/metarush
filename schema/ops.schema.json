@@ -248,6 +248,10 @@
           },
           "type": "array"
         },
+        "aspectRatio": {
+          "type": "string",
+          "description": "The shape it is made in (16:9, 9:16…) when it has one: send it with the agreed price."
+        },
         "shape": {
           "type": "string",
           "description": "The shape it is made in for the cut it is for, and why."

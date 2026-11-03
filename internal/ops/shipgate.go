@@ -85,7 +85,10 @@ type GateHold struct {
 	// check and sign-offs; never the approval or a render that isn't there).
 	Overridable bool `json:"overridable"`
 	// Covered: a person already sent it out anyway past this (Override).
-	Covered  bool          `json:"covered,omitempty"`
+	Covered bool `json:"covered,omitempty"`
+	// Holding: it holds the version now (with the gate off only the approval,
+	// a missing render, changed words' consent and a reference do).
+	Holding  bool          `json:"holding"`
 	Problems []GateProblem `json:"problems,omitempty"`
 	Paths    []GatePath    `json:"paths"`
 }
@@ -156,7 +159,11 @@ type ShipGateOut struct {
 
 // gateKinds are the holds the gate is about (a person may send it out past them).
 var gateKinds = map[string]bool{models.HoldQAMissing: true, models.HoldQARunning: true, models.HoldQAFailed: true, models.HoldQAStale: true,
-	models.HoldQAErrors: true, models.HoldSignoff: true}
+	models.HoldQAErrors: true, models.HoldSignoff: true, models.HoldReference: true}
+
+// alwaysHolds are the holds a person may send it out past that hold with the
+// gate off too: a reference, someone else's video (D441).
+var alwaysHolds = map[string]bool{models.HoldReference: true}
 
 // GateFor says whether the gate holds a project's versions: the Content
 // Settings it uses when they say, else the workspace's choice (off while
@@ -455,6 +462,16 @@ func ShipGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Re
 	}
 	out.Holds = append(out.Holds, saidHolds(p, rev, heard)...)
 	out.heard = heard
+	// A reference it plays, someone else's video (D441), nested cuts too.
+	refs, err := ReferencesPlayed(ctx, a, &rev.Spec)
+	if err != nil {
+		return nil, err
+	}
+	for _, as := range refs {
+		out.Holds = append(out.Holds, GateHold{ShipHold: models.ShipHold{Key: "reference:" + as.ID + "@" + rev.ID, Kind: models.HoldReference,
+			Says: fmt.Sprintf("%s plays “%s”, a reference: someone else's video, kept to learn from. If it's your own video, say so; otherwise take it out and make a new version.", version, as.DisplayTitle())},
+			Paths: []GatePath{{Label: "It's mine", Op: "footage.reference.mine", Input: map[string]any{"assetId": as.ID}, Command: "metarush footage reference " + as.ID + " --mine", People: true}}})
+	}
 	// What a person already sent it out past.
 	for i := range out.Holds {
 		h := &out.Holds[i]
@@ -464,6 +481,7 @@ func ShipGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Re
 				h.Covered = true
 			}
 		}
+		h.Holding = !h.Covered && (!h.Overridable || out.On || alwaysHolds[h.Kind])
 	}
 	consent := false
 	for _, h := range out.Holds {
@@ -503,6 +521,8 @@ func decide(out *ShipGateOut, rev *models.Revision) {
 			blocking = append(blocking, h)
 		case h.Covered:
 			covered = append(covered, h)
+		case alwaysHolds[h.Kind]: // holds with the gate off too, until sent out anyway (D441)
+			blocking = append(blocking, h)
 		default:
 			open = append(open, h)
 		}
@@ -643,7 +663,7 @@ func heldError(gates []*ShipGateOut, what string) *apperr.Error {
 	for _, g := range gates {
 		var says []string
 		for _, h := range g.Holds {
-			if (h.Overridable && !h.Covered) || h.Kind == models.HoldConsent {
+			if (h.Overridable && h.Holding) || h.Kind == models.HoldConsent {
 				says = append(says, lowerFirst(strings.TrimSuffix(h.Says, ".")))
 			}
 			consent = consent || h.Kind == models.HoldConsent
@@ -672,11 +692,8 @@ func (g *ShipGateOut) letsOut() bool {
 			return false // with the gate off too (D309)
 		}
 	}
-	if !g.On {
-		return true
-	}
 	for _, h := range g.Holds {
-		if h.Overridable && !h.Covered {
+		if h.Overridable && h.Holding { // with the gate off only a reference holds (D441)
 			return false
 		}
 	}
@@ -698,12 +715,14 @@ type DeliveryGate struct {
 
 func (g *ShipGateOut) record() *DeliveryGate {
 	d := &DeliveryGate{On: g.On, Why: g.Why, Held: []models.ShipHold{}, Promises: g.Promises}
+	always := false
 	for _, h := range g.Holds {
 		if h.Overridable {
 			d.Held = append(d.Held, h.ShipHold)
 		}
+		always = always || alwaysHolds[h.Kind]
 	}
-	if g.On && len(d.Held) > 0 {
+	if (g.On || always) && len(d.Held) > 0 {
 		d.SentAnyway = g.SentAnyway
 	}
 	return d
@@ -996,7 +1015,7 @@ func overrideVersion(ctx context.Context, a *app.App, in *ShipOverrideIn) (*Ship
 	}
 	var holds []models.ShipHold
 	for _, h := range g.Holds {
-		if h.Overridable && !h.Covered {
+		if h.Overridable && h.Holding { // with the gate off, only a reference (D441)
 			holds = append(holds, h.ShipHold)
 		}
 	}
@@ -1006,7 +1025,7 @@ func overrideVersion(ctx context.Context, a *app.App, in *ShipOverrideIn) (*Ship
 				WithHint("Take the changed words out of the cut and make a new version.")
 		}
 	}
-	if !g.On {
+	if !g.On && len(holds) == 0 {
 		return nil, apperr.New(apperr.Conflict, "Nothing holds version %d: %s", rev.Number, lowerFirst(g.Why)).WithHint("Deliver it as it is.")
 	}
 	if len(holds) == 0 {

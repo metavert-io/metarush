@@ -504,5 +504,3 @@ func lockViolations(base, next *Spec) []Issue {
 	out = append(out, voiceoverLockViolations(base, next)...)
 	return out
 }
-
-

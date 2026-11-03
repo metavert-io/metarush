@@ -212,6 +212,9 @@ func materialize(ctx context.Context, a *app.App, p *plan) ([]models.GenReferenc
 			if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), in.assetID, &as); err != nil {
 				return nil, apperr.New(apperr.NotFound, "That clip isn't in this workspace.")
 			}
+			if as.IsReference() { // marked since the plan (D441)
+				return nil, ops.RefuseReference(&as, "send it to an AI service or make anything from it")
+			}
 			s, err := generate.ClipPart(ctx, a, &as, in.from, in.to) // picture and sound, as an MP4 (lip sync)
 			if err != nil {
 				return nil, err
@@ -222,6 +225,9 @@ func materialize(ctx context.Context, a *app.App, p *plan) ([]models.GenReferenc
 			var as models.Asset
 			if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), in.assetID, &as); err != nil {
 				return nil, apperr.New(apperr.NotFound, "That clip isn't in this workspace.")
+			}
+			if as.IsReference() { // marked since the plan (D441)
+				return nil, ops.RefuseReference(&as, "send it to an AI service or make anything from it")
 			}
 			format := in.format
 			if in.wav {

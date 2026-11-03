@@ -364,7 +364,7 @@ func publishPlan(ctx context.Context, a *app.App, in *PublishIn, sending bool) (
 			switch {
 			case h.Kind == models.HoldConsent: // changed words whose consent no longer holds: never posted (D309)
 				hold(PublishHold{Says: h.Says, Command: fmt.Sprintf("metarush deliver ready %s --version r%d", p.ID, rev.Number), People: true, Code: apperr.ConsentRequired})
-			case h.Overridable && !h.Covered:
+			case h.Overridable && h.Holding: // with the gate off only a reference holds (D441)
 				hold(PublishHold{Says: h.Says, Command: fmt.Sprintf("metarush deliver ready %s --version r%d", p.ID, rev.Number), People: true, Code: apperr.Held})
 			}
 		}

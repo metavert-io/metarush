@@ -11,6 +11,7 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/leave"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/providers"
 	"github.com/metavert-io/metarush/internal/store"
 )
@@ -62,6 +63,9 @@ func clone(ctx context.Context, a *app.App, in *CloneIn) (*CloneOut, error) {
 		if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), in.ConsentFrom, &rec); err != nil || !rec.Media.HasAudio {
 			return nil, apperr.New(apperr.ConsentRequired, "The consent recording must be a sound or video clip in this workspace.")
 		}
+		if rec.IsReference() {
+			return nil, apperr.New(apperr.ConsentRequired, "%s, so it can't be anyone's consent. Use a recording of the person themselves.", ops.ReferenceWords(&rec))
+		}
 	}
 	client, err := providers.ElevenClientFor(ctx, a)
 	if err != nil {
@@ -76,6 +80,9 @@ func clone(ctx context.Context, a *app.App, in *CloneIn) (*CloneOut, error) {
 		var as models.Asset
 		if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), id, &as); err != nil {
 			return nil, apperr.New(apperr.NotFound, "One of the voice samples isn't in this workspace.").WithDetails(map[string]any{"sample": id})
+		}
+		if as.IsReference() { // someone else's video is never sent anywhere nor copied (D441)
+			return nil, ops.RefuseReference(&as, "copy a voice from it")
 		}
 		if !as.Media.HasAudio {
 			return nil, apperr.New(apperr.UnsupportedMedia, "%s has no sound.", as.Name)

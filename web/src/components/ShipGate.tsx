@@ -43,7 +43,7 @@ export function ShipGate({ projectId, revisionId, className }: { projectId: stri
   if (gate.error || !gate.data) return <ErrorPanel error={gate.error} compact onRetry={() => void gate.refetch()} />;
   const g: Gate = gate.data;
   const open = g.holds.filter((h) => !h.covered);
-  const overridable = open.filter((h) => h.overridable);
+  const overridable = open.filter((h) => h.overridable && h.holding); // with the gate off only a reference holds
   const held = g.state === 'held';
   const tone = held ? 'danger' : g.state === 'sent-anyway' || g.state === 'reminders' ? 'info' : 'ok';
 
@@ -67,6 +67,14 @@ export function ShipGate({ projectId, revisionId, className }: { projectId: stri
       if (p.op === 'revision.approve') {
         const ok = await dialog.confirm({ title: `Approve version ${g.number}?`, body: 'Only people approve versions.', confirmLabel: 'Approve' });
         if (!ok) throw new Error('Not approved.');
+      }
+      if (p.op === 'footage.reference.mine') {
+        const ok = await dialog.confirm({
+          title: 'Is this your own video?',
+          body: 'Say so only if you or your team made it. Cuts can play it then, and this version can go out.',
+          confirmLabel: 'It’s mine',
+        });
+        if (!ok) throw new Error('Nothing changed.');
       }
       const out = (await call(p.op as 'qa.run', p.input as ops.QARunIn)) as { summary?: string; note?: string } | undefined;
       return out?.summary ?? out?.note ?? `${p.label}: done.`;

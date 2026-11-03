@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/evidence"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/speakers"
@@ -125,6 +127,53 @@ func referenceMine(ctx context.Context, a *app.App, in *FootageReferenceIn) (*Fo
 	a.Audit(ctx, "footage.reference.mine", "asset", as.ID, firstOr(as.ProjectIDs), details)
 	_ = speakers.Reconcile(ctx, a, as.ID) // the person's own video: who speaks and who is on screen are asked about again
 	return &FootageReferenceOut{Clip: summarize(*as), Changed: true, Message: fmt.Sprintf("“%s” is yours now: cuts can play it.", title)}, nil
+}
+
+// RefuseReference refuses to make anything from a reference (D441): someone
+// else's video is never sent to an AI service nor made into new footage,
+// pictures or sound (what came back would be ordinary footage). doing says
+// what was asked ("make a shot from it").
+func RefuseReference(as *models.Asset, doing string) error {
+	return apperr.New(apperr.Conflict, "%s, so MetaRush doesn't %s. If it's your own video, say so on its page (This is mine) and try again.", ReferenceWords(as), doing).
+		WithCommand("metarush footage reference "+as.ID+" --mine").
+		WithDetails(map[string]any{"reason": "reference", "assetId": as.ID})
+}
+
+// ReferencesPlayed lists the references a spec plays, in the cuts it nests too
+// (D441): what holds a version back from going out.
+func ReferencesPlayed(ctx context.Context, a *app.App, s *editspec.Spec) ([]models.Asset, error) {
+	ids := map[string]bool{}
+	var collect func(s *editspec.Spec, depth int)
+	collect = func(s *editspec.Spec, depth int) {
+		for _, id := range editspec.AssetIDs(s) {
+			ids[id] = true
+		}
+		if depth > editspec.MaxNestDepth {
+			return
+		}
+		for _, c := range s.Clips {
+			if _, revID, ok := editspec.NestedRef(c.AssetID); ok {
+				var r models.Revision
+				if a.DB.GetByID(ctx, store.CRevisions, a.WorkspaceID(), revID, &r) == nil {
+					collect(&r.Spec, depth+1)
+				}
+			}
+		}
+	}
+	collect(s, 1)
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	list := make([]string, 0, len(ids))
+	for id := range ids {
+		list = append(list, id)
+	}
+	var out []models.Asset
+	if err := a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), bson.M{"_id": bson.M{"$in": list}, "reference": bson.M{"$exists": true}}, &out,
+		options.Find().SetSort(bson.D{{Key: "_id", Value: 1}})); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // ReferenceWords says a reference clip plainly for refusals elsewhere ("“X” is

@@ -870,6 +870,9 @@ func clipPart(ctx context.Context, a *app.App, id string, from, to *float64) (*m
 	if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), id, &as); err != nil {
 		return nil, 0, 0, apperr.New(apperr.NotFound, "That clip isn't in this workspace.").WithDetails(map[string]any{"assetId": id})
 	}
+	if as.IsReference() {
+		return nil, 0, 0, ops.RefuseReference(&as, "send it to an AI service or make anything from it") // D441
+	}
 	if !as.Media.HasAudio {
 		return nil, 0, 0, apperr.New(apperr.UnsupportedMedia, "“%s” has no sound.", as.DisplayTitle())
 	}

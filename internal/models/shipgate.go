@@ -42,6 +42,10 @@ const (
 	// matched to them) whose consent is no longer in force (D309): never
 	// overridden, the words come out of the cut first.
 	HoldConsent = "consent"
+	// HoldReference: it plays a reference — someone else's video, kept to
+	// learn from (D398, D441): it holds with the gate off too, until a person
+	// says the video is theirs or sends the version out anyway with a note.
+	HoldReference = "reference"
 )
 
 // ShipHold is one thing holding a version back, in plain words.

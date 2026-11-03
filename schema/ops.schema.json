@@ -23499,6 +23499,9 @@
         "covered": {
           "type": "boolean"
         },
+        "holding": {
+          "type": "boolean"
+        },
         "problems": {
           "items": {
             "$ref": "#/$defs/GateProblem"
@@ -23519,6 +23522,7 @@
         "kind",
         "says",
         "overridable",
+        "holding",
         "paths"
       ]
     },

@@ -18384,6 +18384,7 @@ kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-s
 says: string
 overridable: boolean
 covered?: boolean
+holding: boolean
 problems?: GateProblem[]
 paths: GatePath[]
 }

@@ -168,6 +168,9 @@ func recordConsent(ctx context.Context, a *app.App, in *ConsentRecordIn) (*Conse
 		if rec.Source.IsGenerated() {
 			return nil, consentRequired("A generated clip can't be someone's consent. Use a recording of the person themselves.").WithDetails(map[string]any{"reason": "recording"})
 		}
+		if rec.IsReference() { // someone else's video, kept to learn from (D398)
+			return nil, consentRequired("%s, so it can't be anyone's consent. Use a recording of the person themselves.", ops.ReferenceWords(&rec)).WithDetails(map[string]any{"reason": "recording"})
+		}
 		if slices.Contains(uses, models.ConsentPresenters) && !rec.Media.HasVideo {
 			return nil, consentRequired("A presenter's consent must be filmed: the recording shows the person agreeing, and this one is sound only.").
 				WithHint("Film them saying, in their own words, that they agree to a presenter of them, then choose that video as the consent recording.").

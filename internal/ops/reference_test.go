@@ -167,3 +167,77 @@ func TestAClipALatestVersionPlaysAnywhereStaysFootage(t *testing.T) {
 		t.Errorf("only an older version played it: %+v %v", out, err)
 	}
 }
+
+// A version that plays a reference — saved before the clip was marked, or
+// playing it in a cut it nests — is held from going out (D441): with the
+// ship gate off too. A person sends it out anyway with a note, or says the
+// video is theirs; renders stay allowed (they stay here).
+func TestAVersionPlayingAReferenceIsHeld(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	p := call[ProjectOut](t, a, "project.create", ProjectCreateIn{Name: "Held"}).Project
+	as := fill(models.Asset{ID: ids.New(ids.Asset), WorkspaceID: a.WorkspaceID(), Kind: "video", Name: "their-video.mp4", Title: "Their video", State: models.AssetAvailable,
+		ProjectIDs: []string{p.ID}, Media: models.MediaInfo{Duration: 26, HasVideo: true, HasAudio: true, Width: 720, Height: 1280, FPS: 30, Streams: []models.Stream{}},
+		Variants: map[string]models.Variant{}, CreatedAt: now, UpdatedAt: now})
+	insert(t, a, store.CAssets, as)
+	rev := models.Revision{ID: ids.New(ids.Revision), WorkspaceID: a.WorkspaceID(), ProjectID: p.ID, Branch: "main", Number: 1, SpecHash: "h", CreatedAt: now,
+		Spec: editspec.Spec{SchemaVersion: 1, Clips: []editspec.Clip{{ID: "a", AssetID: as.ID, In: 0, Out: 2}}}}
+	insert(t, a, store.CRevisions, rev)
+	if _, err := a.DB.C(store.CProjects).UpdateOne(ctx, bson.M{"_id": p.ID}, bson.M{"$set": bson.M{"branches.main": models.BranchHead{Head: rev.ID, UpdatedAt: now}}}); err != nil {
+		t.Fatal(err)
+	}
+	// Marked after the version was saved (as an older build or a database edit could leave it).
+	if _, err := a.DB.C(store.CAssets).UpdateOne(ctx, bson.M{"_id": as.ID}, bson.M{"$set": bson.M{"reference": models.AssetReference{By: a.Actor, At: now, Why: models.ReferenceMarked}}}); err != nil {
+		t.Fatal(err)
+	}
+	gate := func() (*ShipGateOut, GateHold) {
+		t.Helper()
+		g, err := ShipGate(ctx, a, &p, &rev, "final", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, h := range g.Holds {
+			if h.Kind == models.HoldReference {
+				return g, h
+			}
+		}
+		return g, GateHold{}
+	}
+	g, h := gate()
+	if g.On {
+		t.Fatalf("a new test workspace has the gate off: %+v", g)
+	}
+	if h.Key != "reference:"+as.ID+"@"+rev.ID || !h.Overridable || !h.Holding || !strings.Contains(h.Says, "plays “Their video”, a reference: someone else's video, kept to learn from") ||
+		len(h.Paths) != 1 || h.Paths[0].Op != "footage.reference.mine" || !h.Paths[0].People {
+		t.Fatalf("the reference hold: %+v", h)
+	}
+	if g.letsOut() || g.State != GateHeld {
+		t.Fatalf("held with the gate off too: %s %+v", g.State, g.Lines)
+	}
+	if e := heldError([]*ShipGateOut{g}, "deliver"); !strings.Contains(e.Message, "a reference: someone else's video") || strings.Contains(e.Message, "quality check") {
+		t.Fatalf("what delivery says (the reference only, not the gate's reminders): %q", e.Message)
+	}
+	// Sent out anyway with a note (a person, the hold they saw).
+	if _, err := CallTyped[ShipGateOut](ctx, a, "delivery.override", ShipOverrideIn{ShipGateIn: ShipGateIn{ProjectID: p.ID, Revision: rev.ID}, Note: "They licensed it to us for this ad.",
+		Holds: []string{h.Key}}, Caller{}); apperr.From(err) == nil || apperr.From(err).Code != apperr.HumanOnly {
+		t.Fatalf("only a person sends it out anyway: %v", err)
+	}
+	if _, err := CallTyped[ShipGateOut](ctx, a, "delivery.override", ShipOverrideIn{ShipGateIn: ShipGateIn{ProjectID: p.ID, Revision: rev.ID}, Note: "They licensed it to us for this ad.",
+		Holds: []string{h.Key}}, Caller{Human: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.DB.GetByID(ctx, store.CRevisions, a.WorkspaceID(), rev.ID, &rev); err != nil {
+		t.Fatal(err)
+	}
+	if g, h = gate(); !h.Covered || h.Holding || !g.letsOut() || len(g.record().SentAnyway) != 1 {
+		t.Fatalf("sent out anyway: %+v %+v", h, g.record())
+	}
+	// Saying it's theirs takes the hold away.
+	if _, err := CallTyped[FootageReferenceOut](ctx, a, "footage.reference.mine", FootageReferenceIn{AssetID: as.ID}, Caller{Human: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, h = gate(); h.Key != "" {
+		t.Fatalf("theirs: no reference hold: %+v", h)
+	}
+}

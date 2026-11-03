@@ -107,7 +107,7 @@ id_of() { MR asset list --json | J '[a["id"] for a in d["data"]["assets"] if a["
 WALK=$(id_of garden-walk.mp4); KITCHEN=$(id_of kitchen-chat.mp4)
 MR asset update "$WALK" --title "Garden walk" >/dev/null
 MR asset update "$KITCHEN" --title "Kitchen chat" >/dev/null
-GID=$(MR generate shot "a red paper boat on a pond" --project "$P" --seconds 3 --resolution 360p --max-cost 0.5 --wait --json </dev/null | J 'd["data"]["generations"][0]["id"]')
+GID=$(MR generate shot "a red paper boat on a pond" --project "$P" --seconds 3 --resolution 360p --aspect 16:9 --max-cost 0.5 --wait --json </dev/null | J 'd["data"]["generations"][0]["id"]')
 BOAT=$(MR generate show "$GID" --json | J 'd["data"]["clips"][0]["assetId"]')
 MR asset update "$BOAT" --title "Paper boat" >/dev/null
 echo "the shot: made by the fake Gemini"

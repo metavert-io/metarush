@@ -68,7 +68,7 @@ func MarkReference(ctx context.Context, a *app.App, as *models.Asset, why string
 	if as.IsReference() {
 		return nil
 	}
-	uses, err := HeadsUsing(ctx, a, as.ID)
+	uses, err := HeadsPlaying(ctx, a, as.ID) // anywhere a latest version plays it, nested cuts too (D440)
 	if err != nil {
 		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't look at which cuts play “%s”.", as.DisplayTitle())
 	}

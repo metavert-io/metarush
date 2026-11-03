@@ -552,19 +552,19 @@ Measured 3 Nov 2026 on an M5 Pro Mac mini shared with other builds (a load aroun
 
 | | Apple Vision | The open models |
 |---|---|---|
-| Faces found in the fixtures and the call (150 frames) | 148 | 150: all 148 of Apple's and 2 more |
+| Faces found in the fixtures and the call (150 frames) | 148 | 148, the same ones |
 | Box overlap with Apple's (IoU, median) | – | 0.895 |
 | Five points, off from Apple's (of the eye distance, mean) | – | 0.114 |
 | Capture quality, mean (correlation with Apple's) | 0.594 | 0.551 (0.64) |
 | Words on screen the fixtures show | 32 of 32 | 32 of 32 |
-| Shot type at the same moment | – | the same at 89.9% (268 of 298; the rest close-up vs medium on one call) |
+| Shot type at the same moment | – | the same at 91.3% (272 of 298; the rest close-up vs medium on one call) |
 | The fixtures' people: same person / others | 0.80, 0.79, 0.76 / 0.22–0.25 | 0.79, 0.77, 0.72 / 0.22–0.24 |
 | Faceset, 200 draws: precision with 1 / 2 / 3 faces confirmed | **1.00 / 1.00 / 1.00** | **1.00 / 1.00 / 1.00** |
 | Recall (named automatically) with 1 / 2 / 3 faces confirmed | 0.445 / 0.641 / 0.725 | 0.417 / 0.570 / 0.659 |
 | Recall with only 1 / only 2 people known | 0.52 / 0.495 | 0.426 / 0.425 |
 | Nearest face is the same person | 152 of 163 | 150 of 167 |
 | Most alike different people (the bar is 0.60) | 0.497 | 0.521 |
-| Time a frame (proxy at 960 px) | 80 ms | 211 ms |
+| Time a frame (proxy at 960 px) | 73 ms | 194 ms |
 | Cut-outs (7 pictures) | – | the same answer on 7 (6 subjects, 1 none); overlap 0.99 on 5, 0.77 on 1; about 5 s a picture |
 
 No face was named as the wrong person with either. The open models name a little less on their own (they find

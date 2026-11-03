@@ -36,6 +36,7 @@ import { ReviewLinkSettings } from './settings/ReviewLinkSettings';
 import { LogPage, LogSettingsCard } from './Log';
 import { RemoteAccessSettings } from './settings/RemoteAccess';
 import { UsersSettings } from './settings/Users';
+import { SignInSettings } from './settings/SignInSettings';
 import { AboutMetaRush } from './settings/About';
 import { IntegrationsPage } from './settings/Integrations';
 import { ComponentsSection } from '../components/Components';
@@ -261,6 +262,7 @@ function SectionBody({ id }: { id: SettingsSectionId }) {
       return (
         <div className="space-y-6">
           <UsersSettings />
+          <SignInSettings />
           <OwnerOnly note>
             <RemoteAccessSettings />
           </OwnerOnly>
@@ -334,7 +336,7 @@ function GeneralSection() {
         <Card icon={<Desktop size={17} />} title={d?.workspace.name ?? 'Workspace'} loading={ws.isLoading} id="workspace" action={<Freshness at={ws.dataUpdatedAt || undefined} fetching={ws.isFetching} onRefresh={() => void ws.refetch()} />}>
           <Rows
             rows={[
-              ['Signed in as', session.data ? `${session.data.user.name}${session.data.user.email ? ` (${session.data.user.email})` : ''}${session.data.access.remote ? (session.data.access.signedInWith === 'tailscale' ? ', with Tailscale, from another computer' : ', from another computer') : ''}` : '…'],
+              ['Signed in as', session.data ? `${session.data.user.name}${session.data.user.email ? ` (${session.data.user.email})` : ''}${session.data.access.remote ? (session.data.access.signedInWith === 'tailscale' ? ', with Tailscale, from another computer' : ', from another computer') : ''}${session.data.access.signedInWith === 'sso' && session.data.access.provider ? `, with ${session.data.access.provider}` : ''}` : '…'],
               [host.remote ? 'Runs on' : 'This machine', d ? `${d.installation.name} (${d.installation.hostname})` : ''],
               ['Running since', status.data ? relative(status.data.startedAt) : '…'],
             ]}

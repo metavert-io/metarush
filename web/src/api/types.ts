@@ -369,6 +369,14 @@ export type SignInRequest = api.SignInRequest;
 export type SignInResult = api.SignInResult;
 export type LinkInfo = api.LinkInfo;
 export type LinkAccept = api.LinkAccept;
+/* Signing in with an organization's account (D425): /api/auth/sso/start, then /auth/sso/begin and the callback. */
+export type SSOButton = api.SSOButton;
+export type SSOStart = api.SSOStart;
+export type SSOStartResult = api.SSOStartResult;
+export type SSOStatusOut = ops.SSOStatusOut;
+export type SSOSetIn = ops.SSOSetIn;
+export type SSOSetup = ops.SSOSetup;
+export type SSOTestOut = ops.SSOTestOut;
 /* Settings → People (auth.*, users.*, account.*): the sign-in method, people and your own account. */
 export type Account = ops.Account;
 export type AuthStatusOut = ops.AuthStatusOut;

@@ -88,8 +88,12 @@
           "enum": [
             "link",
             "password",
-            "tailscale"
+            "tailscale",
+            "sso"
           ]
+        },
+        "provider": {
+          "type": "string"
         },
         "login": {
           "type": "string"
@@ -921,7 +925,8 @@
           "enum": [
             "single",
             "password",
-            "tailscale"
+            "tailscale",
+            "sso"
           ]
         },
         "signedIn": {
@@ -940,6 +945,12 @@
         },
         "machine": {
           "type": "string"
+        },
+        "sso": {
+          "$ref": "#/$defs/SSOButton"
+        },
+        "password": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -949,7 +960,8 @@
         "signedIn",
         "here",
         "secure",
-        "machine"
+        "machine",
+        "password"
       ]
     },
     "Beat": {
@@ -3834,6 +3846,12 @@
         },
         "machine": {
           "type": "string"
+        },
+        "sso": {
+          "$ref": "#/$defs/SSOButton"
+        },
+        "password": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -3842,7 +3860,8 @@
         "kind",
         "email",
         "expiresAt",
-        "machine"
+        "machine",
+        "password"
       ]
     },
     "LinkedFolderMachine": {
@@ -6007,6 +6026,51 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "SSOButton": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "google",
+            "microsoft",
+            "oidc"
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "provider",
+        "title"
+      ]
+    },
+    "SSOStart": {
+      "properties": {
+        "next": {
+          "type": "string"
+        },
+        "invite": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SSOStartResult": {
+      "properties": {
+        "url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url"
+      ]
+    },
     "SaidSound": {
       "properties": {
         "id": {
@@ -7979,6 +8043,12 @@
     "linkAccept": {
       "$ref": "#/$defs/LinkAccept"
     },
+    "ssoStart": {
+      "$ref": "#/$defs/SSOStart"
+    },
+    "ssoStartResult": {
+      "$ref": "#/$defs/SSOStartResult"
+    },
     "opInfo": {
       "$ref": "#/$defs/OpInfo"
     },
@@ -8114,6 +8184,8 @@
     "signInResult",
     "linkInfo",
     "linkAccept",
+    "ssoStart",
+    "ssoStartResult",
     "opInfo",
     "upload",
     "uploadList",

@@ -509,7 +509,7 @@ func tellOwnersJoined(ctx context.Context, a *app.App, u *models.User, provider 
 
 // ErrNoTest refuses a switch without a passing test sign-in of the setup.
 func errNoTest(msg string) error {
-	return apperr.New(apperr.Conflict, "%s", msg).WithHint("Test the sign-in first, in Settings → People or with metarush auth sso test, on this computer.").
+	return apperr.New(apperr.Conflict, "%s", msg).WithHint("Test the sign-in first, in Settings → People on this computer.").
 		WithDetails(map[string]any{"reason": "not_tested"}).WithCommand("metarush auth sso test")
 }
 

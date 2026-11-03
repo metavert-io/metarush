@@ -379,7 +379,7 @@ func TestOrganizationSignInLetsInOnlyPeopleOfTheWorkspace(t *testing.T) {
 	if info.SSO == nil || info.Password {
 		t.Fatalf("link info: %+v", info)
 	}
-	gusOther := fakeoidc.Person{Sub: "sub-gus", Email: "gus@elsewhere.net", EmailVerified: fakeoidc.Verified(true)}
+	gusOther := fakeoidc.Person{Sub: "sub-gus", Email: "gus@example.net", EmailVerified: fakeoidc.Verified(true)}
 	if res := r.signInWith(r.here(), gusOther, map[string]any{"invite": token}); !strings.Contains(res.Header.Get("Location"), "sso=invite_email") {
 		t.Fatalf("an invite with another email: %s", res.Header.Get("Location"))
 	}

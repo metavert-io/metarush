@@ -34,7 +34,8 @@ export interface SignInWay {
 
 /**
  * Why this browser isn't signed in, and what to do, by sign-in method (D183).
- * Email and password has its own page (/signin); this covers "just me on this
+ * Email and password and the organization's account (D425) have their own
+ * page (/signin); this covers "just me on this
  * computer" (the one-time link from this computer, or "sign-in isn't set up"
  * on another) and Tailscale accounts.
  */
@@ -42,10 +43,12 @@ export function SignInScreen({ onRetry, way, retrying }: { onRetry: () => void; 
   const remote = way?.remote ?? isElsewhere();
   const machine = way?.machine || 'the computer that runs MetaRush';
   const method = way?.method;
-  if (method === 'password') {
+  if (method === 'password' || method === 'sso') {
     return (
       <GateFrame icon={<LockKey size={20} />} title="Sign in to MetaRush">
-        <p className="mt-3 text-[14px] leading-relaxed text-muted">People sign in to this MetaRush with their email and password.</p>
+        <p className="mt-3 text-[14px] leading-relaxed text-muted">
+          {method === 'sso' ? "People sign in to this MetaRush with their organization's account." : 'People sign in to this MetaRush with their email and password.'}
+        </p>
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <a href="/signin" className="inline-flex h-9 items-center rounded-[10px] bg-accent px-3.5 text-[13.5px] font-medium text-accent-ink hover:bg-accent-hover">
             Sign in

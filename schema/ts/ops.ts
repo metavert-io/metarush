@@ -594,7 +594,35 @@ input: EmptyIn
 output: AuthResetOut
 }
 /**
- * How people sign in to this MetaRush (just you on this computer, email and password, or Tailscale accounts) and who you are
+ * Keep or remove the sign-in app's client secret on this computer (owners, on this computer)
+ */
+"auth.sso.secret": {
+input: SSOSecretIn
+output: SSOStatusOut
+}
+/**
+ * Set up signing in with your organization's account: the provider, the app, who may join by themselves and whether passwords or Tailscale still work (owners, on this computer)
+ */
+"auth.sso.set": {
+input: SSOSetIn
+output: SSOStatusOut
+}
+/**
+ * Signing in with your organization's account (Google, Microsoft or another provider): the setup, this computer's app secret, the addresses to register and the last test sign-in
+ */
+"auth.sso.status": {
+input: EmptyIn
+output: SSOStatusOut
+}
+/**
+ * Start a test sign-in with your organization's account in a browser on this computer, before switching to it (owners)
+ */
+"auth.sso.test": {
+input: EmptyIn
+output: SSOTestOut
+}
+/**
+ * How people sign in to this MetaRush (just you on this computer, email and password, Tailscale accounts, or their organization's account) and who you are
  */
 "auth.status": {
 input: EmptyIn
@@ -5184,6 +5212,11 @@ you: boolean
  * Tailscale logins linked to them (owners see them).
  */
 logins?: string[]
+signsInWith?: string[]
+/**
+ * They sign in with an organization's account.
+ */
+hasSso: boolean
 lastSignIn?: string
 /**
  * When their invite link stops working (an invite not yet accepted).
@@ -11505,7 +11538,7 @@ details?: {
  * via the `definition` "AuthMethodIn".
  */
 export interface AuthMethodIn {
-method: ("single" | "password" | "tailscale")
+method: ("single" | "password" | "tailscale" | "sso")
 /**
  * Email and password: your email.
  */
@@ -11528,7 +11561,7 @@ tailscaleLogin?: string
  * via the `definition` "AuthStatusOut".
  */
 export interface AuthStatusOut {
-method: ("single" | "password" | "tailscale")
+method: ("single" | "password" | "tailscale" | "sso")
 you?: Account
 /**
  * The person asking is an owner.
@@ -11548,6 +11581,11 @@ publicHttps: boolean
  */
 here: boolean
 people: number
+password: boolean
+/**
+ * The organization's sign-in by name (Google)
+ */
+sso?: string
 summary: string
 }
 /**
@@ -11563,6 +11601,144 @@ earlier: number
  * Browser sessions signed out on this computer.
  */
 signedOut: number
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOSecretIn".
+ */
+export interface SSOSecretIn {
+clientSecret?: string
+remove?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOStatusOut".
+ */
+export interface SSOStatusOut {
+method: ("single" | "password" | "tailscale" | "sso")
+live?: SSOSetup
+next?: SSOSetup
+/**
+ * People sign in with their organization's account now.
+ */
+inUse: boolean
+secret: SSOSecretState
+callbacks: SSOCallbacksOut
+test?: SSOTestView
+canSwitch: boolean
+/**
+ * Why it can't be switched to yet.
+ */
+switchWhy?: string
+owner: boolean
+here: boolean
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOSetup".
+ */
+export interface SSOSetup {
+provider: ("google" | "microsoft" | "oidc")
+title: string
+label?: string
+issuer: string
+tenant?: string
+clientId: string
+domain?: string
+alsoPassword: boolean
+alsoTailscale: boolean
+setAt: string
+setBy?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOSecretState".
+ */
+export interface SSOSecretState {
+set: boolean
+/**
+ * The last four characters
+ */
+masked?: string
+source?: ("keychain" | "file" | "environment")
+envVar: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOCallbacksOut".
+ */
+export interface SSOCallbacksOut {
+local: string
+public?: string
+publicHttps: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOTestView".
+ */
+export interface SSOTestView {
+ok: boolean
+at: string
+/**
+ * Recent enough to switch with (30 minutes).
+ */
+fresh: boolean
+/**
+ * Done by the person asking.
+ */
+mine: boolean
+/**
+ * Which setup it tested: the one waiting
+ */
+forSetup: ("next" | "live" | "other")
+/**
+ * Who signed in.
+ */
+email?: string
+name?: string
+provider?: string
+reason?: string
+message: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOSetIn".
+ */
+export interface SSOSetIn {
+provider: ("google" | "microsoft" | "oidc")
+/**
+ * Another provider: its address (its issuer
+ */
+issuer?: string
+/**
+ * Microsoft: your directory (tenant) ID
+ */
+tenant?: string
+clientId: string
+/**
+ * Another provider: its name on the button.
+ */
+label?: string
+/**
+ * Who may join without an invite: a Google Workspace domain
+ */
+domain?: string
+alsoPassword?: boolean
+alsoTailscale?: boolean
+clientSecret?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOTestOut".
+ */
+export interface SSOTestOut {
+/**
+ * Open it in a browser on this computer: it goes to the provider and comes back here.
+ */
+url: string
+expiresAt: string
 summary: string
 }
 /**
@@ -24269,7 +24445,7 @@ export interface NotificationRow {
 id: string
 workspaceId: string
 userId: string
-kind: ("file_ready" | "render_finished" | "render_failed" | "qa_done" | "assistant_proposal" | "duplicate_skipped" | "battery_paused" | "upload_interrupted" | "speakers" | "speakers_recognized" | "narration_ready" | "narration_failed" | "import_failed" | "on_screen" | "scenes_described" | "generation_ready" | "generation_failed" | "fixes_missed" | "remotion_waiting" | "signin_locked" | "content_settings" | "recipe_run" | "recipe_planned" | "ability_waiting" | "ability_run" | "auto_spent" | "recording_expiring" | "publish_stopped" | "outside_comments" | "review_link_ended" | "late_writes")
+kind: ("file_ready" | "render_finished" | "render_failed" | "qa_done" | "assistant_proposal" | "duplicate_skipped" | "battery_paused" | "upload_interrupted" | "speakers" | "speakers_recognized" | "narration_ready" | "narration_failed" | "import_failed" | "on_screen" | "scenes_described" | "generation_ready" | "generation_failed" | "fixes_missed" | "remotion_waiting" | "signin_locked" | "content_settings" | "recipe_run" | "recipe_planned" | "ability_waiting" | "ability_run" | "auto_spent" | "recording_expiring" | "publish_stopped" | "outside_comments" | "review_link_ended" | "late_writes" | "person_joined")
 groupKey: string
 tone: ("success" | "error" | "warning" | "info")
 title: string
@@ -37218,7 +37394,25 @@ updatedBy: Actor
  * via the `definition` "AuthSettings".
  */
 export interface AuthSettings {
-method: ("single" | "password" | "tailscale")
+method: ("single" | "password" | "tailscale" | "sso")
+setAt: string
+setBy: Actor
+sso?: SSOSettings
+ssoNext?: SSOSettings
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOSettings".
+ */
+export interface SSOSettings {
+provider: ("google" | "microsoft" | "oidc")
+label?: string
+issuer: string
+tenant?: string
+clientId: string
+domain?: string
+alsoPassword?: boolean
+alsoTailscale?: boolean
 setAt: string
 setBy: Actor
 }

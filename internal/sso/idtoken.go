@@ -307,9 +307,13 @@ func (c *Client) identity(cl *Claims) *Identity {
 	return id
 }
 
+// gmailDomains are Google's own mail domains: Google answers for every
+// address there.
+var gmailDomains = []string{"gmail.com", "googlemail.com"}
+
 func gmail(email string) bool {
 	_, domain, _ := strings.Cut(strings.ToLower(email), "@")
-	return domain == "gmail.com" || domain == "googlemail.com"
+	return contains(gmailDomains, domain)
 }
 
 // plausibleEmail keeps an address MetaRush could show and match: one @, no

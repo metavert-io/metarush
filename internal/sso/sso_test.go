@@ -324,17 +324,20 @@ func TestProvidersSayWhoseEmailCounts(t *testing.T) {
 	t1, f1 := flexBool(true), flexBool(false)
 	yes, no := &t1, &f1
 	g := &Client{Kind: Google, ClientID: "a"}
-	for _, tc := range []struct {
+	type gcase struct {
 		cl              Claims
 		trusted, refute bool
 		domain          string
-	}{
-		{Claims{Email: "maya@gmail.com", EmailVerified: yes}, true, false, ""},
+	}
+	cases := []gcase{
 		{Claims{Email: "maya@example.com", EmailVerified: yes, HD: "example.com"}, true, false, "example.com"},
 		{Claims{Email: "maya@example.com", EmailVerified: yes}, false, false, ""}, // an outside address Google once checked
-		{Claims{Email: "maya@gmail.com", EmailVerified: no}, false, true, ""},
 		{Claims{}, false, false, ""},
-	} {
+	}
+	for _, d := range gmailDomains { // Google's own mail: it answers for the address
+		cases = append(cases, gcase{Claims{Email: "maya@" + d, EmailVerified: yes}, true, false, ""}, gcase{Claims{Email: "maya@" + d, EmailVerified: no}, false, true, ""})
+	}
+	for _, tc := range cases {
 		id := g.identity(&tc.cl)
 		if id.EmailTrusted != tc.trusted || id.EmailRefuted != tc.refute || id.Domain != tc.domain || (!tc.trusted && id.Why == "") {
 			t.Errorf("google %+v → %+v", tc.cl, id)

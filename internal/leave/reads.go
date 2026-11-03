@@ -33,7 +33,7 @@ var readsShow = map[string]string{
 	"asset.card": "WPA", "asset.fixes": "PA", "asset.list": "-", "asset.names": "W", "asset.precheck": "-", "asset.show": "WPA", "asset.where": "-",
 	"assistant.list": "W", "assistant.mode": "-", "assistant.models": "-", "assistant.proposals": "W", "assistant.settings": "-",
 	"assistant.show": "WPA", "assistant.spending": "-", "assistant.status": "-", "assistant.suggestions": "W",
-	"audit.list": "W", "auth.status": "-", "brand.show": "P", "brand.suggest": "P",
+	"audit.list": "W", "auth.sso.status": "-", "auth.status": "-", "brand.show": "P", "brand.suggest": "P",
 	"cache.prefetch": "-", "cache.prune": "-", "cache.repair": "-", "cache.status": "-",
 	"captions.at": "W", "captions.check": "W", "captions.file": "W", "captions.languages": "W", "captions.lines": "W", "captions.looks": "-",
 	"collection.list": "-", "collection.show": "-", "comment.list": "W", "consent.list": "W", "consent.show": "WA",

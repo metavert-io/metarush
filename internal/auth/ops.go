@@ -48,7 +48,11 @@ type AuthStatusOut struct {
 	PublicHTTPS bool     `json:"publicHttps"`
 	Here        bool     `json:"here" jsonschema:"description=Asked on this computer (the sign-in method can be changed only here)."`
 	People      int      `json:"people"`
-	Summary     string   `json:"summary"`
+	// Password: email and password sign people in (the method, or kept
+	// beside the organization's account, D431); SSO names that provider.
+	Password bool   `json:"password"`
+	SSO      string `json:"sso,omitempty" jsonschema:"description=The organization's sign-in by name (Google), when people use it."`
+	Summary  string `json:"summary"`
 }
 
 // AuthMethodIn chooses the sign-in method, with the owner's own sign-in (for
@@ -218,7 +222,10 @@ func statusWords(ctx context.Context, a *app.App) string {
 
 func status(ctx context.Context, a *app.App, _ *ops.EmptyIn) (*AuthStatusOut, error) {
 	m := Method(ctx, a)
-	out := &AuthStatusOut{Method: m, Here: !ops.CallerFrom(ctx).Elsewhere, Summary: statusWords(ctx, a)}
+	out := &AuthStatusOut{Method: m, Here: !ops.CallerFrom(ctx).Elsewhere, Summary: statusWords(ctx, a), Password: PasswordOn(ctx, a)}
+	if st := Settings(ctx, a); st.Method == models.AuthSSO && st.SSO != nil {
+		out.SSO = sso.Title(st.SSO.Provider, st.SSO.Label)
+	}
 	// As owner-only ops decide (D191): the signed-in person's role over HTTP,
 	// this computer's own command line counts as the owner.
 	out.Owner = ops.IsOwnerCaller(ctx)
@@ -400,6 +407,13 @@ func inviteOp(ctx context.Context, a *app.App, in *UsersInviteIn) (*UserLinkOut,
 	out := &UserLinkOut{Account: personOf(ctx, a, u, true), Kind: LinkInvite, Link: linkURL(a, token), ExpiresAt: exp}
 	out.Earlier = before != nil && (before.State == "" || before.State == models.UserEarlier) && out.Account.Work > 0
 	out.Summary = "Send " + orEmail(u) + " this link: it works once, for 7 days, and lets them choose a password."
+	if st := Settings(ctx, a); st.Method == models.AuthSSO && st.SSO != nil {
+		title := sso.Title(st.SSO.Provider, st.SSO.Label)
+		out.Summary = "Send " + orEmail(u) + " this link: it works once, for 7 days, and lets them join by signing in with " + title + " as " + u.Email + "."
+		if st.SSO.AlsoPassword {
+			out.Summary += " They can choose a password with it instead."
+		}
+	}
 	if out.Earlier {
 		out.Summary += " It continues their earlier history (" + plural(out.Account.Work, "thing", "things") + " they did)."
 	}

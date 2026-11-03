@@ -264,13 +264,15 @@ func (p *plan) autoShape(lookAspect, def string, label func(string) string) (ar,
 	return "", "", ""
 }
 
-// shapeAgreed refuses a shot whose price was agreed without its shape when
-// MetaRush chose the shape from something that can change between the
-// estimate and the make — the cut, the project, the look (D394): a price
-// agreed for one shape is never spent on another. The estimate says the
-// shape; the agreement (the dashboard, Claude's cards) sends it.
+// shapeAgreed refuses a shot whose price was agreed without its shape (D394):
+// the shape it was priced at must come with the price — whatever MetaRush
+// would choose now (the cut, the project, a look, the model's own) may not
+// be the one the estimate showed, and a price agreed for one shape is never
+// spent on another. New takes, extensions and edits keep their source's
+// shape and send it themselves. The estimate says the shape to send; the
+// dashboard, Claude's cards and the terminal send it.
 func (p *plan) shapeAgreed() error {
-	if p.shapeSent || (p.shapeFrom != "cut" && p.shapeFrom != "project" && p.shapeFrom != "look") {
+	if p.shapeSent {
 		return nil
 	}
 	return apperr.New(apperr.Conflict, "The price you agreed to didn't say the shot's shape, and it would be made %s. Price it again and agree to its shape.", lowerFirst(strings.TrimSuffix(p.shapeWhy, "."))).

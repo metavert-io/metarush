@@ -152,6 +152,7 @@ const JOB_LABELS: Record<string, string> = {
   evidence: 'Scene analysis',
   transcribe: 'Transcript',
   render: 'Render',
+  'render-shape': 'Render',
   qa: 'Quality check',
   diarize: 'Telling voices apart',
   voiceover: 'Narration',
@@ -161,7 +162,20 @@ const JOB_LABELS: Record<string, string> = {
   fetch: 'Repository or web page',
   storage_move: 'Moving the media',
   'resource-upload': 'Saving a logo or picture',
+  generate: 'Generated video',
+  inspect: 'Measuring for fixes',
+  prepare: 'Fixed copy',
+  switches: 'Finding where the picture changes',
+  'remotion-import': 'Bringing in a Remotion project',
+  'remotion-render': 'A clip from a Remotion project',
+  'remotion-task': 'Work on a Remotion project',
+  'remotion-refresh': 'Refreshing a Remotion project',
+  'remotion-push': 'Sending changes back to a repository',
+  'ability-run': 'Running an ability',
 };
+
+/** Every job type the dashboard names (web/scripts/job-labels-test.mjs holds it to internal/jobs). */
+export const JOB_TYPES_NAMED = Object.keys(JOB_LABELS);
 
 /** A kind of job in words: "mezzanine" → "Steady copy". */
 export function jobLabel(type: string): string {

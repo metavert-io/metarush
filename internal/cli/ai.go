@@ -232,17 +232,31 @@ func runAI(c *cobra.Command, op string, in any, maxUSD **float64, dry, wait, det
 			}
 			v := est.USD
 			*maxUSD = &v
+			// The price agreed here is for the shape the estimate showed (D394).
+			if mi, ok := in.(*aiwork.MakeIn); ok && mi.Options.AspectRatio == "" {
+				mi.Options.AspectRatio = est.AspectRatio
+			}
 		}
 	}
 	b, _ := json.Marshal(in)
 	res, err := ops.Call(ctx, a, op, b, caller)
 	if err != nil {
 		ae := apperr.From(err)
+		d, _ := ae.Details.(map[string]any)
 		if ae.Code == apperr.ConfirmRequired && !jsonMode(c) {
-			if d, ok := ae.Details.(map[string]any); ok {
-				if v, ok := d["estimateUsd"].(float64); ok {
-					ae = ae.WithCommand(sameCommandWith(c, "--max-cost", strconv.FormatFloat(v, 'f', 3, 64)))
+			if v, ok := d["estimateUsd"].(float64); ok {
+				extra := []string{"--max-cost", strconv.FormatFloat(v, 'f', 3, 64)}
+				if est, ok := d["estimate"].(aiwork.AIEstimate); ok && est.AspectRatio != "" && c.Flags().Lookup("aspect") != nil && !c.Flags().Changed("aspect") {
+					extra = append(extra, "--aspect", est.AspectRatio)
 				}
+				ae = ae.WithCommand(sameCommandWith(c, extra...))
+			}
+		}
+		if d["reason"] == "shape_not_agreed" {
+			// --max-cost without --aspect (D394): the shape to say, by its flag.
+			if ar, _ := d["aspectRatio"].(string); ar != "" {
+				ae = apperr.New(apperr.Conflict, "%s Say the shape with the price: --aspect %s.", ae.Message, ar).WithHint(ae.Hint).
+					WithDetails(d).WithCommand(sameCommandWith(c, "--aspect", ar))
 			}
 		}
 		return failErr(c, ae)
@@ -285,6 +299,9 @@ func printAIEstimate(e *aiwork.AIEstimate, details bool) {
 	fmt.Println(e.Summary)
 	for _, in := range e.Inputs {
 		fmt.Println("  sends " + in)
+	}
+	if e.Shape != "" {
+		fmt.Println("  shape: " + e.Shape)
 	}
 	switch e.Choice {
 	case "content-settings":

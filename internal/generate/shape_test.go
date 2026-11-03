@@ -2,6 +2,7 @@ package generate_test
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/metavert-io/metarush/internal/generate"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
 )
 
@@ -180,10 +182,47 @@ func TestAPriceIsAgreedForItsShape(t *testing.T) {
 	if out.Generations[0].Params.AspectRatio != "9:16" || out.Estimate.ShapeFrom != "cut" || !strings.HasPrefix(out.Estimate.ShapeWhy, "Tall (9:16), because its cut") {
 		t.Fatalf("agreed tall, MetaRush's own reason kept: %+v", out.Estimate)
 	}
-	// With nothing that can change behind it (the model's own shape), a price alone still makes it.
+	// The race (D394): priced at 9:16 for a Shorts brief, then nothing says the
+	// project's shape — a price alone is refused (naming the shape it would be
+	// made in now), never made in the model's own; the Generate panel's body
+	// (agreedRequest: the price with the estimate's shape) is made at 9:16.
 	e2 := setup(t)
-	plain := generate.GenShotIn{ProjectID: e2.project, Prompt: "a boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}
-	if _, err := call[generate.GenRunOut](t, e2.a, "generate.shot", plain, false); err != nil {
-		t.Fatalf("nothing says the shape: the model's own, as always: %v", err)
+	if err := e2.a.DB.Update(context.Background(), store.CProjects, e2.a.WorkspaceID(), e2.project, bson.M{"$set": bson.M{"brief.platforms": []string{"Shorts"}}}); err != nil {
+		t.Fatal(err)
+	}
+	panelIn := map[string]any{"projectId": e2.project, "prompt": "a boat", "seconds": 3, "quality": "draft", "resolution": "360p", "takes": 1}
+	raw := func(m map[string]any) json.RawMessage { b, _ := json.Marshal(m); return b }
+	res, err := ops.Call(context.Background(), e2.a, "generate.estimate", raw(panelIn), ops.Caller{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tall := res.(*generate.GenEstimate)
+	if tall.AspectRatio != "9:16" {
+		t.Fatalf("priced tall: %+v", tall)
+	}
+	if err := e2.a.DB.Update(context.Background(), store.CProjects, e2.a.WorkspaceID(), e2.project, bson.M{"$unset": bson.M{"brief.platforms": ""}}); err != nil {
+		t.Fatal(err)
+	}
+	priceOnly := map[string]any{"maxUsd": tall.USD}
+	for k, v := range panelIn {
+		priceOnly[k] = v
+	}
+	if _, err := ops.Call(context.Background(), e2.a, "generate.shot", raw(priceOnly), ops.Caller{}); codeOf(err) != apperr.Conflict ||
+		!strings.Contains(err.Error(), "didn't say the shot's shape, and it would be made wide (16:9)") {
+		t.Fatalf("priced tall, nothing says now, a price alone: %v", err)
+	}
+	agreed := map[string]any{"aspectRatio": tall.AspectRatio}
+	for k, v := range priceOnly {
+		agreed[k] = v
+	}
+	res, err = ops.Call(context.Background(), e2.a, "generate.shot", raw(agreed), ops.Caller{})
+	if err != nil {
+		t.Fatalf("the panel's agreed body: %v", err)
+	}
+	if g := res.(*generate.GenRunOut).Generations[0]; g.Params.AspectRatio != "9:16" {
+		t.Fatalf("made in the shape it was priced at: %+v", g.Params)
+	}
+	if e2.fake.Calls("create") != 0 {
+		t.Fatal("the refused request sent nothing (and the agreed one waits for its job)")
 	}
 }

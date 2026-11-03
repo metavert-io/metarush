@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { shotRequest, shownAspect, chosenAgainstCut, frameRef, agreedRequest } = await import(path.join(here, '..', 'src', 'components', 'generate', 'shot.ts'));
+const { shotRequest, shownAspect, chosenAgainstCut, frameRef, agreedRequest, agreedMake } = await import(path.join(here, '..', 'src', 'components', 'generate', 'shot.ts'));
 
 let failed = 0;
 const check = (name, ok, got) => {
@@ -46,6 +46,18 @@ check('the agreed price carries the shape it was shown for', agreed.maxUsd === 0
 check('the estimate only priced: the request it came from has no shape', !('aspectRatio' in auto));
 check('a chosen shape stays the one sent', agreedRequest(shotRequest({ ...base, aspect: '16:9' }), { usd: 0.2, aspectRatio: '16:9' }).aspectRatio === '16:9');
 check('no shape in the estimate: none invented', !('aspectRatio' in agreedRequest(auto, { usd: 0.1, aspectRatio: '' })));
+
+// AI work the dashboard prices (D394): Presenters.tsx and AIWork.tsx send what
+// agreedMake builds from their request — the price with the shape it was shown for.
+const presenterIn = { kind: 'presenter', projectId: base.projectId, presenter: 'stock:lk_amber_studio', model: 'heygen/avatar-iv', clip: 'ast_1', options: { background: '#00b140' } };
+const presenterBody = agreedMake(presenterIn, { usd: 0.15, aspectRatio: '9:16' });
+check('a presenter clip’s price carries the shape it was shown for', presenterBody.maxUsd === 0.15 && presenterBody.options.aspectRatio === '9:16' && presenterBody.options.background === '#00b140', presenterBody);
+check('the request it was priced from is unchanged', !('aspectRatio' in presenterIn.options) && !('maxUsd' in presenterIn));
+const pictureIn = { kind: 'picture', projectId: base.projectId, prompt: 'a soft green background', options: { aspectRatio: '1:1', size: '2K' } };
+check('a shape asked for stays the one sent', agreedMake(pictureIn, { usd: 0.04, aspectRatio: '1:1' }).options.aspectRatio === '1:1');
+const sound = agreedMake({ kind: 'sound-effect', projectId: base.projectId, prompt: 'rain', options: {} }, { usd: 0.02, aspectRatio: '' });
+check('work with no shape: none invented', sound.maxUsd === 0.02 && !('aspectRatio' in sound.options), sound);
+check('no options at all: only the shape added', JSON.stringify(agreedMake({ kind: 'picture' }, { usd: 0.1, aspectRatio: '16:9' })) === '{"kind":"picture","maxUsd":0.1,"options":{"aspectRatio":"16:9"}}');
 
 // What the panel shows: the server's shape until the person chooses.
 check('shows the shape MetaRush will make', shownAspect('', { aspectRatio: '9:16' }) === '9:16');

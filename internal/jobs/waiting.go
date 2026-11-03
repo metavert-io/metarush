@@ -242,62 +242,42 @@ func names(ws []models.WorkerDevice) string {
 // Label is a person-facing name for a job type.
 func Label(typ string) string { return label(typ) }
 
+// typeLabels name every job type for people (TestEveryJobTypeIsNamed holds
+// them to the types in queue.go).
+var typeLabels = map[string]string{
+	TypeThumbnail:       "thumbnail",
+	TypeContactSheet:    "frame grid",
+	TypeWaveform:        "waveform",
+	TypeTranscribe:      "transcription",
+	TypeRender:          "render",
+	TypeRenderShape:     "render",
+	TypeQA:              "quality check",
+	TypeProxy:           "preview copy",
+	TypeMezzanine:       "steady copy",
+	TypeEvidence:        "scene analysis",
+	TypeDiarize:         "speaker detection",
+	TypeVoiceover:       "narration",
+	TypeImport:          "link import",
+	TypeResourceUpload:  "copy of a linked file",
+	TypeVisual:          "look at what's on screen",
+	TypeDescribe:        "scene descriptions",
+	TypeFetch:           "repository or web page",
+	TypeStorageMove:     "media move",
+	TypeGenerate:        "piece of AI work",
+	TypeRemotionImport:  "Remotion project",
+	TypeRemotionRender:  "clip from a Remotion project",
+	TypeInspect:         "measurements for fixes",
+	TypePrepare:         "fixed copy",
+	TypeRemotionTask:    "work on a Remotion project",
+	TypeRemotionRefresh: "refresh of a Remotion project",
+	TypeRemotionPush:    "changes sent back to a repository",
+	TypeAbilityRun:      "run of an ability",
+	TypeSwitches:        "picture changes",
+}
+
 func label(typ string) string {
-	switch typ {
-	case TypeThumbnail:
-		return "thumbnail"
-	case TypeContactSheet:
-		return "frame grid"
-	case TypeWaveform:
-		return "waveform"
-	case TypeTranscribe:
-		return "transcription"
-	case TypeRender, TypeRenderShape:
-		return "render"
-	case TypeQA:
-		return "quality check"
-	case TypeProxy:
-		return "preview copy"
-	case TypeMezzanine:
-		return "steady copy"
-	case TypeEvidence:
-		return "scene analysis"
-	case TypeDiarize:
-		return "speaker detection"
-	case TypeVoiceover:
-		return "narration"
-	case TypeImport:
-		return "link import"
-	case TypeResourceUpload:
-		return "copy of a linked file"
-	case TypeVisual:
-		return "look at what's on screen"
-	case TypeDescribe:
-		return "scene descriptions"
-	case TypeFetch:
-		return "repository or web page"
-	case TypeStorageMove:
-		return "media move"
-	case TypeGenerate:
-		return "piece of AI work"
-	case TypeRemotionImport:
-		return "Remotion project"
-	case TypeRemotionRender:
-		return "clip from a Remotion project"
-	case TypeInspect:
-		return "measurements for fixes"
-	case TypePrepare:
-		return "fixed copy"
-	case TypeRemotionTask:
-		return "work on a Remotion project"
-	case TypeRemotionRefresh:
-		return "refresh of a Remotion project"
-	case TypeRemotionPush:
-		return "changes sent back to a repository"
-	case TypeAbilityRun:
-		return "run of an ability"
-	case TypeSwitches:
-		return "picture changes"
+	if l, ok := typeLabels[typ]; ok {
+		return l
 	}
 	return typ
 }

@@ -1185,9 +1185,12 @@ Read `docs/architecture.md` before structural changes.
   key and job type (`jobs.TypeRenderShape`, which older builds never lease; `jobs.IsRender`/`Kind` read both; with
   only older computers it waits `needs_newer`, D396) and `editspec.ForRender` → `Reshape` (engine layout rule,
   platform, middle captions, faces) for that render and its QA only; older renders keep the size swap. A price is
-  agreed for its shape (D394): the panel and cards send the estimate's shape with `maxUsd`; a priced make whose shape
-  MetaRush would choose from the cut, project or look without it is `E_CONFLICT` `shape_not_agreed`, and a card
-  without its shape is priced again in place (`replanShape`), never made. `ops.PickRender` gives review links, drafts and posts the version's
+  agreed for its shape (D394): every paid make with an agreed price carries the shape it was priced at — the panel
+  (`agreedRequest`), AI work and presenters (`agreedMake`), cards, Auto and the terminal (`--max-cost` with `--aspect`;
+  the CLI names the shape); without it `E_CONFLICT` `shape_not_agreed` (again/extend/edit keep their source's shape;
+  AI work only when made for a cut by a model that takes a shape; free work exempt), and a card without its shape is
+  priced again in place (`replanShape`), never made. Every job type has a label and a phrase (`jobs` `typeLabels`,
+  logbook, `jobKindLabel`, the dashboard's `JOB_LABELS`), held to `queue.go` by tests (`testutil/jobtypes`). `ops.PickRender` gives review links, drafts and posts the version's
   own shape. The recorder asks for the project's shape among the camera's own modes only (`record/camera.ts`,
   `resizeMode: {exact: 'none'}`, tall/square by the long side, reopened at its own size if cropped; D395; previews contain);
   slides for a cut fit it (`video/render/slideshape.mjs`, `madeWith.shape`). Guard: `TestShapeChoicesLeaveSavedPlansAlone`

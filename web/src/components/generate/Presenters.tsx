@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { CheckCircle, Sparkle, UserCircle, Warning } from '@phosphor-icons/react';
 import { call } from '../../api/client';
 import { useOp } from '../../api/queries';
+import { agreedMake } from './shot';
 import type { AIEstimate, AIMakeIn, PresenterMakeIn, PresenterView, ProjectShowOut } from '../../api/types';
 import { useToast } from '../../ui/Toast';
 import { useDialog } from '../../ui/Dialog';
@@ -148,7 +149,7 @@ export function PresenterWork({ data, onOpenClip }: { data: ProjectShowOut; onOp
             ...(num(to) !== undefined ? { to: num(to) } : {}),
             ...maxUsd,
           })
-        : await call('ai.make', { ...makeIn, ...maxUsd });
+        : await call('ai.make', priced && est ? agreedMake(makeIn, est) : makeIn); // the price and the shape it was shown for (D394)
       ['ai.list', 'presenter.list', 'activity.summary', 'project.show'].forEach((q) => void qc.invalidateQueries({ queryKey: [q] }));
       toast({ tone: 'success', title: 'Asked for it', body: out.summary });
     } catch (e) {

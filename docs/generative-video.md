@@ -58,7 +58,9 @@ browser runs use: `internal/testutil/fakevertex`). A key file that sends its sig
   look's usual one, else the model's own (16:9), as near as the model makes (a square cut on Gemini: wide, framed
   square in the cut). The price says which shape and why (`shapeWhy`), and a shape you chose that doesn't fit the cut
   says which would (`fitsCut`, with a button to go back to it; D385). New takes, extensions and edits keep the shape of what
-  they are made from. The price shows before anything is sent and the button
+  they are made from. The price is agreed for the shape (D394): the panel's button says it, and every request with
+  an agreed price (`maxUsd`) carries `aspectRatio` (the terminal: `--max-cost` with `--aspect`); one without it is
+  refused (`shape_not_agreed`), naming the shape it would be made in, and nothing is sent. The price shows before anything is sent and the button
   carries it as an estimate ("Generate (about $0.13)"); **What it draws on** opens the estimate: the video at its resolution,
   what is sent with the prompt (the prompt, pictures and clips) and the thinking allowance, each with its tokens,
   price and the price table's date. With your estimates off (Settings → Preferences) the button doesn't wait for the

@@ -81,8 +81,9 @@ type plan struct {
 	words    []string // what is sent, in plain words
 	now      time.Time
 	shape    string // the shape it is made in for a cut and why (D385)
-	// shapeSent: the request said the shape (asked, or agreed with the price, D394).
-	shapeSent bool
+	// shapeSent: the request said the shape (asked, or agreed with the price,
+	// D394); shapeChoosable: it is made for a cut, so the shape is the cut's.
+	shapeSent, shapeChoosable bool
 }
 
 // cutShape gives work made for a cut — a picture for it, a presenter's clip —
@@ -96,6 +97,7 @@ func (p *plan) cutShape(ctx context.Context, a *app.App, cut string, o *models.G
 	if p.projectID == "" || len(p.model.Limits.AspectRatios) == 0 {
 		return nil
 	}
+	p.shapeChoosable = true // made for a cut, by a model that takes a shape
 	var pj models.Project
 	if err := a.DB.GetByID(ctx, store.CProjects, a.WorkspaceID(), p.projectID, &pj); err != nil {
 		return nil
@@ -119,14 +121,21 @@ func (p *plan) cutShape(ctx context.Context, a *app.App, cut string, o *models.G
 	return nil
 }
 
-// shapeAgreed refuses work whose price was agreed without the shape MetaRush
-// now chooses for its cut (D394): a price agreed for one shape is never spent
-// on another. The estimate says the shape (aspectRatio); the agreement sends it.
+// shapeAgreed refuses work made for a cut whose price was agreed without its
+// shape (D394): the shape it was priced at must come with the price — the
+// cut's shape now may not be the one the estimate showed, or may be unknown
+// now, and a price agreed for one shape is never spent on another. The
+// estimate says the shape to send (aspectRatio); work for no cut, a model
+// that takes no shape and free work have none to send.
 func (p *plan) shapeAgreed() error {
-	if p.shapeSent || p.shape == "" {
+	if p.shapeSent || !p.shapeChoosable {
 		return nil
 	}
-	return apperr.New(apperr.Conflict, "The price you agreed to didn't say its shape, and it would be made %s. Price it again and agree to its shape.", strings.TrimSuffix(p.shape, ".")).
+	would := "in the service's own shape"
+	if p.shape != "" {
+		would = strings.TrimSuffix(p.shape, ".")
+	}
+	return apperr.New(apperr.Conflict, "The price you agreed to didn't say its shape, and it would be made %s. Price it again and agree to its shape.", would).
 		WithHint("Nothing was sent or spent.").WithCommand("metarush ai estimate").
 		WithDetails(map[string]any{"reason": "shape_not_agreed", "aspectRatio": p.req.Options.AspectRatio, "shape": p.shape})
 }

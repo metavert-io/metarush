@@ -359,10 +359,10 @@ async function main() {
     const why = (await panel.locator('[data-estimate-problem]').first().textContent()) ?? '';
     check('a prompt naming someone is refused without their look and consent', why.includes('names Ada') && (await panel.locator('[data-generate-go]').isDisabled()), why);
     await shot(page, 'consent-refused', panel);
-    let r = await op(page, 'generate.shot', { projectId: P, prompt: 'Ada waves from a paper boat', seconds: 3, resolution: '360p', maxUsd: 1 });
+    let r = await op(page, 'generate.shot', { projectId: P, prompt: 'Ada waves from a paper boat', seconds: 3, resolution: '360p', aspectRatio: '16:9', maxUsd: 1 });
     check('…and the server refuses it too', !r.ok && r.code === 'E_CONSENT_REQUIRED', `${r.code}`);
     const adaFace = (await api(page, 'people.show', { id: ada.id })).faces[0];
-    r = await op(page, 'generate.shot', { projectId: P, prompt: 'the camera pulls back', seconds: 3, resolution: '360p', from: { assetId: adaFace.assetId, at: adaFace.at }, noPeople: true, maxUsd: 1 });
+    r = await op(page, 'generate.shot', { projectId: P, prompt: 'the camera pulls back', seconds: 3, resolution: '360p', from: { assetId: adaFace.assetId, at: adaFace.at }, noPeople: true, aspectRatio: '16:9', maxUsd: 1 });
     check('a frame showing someone is refused without their consent, even when said to show nobody', !r.ok && r.code === 'E_CONSENT_REQUIRED', `${r.code}: ${r.message}`);
     r = await op(page, 'looks.create', { person: ada.id, title: 'Ada', description: 'Ada, short dark hair', stills: [{ assetId: adaFace.assetId, at: adaFace.at }] });
     check('a person’s look is refused without their consent', !r.ok && r.code === 'E_CONSENT_REQUIRED', `${r.code}`);

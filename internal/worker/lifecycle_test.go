@@ -360,7 +360,7 @@ func TestGeneratedVideoThroughTheWorker(t *testing.T) {
 	}
 	shot := func(prompt string) string {
 		t.Helper()
-		out, err := ops.CallTyped[generate.GenRunOut](ctx, a, "generate.shot", generate.GenShotIn{ProjectID: p.Project.ID, Prompt: prompt, Seconds: 3, Resolution: "360p",
+		out, err := ops.CallTyped[generate.GenRunOut](ctx, a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: p.Project.ID, Prompt: prompt, Seconds: 3, Resolution: "360p",
 			NoPeople: true, MaxUSD: func(v float64) *float64 { return &v }(1)}, ops.Caller{})
 		if err != nil {
 			t.Fatal(err)

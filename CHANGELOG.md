@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+- **Sign in with Google, Microsoft or your organization's own provider**. A new way to sign in, in Settings → People:
+  people use the account they already have (OpenID Connect, with PKCE and every check on the provider's signed
+  answer). Only people you invite, or people of a Google Workspace domain, Microsoft directory or email domain you
+  choose, get in — never anyone just because they have an account there. You register the app with the addresses
+  MetaRush shows, keep its secret on each computer like a key, and test the sign-in on this computer before switching,
+  so you keep getting in; passwords and Tailscale accounts can keep working beside it. Invite links work with it, and
+  `metarush dashboard` at this computer still opens MetaRush if the provider ever stops working. In a terminal:
+  `metarush auth sso status|set|secret|test` and `metarush auth method sso`.
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says

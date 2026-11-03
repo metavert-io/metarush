@@ -342,11 +342,26 @@ Read `docs/architecture.md` before structural changes.
   `auto_spending` → the receipt and one `auto_spent` bell note a day), final renders, approvals, setup,
   questions, keep cards and HumanOnly always ask; `assistant.safeSteps` is the master switch. Panel times use `stamp()`.
 - **Accounts and sign-in** (D183, `internal/auth`, `internal/api/signin.go`, docs/accounts.md): the workspace's
-  method (`auth.Method`, cached 5 s) is single | password | tailscale; `signedIn` honours it (Tailscale headers count
-  only in tailscale; link sessions = the owner, local only; password sessions check `sessionsValidAfter` through a
-  0.75 s lookup with a 10-minute fallback so D180 playback survives outages). Never store or log a password outside
-  `user_credentials` (argon2id), never read one from a CLI flag, never answer differently for unknown emails.
-  Owner-only ops use `ops.Flags.OwnerOnly`; the method changes only at the host. `auth reset` keeps every record.
+  method (`auth.Method`/`auth.Settings`, cached 5 s) is single | password | tailscale | sso; `signedIn` honours it
+  (Tailscale headers count only where `auth.TailscaleOn`, and only for listed accounts; link sessions = the owner,
+  local only; password (`auth.PasswordOn`) and sso sessions check `sessionsValidAfter` through a 0.75 s lookup with a
+  10-minute fallback so D180 playback survives outages). Never store or log a password outside `user_credentials`
+  (argon2id), never read one from a CLI flag, never answer differently for unknown emails. Owner-only ops use
+  `ops.Flags.OwnerOnly`; the method changes only at the host. `auth reset` keeps every record.
+- **Signing in with an organization's account** (D425–D434, `internal/sso`, `internal/auth/sso.go`, `sso_ops.go`,
+  `internal/api/sso.go`, `web/src/screens/settings/SignInSettings.tsx`, docs/accounts.md): OpenID Connect (Google,
+  Microsoft, any provider with discovery) as a confidential web app — code flow with PKCE (S256), state and nonce; the
+  ID token checked with the standard library (`sso.Client.Verify`: keys cached by max-age and refetched for an unknown
+  kid at most every 30 s; iss exact with Google's spellings and Microsoft's `{tenantid}`; aud exactly the app; times
+  within `sso.Skew`). The setup is the workspace's (`auth.sso`; `auth.ssoNext` until tested), the client secret each
+  computer's (`providers` key `sso-client`); `auth.method.set sso` needs a passing test sign-in on this computer by the
+  switching owner (`sso.TestResult`, 30 min) and links that account. Callbacks are the dashboard's own:
+  `http://localhost:<port>/auth/sso/callback` and the public address; `/api/auth/sso/start` → `/auth/sso/begin`
+  (state in an HttpOnly SameSite=Lax cookie) → `/auth/sso/callback` (that browser, once, where it began). Who:
+  `auth.PersonForSSO` (linked `users.sso.key`, migration 66; else an email the provider answers for —
+  `Identity.EmailTrusted`; else the allowed domain); invite links via `ForInvite`. Sign-ins in progress are files in
+  `<home>/state/sso` (`sso.Store`). Tests use `internal/testutil/fakeoidc` only (real providers refused under go test
+  and `METARUSH_NO_PAID_SERVICES`); browser run `scripts/sso-e2e.sh` (ports 5790–5799).
 - **Owners change this computer's settings** (D191, `internal/ops/owner.go`, docs/accounts.md): `OwnerOnly` covers
   people and sign-in, remote access, storage and the Trash, keys, Claude Code's settings, the watched folder and link
   imports, the log and the weekly report, battery, machines and clearing archived projects out (D196) (`internal/cli`
@@ -1244,6 +1259,7 @@ scripts/release.sh --snapshot                             # release dry run: eve
 scripts/about-e2e.sh                                      # Settings → General and `metarush version` with an older second computer
 scripts/playback-e2e.sh                                   # players through a database outage (D180); review copies and stills in the Edit tab and on a version's page (D187)
 scripts/accounts-e2e.sh                                   # sign-in methods, invites, sign in/out, reset links, password change (D183)
+scripts/sso-e2e.sh                                        # signing in with an organization's account through a stand-in provider: set up, test, switch, invite, a domain's person, a stranger (D425–D434; ports 5790–5799)
 scripts/delivery-e2e.sh                                   # delivery notes, translated captions, whose Claude answers, the receipt (D237–D241; ports 5410–5419)
 scripts/ship-gate-e2e.sh                                  # the ship gate and promises: Held by…, a promise measured on a real render, Deliver anyway… with a note, the receipt (D298–D302; ports 5560–5569)
 scripts/windows-e2e.sh                                    # the dashboard as Windows 11 uses it: Windows file names, folders, downloads, line endings, Ctrl (D247; ports 5440–5449; Edge when installed)

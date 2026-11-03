@@ -343,7 +343,7 @@ func (s *Server) ssoTested(w http.ResponseWriter, r *http.Request, f *sso.Flow, 
 		s.ssoPage(w, http.StatusOK, "The test sign-in didn't work", msg, "")
 		return
 	}
-	msg := fmt.Sprintf("You signed in with %s as %s, and the answer passed every check. Go back to Settings → People (or the terminal) to switch to it: you will sign in this way from then on.", title, who)
+	msg := fmt.Sprintf("You signed in with %s as %s, and the answer passed every check. Go back to Settings → People (or the terminal) to switch to it: you will sign in this way from then on. You can close this tab.", title, who)
 	if !id.EmailTrusted {
 		msg += " " + title + " doesn't vouch for that account's email (" + id.Why + "), so people join with invite links rather than by their email alone."
 	}

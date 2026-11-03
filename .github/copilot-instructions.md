@@ -24,7 +24,11 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
 - External programs run only through `internal/tools` (an allowlist, typed arguments, no shell). Downloads are pinned
   by URL and SHA-256, checked before use, and refused under `go test`.
 - Tests never call a real service: use the fakes in `internal/testutil` (fakeeleven, fakeyoutube, fakebucket,
-  fakerclone and the rest) and the test MongoDB.
+  fakerclone, fakeoidc and the rest) and the test MongoDB.
+- Signing in with an organization's account lets nobody in for having an account at the provider: only a linked
+  account, an email the provider answers for (`sso.Identity.EmailTrusted`) of a person or an invite, or an owner's
+  allowed domain. Every ID token check in `internal/sso` stays (signature, exact `iss` and `aud`, times, nonce, PKCE);
+  tokens and codes are never kept or logged, and switching to it needs the owner's own passing test sign-in.
 - Paid AI work is priced first, held to budgets, daily limits and consent, saves its ticket before waiting, and never
   runs twice. Auto spends only within limits a person set.
 

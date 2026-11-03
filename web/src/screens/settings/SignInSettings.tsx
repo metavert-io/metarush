@@ -266,7 +266,6 @@ function SignInBody({ st }: { st: SSOStatusOut }) {
             </a>
           </p>
         ) : null}
-        {setup && !st.canSwitch && st.switchWhy && (!st.inUse || st.next) ? <p className="mt-2 text-[12px] text-subtle">{st.switchWhy}</p> : null}
         {own.owner && !st.here ? (
           <p className="mt-2 text-[12px] text-subtle">
             It can be set up and tested only on <Theirs>{host.machine}</Theirs>.

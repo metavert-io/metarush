@@ -4,7 +4,7 @@ MetaRush is self-hosted on a computer its owner controls. Out of the box it is *
 sign-in, nobody else gets in. When the owner wants others in, they choose a sign-in method in **Settings → People** (the Users part),
 giving their own sign-in at the same step, and then invite people. Tailscale (or any HTTPS proxy) is how other
 computers *reach* MetaRush; it is not required, and its identity is only used when "Tailscale accounts" is the chosen
-sign-in method.
+sign-in method (or kept beside the organization's account).
 
 ## Sign-in methods
 
@@ -15,20 +15,24 @@ The method is stored on the workspace (`workspace.auth.method`), so every comput
 | `single` (default, "Just me on this computer") | The owner, on this computer | `metarush dashboard` opens a one-time sign-in link, as before. Other computers see "Sign-in isn't set up here". |
 | `password` ("Email and password") | Everyone with an account | Email and password on the sign-in page, on this computer or another (another needs HTTPS). |
 | `tailscale` ("Tailscale accounts") | People whose Tailscale login is linked to their account | Signed in by Tailscale's identity on the public address. |
+| `sso` ("Your organization's account") | People of the workspace, by the account they have at Google, Microsoft or another OpenID Connect provider | "Sign in with Google" on the sign-in page; [below](#signing-in-with-your-organizations-account). Passwords and Tailscale accounts can stay beside it. |
 
 In every method the owner can sign in at the host with `metarush dashboard` (a person at the host's terminal can read
 the installation's files anyway): that is the recovery path. One-time links work only on this computer's own address;
 they no longer sign another computer in as the owner.
 
 Choosing a method is a guided step in Settings → People (or `metarush auth method`): for email and password the owner
-gives their email and a password in the same step; for Tailscale, their Tailscale login. Inviting people is off until
-a method is chosen. Going back to "Just me" signs everyone else out and keeps their records.
+gives their email and a password in the same step; for Tailscale, their Tailscale login; for the organization's
+account, the test sign-in they just did on this computer. Inviting people is off until a method is chosen. Going back
+to "Just me" signs everyone else out and keeps their records.
 
 ## Accounts
 
 Accounts are the workspace's `users` (`usr_…`): `name`, `email` (and `emailKey`, lower-cased and trimmed, unique per
 workspace), `role` (`owner` | `member`), `state` (`active` | `invited` | `disabled` | `earlier`), `sessionsValidAfter`,
-and the Tailscale `logins` linked to them. Roles are minimal: owners manage people and the sign-in method and change
+the Tailscale `logins` linked to them, and `sso`: the accounts at the organization's provider that are them (a stable
+key per account — Google's account ID, Microsoft's directory and person IDs, another provider's issuer and subject —
+unique in the workspace, with the email it vouched for; never a token). Roles are minimal: owners manage people and the sign-in method and change
 this computer's settings (below); members do everything else, approving included.
 
 ## What only owners change
@@ -39,7 +43,7 @@ owners'); the dashboard disables the controls and says "Only an owner can change
 
 | Area | Owner-only | Stays open to everyone |
 |---|---|---|
-| People and sign-in | `auth.method.set`, `users.invite\|resetLink\|revoke\|disable\|enable\|remove\|role` | your own account (`account.*`) |
+| People and sign-in | `auth.method.set`, `auth.sso.set\|secret\|test`, `users.invite\|resetLink\|revoke\|disable\|enable\|remove\|role` | your own account (`account.*`), reading how people sign in (`auth.status`, `auth.sso.status`) |
 | Remote access | `remote.enable\|disable\|allow\|signout` | `remote.status` |
 | Storage and the Trash | `storage.migrate`, `/api/storage/choose\|plan\|move`, `trash.configure`, `trash.empty`, `worker.configure` (battery) | moving clips to the Trash and back, `storage.status`, `trash.list` |
 | Keys and the team's limits | `provider.set\|remove`; `generate.configure` for the model, quality and daily limit | the narration voice (Content Settings: `provider.settings` with or without `--project`), a project's budget (`provider.settings --project`, `generate.configure --project`), looks |
@@ -94,7 +98,9 @@ them in the invite) makes the account *that same record*, so their history is th
 ## Sessions
 
 The installation's session file (`<home>/state/sessions.json`) as before, with the method that made each session
-(`link` | `password` | `tailscale`) and when it was last used. A sign-in always makes a new session (no fixation);
+(`link` | `password` | `tailscale` | `sso`, with the provider an `sso` session came through) and when it was last used.
+An `sso` session is like a password session (30 days at most, 7 unused) and ends when people stop signing in with that
+provider. A sign-in always makes a new session (no fixation);
 password sessions last at most 30 days and end after 7 days unused; changing or resetting a password, disabling or
 removing a person, or "Sign out everywhere" sets `sessionsValidAfter`, which every computer checks. Cookies stay
 `HttpOnly`, `SameSite=Strict`, and `Secure` with the `__Host-` prefix over HTTPS. Changing one's email or password
@@ -111,18 +117,94 @@ make reset links from Settings → People or `metarush users reset-password <ema
 ## Surfaces
 
 - Endpoints outside the ops registry (they work without a session): `GET /api/auth/state`, `POST /api/auth/login`,
-  `POST /api/auth/logout`, `GET|POST /api/auth/link/{token}` (an invite or a reset). Same Host, CSRF-header and
+  `POST /api/auth/logout`, `GET|POST /api/auth/link/{token}` (an invite or a reset), `POST /api/auth/sso/start`,
+  `GET /auth/sso/begin` and `GET /auth/sso/callback` (the organization's account). Same Host, CSRF-header and
   cross-site checks as every endpoint.
 - `GET /api/session` says whether the signed-in person is an owner (`owner`) and names the owners (`owners`).
-- Ops: `auth.status`, `auth.method.set` (owner, people only), `users.list`, `users.invite`, `users.revoke`,
+- Ops: `auth.status`, `auth.method.set` (owner, people only), `auth.sso.status`, `auth.sso.set|secret|test` (owners,
+  people only, on this computer), `users.list`, `users.invite`, `users.revoke`,
   `users.resetLink`, `users.disable`, `users.enable`, `users.remove`, `users.role`, `account.password`,
   `account.update`, `account.signoutEverywhere`, `account.avatar`, `account.preferences` and
   `account.preferences.set` (people only).
-- CLI: `metarush auth status|method|reset`, `metarush users list|invite|revoke|reset-password|disable|enable|remove|role`,
+- CLI: `metarush auth status|method|reset`, `metarush auth sso status|set|secret|test`,
+  `metarush users list|invite|revoke|reset-password|disable|enable|remove|role`,
   `metarush account password|update|signout-everywhere|avatar|preferences`.
 - `metarush auth reset` (a person at the host's terminal): the method back to "Just me", the Tailscale login list
-  cleared (logins stay on the people), every browser signed out on every computer, people without a sign-in marked
-  `earlier`. Nobody's work changes.
+  cleared (logins stay on the people), every browser signed out on every computer, people without a sign-in (no
+  password and no organization account) marked `earlier`. The organization sign-in's setup stays, waiting; going back
+  to it takes a new test sign-in. Nobody's work changes.
+
+## Signing in with your organization's account
+
+People sign in with the account they already have: **Google** (Google Workspace or a personal Google account),
+**Microsoft** (Entra ID: work or school accounts) or **any provider that supports OpenID Connect** (Okta, Keycloak,
+Authentik… — MetaRush reads its settings from its discovery document). MetaRush is a confidential web app at the
+provider: the authorization code flow with PKCE (S256), a state and a nonce, the code traded for the ID token on this
+computer with the app's client secret.
+
+**Setting it up** (an owner, in Settings → People → Sign-in with your organization's account, or `metarush auth sso
+set`, on the computer that runs MetaRush):
+
+1. Register an app at the provider. **Google**: Google Cloud → APIs & Services → Credentials → an OAuth client of type
+   *Web application*. **Microsoft**: Microsoft Entra → App registrations → a new registration with a *Web* redirect
+   address and a client secret (Certificates & secrets); note its Application (client) ID and Directory (tenant) ID.
+   **Another provider**: a confidential (web) app with the authorization code flow.
+2. Give it the **addresses MetaRush shows** as its redirect addresses: `http://localhost:<port>/auth/sso/callback` for
+   this computer's own browser (Google and Microsoft both take an http address on localhost; Microsoft's portal doesn't
+   take 127.0.0.1 over http), and with remote access on, `https://<computer>.<tailnet>.ts.net/auth/sso/callback` for
+   other computers. Each computer that runs MetaRush for the workspace has its own addresses and registers them too.
+3. In MetaRush, give the provider (and for Microsoft the directory ID; for another provider its address, the
+   *issuer*), the app's client ID and its **client secret**. The secret is this computer's own, kept like a key (the
+   keychain, or `<home>/.env` as `METARUSH_SSO_CLIENT_API_KEY` in env mode), never in the database, `config.yaml`, a
+   log or an answer; the form sends it once and never shows it again, and the terminal reads it hidden or from a pipe
+   (`--secret-stdin`), never from a flag. MetaRush reads the provider's settings right away and keeps nothing it can't
+   reach.
+4. **Test it**: Test sign-in (Settings) or `metarush auth sso test` opens the provider in a browser on this computer;
+   sign in with your own account. The result says who signed in and that the answer passed every check.
+5. **Switch** (Switch to Google, or `metarush auth method sso`): only after a test that passed on this computer, by the
+   owner switching, within 30 minutes. The account you tested with is linked to you, so you keep getting in.
+
+`metarush auth method sso --provider google --client-id … [--domain example.com]` does all of it in one go: it asks for
+the secret, saves the setup, opens the test sign-in and switches only when it worked. A new provider or app always
+waits for its own test; changes to who may join and to the other sign-ins of the setup in use apply at once.
+
+**Who may sign in.** Never anyone just because they have an account at the provider:
+
+- the person a provider account is **linked** to (it stays theirs when its email changes);
+- else, by an **email the provider answers for**, a person of the workspace or an invite — linked at that first
+  sign-in. Google answers for Gmail addresses and for Google Workspace accounts (`hd`); for an outside address it once
+  checked, the email may have changed hands since, so it doesn't count. Microsoft's email counts only when the app asks
+  for the optional claims `email` and `xms_edov` and Microsoft says the domain's owner is verified (its documentation:
+  never authorize by email alone). Another provider's counts when it says `email_verified`;
+- else, with an **allowed domain** the owner set, a new member: for Google a Google Workspace domain (the answer's
+  `hd`, never just the email's ending), for Microsoft a directory (its ID: the answer's `tid`), for another provider a
+  checked email's domain (exactly, not its subdomains). The owners are told when someone joins this way.
+
+An **invite link** joins only when the provider gives the invited email (and doesn't say it is unchecked), and links
+that account.
+A different account showing a linked person's email is refused (another directory's look-alike can't take an account
+over); an owner removes the person and invites them again to link another. Turned-off and removed people are refused.
+Owners stay owners: roles and the owner checks don't change.
+
+**Passwords and Tailscale beside it.** An owner can keep **email and password** working (people who have one still use
+it; invite links can choose one; reset links work) and **Tailscale accounts** (the listed accounts keep signing in by
+themselves on the public address; an account not on the list signs in with the organization's account). Kept, they are
+another way in, as strong as a password or the tailnet's admin; turned off, their sessions end at once.
+
+**What is checked**, every time: the answer comes back to the browser that started the sign-in (its state in an
+HttpOnly, SameSite=Lax cookie, `__Host-` over HTTPS), once, within ten minutes, on the address it began at; the code is
+traded with the PKCE verifier; the ID token's signature against the provider's published keys (kept for their
+`max-age`, read again for a key MetaRush hasn't seen — at most every 30 seconds — so key changes are picked up; RS, PS,
+ES and EdDSA; never `none` or a shared secret), `iss` exactly (Google's two spellings, Microsoft's `{tenantid}` filled
+in with the token's `tid`), `aud` exactly this app, `exp`, `iat` and `nbf` within a minute of this computer's clock, the
+nonce, a subject. The return address is a path on this site only. Nothing from the provider is kept but who signed in
+(the account's key and the email it vouched for); the code, the tokens, the state, the nonce and the verifier are
+hidden from the activity log and never written down.
+
+**If the provider stops working** (an outage, an expired client secret, a wrong change at the provider): `metarush
+dashboard` at the computer that runs MetaRush still opens it as the owner with a one-time link, whatever the method;
+there, Settings → People fixes the setup, or `metarush auth reset` goes back to just you on that computer (everyone's
+accounts and work stay). Sessions already made keep working until they end.
 
 ## Preferences
 

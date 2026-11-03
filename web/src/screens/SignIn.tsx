@@ -202,7 +202,7 @@ export function SignInPage() {
             </form>
           </>
         ) : null}
-        <p className="mt-5 text-[12.5px] leading-relaxed text-subtle">No account here yet? Ask an owner of this MetaRush to invite you.</p>
+        {!ssoWhy ? <p className="mt-5 text-[12.5px] leading-relaxed text-subtle">No account here yet? Ask an owner of this MetaRush to invite you.</p> : null}
         {s.here ? (
           <Details label="For the owner, on this computer" className="mt-4">
             <CopyBlock text="metarush dashboard" caption="Opens MetaRush with a one-time link, whatever the sign-in method, even when the sign-in provider doesn't answer. It works only on this computer." />

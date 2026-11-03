@@ -212,9 +212,15 @@ A project's brand, spelling list and house rules are in that project's own **Set
 
 ### Accounts and sign-in
 A new install is just you on this computer ([docs/accounts.md](docs/accounts.md)).
-- **Choose how people sign in** in **Settings → People**: email and password, or Tailscale accounts, giving your own
-  sign-in at the same step. Then invite people with a one-time link you send them (it continues the history of
-  anyone who used MetaRush before).
+- **Choose how people sign in** in **Settings → People**: email and password, Tailscale accounts, or their
+  organization's account, giving your own sign-in at the same step. Then invite people with a one-time link you send
+  them (it continues the history of anyone who used MetaRush before).
+- **Sign in with Google, Microsoft or your organization's own provider** (OpenID Connect,
+  [docs/accounts.md](docs/accounts.md#signing-in-with-your-organizations-account)): register the app with the
+  addresses Settings → People shows, give its ID and secret (kept on each computer, like a key), run a test sign-in on
+  this computer, then switch. Only people you invite, or people of a domain you choose, get in; passwords and Tailscale
+  accounts can keep working beside it. `metarush dashboard` at this computer still opens MetaRush if the provider ever
+  stops working.
 - **Passwords** are stored with argon2id, checked against common passwords, and wrong guesses are slowed down and
   locked; owners make reset-password links (`metarush users reset-password <email>`).
 - **Only owners change this computer's settings** (enforced on the server, [the list](docs/accounts.md#what-only-owners-change)).
@@ -227,8 +233,8 @@ A new install is just you on this computer ([docs/accounts.md](docs/accounts.md)
   everyone's), and a turned-off account's browsers stop at once.
 - **Everyone's changes say who made them**, and each person can add a picture (`metarush account avatar <file>`).
 
-Commands: `metarush auth status|method|reset`, `metarush users list|invite|reset-password|disable|enable|remove|role`,
-`metarush account …`.
+Commands: `metarush auth status|method|reset`, `metarush auth sso status|set|secret|test` (and `metarush auth method sso`),
+`metarush users list|invite|reset-password|disable|enable|remove|role`, `metarush account …`.
 
 ### Use it from your other computers, over Tailscale
 `metarush remote enable --allow <their Tailscale account> --apply` gives the dashboard an HTTPS address on your
@@ -236,7 +242,8 @@ tailnet (`https://<computer>.<tailnet>.ts.net`, served by `tailscale serve`); Me
 computer only, and any other HTTPS proxy works too, with `--url` (a worked example:
 [an always-on Mac mini](#example-an-always-on-mac-mini-for-your-team)).
 - **Who gets in** is the sign-in method you choose in **Settings → People**: people sign in with their email and
-  password (invite them; links you copy and send) or, as an option, with their Tailscale account, each as
+  password (invite them; links you copy and send), with their organization's account (Google, Microsoft or another
+  provider; register the tailnet address Settings shows too) or, as an option, with their Tailscale account, each as
   themselves in the audit trail, the activity log and "Approved by". One-time links (`metarush dashboard`) sign in
   only you, on this computer.
 - **It works like being there**: the microphone works over that HTTPS address, actions that happen on the other

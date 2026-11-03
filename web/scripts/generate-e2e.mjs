@@ -248,7 +248,7 @@ async function main() {
   const summary = (await panel.locator('[data-estimate-summary]').textContent()) ?? '';
   check('the price comes first', /About \$0\.\d\d for a 3-second shot, draft \(360p\), wide, made with Google Gemini/.test(summary), summary);
   check('the button carries the price', /Generate \(about \$0\.1\d\)/.test((await go.textContent()) ?? ''), (await go.textContent()) ?? '');
-  // The shape (D385): nobody chose one, so MetaRush makes it in the project's shape (its footage is widescreen) and
+  // The shape (D385): nobody chose one, so MetaRush makes it in the project's shape (its widescreen cut) and
   // says so before the price is agreed; choosing tall says which would fit, and one click goes back.
   const shapeBox = panel.locator('[data-generate-shape]');
   const shapeWhy = panel.locator('[data-generate-shape-why]');
@@ -256,16 +256,16 @@ async function main() {
   check(
     'the shape follows the project, said before the price',
     (await shapeBox.getAttribute('data-generate-shape')) === 'auto' &&
-      /^Wide \(16:9\), because most of its footage is widescreen\.$/.test(((await shapeWhy.textContent()) ?? '').trim()) &&
+      /^Wide \(16:9\), because its cut “[^”]+” is widescreen\.$/.test(((await shapeWhy.textContent()) ?? '').trim()) &&
       (await shapeBox.locator('[data-value="16:9"]').getAttribute('aria-checked')) === 'true',
     (await shapeWhy.textContent()) ?? '',
   );
   await shapeBox.locator('[data-value="9:16"]').click();
-  await waitFor(async () => /Tall \(9:16\), as asked\. Most of its footage is widescreen: wide \(16:9\) would fit it\./.test((await shapeWhy.textContent()) ?? ''), 'the chosen shape against the project', 20_000);
+  await waitFor(async () => /Tall \(9:16\), as asked\. Its cut “[^”]+” is widescreen: wide \(16:9\) would fit it\./.test((await shapeWhy.textContent()) ?? ''), 'the chosen shape against the project', 20_000);
   check('a chosen shape that doesn’t fit says which would', await panel.locator('[data-generate-shape-reset]').isVisible(), (await shapeWhy.textContent()) ?? '');
   await shot(page, 'generate-shape-chosen', panel);
   await panel.locator('[data-generate-shape-reset]').click();
-  await waitFor(async () => (await shapeBox.getAttribute('data-generate-shape')) === 'auto' && /because most of its footage/.test((await shapeWhy.textContent()) ?? ''), 'back to the project’s shape', 20_000);
+  await waitFor(async () => (await shapeBox.getAttribute('data-generate-shape')) === 'auto' && /^Wide \(16:9\), because its cut/.test((await shapeWhy.textContent()) ?? ''), 'back to the project’s shape', 20_000);
   await waitFor(async () => /^Generate \(about \$0\.\d\d\)$/.test(((await go.textContent()) ?? '').trim()) && (await go.isEnabled()), 'the price again', 20_000);
   await shot(page, 'generate-panel', panel);
   const sent = [];

@@ -146,11 +146,12 @@ vertical, so they are drawn, kept and shown apart ("vertical 9:16", "vertical 4:
 first shape's frames only, never stretched. The shapes come from the first of:
 
 1. the project's cuts (every branch's latest version) that use a graphic of that name, the main cut's first;
-2. cuts in other projects of the workspace whose latest versions use a graphic of that name — also when the check
-   has no project at all;
-3. the project's shape (`ops.ProjectShape`, D378: its main cut's latest version, else any cut's, else the brief's
-   deliverables ([keeping.md](keeping.md#the-brief-and-deliverables)), else the shape most of its footage is in), with
-   its other cuts' shapes when it comes from a cut and every deliverable's when it comes from the brief;
+2. the project's shape when something says it (`ops.ProjectShape`, D378: its main cut's latest version, else any
+   cut's, else the brief's deliverables ([keeping.md](keeping.md#the-brief-and-deliverables)), else the shape most of
+   its footage is in), with its other cuts' shapes when it comes from a cut and every deliverable's when it comes from
+   the brief: a check for a project is drawn for that project;
+3. with no project, or one that says nothing about its shape: cuts in other projects of the workspace whose latest
+   versions use a graphic of that name;
 4. when nothing says: both widescreen and vertical, never silently one (the summary says so).
 
 A dashboard card always knows the conversation's project, so a widescreen cut's graphic is checked widescreen. Each

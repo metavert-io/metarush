@@ -76,9 +76,9 @@ bundles it and draws test frames (and a short preview video) in a headless brows
 can't reach the network. Problems name the file and line. A passing version is recorded
 so a person can review and approve it; nothing renders it before that.
 
-Test frames are drawn in the shapes of the cuts that use the graphic (by exact size), else
-the shapes of cuts in other projects that use a graphic of that name, else the project's
-shape; when nothing says, both widescreen and vertical. --shape draws it in one shape
+Test frames are drawn in the shapes of the project's cuts that use the graphic, else the
+project's shape; with no project (or one that says nothing), the shapes of cuts in other
+projects that use a graphic of that name; when nothing says, both widescreen and vertical. --shape draws it in one shape
 (vertical, landscape, square or an exact size like 1080x1350).
 
 --version name@version draws a version checked here again, in the shapes of the cuts that

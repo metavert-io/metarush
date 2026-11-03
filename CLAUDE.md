@@ -630,8 +630,8 @@ Read `docs/architecture.md` before structural changes.
   footage-anchored `changes` (`{footage, at, params}`) that Go resolves into frames and plan `segments` (omitempty, so
   D73 hashes hold; only `TemplateInfo.Persistent` templates and `meta.persistent` motion graphics outlast their
   limit). Motion checks draw test frames in each shape of the cuts that use the graphic, by exact size (D377,
-  `MotionComponent.Shapes`, `motion.TidyShapes`; else the workspace's cuts that use it, else `ProjectShape`, else both
-  widescreen and vertical; cut sizes become `editspec.TestSize`); `motion check --version name@v [--shape …]` only adds
+  `MotionComponent.Shapes`, `motion.TidyShapes`; else `ProjectShape` when known, else — no project — the workspace's
+  cuts that use it, else both widescreen and vertical; cut sizes become `editspec.TestSize`); `motion check --version name@v [--shape …]` only adds
   shapes to a checked version (D381: `SaveCheck` merges, never replaces what a person saw; frames linked by SHA-256;
   `approvedShapes` = exactly the shapes a person was shown, older approvals only if their check came first, D384;
   `motion approve --shape`; a panel card Auto may run, D382); a graphic nobody approved in a cut's

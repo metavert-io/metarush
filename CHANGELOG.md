@@ -2,9 +2,9 @@
 
 ## Unreleased
 - **Motion graphics are drawn in the shape of the cuts that use them, even without a project**. A graphic checked
-  outside its project was drawn tall even when every cut using it is widescreen. Its test frames now follow the cuts
-  anywhere in your workspace that use it, else the project's shape; when nothing says, they are drawn both widescreen
-  and vertical, never quietly one. Two tall sizes (9:16 and 4:5) are drawn and shown apart, never mixed or stretched.
+  outside its project was drawn tall even when every cut using it is widescreen. Its test frames now follow the
+  project's cuts that use it, else the project's shape; with no project, the cuts anywhere in your workspace that use
+  it; when nothing says, they are drawn both widescreen and vertical, never quietly one. Two tall sizes (9:16 and 4:5) are drawn and shown apart, never mixed or stretched.
 - **Draw an approved graphic in another shape, and approve it in that shape**. `metarush motion check --version
   name@version --shape landscape` draws the same version in that shape too, from a terminal or as a card in Claude's
   panel. It only adds: the frames and preview you approved stay exactly as they were, and the approval keeps covering

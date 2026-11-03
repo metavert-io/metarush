@@ -23793,7 +23793,7 @@ url?: string
 next?: string
 shapes: MotionShapeOut[]
 /**
- * asked: the shape given; cuts: the project's cuts that use it; workspace: other projects' cuts that use a graphic of that name; project: the project's shape; nothing: nothing says, so widescreen and vertical.
+ * asked: the shape given; cuts: the project's cuts that use it; project: the project's shape; workspace: with no project (or one that says nothing), other projects' cuts that use a graphic of that name; nothing: nothing says, so widescreen and vertical.
  */
 shapesFrom?: ("asked" | "cuts" | "workspace" | "project" | "nothing")
 redrawn?: boolean

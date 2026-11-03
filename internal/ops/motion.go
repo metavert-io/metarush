@@ -86,7 +86,7 @@ type MotionCheckOut struct {
 	Next     string                 `json:"next,omitempty"`
 	// Shapes are the shapes it was drawn in (D377) and ShapesFrom why.
 	Shapes     []MotionShapeOut `json:"shapes"`
-	ShapesFrom string           `json:"shapesFrom,omitempty" jsonschema:"enum=asked,enum=cuts,enum=workspace,enum=project,enum=nothing,description=asked: the shape given; cuts: the project's cuts that use it; workspace: other projects' cuts that use a graphic of that name; project: the project's shape; nothing: nothing says\\, so widescreen and vertical."`
+	ShapesFrom string           `json:"shapesFrom,omitempty" jsonschema:"enum=asked,enum=cuts,enum=workspace,enum=project,enum=nothing,description=asked: the shape given; cuts: the project's cuts that use it; project: the project's shape; workspace: with no project (or one that says nothing)\\, other projects' cuts that use a graphic of that name; nothing: nothing says\\, so widescreen and vertical."`
 	// Redrawn: a version checked before, drawn again (D377): the same code,
 	// so its approval (or the wait for one) is unchanged.
 	Redrawn bool `json:"redrawn,omitempty"`
@@ -401,8 +401,8 @@ func askedShape(v string) (editspec.OutputShape, error) {
 const (
 	shapesAsked     = "asked"     // --shape
 	shapesCuts      = "cuts"      // the project's cuts that use the graphic
-	shapesWorkspace = "workspace" // other projects' cuts that use a graphic of that name
 	shapesProject   = "project"   // the project's shape (ProjectShape) with its other cuts or deliverables
+	shapesWorkspace = "workspace" // with no project (or one that says nothing): other projects' cuts that use a graphic of that name
 	shapesNothing   = "nothing"   // nothing says: widescreen and vertical
 )
 
@@ -419,12 +419,13 @@ func checkShapes(ctx context.Context, a *app.App, p *models.Project, name string
 }
 
 // motionShapes are the video shapes a motion graphic's test frames are drawn
-// in (D164, D377), by exact size, at most three, from the first of: the
-// project's cuts whose latest versions use a graphic of that name (the main
-// cut's first); the workspace's cuts that do; the project's shape
-// (ProjectShape, D378) — with its other cuts' shapes when it comes from a
-// cut, every deliverable's when from the brief; else both widescreen and
-// vertical, never silently one.
+// in (D164, D377), by ratio at a test size, at most three, from the first of:
+// the project's cuts whose latest versions use a graphic of that name (the
+// main cut's first); the project's shape when something says it
+// (ProjectShape, D378) — with its other cuts' shapes when it comes from a cut,
+// every deliverable's when from the brief: a check for a project is drawn for
+// that project; with no project, or one that says nothing, the workspace's
+// cuts that use it; else both widescreen and vertical, never silently one.
 func motionShapes(ctx context.Context, a *app.App, p *models.Project, name, platform string) motionShapeSet {
 	var here, elsewhere []motion.CheckShape
 	for _, c := range cutsUsingMotion(ctx, a, name) {
@@ -437,11 +438,8 @@ func motionShapes(ctx context.Context, a *app.App, p *models.Project, name, plat
 			elsewhere = append(elsewhere, sh)
 		}
 	}
-	switch {
-	case len(here) > 0:
+	if len(here) > 0 {
 		return motionShapeSet{Shapes: here, From: shapesCuts}
-	case len(elsewhere) > 0:
-		return motionShapeSet{Shapes: elsewhere, From: shapesWorkspace}
 	}
 	if p != nil {
 		if ps := ProjectShape(ctx, a, p); ps.Known {
@@ -464,6 +462,9 @@ func motionShapes(ctx context.Context, a *app.App, p *models.Project, name, plat
 			}
 			return motionShapeSet{Shapes: out, From: shapesProject}
 		}
+	}
+	if len(elsewhere) > 0 {
+		return motionShapeSet{Shapes: elsewhere, From: shapesWorkspace}
 	}
 	return motionShapeSet{Shapes: motion.BothShapes(platform), From: shapesNothing}
 }

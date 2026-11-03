@@ -1,16 +1,23 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { OutputShape, ProjectShowOut, ProjectSummary, RevisionShowOut } from '../api/types';
 
 /**
  * The shape the server says a version or a project is (D376, D378), from what
- * this page has already loaded (a project's page, the project list, a
- * version's page): what a box shows while the rest loads, instead of a guess.
- * Undefined when nothing loaded says.
+ * this page has loaded (a project's page, the project list, a version's page):
+ * what a box shows while the rest loads, instead of a guess. It follows the
+ * query cache, so it answers as soon as any of those arrive. Undefined while
+ * nothing loaded says.
  */
 export function useServedShape({ revisionId, projectId }: { revisionId?: string; projectId?: string }): OutputShape | undefined {
   const qc = useQueryClient();
-  return useMemo(() => servedShape(qc, revisionId, projectId), [qc, revisionId, projectId]);
+  const subscribe = useCallback((onChange: () => void) => qc.getQueryCache().subscribe(onChange), [qc]);
+  // A string snapshot, so React re-renders only when the answer changes.
+  const key = useSyncExternalStore(subscribe, () => {
+    const s = servedShape(qc, revisionId, projectId);
+    return s ? `${s.width}x${s.height}` : '';
+  });
+  return useMemo(() => (key ? servedShape(qc, revisionId, projectId) : undefined), [key, qc, revisionId, projectId]);
 }
 
 function servedShape(qc: QueryClient, revisionId?: string, projectId?: string): OutputShape | undefined {

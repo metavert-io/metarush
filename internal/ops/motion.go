@@ -3,7 +3,6 @@ package ops
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -165,6 +164,21 @@ type MotionShowOut struct {
 	Versions  []MotionRow            `json:"versions" jsonschema:"description=Every version of this name\\, newest first."`
 	UsedBy    []MotionUse            `json:"usedBy" jsonschema:"description=Latest cuts that use this version."`
 	SheetPath string                 `json:"sheetPath,omitempty" jsonschema:"description=The contact sheet on this machine (an image to look at)."`
+	// Shapes are the shapes it was drawn in and whether a person approved it
+	// in each (D381): what the review page shows beside each shape's frames.
+	Shapes []MotionShapeView `json:"shapes"`
+}
+
+// MotionShapeView is one shape a version was drawn in, for its review.
+type MotionShapeView struct {
+	Size     string `json:"size" jsonschema:"description=Its exact size (1920x1080)."`
+	Label    string `json:"label"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	Ratio    string `json:"ratio"`
+	Approved bool   `json:"approved" jsonschema:"description=A person approved it in this shape (cuts of this ratio use it without a note)."`
+	// Added: drawn by a later check than the first (D381).
+	Added bool `json:"added,omitempty"`
 }
 
 // MotionUse is a cut that uses a version.
@@ -180,6 +194,8 @@ type MotionDecideIn struct {
 	Ref    string `json:"ref" jsonschema:"description=name@version (at least 8 characters of the hash) or the full hash."`
 	Reject bool   `json:"reject,omitempty" jsonschema:"description=motion.approve: turn it down instead."`
 	Note   string `json:"note,omitempty" jsonschema:"maxLength=2000"`
+	// Shapes are the shapes the person looked at (D381).
+	Shapes []string `json:"shapes,omitempty" jsonschema:"maxItems=9,description=motion.approve: the shapes the person looked at and approves it in (sizes like 1920x1080\\, or vertical/landscape/square). Default: every shape it was drawn in. An approved version gets the shapes it isn't approved in yet."`
 }
 
 // MotionDecideOut is the version after the decision.
@@ -324,9 +340,9 @@ func checkFrame(ctx context.Context, a *app.App, in *MotionCheckIn, dir string, 
 	}
 	var set motionShapeSet
 	if v := strings.TrimSpace(in.Shape); v != "" {
-		sh, ok := editspec.ParseShape(strings.ToLower(v))
-		if !ok {
-			return o, set, invalid("Draw it vertical, landscape or square, or at an exact size like 1080x1350.")
+		sh, err := askedShape(v)
+		if err != nil {
+			return o, set, err
 		}
 		set = motionShapeSet{Shapes: []motion.CheckShape{{Width: sh.Width, Height: sh.Height, Platform: o.Platform}}, From: shapesAsked}
 	}
@@ -338,9 +354,22 @@ func checkFrame(ctx context.Context, a *app.App, in *MotionCheckIn, dir string, 
 		set.Shapes = append(set.Shapes, found.Shapes...)
 	}
 	if again != nil {
-		// Drawn again: the shapes it was drawn in stay, after the new ones.
+		// Drawn again (D381): only shapes it lacks, by ratio. What it was drawn
+		// in stays as it is in its record; the new ones are added beside it.
+		have := map[string]bool{}
 		for _, d := range drawnShapes(again) {
-			set.Shapes = append(set.Shapes, motion.CheckShape{Width: d.Width, Height: d.Height, Platform: d.Platform, For: d.For})
+			have[editspec.ShapeOfSize(d.Width, d.Height).RatioKey()] = true
+		}
+		var add []motion.CheckShape
+		for _, sh := range set.Shapes {
+			if !have[editspec.ShapeOfSize(sh.Width, sh.Height).RatioKey()] {
+				add = append(add, sh)
+			}
+		}
+		set.Shapes = add
+		if n := len(drawnShapes(again)); n+min(len(motion.TidyShapes(add)), motion.MaxShapes) > MaxDrawnShapes {
+			return o, set, apperr.New(apperr.Conflict, "%s is already drawn in %d shapes; MetaRush draws a graphic in at most %d.", again.Name, n, MaxDrawnShapes).
+				WithHint("Check a new version of it for more shapes.")
 		}
 	}
 	set.Shapes = motion.TidyShapes(set.Shapes)
@@ -349,6 +378,24 @@ func checkFrame(ctx context.Context, a *app.App, in *MotionCheckIn, dir string, 
 		o.Width, o.Height, o.Platform = o.Shapes[0].Width, o.Shapes[0].Height, o.Shapes[0].Platform
 	}
 	return o, set, nil
+}
+
+// MaxDrawnShapes bounds the shapes one version is drawn in over all its
+// checks (D381); one check adds at most motion.MaxShapes.
+const MaxDrawnShapes = 9
+
+// askedShape reads --shape: a shape's word or an exact, even size (video
+// previews can't be drawn at an odd size).
+func askedShape(v string) (editspec.OutputShape, error) {
+	var w, h int
+	if n, err := fmt.Sscanf(strings.ToLower(v), "%dx%d", &w, &h); err == nil && n == 2 && (w%2 != 0 || h%2 != 0) {
+		return editspec.OutputShape{}, invalid("A test frame's size has even numbers (like 1080x1350): a preview video can't be drawn %dx%d.", w, h)
+	}
+	sh, ok := editspec.ParseShape(strings.ToLower(v))
+	if !ok {
+		return editspec.OutputShape{}, invalid("Draw it vertical, landscape or square, or at an exact size like 1080x1350.")
+	}
+	return sh, nil
 }
 
 // Where a check's shapes come from (D377).
@@ -382,7 +429,9 @@ func checkShapes(ctx context.Context, a *app.App, p *models.Project, name string
 func motionShapes(ctx context.Context, a *app.App, p *models.Project, name, platform string) motionShapeSet {
 	var here, elsewhere []motion.CheckShape
 	for _, c := range cutsUsingMotion(ctx, a, name) {
-		sh := motion.CheckShape{Width: c.out.Width, Height: c.out.Height, Platform: c.out.Platform, For: c.what}
+		// Drawn at a test size of the cut's ratio, never 4K (D379).
+		ts := editspec.TestSize(c.out.Width, c.out.Height)
+		sh := motion.CheckShape{Width: ts.Width, Height: ts.Height, Platform: c.out.Platform, For: c.what}
 		if p != nil && c.projectID == p.ID {
 			here = append(here, sh)
 		} else {
@@ -397,12 +446,14 @@ func motionShapes(ctx context.Context, a *app.App, p *models.Project, name, plat
 	}
 	if p != nil {
 		if ps := ProjectShape(ctx, a, p); ps.Known {
-			out := []motion.CheckShape{{Width: ps.Width, Height: ps.Height, Platform: platform, For: p.Name}}
+			ts := editspec.TestSize(ps.Width, ps.Height)
+			out := []motion.CheckShape{{Width: ts.Width, Height: ts.Height, Platform: platform, For: p.Name}}
 			switch ps.From {
 			case ShapeFromCut:
 				out[0].For = CutName(ctx, a, p, ps.Branch)
 				for _, c := range projectCutOutputs(ctx, a, p) {
-					out = append(out, motion.CheckShape{Width: c.out.Width, Height: c.out.Height, Platform: c.out.Platform, For: c.what})
+					ts := editspec.TestSize(c.out.Width, c.out.Height)
+					out = append(out, motion.CheckShape{Width: ts.Width, Height: ts.Height, Platform: c.out.Platform, For: c.what})
 				}
 			case ShapeFromDeliverables:
 				out = nil
@@ -706,12 +757,53 @@ func showMotion(ctx context.Context, a *app.App, ref string) (*MotionShowOut, er
 		}
 	}
 	out.UsedBy = motionUses(ctx, a, c.Hash)
+	out.Shapes = shapeViews(c)
 	if c.Sheet != nil && c.Sheet.Key != "" {
 		if p, err := a.Cache.Ensure(ctx, a.Media, c.Sheet.Key, c.Sheet.SHA256, c.Sheet.Size, nil); err == nil {
 			out.SheetPath = p
 		}
 	}
 	return out, nil
+}
+
+// shapeViews lists the shapes a version was drawn in and whether a person
+// approved it in each (D381).
+func shapeViews(c *models.MotionComponent) []MotionShapeView {
+	approved := c.ApprovedSizes()
+	added := map[string]bool{}
+	for _, d := range c.Draws {
+		for _, k := range d.Shapes {
+			added[k] = true
+		}
+	}
+	labels := map[string]string{}
+	for _, sh := range c.Shapes {
+		labels[editspec.ShapeOfSize(sh.Width, sh.Height).Key()] = sh.Label
+	}
+	out := []MotionShapeView{}
+	for _, k := range c.DrawnSizes() {
+		var w, h int
+		if _, err := fmt.Sscanf(k, "%dx%d", &w, &h); err != nil {
+			continue
+		}
+		s := editspec.ShapeOfSize(w, h)
+		v := MotionShapeView{Size: k, Label: orDefault(labels[k], motion.ShapeLabel(w, h)), Width: w, Height: h, Ratio: s.Ratio, Added: added[k]}
+		for _, ak := range approved {
+			if ak == k || ratioOf(ak) == s.RatioKey() {
+				v.Approved = true
+			}
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+func ratioOf(k string) string {
+	var w, h int
+	if _, err := fmt.Sscanf(k, "%dx%d", &w, &h); err != nil {
+		return ""
+	}
+	return editspec.ShapeOfSize(w, h).RatioKey()
 }
 
 // contextOnly keeps changed lines and a few around them.
@@ -760,7 +852,7 @@ func motionUses(ctx context.Context, a *app.App, hash string) []MotionUse {
 	return out
 }
 
-func decideMotion(ctx context.Context, a *app.App, ref, verb, note string) (*MotionDecideOut, error) {
+func decideMotion(ctx context.Context, a *app.App, ref, verb, note string, shapes ...string) (*MotionDecideOut, error) {
 	r, err := motion.ParseRef(ref)
 	if err != nil {
 		return nil, err
@@ -773,12 +865,13 @@ func decideMotion(ctx context.Context, a *app.App, ref, verb, note string) (*Mot
 	if err != nil {
 		return nil, err
 	}
-	d, err := motion.Decide(ctx, a.DB, a.WorkspaceID(), c.Hash, verb, a.Actor, note)
+	before := c.State
+	d, err := motion.Decide(ctx, a.DB, a.WorkspaceID(), c.Hash, verb, a.Actor, note, shapes...)
 	if err != nil {
 		return nil, err
 	}
 	action := map[string]string{motion.Approve: "motion.approve", motion.Reject: "motion.reject", motion.Revoke: "motion.revoke"}[verb]
-	a.Audit(ctx, action, "motion", d.Hash, d.ProjectID, map[string]any{"name": d.Name, "hash": d.Hash, "note": note})
+	a.Audit(ctx, action, "motion", d.Hash, d.ProjectID, map[string]any{"name": d.Name, "hash": d.Hash, "note": note, "shapes": shapes})
 	row := motionRow(d, projectNamesOf(ctx, a, []models.MotionComponent{*d}))
 	summary := map[string]string{
 		motion.Approve: "Approved %s. Cuts can use this exact version now; any change to its files makes a new version that needs approval again.",
@@ -786,6 +879,14 @@ func decideMotion(ctx context.Context, a *app.App, ref, verb, note string) (*Mot
 		motion.Revoke:  "Withdrew approval of %s. New renders of cuts that use it are refused until a person approves it again.",
 	}[verb]
 	out := &MotionDecideOut{Row: row, Summary: fmt.Sprintf(summary, row.Version)}
+	if verb == motion.Approve && before == models.MotionApproved && len(d.Decisions) > 0 {
+		// More shapes for an approval (D381): cuts of those ratios are covered now.
+		var ws []string
+		for _, k := range d.Decisions[len(d.Decisions)-1].Shapes {
+			ws = append(ws, sizeWords(k))
+		}
+		out.Summary = fmt.Sprintf("Approved %s in %s too. Cuts in that shape use it without a note now.", row.Version, joinAnd(ws))
+	}
 	if verb == motion.Reject {
 		// The note reaches the conversation that made the graphic (D186).
 		out.ToldClaude = tellTurnedDown(ctx, a, TurnedDown{ProjectID: d.ProjectID, MotionHash: d.Hash, MotionName: d.Name, Note: note})
@@ -958,6 +1059,10 @@ func init() {
 		if err != nil {
 			return nil, err
 		}
+		if again != nil && len(o.Shapes) == 0 {
+			// Every shape asked for is drawn already (by ratio): nothing to add.
+			return nothingNewToDraw(again), nil
+		}
 		if len(in.Libraries) > 0 {
 			o.Libraries = in.Libraries
 		}
@@ -1027,7 +1132,7 @@ func init() {
 		if in.Reject {
 			verb = motion.Reject
 		}
-		return decideMotion(ctx, a, in.Ref, verb, in.Note)
+		return decideMotion(ctx, a, in.Ref, verb, in.Note, in.Shapes...)
 	})
 	Def("motion.revoke", "Withdraw approval of a motion graphic version: new renders and checks of cuts that use it are refused — people only", Flags{Mutating: true, HumanOnly: true}, func(ctx context.Context, a *app.App, in *MotionDecideIn) (*MotionDecideOut, error) {
 		return decideMotion(ctx, a, in.Ref, motion.Revoke, in.Note)
@@ -1070,27 +1175,55 @@ func MotionStudioShapes(ctx context.Context, a *app.App, in *MotionCheckIn) (dir
 	return dir, o, others, nil
 }
 
-// redrawSummary says what drawing a checked version again did (D377): the
-// code and its version are the same, so its approval is too.
+// redrawSummary says what drawing a checked version again did (D377, D381):
+// the code and its version are the same, so its approval is too — in the
+// shapes a person approved it in; the new shapes wait for a person.
 func redrawSummary(r *motion.CheckResult, drew motionShapeSet) string {
 	var ws []string
 	for _, sh := range drew.Shapes {
 		ws = append(ws, sh.Label)
 	}
-	s := fmt.Sprintf("Drew %s again: %s.", r.Name+"@"+motion.Short(r.Archive.Hash), joinAnd(ws))
+	s := fmt.Sprintf("Drew %s in %s too; the frames and previews it had stay as they were.", r.Name+"@"+motion.Short(r.Archive.Hash), joinAnd(ws))
 	state := ""
+	var approved []string
 	if r.Component != nil {
 		state = r.Component.State
+		for _, k := range r.Component.ApprovedSizes() {
+			approved = append(approved, sizeWords(k))
+		}
 	}
 	switch state {
 	case models.MotionApproved:
-		return s + " Its code is unchanged (approval is for this exact code), so its approval stands."
+		return s + " Its code is unchanged, so its approval stands for the shapes a person approved it in (" + joinAnd(approved) + "). A person looks at the new frames and approves it in those shapes too; drawing it doesn't count as anyone's approval."
 	case models.MotionRejected:
 		return s + " Its code is unchanged, so a person's decision to turn it down stands."
 	case models.MotionRevoked:
 		return s + " Its code is unchanged, so its approval stays withdrawn."
 	}
-	return s + " Its code is unchanged; it still waits for a person's approval."
+	return s + " Its code is unchanged; it still waits for a person's approval, which covers the shapes they look at."
 }
 
-var _ = errors.New
+// sizeWords says a size key as people do: "1920x1080" → "widescreen (16:9)".
+func sizeWords(k string) string {
+	var w, h int
+	if _, err := fmt.Sscanf(k, "%dx%d", &w, &h); err != nil {
+		return k
+	}
+	s := editspec.ShapeOfSize(w, h)
+	return s.Word + " (" + s.Ratio + ")"
+}
+
+// nothingNewToDraw answers a redraw whose shapes were all drawn before.
+func nothingNewToDraw(c *models.MotionComponent) *MotionCheckOut {
+	var ws []string
+	for _, k := range c.DrawnSizes() {
+		ws = append(ws, sizeWords(k))
+	}
+	out := &MotionCheckOut{OK: true, Name: c.Name, Hash: c.Hash, Version: c.Name + "@" + motion.Short(c.Hash), State: c.State, Problems: []models.MotionProblem{}, Imports: c.Imports,
+		Frames: []MotionFrameOut{}, Shapes: []MotionShapeOut{}, Redrawn: true,
+		Summary: fmt.Sprintf("%s is already drawn in %s; nothing new to draw. Its frames and its approval are unchanged.", c.Name+"@"+motion.Short(c.Hash), joinAnd(ws))}
+	if out.Imports == nil {
+		out.Imports = []models.MotionImport{}
+	}
+	return out
+}

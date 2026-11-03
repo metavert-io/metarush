@@ -257,6 +257,21 @@ func printMotionShow(r *ops.MotionShowOut, source, details bool) {
 		fmt.Println(m.Summary)
 	}
 	fmt.Printf("Shows in the %s of the frame, for %.1f to %.1f seconds.\n", map[string]string{"lower": "lower band", "center": "middle", "full": "whole"}[m.Region], m.MinDuration, m.MaxDuration)
+	if len(r.Shapes) > 0 {
+		// Drawn in, and approved in (D381).
+		var ws []string
+		for _, sh := range r.Shapes {
+			w := sh.Label
+			if m.State == models.MotionApproved && !sh.Approved {
+				w += ", not approved in this shape yet"
+			}
+			if details {
+				w += " " + sh.Size
+			}
+			ws = append(ws, w)
+		}
+		fmt.Println("Drawn: " + strings.Join(ws, "; ") + ".")
+	}
 	if len(r.Fields) > 0 {
 		fmt.Println("Fields:")
 		for _, f := range r.Fields {
@@ -367,7 +382,7 @@ func plainWhen(t time.Time) string {
 }
 
 // motionDecision asks the person at the terminal and runs approve/reject/revoke.
-func motionDecision(c *cobra.Command, op, ref, word, note string, reject bool) error {
+func motionDecision(c *cobra.Command, op, ref, word, note string, reject bool, shapes ...string) error {
 	if !interactive() {
 		return fail(c, apperr.HumanOnly, "Only a person can decide about a motion graphic, in the dashboard or in their own terminal.", "Open Motion graphics in the dashboard, or run this command yourself in a terminal.")
 	}
@@ -408,7 +423,13 @@ func motionDecision(c *cobra.Command, op, ref, word, note string, reject bool) e
 	if ask(fmt.Sprintf("Type %q to %s this version of %s", word, word, show.Row.Name), "") != word {
 		return fail(c, apperr.Canceled, "nothing was decided", "")
 	}
-	in := ops.MotionDecideIn{Ref: show.Row.Name + "@" + show.Row.Hash, Reject: reject, Note: note}
+	in := ops.MotionDecideIn{Ref: show.Row.Name + "@" + show.Row.Hash, Reject: reject, Note: note, Shapes: shapes}
+	if op == "motion.approve" && !reject && len(shapes) == 0 && show.Row.State != models.MotionApproved {
+		// The shapes this person was shown, so one drawn meanwhile isn't approved unseen (D381).
+		for _, sh := range show.Shapes {
+			in.Shapes = append(in.Shapes, sh.Size)
+		}
+	}
 	return runOpWith(c, a, op, in, ops.Caller{Human: true}, func(o any) {
 		out := o.(*ops.MotionDecideOut)
 		fmt.Println(out.Summary)
@@ -419,20 +440,26 @@ func motionDecision(c *cobra.Command, op, ref, word, note string, reject bool) e
 }
 
 func motionApproveCmd() *cobra.Command {
+	var shapes []string
 	var reject bool
 	var note string
 	c := &cobra.Command{
-		Use:   "approve <name[@version]> [--reject] [--note \"…\"]",
+		Use:   "approve <name[@version]> [--shape WxH]… [--reject] [--note \"…\"]",
 		Short: "Approve (or turn down) one exact version of a motion graphic — people only: in an interactive terminal or the dashboard",
-		Args:  cobra.ExactArgs(1),
+		Long: `Approve (or turn down) one exact version of a motion graphic, after looking at its test frames
+and preview. Approval covers the shapes it was drawn in (or the --shape ones you looked at); a
+version drawn later in more shapes is approved in those with --shape (for example --shape
+1920x1080). People only: in an interactive terminal or the dashboard.`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			word := "approve"
 			if reject {
 				word = "reject"
 			}
-			return motionDecision(c, "motion.approve", args[0], word, note, reject)
+			return motionDecision(c, "motion.approve", args[0], word, note, reject, shapes...)
 		},
 	}
+	c.Flags().StringArrayVar(&shapes, "shape", nil, "a shape you looked at and approve it in: 1920x1080, vertical, landscape or square (repeatable)")
 	c.Flags().BoolVar(&reject, "reject", false, "turn it down instead")
 	c.Flags().StringVar(&note, "note", "", "a note kept with the decision")
 	return c

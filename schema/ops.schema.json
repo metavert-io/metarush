@@ -34954,6 +34954,18 @@
         "check": {
           "$ref": "#/$defs/MotionCheckInfo"
         },
+        "draws": {
+          "items": {
+            "$ref": "#/$defs/MotionDraw"
+          },
+          "type": "array"
+        },
+        "approvedShapes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "state": {
           "type": "string",
           "enum": [
@@ -35015,6 +35027,14 @@
         "note": {
           "type": "string",
           "maxLength": 2000
+        },
+        "shapes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 9,
+          "description": "motion.approve: the shapes the person looked at and approves it in (sizes like 1920x1080, or vertical/landscape/square). Default: every shape it was drawn in. An approved version gets the shapes it isn't approved in yet."
         }
       },
       "additionalProperties": false,
@@ -35074,6 +35094,12 @@
         },
         "note": {
           "type": "string"
+        },
+        "shapes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,
@@ -35082,6 +35108,36 @@
         "state",
         "by",
         "at"
+      ]
+    },
+    "MotionDraw": {
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "by": {
+          "$ref": "#/$defs/Actor"
+        },
+        "machine": {
+          "type": "string"
+        },
+        "renderer": {
+          "type": "string"
+        },
+        "shapes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at",
+        "by",
+        "shapes"
       ]
     },
     "MotionField": {
@@ -35582,6 +35638,43 @@
         "height"
       ]
     },
+    "MotionShapeView": {
+      "properties": {
+        "size": {
+          "type": "string",
+          "description": "Its exact size (1920x1080)."
+        },
+        "label": {
+          "type": "string"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "ratio": {
+          "type": "string"
+        },
+        "approved": {
+          "type": "boolean",
+          "description": "A person approved it in this shape (cuts of this ratio use it without a note)."
+        },
+        "added": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "size",
+        "label",
+        "width",
+        "height",
+        "ratio",
+        "approved"
+      ]
+    },
     "MotionShowIn": {
       "properties": {
         "ref": {
@@ -35643,6 +35736,12 @@
         "sheetPath": {
           "type": "string",
           "description": "The contact sheet on this machine (an image to look at)."
+        },
+        "shapes": {
+          "items": {
+            "$ref": "#/$defs/MotionShapeView"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,
@@ -35654,7 +35753,8 @@
         "fields",
         "schema",
         "versions",
-        "usedBy"
+        "usedBy",
+        "shapes"
       ]
     },
     "MotionSourceFile": {

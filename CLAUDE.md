@@ -631,8 +631,10 @@ Read `docs/architecture.md` before structural changes.
   D73 hashes hold; only `TemplateInfo.Persistent` templates and `meta.persistent` motion graphics outlast their
   limit). Motion checks draw test frames in each shape of the cuts that use the graphic, by exact size (D377,
   `MotionComponent.Shapes`, `motion.TidyShapes`; else the workspace's cuts that use it, else `ProjectShape`, else both
-  widescreen and vertical); `motion check --version name@v [--shape …]` draws a checked version again (approval kept);
-  a graphic never drawn in a cut's shape is `motion_shape_undrawn` / QA `motion_shape` (D379). Inside nested cuts and conversations (D182, `callclips.go`): always get a
+  widescreen and vertical; cut sizes become `editspec.TestSize`); `motion check --version name@v [--shape …]` only adds
+  shapes to a checked version (D381: `SaveCheck` merges, never replaces what a person saw; frames linked by SHA-256;
+  `approvedShapes`, `motion approve --shape`; a panel card Auto may run, D382); a graphic nobody approved in a cut's
+  ratio is `motion_shape_undrawn` / QA `motion_shape` (D379). Inside nested cuts and conversations (D182, `callclips.go`): always get a
   clip's switches with `clipFootage(s, i, wrapFacts(s, facts))` (a conversation's depend on the clip's shots; a nested
   cut's are on its timeline); the bar's changes are keyed by the clip's own key, a conversation's cover comes from the
   tile (`convShotCover`/`tileArea`), layout tiles cover their own printed names (`PlanTag.Cover`) when the cut has a bar.
@@ -1160,8 +1162,11 @@ Read `docs/architecture.md` before structural changes.
   `config.yaml`) or a handover file. `clean` removes only after a confirmed receive (and the handover files made there,
   if unchanged). Tests: `go test ./internal/handover/`, browser run `scripts/handover-e2e.sh` (ports 5710–5719).
 - **One shape rule, one project shape** (D376, D378; `internal/editspec/shape.go`, `internal/ops/projectshape.go`,
-  `web/src/lib/shape.ts`): vertical | landscape | square only through `editspec.ShapeOf` / `Output.Shape()` (square
-  within 15%, whole numbers; `PresetFor`, `ParseShape`), twin-tested with `testdata/shapes.json`; a project's shape only
+  `web/src/lib/shape.ts`): vertical | landscape | square only through `editspec.ShapeOf` / `Output.Shape()` (the
+  renderer's `orientationOf`: w/h > 1.15 landscape, < 0.87 vertical; `PresetFor`, `ParseShape`, `RatioKey`, `TestSize`),
+  Go, the dashboard and the renderer held to `testdata/shapes.json`. It chooses and shows, never redraws a saved version
+  (D383: conversation clips' default layout keeps taller-than-wide; `TestPlansAtEveryShapeStayTheSame` compares plans
+  around every threshold with a golden written from main); a project's shape only
   through `ops.ProjectShape` (main cut, any cut, deliverables, footage majority with rotation, else vertical
   `known=false`). The server sends shapes (`RevisionSummary.shape`, `CutView.shape`, `ProjectShowOut.shape`,
   `ProjectSummary.headShape`, card frames' sizes); the dashboard reads them (`useServedShape`, `ShapeSkeleton`) and
@@ -1223,6 +1228,7 @@ scripts/workspace-export-e2e.sh                           # Settings → Storage
 scripts/database-move-e2e.sh                              # Settings → Storage → Move the database with a second computer: the plan, changes refused while it moves, the switch on both, a late write found and carried over (D334–D338, D352–D359; ports 5690–5699)
 scripts/components-e2e.sh                                 # only the required components, then Settings → Components and Getting started's Add it with a stand-in Homebrew (D324–D327; ports 5650–5659)
 scripts/resources-e2e.sh                                  # the Add box, Inbox clips dragged onto project cards, the Sources "…" menu, Delete…, a nested cut (D79–D84; ports 5660–5669)
+scripts/motion-shapes-e2e.sh                              # a person approves a motion graphic, a non-person draws it widescreen too, the approved frames stay, the person approves the new shape and a widescreen cut's note clears (D377, D381; ports 5740–5749)
 scripts/handover-e2e.sh                                   # two computers: the dry run in Settings → Storage, the handover file at a terminal, receive, the conversation going on in the same session, the old computer stepping down to a client, clean (D344–D348; ports 5710–5719)
 ```
 

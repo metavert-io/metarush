@@ -23,6 +23,7 @@ import (
 //
 //	/media/motion/{hash}/sheet      the contact sheet (JPEG)
 //	/media/motion/{hash}/preview    the preview video (MP4)
+//	/media/motion/{hash}/frame-{n|sha256}  a test frame, by its place or (stable, D381) its SHA-256
 //	/media/motion/{hash}/preview-{shape}  its preview in another shape it was checked in (D164): its size (1080x1350, D377) or label
 //	/media/motion/{hash}/frame-{n}  test frame n (PNG, from 0)
 //	/media/motion/{hash}/still-{n}  test frame n without the check's backdrop: the live preview's still (D187)
@@ -55,9 +56,17 @@ func (s *Server) motionMedia(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	case strings.HasPrefix(kind, "frame-"):
-		n, err := strconv.Atoi(strings.TrimPrefix(kind, "frame-"))
-		if err == nil && n >= 0 && n < len(c.Frames) {
+		ref := strings.TrimPrefix(kind, "frame-")
+		if n, err := strconv.Atoi(ref); err == nil && n >= 0 && n < len(c.Frames) {
 			obj, mime, name = &c.Frames[n].Object, "image/png", c.Name+"-frame-"+strconv.Itoa(n)+".png"
+		} else if motion.ValidHash(ref) {
+			// By its own SHA-256 (D381): a card keeps showing the frame it showed.
+			for i := range c.Frames {
+				if c.Frames[i].Object.SHA256 == ref && c.Frames[i].Object.Key != "" {
+					obj, mime, name = &c.Frames[i].Object, "image/png", c.Name+"-frame-"+strconv.Itoa(i)+".png"
+					break
+				}
+			}
 		}
 	case strings.HasPrefix(kind, "still-"):
 		// The live preview's still (D187): test frame n with the check's

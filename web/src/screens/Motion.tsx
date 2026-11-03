@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, CaretDown, CaretRight, CheckCircle, FilmStrip, Prohibit, Shapes, ShieldCheck, Sparkle, WarningCircle, XCircle } from '@phosphor-icons/react';
 import { media } from '../api/client';
 import { useOp, useOpMutation } from '../api/queries';
-import type { MotionComponent, MotionFrame, MotionImport, MotionRow, MotionShape, MotionShowOut, MotionSourceFile } from '../api/types';
+import type { MotionComponent, MotionFrame, MotionImport, MotionRow, MotionShape, MotionShapeView, MotionShowOut, MotionSourceFile } from '../api/types';
 import { relative, plural, bytes } from '../lib/format';
 import { useDialog } from '../ui/Dialog';
 import { Lightbox, type LightboxItem } from '../ui/Lightbox';
@@ -198,7 +198,7 @@ function Review({ data }: { data: MotionShowOut }) {
             {r.projectName ? ` · made for ${r.projectName}` : ''}
           </p>
         </div>
-        <Decide row={r} />
+        <Decide row={r} shapes={data.shapes ?? []} />
       </div>
 
       {data.previous ? (
@@ -217,7 +217,7 @@ function Review({ data }: { data: MotionShowOut }) {
             Test frames
           </SectionTitle>
           {byShape(c) ? (
-            <ShapeFrames hash={r.hash} name={r.name} component={c} />
+            <ShapeFrames hash={r.hash} name={r.name} component={c} row={r} views={data.shapes ?? []} />
           ) : (
             <div className="overflow-hidden rounded-[14px] bg-inset hairline">
               {c.sheet ? <img src={media.motionSheet(r.hash)} alt={`Test frames of ${r.name}: ${(c.frames ?? []).map((f) => f.label).join(', ')}`} className="block h-auto w-full" /> : null}
@@ -434,7 +434,7 @@ interface ShapeGroup {
   preview?: string;
 }
 
-function ShapeFrames({ hash, name, component: c }: { hash: string; name: string; component: MotionComponent }) {
+function ShapeFrames({ hash, name, component: c, row, views }: { hash: string; name: string; component: MotionComponent; row: MotionRow; views: MotionShapeView[] }) {
   const [box, setBox] = useState<{ items: LightboxItem[]; index: number; title: string } | null>(null);
   const groups = useMemo(() => {
     const frames = (c.frames ?? []).map((f, i) => ({ f, i }));
@@ -467,6 +467,8 @@ function ShapeFrames({ hash, name, component: c }: { hash: string; name: string;
           ...(g.preview ? [{ src: g.preview, kind: 'video' as const, label: `${g.title}: preview` }] : []),
         ];
         const title = `${name}, ${g.title.toLowerCase()}`;
+        // Approved in this shape? (D381: a later drawing waits for a person.)
+        const view = views.find((v) => v.size === g.key);
         return (
           <div key={g.key} data-motion-shape={g.key}>
             <h3 className="mb-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[13.5px] font-semibold text-fg">
@@ -481,7 +483,9 @@ function ShapeFrames({ hash, name, component: c }: { hash: string; name: string;
                   {g.shape.width}×{g.shape.height}
                 </span>
               ) : null}
+              {row.state === 'approved' && view && !view.approved ? <Badge tone="info">Not approved in this shape yet</Badge> : null}
             </h3>
+            {row.state === 'approved' && view && !view.approved ? <ApproveShape row={row} view={view} /> : null}
             <ul className="grid items-start gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${tall ? 92 : shapeOf(w, h) === 'square' ? 124 : 164}px, 1fr))` }}>
               {g.frames.map((x, k) => (
                 <li key={x.i} className="min-w-0">
@@ -640,7 +644,35 @@ function LibraryLine({ row: r }: { row: MotionRow }) {
   return null;
 }
 
-function Decide({ row }: { row: MotionRow }) {
+/** Approve an approved version in a shape it was drawn in later (D381): people only, after looking at these frames. */
+function ApproveShape({ row, view }: { row: MotionRow; view: MotionShapeView }) {
+  const dialog = useDialog();
+  const toast = useToast();
+  const approve = useOpMutation('motion.approve', { invalidate: ['motion.list', 'motion.show'] });
+  const words = `${view.label.split(' ')[0]} (${view.ratio})`;
+  const onClick = async () => {
+    const ok = await dialog.confirm({
+      title: `Approve ${row.name} ${words}?`,
+      body: <p>Cuts in this shape then use it without a note. You've looked at its test frames in this shape; its code is the version you approved.</p>,
+      confirmLabel: 'Approve in this shape',
+    });
+    if (ok)
+      approve.mutate(
+        { ref: `${row.name}@${row.hash}`, shapes: [view.size] },
+        { onSuccess: (o) => toast({ tone: 'success', title: o.summary }), onError: (e) => toast({ tone: 'error', title: 'That did not work', body: e.message }) },
+      );
+  };
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-2 text-[12.5px] text-muted" data-approve-shape={view.size}>
+      <span>Drawn after it was approved; nobody has approved it in this shape yet.</span>
+      <Button size="sm" variant="secondary" icon={<CheckCircle size={13} />} loading={approve.isPending} onClick={() => void onClick()}>
+        Approve in this shape
+      </Button>
+    </div>
+  );
+}
+
+function Decide({ row, shapes }: { row: MotionRow; shapes: MotionShapeView[] }) {
   const dialog = useDialog();
   const toast = useToast();
   const navigate = useNavigate();
@@ -669,7 +701,8 @@ function Decide({ row }: { row: MotionRow }) {
         ),
       confirmLabel: 'Approve',
     });
-    if (ok) approve.mutate({ ref }, { onSuccess: done, onError: failed });
+    // The shapes shown here are the ones looked at (D381).
+    if (ok) approve.mutate({ ref, ...(shapes.length ? { shapes: shapes.map((x) => x.size) } : {}) }, { onSuccess: done, onError: failed });
   };
   const onReject = async () => {
     const note = await dialog.prompt({

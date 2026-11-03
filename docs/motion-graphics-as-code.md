@@ -140,10 +140,10 @@ screen, over the names a call app printed) without any code.
 
 ## Test frames in the cut's shape
 
-The test frames and the preview are drawn in the shapes of the cuts the graphic is for, told apart by their exact
-size (D377): 1080×1920 and 1080×1350 are both vertical, so they are drawn, kept and shown apart ("vertical 9:16",
-"vertical 4:5"), and the contact sheet is the first shape's frames only, never stretched. The shapes come from the
-first of:
+The test frames and the preview are drawn in the shapes of the cuts the graphic is for, by ratio at a test size
+(D377, D379: a 3840×2160 or 1280×720 cut is drawn 1920×1080, a 4:5 cut 1080×1350). 1080×1920 and 1080×1350 are both
+vertical, so they are drawn, kept and shown apart ("vertical 9:16", "vertical 4:5"), and the contact sheet is the
+first shape's frames only, never stretched. The shapes come from the first of:
 
 1. the project's cuts (every branch's latest version) that use a graphic of that name, the main cut's first;
 2. cuts in other projects of the workspace whose latest versions use a graphic of that name — also when the check
@@ -160,18 +160,25 @@ size, and the dashboard and the card show the frames at their own shape, a row p
 `vertical`, `landscape`, `square` or an exact size like `1080x1350`. With no brand on the cut, the frames use the
 project's brand kit, else the workspace's.
 
-### Drawing a checked version in another shape
+### Drawing a checked version in another shape, and approving it there
 
 `metarush motion check --version name@version [--shape …]` draws a version checked here again, from MetaRush's own copy
-of its code (the same bytes, so the same version), in the shapes of the cuts that use it and the shape asked for,
-keeping the shapes it was drawn in (at most three). It runs like any check, in the jailed browser, and works from the
-dashboard too. Approval is per version and the code is unchanged, so a person's approval — or the wait for one — stays
-as it was; only the test frames and previews are new. A version brought in with a file from another workspace is
-checked the same way, named with its whole version.
+of its code (the same bytes, so the same version), in the ratios of the cuts that use it and the shape asked for that it
+lacks (D381). It only ever adds: the new shapes' frames and previews go beside the ones it had, and the frames,
+previews, contact sheet and check a person saw stay exactly as they were (one check adds at most three shapes, a
+version holds at most nine). It runs like any check, in the jailed browser, and works from the dashboard and as a card
+in Claude's panel, which starts by itself and which Auto may run (D382): it is evidence, never a decision.
 
-A cut checked or saved with a graphic in a shape it was never drawn in gets a warning (`motion_shape_undrawn` in the
-edit and cut check, `motion_shape` in QA) that says which shapes it was drawn in, with the command that draws it in the
-cut's shape in its details (`command`). Versions with no test frames say nothing.
+Approval is per version and per what a person looked at: an approval covers the shapes the person was shown
+(`approvedShapes`; an approval from before covers every shape it was drawn in then). A shape drawn later is approved
+by a person on the graphic's page (**Approve in this shape**) or with `metarush motion approve name@version --shape
+1920x1080`; drawing it, by anyone, never does. Frames are linked by their own SHA-256, so a card keeps showing what it
+showed.
+
+A cut checked or saved with a graphic in a shape nobody approved it in gets a warning (`motion_shape_undrawn` in the
+edit and cut check, `motion_shape` in QA): never drawn in the cut's ratio (the `command` draws it at a test size), or
+drawn there but approved only in other shapes (the `command` is a person's approval). A graphic drawn in a ratio covers
+every size of it. Versions with no test frames say nothing; one nobody approved at all is that approval's error.
 
 `metarush motion studio` opens at the project's shape (or `--shape`) and names the other shapes the graphic is used in.
 

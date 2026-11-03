@@ -34,7 +34,10 @@ func (c *conv) safeStep(a *AssistantAction) bool {
 	}
 	switch a.Op {
 	case "motion.check":
-		return true // the folder is this conversation's (describeMotionCheck)
+		// The folder is this conversation's (describeMotionCheck), or a version
+		// checked here drawn in more shapes: it only adds test frames and never
+		// approves anything (describeMotionRedraw, D382).
+		return true
 	case "render.submit":
 		var in ops.RenderSubmitIn
 		return json.Unmarshal([]byte(a.Input), &in) == nil && (in.Quality == "" || in.Quality == "review")

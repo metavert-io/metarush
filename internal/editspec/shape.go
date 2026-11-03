@@ -85,6 +85,37 @@ func (s OutputShape) Key() string {
 	return fmt.Sprintf("%dx%d", s.Width, s.Height)
 }
 
+// RatioKey is the aspect ratio in smallest whole numbers, always ("16:9",
+// "1000:1149"): sizes with the same key are drawn alike, so a graphic drawn
+// at 1920×1080 covers a 1280×720 or 3840×2160 cut (D379).
+func (s OutputShape) RatioKey() string {
+	if s.Width <= 0 || s.Height <= 0 {
+		return ""
+	}
+	g := gcd(s.Width, s.Height)
+	return fmt.Sprintf("%d:%d", s.Width/g, s.Height/g)
+}
+
+// TestSize is the size a test frame of this ratio is drawn at: the ratio
+// with its short side at least 1080 and both sides even (16:9 → 1920×1080,
+// 4:5 → 1080×1350), never larger than it needs to be; a ratio that can't
+// fit within 4096 keeps its own size, made even (D379).
+func TestSize(w, h int) OutputShape {
+	if w <= 0 || h <= 0 {
+		return OutputShape{}
+	}
+	g := gcd(w, h)
+	a, b := w/g, h/g
+	for k := 1; k*max(a, b) <= 4096; k++ {
+		x, y := k*a, k*b
+		if min(x, y) >= 1080 && x%2 == 0 && y%2 == 0 {
+			return ShapeOfSize(x, y)
+		}
+	}
+	x, y := min(w, 4096)&^1, min(h, 4096)&^1
+	return ShapeOfSize(max(x, 2), max(y, 2))
+}
+
 // Shape is the output's shape: of its width × height, else of its preset's
 // size. The zero value when it says neither (Normalize makes such a cut
 // vertical; callers that know better decide).

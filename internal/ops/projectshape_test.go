@@ -200,10 +200,24 @@ func TestMotionShapesWithoutAProjectAndNothingKnown(t *testing.T) {
 	if _, _, err := checkFrame(ctx, a, &MotionCheckIn{ProjectID: empty.ID, Shape: "wide"}, t.TempDir()+"/lower-title", nil); code(err) != apperr.InvalidInput {
 		t.Fatalf("a shape that isn't one: %v", err)
 	}
-	// Drawn again: the cuts' shapes first, then the ones it was drawn in.
-	again := &models.MotionComponent{Name: "lower-title", ProjectID: empty.ID, Shapes: []models.MotionShape{{Label: "square", Width: 1080, Height: 1080}}}
+	// Drawn again (D381): only the cuts' ratios it lacks; what it was drawn in stays in its record.
+	again := &models.MotionComponent{Name: "lower-title", ProjectID: empty.ID, Shapes: []models.MotionShape{{Label: "vertical", Width: 720, Height: 1280}}}
 	o, _, err = checkFrame(ctx, a, &MotionCheckIn{}, t.TempDir()+"/lower-title", again)
-	if err != nil || o.ProjectID != empty.ID || len(o.Shapes) != 3 || o.Shapes[2].Key() != "1080x1080" {
+	if err != nil || o.ProjectID != empty.ID || len(o.Shapes) != 1 || o.Shapes[0].Key() != "1080x1350" {
 		t.Fatalf("drawn again: %v %+v", err, o.Shapes)
+	}
+	// A 4K cut's shape is drawn at a test size, never 4K (D379).
+	putCut(t, a, empty.ID, "uhd", 3840, 2160, "lower-title")
+	if got := labels(motionShapes(ctx, a, projectByID(t, a, empty.ID), "lower-title", "generic")); !strings.Contains(got, "widescreen 1920x1080") || strings.Contains(got, "3840") {
+		t.Fatalf("a 4K cut: %s", got)
+	}
+	// Past the overall bound, a redraw is refused in plain words.
+	var many []models.MotionShape
+	for i := 0; i < MaxDrawnShapes; i++ {
+		many = append(many, models.MotionShape{Width: 1000 + 2*i, Height: 1000})
+	}
+	full := &models.MotionComponent{Name: "lower-title", Shapes: many}
+	if _, _, err := checkFrame(ctx, a, &MotionCheckIn{Shape: "1080x1920"}, t.TempDir()+"/lower-title", full); code(err) != apperr.Conflict {
+		t.Fatalf("past the bound: %v", err)
 	}
 }

@@ -560,7 +560,13 @@ func (m *Manager) motionPictures(ctx context.Context, act *AssistantAction, hash
 		}
 		// Every frame says its size and shape (D377), so the panel shows it
 		// at its own ratio, a row per size, however many shapes it was drawn in.
-		pic := CardPicture{URL: "/media/motion/" + hash + "/frame-" + strconv.Itoa(i), Label: label, Width: f.Object.Width, Height: f.Object.Height, Shape: f.Shape}
+		// By the frame's own SHA-256 (D381): the card keeps showing this picture
+		// whatever the version is drawn in later.
+		ref := strconv.Itoa(i)
+		if motion.ValidHash(f.Object.SHA256) {
+			ref = f.Object.SHA256
+		}
+		pic := CardPicture{URL: "/media/motion/" + hash + "/frame-" + ref, Label: label, Width: f.Object.Width, Height: f.Object.Height, Shape: f.Shape}
 		for _, st := range stills {
 			if st.Index == i && (pic.Width == 0 || pic.Height == 0) {
 				pic.Width, pic.Height = st.Width, st.Height

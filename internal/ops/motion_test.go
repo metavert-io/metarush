@@ -127,27 +127,51 @@ func TestMotionCheckApproveRevoke(t *testing.T) {
 		t.Fatalf("show: %v %+v", err, show)
 	}
 
-	// Drawn again in another shape (D377): the same code and version, so the
-	// approval stands; the frames are new and the vertical ones are kept. It
-	// works from the dashboard too (MetaRush's own copy of checked code).
-	before := len(show.Component.Frames)
-	again, err := CallTyped[MotionCheckOut](ctx, a, "motion.check", MotionCheckIn{Version: ref, Shape: "landscape", NoPreview: true}, Caller{Human: true, Remote: true})
+	// Drawn again by no person in another shape (D377, D381): the same code
+	// and version, so the approval stands — for the shape a person approved it
+	// in. Everything that person saw stays as it was; the new shape is only added.
+	before := show.Component
+	again, err := CallTyped[MotionCheckOut](ctx, a, "motion.check", MotionCheckIn{Version: ref, Shape: "landscape", NoPreview: true}, Caller{})
 	if err != nil || !again.OK || !again.Redrawn || again.Hash != out.Hash || again.State != models.MotionApproved {
 		t.Fatalf("drawn again: %v %+v", err, again)
 	}
-	if !strings.Contains(again.Summary, "approval stands") || len(again.Shapes) != 2 || again.Shapes[0].Width != 1920 || again.Shapes[1].Height != 1920 {
+	if !strings.Contains(again.Summary, "approval stands for the shapes a person approved it in (vertical (9:16))") || !strings.Contains(again.Summary, "doesn't count") ||
+		len(again.Shapes) != 1 || again.Shapes[0].Width != 1920 {
 		t.Fatalf("drawn again, words and shapes: %q %+v", again.Summary, again.Shapes)
 	}
 	redrawn, err := CallTyped[MotionShowOut](ctx, a, "motion.show", MotionShowIn{Ref: ref}, Caller{})
-	if err != nil || redrawn.Component.State != models.MotionApproved || len(redrawn.Component.Decisions) != 1 || len(redrawn.Component.Frames) <= before {
+	if err != nil || redrawn.Component.State != models.MotionApproved || len(redrawn.Component.Decisions) != 1 || len(redrawn.Component.Frames) <= len(before.Frames) {
 		t.Fatalf("after drawing again: %v %+v", err, redrawn.Component)
 	}
-	sizes := map[string]int{}
-	for _, f := range redrawn.Component.Frames {
-		sizes[fmt.Sprintf("%dx%d", f.Object.Width, f.Object.Height)]++
+	for i, f := range before.Frames {
+		if g := redrawn.Component.Frames[i]; g.Object.SHA256 != f.Object.SHA256 || g.Label != f.Label {
+			t.Fatalf("frame %d a person saw changed: %+v → %+v", i, f, g)
+		}
 	}
-	if sizes["1920x1080"] == 0 || sizes["1080x1920"] == 0 || len(sizes) != 2 {
-		t.Fatalf("frames by size: %v", sizes)
+	if (before.Sheet == nil) != (redrawn.Component.Sheet == nil) || (before.Sheet != nil && before.Sheet.SHA256 != redrawn.Component.Sheet.SHA256) || before.Check.At != redrawn.Component.Check.At {
+		t.Fatal("the contact sheet and check a person saw changed")
+	}
+	if fmt.Sprint(redrawn.Component.ApprovedShapes) != "[1080x1920]" || len(redrawn.Shapes) != 2 || !redrawn.Shapes[0].Approved || redrawn.Shapes[1].Approved || !redrawn.Shapes[1].Added {
+		t.Fatalf("approved in what a person saw: %v %+v", redrawn.Component.ApprovedShapes, redrawn.Shapes)
+	}
+	// A widescreen cut is noted, with the person's approval as the way out.
+	if w := shapeWarnings(t, a, out.Hash, 1920, 1080); len(w) != 1 || !strings.Contains(w[0].Command, "motion approve route-map@") || !strings.HasSuffix(w[0].Command, "--shape 1920x1080") {
+		t.Fatalf("a widescreen cut before a person approves it that way: %+v", w)
+	}
+	// Nothing new to draw: said, nothing changes.
+	if same, err := CallTyped[MotionCheckOut](ctx, a, "motion.check", MotionCheckIn{Version: ref, Shape: "1280x720", NoPreview: true}, Caller{}); err != nil || !strings.Contains(same.Summary, "nothing new to draw") {
+		t.Fatalf("nothing new: %v %+v", err, same)
+	}
+	if _, err := Call(ctx, a, "motion.check", mustJSON(MotionCheckIn{Version: ref, Shape: "1081x1351"}), Caller{}); code(err) != apperr.InvalidInput {
+		t.Fatalf("an odd size: %v", err)
+	}
+	// A person approves it widescreen: the note on widescreen cuts clears.
+	wide, err := CallTyped[MotionDecideOut](ctx, a, "motion.approve", MotionDecideIn{Ref: ref, Shapes: []string{"1920x1080"}}, Caller{Human: true})
+	if err != nil || !strings.Contains(wide.Summary, "in widescreen (16:9) too") {
+		t.Fatalf("approve widescreen: %v %+v", err, wide)
+	}
+	if w := shapeWarnings(t, a, out.Hash, 1920, 1080); len(w) != 0 {
+		t.Fatalf("approved widescreen: %+v", w)
 	}
 
 	// Revoke works.
@@ -242,6 +266,26 @@ func checkSpec(t *testing.T, a *app.App, hash string) []string {
 		}
 	}
 	return codes
+}
+
+// shapeWarnings are the shape notes a cut at w × h using the version gets (D379, D381).
+func shapeWarnings(t *testing.T, a *app.App, hash string, w, h int) []editspec.Issue {
+	t.Helper()
+	s := &editspec.Spec{SchemaVersion: 1, Output: editspec.Output{Width: w, Height: h},
+		Clips:    []editspec.Clip{{ID: "a", AssetID: "ast_01jabcdefghjkmnpqrstvwxyz0", In: 0, Out: 2}},
+		Overlays: []editspec.Overlay{{ID: "route", Motion: &editspec.MotionRef{Name: "route-map", Hash: hash}, At: 0.2, Duration: 3, Params: json.RawMessage(`{"from":"Lisbon","to":"Porto"}`)}}}
+	editspec.Normalize(s)
+	facts, err := loadFacts(context.Background(), a, "", s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []editspec.Issue
+	for _, is := range editspec.Validate(s, facts, nil, false) {
+		if is.Code == "motion_shape_undrawn" {
+			out = append(out, is)
+		}
+	}
+	return out
 }
 
 func contains(xs []string, x string) bool {

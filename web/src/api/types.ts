@@ -568,6 +568,7 @@ export type CutNamesOut = ops.CutNamesOut;
 export type EdgeFlash = ops.EdgeFlash;
 /* Motion graphics' test frames in the shapes of the cuts they are for (D164). */
 export type MotionShape = ops.MotionShape;
+export type MotionShapeView = ops.MotionShapeView;
 export type MotionFrame = ops.MotionFrame;
 
 /* Fixing transcripts (D145–D149): fixes and their history, find and replace, spelling lists, fixes waiting for a new version, the caption check. */

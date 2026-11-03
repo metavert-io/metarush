@@ -60,6 +60,14 @@ type MotionComponent struct {
 	// Absent for versions checked before (one shape: Check.Width × Check.Height).
 	Shapes []MotionShape   `bson:"shapes,omitempty" json:"shapes,omitempty"`
 	Check  MotionCheckInfo `bson:"check" json:"check"`
+	// Draws are the times it was drawn again in more shapes (D381): each only
+	// added frames, previews and shapes; nothing a person saw is ever replaced.
+	Draws []MotionDraw `bson:"draws,omitempty" json:"draws,omitempty"`
+	// ApprovedShapes are the shapes a person approved it in (D381), by exact
+	// size ("1920x1080"); its approval covers cuts of their ratios. Absent on a
+	// version approved before: it covers the shapes it was drawn in (a redraw
+	// writes that list down before it adds anything).
+	ApprovedShapes []string `bson:"approvedShapes,omitempty" json:"approvedShapes,omitempty"`
 	// What people decided.
 	State      string           `bson:"state" json:"state" jsonschema:"enum=waiting,enum=approved,enum=rejected,enum=revoked"`
 	Decisions  []MotionDecision `bson:"decisions,omitempty" json:"decisions,omitempty"`
@@ -199,4 +207,60 @@ type MotionDecision struct {
 	By    Actor     `bson:"by" json:"by"`
 	At    time.Time `bson:"at" json:"at"`
 	Note  string    `bson:"note,omitempty" json:"note,omitempty"`
+	// Shapes are the shapes an approval covered (D381): the ones the person
+	// looked at, by exact size.
+	Shapes []string `bson:"shapes,omitempty" json:"shapes,omitempty"`
 }
+
+// MotionDraw is one time a checked version was drawn again in more shapes (D381).
+type MotionDraw struct {
+	At       time.Time `bson:"at" json:"at"`
+	By       Actor     `bson:"by" json:"by"`
+	Machine  string    `bson:"machine,omitempty" json:"machine,omitempty"`
+	Renderer string    `bson:"renderer,omitempty" json:"renderer,omitempty"`
+	// Shapes are the shapes it added, by exact size ("1920x1080").
+	Shapes []string `bson:"shapes" json:"shapes"`
+}
+
+// DrawnSizes are the exact sizes a version was drawn in ("1080x1920"), first
+// drawn first: its shapes, else (checked before D164) its check's one size,
+// and the sizes of its frames.
+func (c *MotionComponent) DrawnSizes() []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(w, h int) {
+		if w <= 0 || h <= 0 {
+			return
+		}
+		k := sizeKey(w, h)
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, k)
+		}
+	}
+	for _, s := range c.Shapes {
+		add(s.Width, s.Height)
+	}
+	if len(c.Shapes) == 0 && len(c.Frames) > 0 {
+		add(c.Check.Width, c.Check.Height)
+	}
+	for _, f := range c.Frames {
+		add(f.Object.Width, f.Object.Height)
+	}
+	return out
+}
+
+// ApprovedSizes are the sizes a person's approval covers (D381): none unless
+// it is approved; its recorded shapes, else (approved before) every size it
+// was drawn in.
+func (c *MotionComponent) ApprovedSizes() []string {
+	if c.State != MotionApproved {
+		return nil
+	}
+	if c.ApprovedShapes != nil {
+		return c.ApprovedShapes
+	}
+	return c.DrawnSizes()
+}
+
+func sizeKey(w, h int) string { return itoa(w) + "x" + itoa(h) }

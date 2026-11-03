@@ -23612,6 +23612,12 @@ ref: string
  */
 reject?: boolean
 note?: string
+/**
+ * motion.approve: the shapes the person looked at and approves it in (sizes like 1920x1080, or vertical/landscape/square). Default: every shape it was drawn in. An approved version gets the shapes it isn't approved in yet.
+ * 
+ * @maxItems 9
+ */
+shapes?: string[]
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -23933,6 +23939,7 @@ usedBy: MotionUse[]
  * The contact sheet on this machine (an image to look at).
  */
 sheetPath?: string
+shapes: MotionShapeView[]
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -23977,6 +23984,8 @@ frames?: MotionFrame[]
 video?: MotionObject2
 shapes?: MotionShape[]
 check: MotionCheckInfo
+draws?: MotionDraw[]
+approvedShapes?: string[]
 state: ("waiting" | "approved" | "rejected" | "revoked")
 decisions?: MotionDecision[]
 approvedBy?: Actor
@@ -24101,6 +24110,17 @@ slowestMs?: number
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "MotionDraw".
+ */
+export interface MotionDraw {
+at: string
+by: Actor
+machine?: string
+renderer?: string
+shapes: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "MotionDecision".
  */
 export interface MotionDecision {
@@ -24108,6 +24128,7 @@ state: ("approved" | "rejected" | "revoked")
 by: Actor
 at: string
 note?: string
+shapes?: string[]
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -24173,6 +24194,25 @@ projectId: string
 projectName: string
 revisionId: string
 number: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "MotionShapeView".
+ */
+export interface MotionShapeView {
+/**
+ * Its exact size (1920x1080).
+ */
+size: string
+label: string
+width: number
+height: number
+ratio: string
+/**
+ * A person approved it in this shape (cuts of this ratio use it without a note).
+ */
+approved: boolean
+added?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

@@ -752,7 +752,7 @@ where the video goes. You hear a change in the preview before you save it ([docs
   frames grouped by shape and shown at their own shape. With no cut using a graphic yet, its frames follow cuts
   elsewhere in the workspace that use it, else the project's shape; when nothing says, both widescreen and vertical.
 - **One shape rule, one project shape**: whether a video is vertical, widescreen or square is decided by one rule
-  everywhere (a frame within 15% of square is square), and a project's shape comes from its main cut, else any cut,
+  everywhere, the renderer's own (wider than 1.15 is widescreen, narrower than 0.87 vertical), and a project's shape comes from its main cut, else any cut,
   else the brief's deliverables, else the shape most of its footage is in. `metarush project show` says it and why;
   the dashboard shows every cut, version and loading box at the shape the server says.
 
@@ -1594,7 +1594,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush footage captions <clip> [--language en] [--save file]` | the captions files kept with a clip (English captions an ability made), one language's words, or that file saved |
 | `metarush ability plan <name> --input words="…"` / `ability run … [--max-cost USD] [--wait]` / `ability runs [name] [--id run]` | what a run would do and cost (who decides); start it (a person for anything priced or that sends media away); past runs, one with its requests and what it printed |
 | `metarush motion check --version name@version [--library lib@version]` | check a motion graphic a recipe file brought in (test frames in the jailed browser; a person approves it after) |
-| `metarush motion check --version name@version --shape landscape\|vertical\|square\|1080x1350` | draw a version checked here again in a cut's shape (and the cuts' shapes): the same code, so its approval stands; only the test frames and previews are new |
+| `metarush motion check --version name@version --shape landscape\|vertical\|square\|1080x1350` | draw a version checked here in a cut's shape too: it only adds frames and previews, the code and approval are unchanged; `motion approve name@version --shape 1920x1080` is a person approving it in that shape |
 | `metarush catalogue list [--works-now] [--group fix] [--built-in\|--added]` / `catalogue show <id>` | the menu of abilities, built in and added, each saying whether it works on this computer or what it needs first / one with what it needs, costs and runs |
 
 ### Running MetaRush

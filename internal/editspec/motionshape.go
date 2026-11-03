@@ -17,32 +17,59 @@ func (m MotionInfo) DrawnShapes() []OutputShape {
 	return out
 }
 
-// MotionShapeGap is a motion graphic a cut shows in a shape it was never
-// drawn in (D379): nobody has seen how it looks there.
+// MotionShapeGap is a motion graphic a cut shows in a shape nobody approved
+// it in (D379, D381): never drawn in the cut's ratio (Undrawn), or drawn
+// there — by a check anyone may run — but approved by a person only in other
+// shapes.
 type MotionShapeGap struct {
 	Name, Hash string
 	// Overlays are its places in the cut (indexes into Spec.Overlays) and
 	// OverlayIDs their IDs.
 	Overlays   []int
 	OverlayIDs []string
-	// Shape is the cut's shape; Drawn the shapes the version was drawn in.
-	Shape OutputShape
-	Drawn []OutputShape
+	// Shape is the cut's shape; Drawn the shapes the version was drawn in,
+	// Approved the ones a person approved it in.
+	Shape    OutputShape
+	Drawn    []OutputShape
+	Approved []OutputShape
+	// Undrawn: never drawn in the cut's ratio. Else it was, and waits for a
+	// person's approval in that shape.
+	Undrawn bool
+	// DrawnAt is the size it was drawn at in the cut's ratio (when drawn).
+	DrawnAt OutputShape
 }
 
-// Command is what draws the version in the cut's shape: the same code drawn
-// again, its approval unchanged (D377).
-func (g MotionShapeGap) Command() string {
-	short := g.Hash
-	if len(short) > 8 {
-		short = short[:8]
+func shortVersion(hash string) string {
+	if len(hash) > 8 {
+		return hash[:8]
 	}
-	return fmt.Sprintf("metarush motion check --version %s@%s --shape %s", g.Name, short, g.Shape.Key())
+	return hash
 }
 
-// MotionShapeGaps lists the checked motion graphics a cut shows at w × h
-// that were never drawn at exactly that size (D379); versions with no test
-// frames say nothing.
+// Command is what fills the gap: drawing the same version in the cut's ratio
+// at a test size (its code and approval unchanged, D377), or — drawn there
+// already — a person approving it in that shape (people only).
+func (g MotionShapeGap) Command() string {
+	if g.Undrawn {
+		return fmt.Sprintf("metarush motion check --version %s@%s --shape %s", g.Name, shortVersion(g.Hash), TestSize(g.Shape.Width, g.Shape.Height).Key())
+	}
+	return fmt.Sprintf("metarush motion approve %s@%s --shape %s", g.Name, shortVersion(g.Hash), g.DrawnAt.Key())
+}
+
+func ratioIn(xs []OutputShape, s OutputShape) (OutputShape, bool) {
+	for _, x := range xs {
+		if x.RatioKey() == s.RatioKey() {
+			return x, true
+		}
+	}
+	return OutputShape{}, false
+}
+
+// MotionShapeGaps lists the checked motion graphics a cut shows at w × h in a
+// shape nobody approved them in (D379, D381): a version drawn in a shape
+// covers every size of the same ratio; an approved one only in the shapes a
+// person approved it in. Versions with no test frames say nothing; one not
+// approved at all is the approval's own error.
 func MotionShapeGaps(s *Spec, f Facts, w, h int) []MotionShapeGap {
 	cut := ShapeOfSize(w, h)
 	if cut.Shape == "" {
@@ -70,32 +97,46 @@ func MotionShapeGaps(s *Spec, f Facts, w, h int) []MotionShapeGap {
 		if len(drawn) == 0 {
 			continue
 		}
-		missing := true
-		for _, d := range drawn {
-			if d.Key() == cut.Key() {
-				missing = false
+		g := MotionShapeGap{Name: firstNonEmptyStr(info.Name, o.Motion.Name), Hash: o.Motion.Hash, Overlays: []int{i}, OverlayIDs: []string{o.ID}, Shape: cut, Drawn: drawn, Approved: info.ApprovedShapes}
+		d, isDrawn := ratioIn(drawn, cut)
+		switch {
+		case !isDrawn:
+			g.Undrawn = true
+		case info.State == MotionApproved:
+			if _, ok := ratioIn(info.ApprovedShapes, cut); ok {
+				continue
 			}
-		}
-		if !missing {
-			continue
+			g.DrawnAt = d
+		default:
+			continue // drawn; not approved at all is motion_not_approved's to say
 		}
 		at[o.Motion.Hash] = len(out)
-		out = append(out, MotionShapeGap{Name: firstNonEmptyStr(info.Name, o.Motion.Name), Hash: o.Motion.Hash, Overlays: []int{i}, OverlayIDs: []string{o.ID}, Shape: cut, Drawn: drawn})
+		out = append(out, g)
 	}
 	return out
 }
 
-// Words says a gap plainly: what was drawn, and the cut's shape.
-func (g MotionShapeGap) Words() string {
-	var drawn []string
-	for _, d := range g.Drawn {
-		drawn = append(drawn, d.Word+" ("+d.Ratio+")")
+func shapeWords(xs []OutputShape) string {
+	var ws []string
+	for _, x := range xs {
+		ws = append(ws, x.Word+" ("+x.Ratio+")")
 	}
-	return fmt.Sprintf("The motion graphic %s was only ever drawn %s, never %s (%s) like this cut, so nobody has seen how it looks here. Draw it in this shape and look at its test frames before a final render; its code and approval stay the same.",
-		g.Name, joinAnd(drawn), g.Shape.Word, g.Shape.Ratio)
+	return joinAnd(ws)
 }
 
-// motionShapeIssues warns about graphics never drawn in the cut's shape (D379).
+// Words says a gap plainly: what was drawn and approved, the cut's shape,
+// and what a person does.
+func (g MotionShapeGap) Words() string {
+	cut := g.Shape.Word + " (" + g.Shape.Ratio + ")"
+	if g.Undrawn {
+		return fmt.Sprintf("The motion graphic %s was only ever drawn %s, never %s like this cut, so nobody has seen how it looks here. Draw it in this shape, then a person looks at it and approves it that way; its code stays the same.",
+			g.Name, shapeWords(g.Drawn), cut)
+	}
+	return fmt.Sprintf("The motion graphic %s has test frames %s like this cut, but a person approved it only %s. A person looks at those frames and approves it in this shape; drawing it again doesn't count.",
+		g.Name, cut, shapeWords(g.Approved))
+}
+
+// motionShapeIssues warns about graphics nobody approved in the cut's shape (D379, D381).
 func motionShapeIssues(s *Spec, f Facts) []Issue {
 	sh := s.Output.Shape()
 	var out []Issue

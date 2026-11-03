@@ -63,6 +63,10 @@ type MotionInfo struct {
 	// version that was never drawn. CheckSeconds is how long the check ran it.
 	Stills       []MotionStill
 	CheckSeconds float64
+	// ApprovedShapes are the shapes a person approved it in (D381), when it
+	// is approved: cuts of their ratios are covered; others are noted until a
+	// person approves it in theirs. Nil when it isn't approved.
+	ApprovedShapes []OutputShape
 }
 
 // MotionStill is one test frame of a checked motion graphic version.

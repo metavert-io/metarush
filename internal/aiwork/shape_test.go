@@ -138,7 +138,7 @@ func TestADashboardPresenterClipIsMadeInTheShapeItWasPricedAt(t *testing.T) {
 	if err := e.a.DB.Update(ctx, store.CProjects, e.a.WorkspaceID(), e.project, bson.M{"$unset": bson.M{"brief.platforms": ""}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ops.Call(ctx, e.a, "ai.make", raw(before), ops.Caller{}); codeOf(err) != apperr.Conflict || !strings.Contains(err.Error(), "in the service's own shape") {
+	if _, err := ops.Call(ctx, e.a, "ai.make", raw(before), ops.Caller{}); codeOf(err) != apperr.Conflict || !strings.Contains(err.Error(), "it would be made 16:9, HeyGen Avatar IV's usual shape: nothing about the project says yet") {
 		t.Fatalf("priced at 9:16, nothing says now, a price alone: %v", err)
 	}
 	if _, err := ops.Call(ctx, e.a, "ai.make", raw(agreed), ops.Caller{}); err != nil {

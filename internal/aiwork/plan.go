@@ -103,11 +103,20 @@ func (p *plan) cutShape(ctx context.Context, a *app.App, cut string, o *models.G
 		return nil
 	}
 	cs, err := ops.CutShape(ctx, a, &pj, cut)
-	if err != nil || !cs.Known {
+	if err != nil {
 		if p.shapeSent {
 			return nil // a shape asked for is made whatever the cut says
 		}
 		return err
+	}
+	if !cs.Known {
+		// Nothing says the project's shape: the model's usual one (its first),
+		// said and sent, so the price can be agreed for a shape (D394).
+		if !p.shapeSent {
+			o.AspectRatio = p.model.Limits.AspectRatios[0]
+			p.shape = o.AspectRatio + ", " + p.model.Title + "'s usual shape: nothing about the project says yet."
+		}
+		return nil
 	}
 	ar := editspec.RatioFor(cs.Width, cs.Height, p.model.Limits.AspectRatios, "")
 	if ar == "" || (p.shapeSent && o.AspectRatio != ar) {
@@ -131,11 +140,7 @@ func (p *plan) shapeAgreed() error {
 	if p.shapeSent || !p.shapeChoosable {
 		return nil
 	}
-	would := "in the service's own shape"
-	if p.shape != "" {
-		would = strings.TrimSuffix(p.shape, ".")
-	}
-	return apperr.New(apperr.Conflict, "The price you agreed to didn't say its shape, and it would be made %s. Price it again and agree to its shape.", would).
+	return apperr.New(apperr.Conflict, "The price you agreed to didn't say its shape, and it would be made %s. Price it again and agree to its shape.", strings.TrimSuffix(p.shape, ".")).
 		WithHint("Nothing was sent or spent.").WithCommand("metarush ai estimate").
 		WithDetails(map[string]any{"reason": "shape_not_agreed", "aspectRatio": p.req.Options.AspectRatio, "shape": p.shape})
 }

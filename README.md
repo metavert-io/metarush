@@ -1200,8 +1200,8 @@ new art and a warmer voice" makes a new version of the same cut.
 ### Start from a video you like
 Paste a link to a video you like (YouTube, TikTok, X) or choose its file — **Start from a video you like** on the
 Recipes tab and on Home, or `metarush recipe from-video <link | clip | file> [--wait]`. It comes in as a **reference**:
-someone else's video, kept to learn from, that no cut plays (the edit check refuses it and says how to mark a video as
-yours; only a person says so, with **This is mine…**). MetaRush looks at it like any footage and says **what it
+someone else's video, kept to learn from, that no cut plays and nobody in it is asked about (the edit check refuses
+it and says how to mark a video as yours; only a person says so, with **This is mine…**). MetaRush looks at it like any footage and says **what it
 does** — its hook, intro, parts, call to action and end card with times, its pacing, who speaks, burned-in captions,
 titles, what plays under the voices and how it ends — on this computer, with no AI service (the clip's **What it
 does** tab, `metarush footage what-it-does <clip>`). Then it drafts a recipe shaped like it, for your own footage:

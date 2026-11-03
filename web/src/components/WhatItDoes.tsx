@@ -126,7 +126,7 @@ export function WhatItDoesView({ card, onSeek, className }: { card: WhatItDoesCa
             {graphics.slice(0, 6).map((g, i) => (
               <span key={`${g.kind}-${g.from}-${i}`}>
                 {i ? '; ' : ''}
-                {graphicWords(g.kind)} <Theirs>{g.text}</Theirs> at {clock(g.from)} ({g.where})
+                {graphicWords(g.kind)} “<Theirs>{g.text}</Theirs>” at {clock(g.from)} ({g.where})
               </span>
             ))}
             {graphics.length > 6 ? `; ${graphics.length - 6} more` : ''}.

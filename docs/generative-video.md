@@ -57,7 +57,7 @@ browser runs use: `internal/testutil/fakevertex`). A key file that sends its sig
   is made in the shape of the cut it is for (`generate shot --cut`), else the project's when something says, else the
   look's usual one, else the model's own (16:9), as near as the model makes (a square cut on Gemini: wide, framed
   square in the cut). The price says which shape and why (`shapeWhy`), and a shape you chose that doesn't fit the cut
-  says which would (`fitsCut`, "Make it fit the cut"; D385). New takes, extensions and edits keep the shape of what
+  says which would (`fitsCut`, with a button to go back to it; D385). New takes, extensions and edits keep the shape of what
   they are made from. The price shows before anything is sent and the button
   carries it as an estimate ("Generate (about $0.13)"); **What it draws on** opens the estimate: the video at its resolution,
   what is sent with the prompt (the prompt, pictures and clips) and the thinking allowance, each with its tokens,

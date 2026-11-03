@@ -317,21 +317,21 @@ export function GeneratePanel({ data, start: given, end, onClearFrames, onOpenCl
               <div className="mb-1.5 text-[12.5px] font-medium text-muted">Shape</div>
               <Segmented
                 label="Shape"
-                value={shownAspect(aspect, priced ? est : null)}
+                value={shownAspect(aspect, est)}
                 onChange={(v) => setAspect(v)}
                 items={[
                   { value: '16:9' as const, label: 'Wide' },
                   { value: '9:16' as const, label: 'Tall' },
                 ]}
               />
-              {priced && est?.shapeWhy ? (
+              {est?.shapeWhy ? (
                 <p className="mt-1.5 text-[12px] leading-snug text-subtle" data-generate-shape-why>
                   {est.shapeWhy}
                   {chosenAgainstCut(aspect, est) ? (
                     <>
                       {' '}
                       <button type="button" className="font-medium text-accent-text hover:underline" onClick={() => setAspect('')} data-generate-shape-reset>
-                        Make it fit the cut
+                        Make it {est.fitsCut === '9:16' ? 'tall' : 'wide'}
                       </button>
                     </>
                   ) : null}

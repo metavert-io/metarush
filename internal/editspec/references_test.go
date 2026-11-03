@@ -91,9 +91,6 @@ func TestAReferencePlaysNowhereInACut(t *testing.T) {
 	if i, _ := referenceAt(is, "/clips/0/assetId"); !strings.Contains(i.Message, "plays the cut “Cut”, which has “green.mp4” in it") {
 		t.Errorf("the nested cut's words: %q", i.Message)
 	}
-	if refs := ReferencesIn(outer, nf); len(refs) != 1 || refs[0].ID != "green" {
-		t.Errorf("the references a version plays, nested cuts too: %+v", refs)
-	}
 	// Without a reference, nothing is refused.
 	if is := Validate(Clone(outer), nestTestFacts{visible: true}, nil, false); hasCode(is, "reference_footage") {
 		t.Errorf("nothing marked, nothing refused: %+v", is)

@@ -77,34 +77,6 @@ func firstReference(s *Spec, facts Facts, depth int) (AssetFacts, bool) {
 	return AssetFacts{}, false
 }
 
-// ReferencesIn lists the references a spec plays (IDs, nested cuts' too) with
-// facts that resolve them: what holds a version back from leaving (D441).
-func ReferencesIn(s *Spec, facts Facts) []AssetFacts {
-	facts = wrapFacts(s, facts)
-	var out []AssetFacts
-	seen := map[string]bool{}
-	var walk func(s *Spec, facts Facts, depth int)
-	walk = func(s *Spec, facts Facts, depth int) {
-		for _, id := range AssetIDs(s) {
-			if a, ok := facts.Asset(id); ok && a.Reference && !seen[id] {
-				seen[id] = true
-				out = append(out, a)
-			}
-		}
-		nf, _ := facts.(*nestFacts)
-		if nf == nil || depth > MaxNestDepth {
-			return
-		}
-		for _, c := range s.Clips {
-			if nc := nf.cuts[c.AssetID]; IsNested(c.AssetID) && nc != nil && nc.spec != nil && nc.facts != nil {
-				walk(nc.spec, nc.facts, depth+1)
-			}
-		}
-	}
-	walk(s, facts, 0)
-	return out
-}
-
 // wherePlays says where a spec plays a piece of footage: the path an issue
 // points at and the words for what plays it.
 func wherePlays(s *Spec, id string) (path, who string) {

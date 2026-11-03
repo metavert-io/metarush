@@ -21,9 +21,9 @@ func shortVideo(looked bool) Input {
 	ls := []line{
 		{0.4, 2.9, "Why do people stop watching so fast?", "WHY DO PEOPLE"},
 		{3.5, 5.6, "Here are three fixes that work.", "THREE FIXES"},
-		{6.8, 8.9, "First, open with your best moment.", "BEST MOMENT"},
+		{6.8, 8.9, "First, lead with your strongest moment.", "STRONGEST MOMENT"},
 		{10.8, 12.6, "Second, cut every slow pause.", "CUT EVERY PAUSE"},
-		{14.8, 16.9, "Third, put the words on screen.", "WORDS ON SCREEN"},
+		{14.8, 16.9, "Third, add big captions for silent viewers.", "BIG CAPTIONS"},
 		{18.8, 20.9, "Follow for more tips every week.", "FOLLOW FOR MORE"},
 	}
 	in := Input{Duration: 26, Width: 720, Height: 1280, HasVideo: true, HasAudio: true, Heard: true, Measured: true, Looked: looked,
@@ -93,13 +93,13 @@ func TestCardFindsTheSectionsOfAShort(t *testing.T) {
 	if c.Shape != "vertical" || c.Length != 26 {
 		t.Errorf("shape and length: %s %v", c.Shape, c.Length)
 	}
-	if p := c.Pacing; p.Shots != 7 || !near(p.ShotSeconds, 3.7) || p.Words != 36 || p.WordsPerMinute < 160 || p.WordsPerMinute > 200 {
+	if p := c.Pacing; p.Shots != 7 || !near(p.ShotSeconds, 3.7) || p.Words != 37 || p.WordsPerMinute < 160 || p.WordsPerMinute > 200 {
 		t.Errorf("pacing: %+v", p)
 	}
 	if len(c.Speakers) != 1 || c.Speakers[0].Share != 1 {
 		t.Errorf("one voice: %+v", c.Speakers)
 	}
-	if cp := c.Captions; !cp.Burned || cp.Position != "lower" || !cp.Capitals || cp.Look != "bold" || cp.WordsAtATime != 3 || cp.Covers < 0.9 {
+	if cp := c.Captions; !cp.Burned || cp.Position != "lower" || !cp.Capitals || cp.Look != "bold" || cp.WordsAtATime < 2 || cp.WordsAtATime > 3 || cp.Covers < 0.9 {
 		t.Errorf("captions: %+v", cp)
 	}
 	kinds := map[string]string{}

@@ -1,0 +1,41 @@
+{
+  "_comment": "The one shape rule (D376): the renderer's orientationOf (video/src/core/layout.ts), Go's editspec.ShapeOf / Output.Shape and the dashboard's web/src/lib/shape.ts are all tested against every case here.",
+  "sizes": [
+    {"width": 1920, "height": 1080, "shape": "landscape", "word": "widescreen", "ratio": "16:9", "aspect": 1.7778},
+    {"width": 1080, "height": 1920, "shape": "vertical", "word": "vertical", "ratio": "9:16", "aspect": 0.5625},
+    {"width": 1080, "height": 1080, "shape": "square", "word": "square", "ratio": "1:1", "aspect": 1.0},
+    {"width": 1080, "height": 1350, "shape": "vertical", "word": "vertical", "ratio": "4:5", "aspect": 0.8},
+    {"width": 1350, "height": 1080, "shape": "landscape", "word": "widescreen", "ratio": "5:4", "aspect": 1.25},
+    {"width": 1440, "height": 1080, "shape": "landscape", "word": "widescreen", "ratio": "4:3", "aspect": 1.3333},
+    {"width": 1080, "height": 1440, "shape": "vertical", "word": "vertical", "ratio": "3:4", "aspect": 0.75},
+    {"width": 1080, "height": 1200, "shape": "square", "word": "square", "ratio": "9:10", "aspect": 0.9},
+    {"width": 1080, "height": 1240, "shape": "square", "word": "square", "ratio": "27:31", "aspect": 0.871},
+    {"width": 1080, "height": 1242, "shape": "vertical", "word": "vertical", "ratio": "20:23", "aspect": 0.8696},
+    {"width": 1000, "height": 1150, "shape": "vertical", "word": "vertical", "ratio": "20:23", "aspect": 0.8696},
+    {"width": 1000, "height": 1149, "shape": "square", "word": "square", "ratio": "1000×1149", "aspect": 0.8703},
+    {"width": 1087, "height": 1250, "shape": "vertical", "word": "vertical", "ratio": "1087×1250", "aspect": 0.8696},
+    {"width": 1000, "height": 1151, "shape": "vertical", "word": "vertical", "ratio": "1000×1151", "aspect": 0.8688},
+    {"width": 1150, "height": 1000, "shape": "square", "word": "square", "ratio": "23:20", "aspect": 1.15},
+    {"width": 1151, "height": 1000, "shape": "landscape", "word": "widescreen", "ratio": "1151×1000", "aspect": 1.151},
+    {"width": 870, "height": 1000, "shape": "square", "word": "square", "ratio": "870×1000", "aspect": 0.87},
+    {"width": 869, "height": 1000, "shape": "vertical", "word": "vertical", "ratio": "869×1000", "aspect": 0.869},
+    {"width": 1000, "height": 1001, "shape": "square", "word": "square", "ratio": "1000×1001", "aspect": 0.999},
+    {"width": 1200, "height": 1080, "shape": "square", "word": "square", "ratio": "10:9", "aspect": 1.1111},
+    {"width": 1280, "height": 720, "shape": "landscape", "word": "widescreen", "ratio": "16:9", "aspect": 1.7778},
+    {"width": 2560, "height": 1080, "shape": "landscape", "word": "widescreen", "ratio": "64:27", "aspect": 2.3704},
+    {"width": 3840, "height": 2160, "shape": "landscape", "word": "widescreen", "ratio": "16:9", "aspect": 1.7778},
+    {"width": 0, "height": 1080, "shape": ""},
+    {"width": 1920, "height": 0, "shape": ""}
+  ],
+  "outputs": [
+    {"output": {"preset": "vertical-1080p"}, "shape": "vertical", "width": 1080, "height": 1920},
+    {"output": {"preset": "landscape-1080p"}, "shape": "landscape", "width": 1920, "height": 1080},
+    {"output": {"preset": "square-1080"}, "shape": "square", "width": 1080, "height": 1080},
+    {"output": {"preset": "vertical-1080p", "width": 1920, "height": 1080}, "shape": "landscape", "width": 1920, "height": 1080},
+    {"output": {"preset": "vertical-1080p", "width": 1080}, "shape": "vertical", "width": 1080, "height": 1920},
+    {"output": {"width": 1080, "height": 1350}, "shape": "vertical", "width": 1080, "height": 1350},
+    {"output": {}, "shape": ""},
+    {"output": {"preset": "nonsense"}, "shape": ""}
+  ],
+  "presets": {"vertical": "vertical-1080p", "landscape": "landscape-1080p", "square": "square-1080", "": ""}
+}

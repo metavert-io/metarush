@@ -8278,6 +8278,7 @@ severity: string
 code: string
 path?: string
 message: string
+command?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -8375,6 +8376,7 @@ hint?: string
  * JSON pointer into the edit spec (for findings from validation).
  */
 path?: string
+command?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -9892,6 +9894,9 @@ export interface CardPicture {
  */
 url: string
 label?: string
+width?: number
+height?: number
+shape?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -10603,6 +10608,7 @@ duration: number
 clips: number
 overlays: number
 output: Output
+shape: OutputShape
 specHash: string
 approval: Approval
 warnings?: Issue[]
@@ -10620,6 +10626,21 @@ reviewAsked?: ReviewAsk
 byAgent?: string
 agentName?: string
 draftId?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "OutputShape".
+ */
+export interface OutputShape {
+shape: ("vertical" | "landscape" | "square")
+width: number
+height: number
+/**
+ * Width ÷ height (rounded to 4 places).
+ */
+aspect: number
+ratio: string
+word: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -16662,6 +16683,7 @@ nameBy?: ("" | "metarush" | "person" | "title" | "suggested")
 suggestion?: string
 headRevisionId?: string
 headNumber?: number
+shape?: OutputShape
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -23590,6 +23612,12 @@ ref: string
  */
 reject?: boolean
 note?: string
+/**
+ * motion.approve: the shapes the person looked at and approves it in (sizes like 1920x1080, or vertical/landscape/square). Default: every shape it was drawn in. An approved version gets the shapes it isn't approved in yet.
+ * 
+ * @maxItems 9
+ */
+shapes?: string[]
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -23684,13 +23712,13 @@ export interface MotionCheckIn {
 dir?: string
 name?: string
 /**
- * Project (ID or name) whose shape, platform and brand the test frames use. Default: the project folder's.
+ * Project (ID or name) whose shape, platform and brand the test frames use. Default: the project folder's (a version drawn again: the one it was checked in).
  */
 projectId?: string
 /**
- * The frame the test frames use (default: the project's latest cut, else vertical).
+ * Draw it in this shape: vertical, landscape or square, or an exact size like 1080x1350 (default: the shapes of the cuts that use it, else the project's shape, else both widescreen and vertical). With version: drawn in this shape too.
  */
-shape?: ("vertical" | "landscape" | "square")
+shape?: string
 /**
  * Seconds to run the graphic for in the test render (kept within its meta).
  */
@@ -23700,7 +23728,7 @@ duration?: number
  */
 noPreview?: boolean
 /**
- * A version MetaRush keeps but hasn't checked here (brought in with a file from another workspace): name@version, with the whole version.
+ * name@version: a version checked here is drawn again in the shapes of the cuts that use it (and shape), its code and approval unchanged; a version MetaRush keeps but hasn't checked here (brought in with a file from another workspace) is checked, with the whole version.
  */
 version?: string
 /**
@@ -23763,6 +23791,12 @@ ignored?: string[]
  */
 url?: string
 next?: string
+shapes: MotionShapeOut[]
+/**
+ * asked: the shape given; cuts: the project's cuts that use it; workspace: other projects' cuts that use a graphic of that name; project: the project's shape; nothing: nothing says, so widescreen and vertical.
+ */
+shapesFrom?: ("asked" | "cuts" | "workspace" | "project" | "nothing")
+redrawn?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -23802,6 +23836,24 @@ label: string
 at: number
 path: string
 shape?: string
+width?: number
+height?: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "MotionShapeOut".
+ */
+export interface MotionShapeOut {
+/**
+ * widescreen, vertical or square, with the ratio when two share a word.
+ */
+label: string
+width: number
+height: number
+/**
+ * The cuts or deliverable it is for, in words.
+ */
+for?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -23887,6 +23939,7 @@ usedBy: MotionUse[]
  * The contact sheet on this machine (an image to look at).
  */
 sheetPath?: string
+shapes: MotionShapeView[]
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -23931,6 +23984,8 @@ frames?: MotionFrame[]
 video?: MotionObject2
 shapes?: MotionShape[]
 check: MotionCheckInfo
+draws?: MotionDraw[]
+approvedShapes?: string[]
 state: ("waiting" | "approved" | "rejected" | "revoked")
 decisions?: MotionDecision[]
 approvedBy?: Actor
@@ -24006,7 +24061,7 @@ height?: number
  */
 export interface MotionShape {
 /**
- * widescreen, vertical or square.
+ * widescreen, vertical or square, with the ratio when two shapes share a word (vertical 9:16, vertical 4:5). Shapes are told apart by width × height.
  */
 label: string
 width: number
@@ -24055,6 +24110,17 @@ slowestMs?: number
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "MotionDraw".
+ */
+export interface MotionDraw {
+at: string
+by: Actor
+machine?: string
+renderer?: string
+shapes: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "MotionDecision".
  */
 export interface MotionDecision {
@@ -24062,6 +24128,7 @@ state: ("approved" | "rejected" | "revoked")
 by: Actor
 at: string
 note?: string
+shapes?: string[]
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -24127,6 +24194,25 @@ projectId: string
 projectName: string
 revisionId: string
 number: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "MotionShapeView".
+ */
+export interface MotionShapeView {
+/**
+ * Its exact size (1920x1080).
+ */
+size: string
+label: string
+width: number
+height: number
+ratio: string
+/**
+ * A person approved it in this shape (cuts of this ratio use it without a note).
+ */
+approved: boolean
+added?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -25118,6 +25204,7 @@ duration: number
 clips: number
 overlays: number
 output: Output
+shape: OutputShape
 specHash: string
 approval: Approval
 warnings?: Issue[]
@@ -25514,6 +25601,7 @@ headRevisionNumber?: number
 headApproval?: string
 thumbAssetId?: string
 url: string
+headShape?: OutputShape
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -26041,6 +26129,7 @@ url: string
 cuts: CutView[]
 houseRules?: ProjectRule[]
 houseSignoffs?: Signoff[]
+shape: ProjectShapeOut
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -26088,6 +26177,30 @@ width: number
 height: number
 fps: number
 thumbnailKey?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ProjectShapeOut".
+ */
+export interface ProjectShapeOut {
+shape: ("vertical" | "landscape" | "square")
+width: number
+height: number
+/**
+ * Width ÷ height (rounded to 4 places).
+ */
+aspect: number
+ratio: string
+word: string
+preset?: ("vertical-1080p" | "landscape-1080p" | "square-1080")
+/**
+ * Where it comes from: the latest version of its main cut (else of any cut), the brief's deliverables, the shape most of its footage is in, or MetaRush's default (vertical) when nothing says.
+ */
+from: ("cut" | "deliverables" | "footage" | "default")
+known: boolean
+branch?: string
+revisionId?: string
+why: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -26759,6 +26872,7 @@ clipIds?: string[]
 overlayIds?: string[]
 fix?: QAFix
 frames?: string[]
+command?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

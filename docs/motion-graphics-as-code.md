@@ -140,14 +140,50 @@ screen, over the names a call app printed) without any code.
 
 ## Test frames in the cut's shape
 
-The test frames and the preview are drawn in the shape of the cuts the graphic is for, or in several shapes when it is
-used in several: the cuts of the project (every branch's latest version) that use a graphic of that name, else the
-project's cuts, else the shapes of the brief's deliverables ([keeping.md](keeping.md#the-brief-and-deliverables)),
-else vertical. A dashboard card always knows the conversation's project, so a widescreen cut's graphic is checked
-widescreen. Each shape gets the full set of test frames (labelled "widescreen", "vertical"…) and its own short preview,
-at most three shapes; the notes (safe area, region, determinism) are worked out per shape. The version records every
-shape (`MotionComponent.Shapes`), and the dashboard and the card show the frames grouped by shape. `--shape` still
-draws exactly one. With no brand on the cut, the frames use the project's brand kit, else the workspace's.
+The test frames and the preview are drawn in the shapes of the cuts the graphic is for, by ratio at a test size
+(D377, D379: a 3840×2160 or 1280×720 cut is drawn 1920×1080, a 4:5 cut 1080×1350). 1080×1920 and 1080×1350 are both
+vertical, so they are drawn, kept and shown apart ("vertical 9:16", "vertical 4:5"), and the contact sheet is the
+first shape's frames only, never stretched. The shapes come from the first of:
+
+1. the project's cuts (every branch's latest version) that use a graphic of that name, the main cut's first;
+2. cuts in other projects of the workspace whose latest versions use a graphic of that name — also when the check
+   has no project at all;
+3. the project's shape (`ops.ProjectShape`, D378: its main cut's latest version, else any cut's, else the brief's
+   deliverables ([keeping.md](keeping.md#the-brief-and-deliverables)), else the shape most of its footage is in), with
+   its other cuts' shapes when it comes from a cut and every deliverable's when it comes from the brief;
+4. when nothing says: both widescreen and vertical, never silently one (the summary says so).
+
+A dashboard card always knows the conversation's project, so a widescreen cut's graphic is checked widescreen. Each
+shape gets the full set of test frames and its own short preview, at most three shapes; the notes (safe area, region,
+determinism) are worked out per shape. The version records every shape (`MotionComponent.Shapes`) and every frame its
+size, and the dashboard and the card show the frames at their own shape, a row per size. `--shape` draws exactly one:
+`vertical`, `landscape`, `square` or an exact size like `1080x1350`. With no brand on the cut, the frames use the
+project's brand kit, else the workspace's.
+
+### Drawing a checked version in another shape, and approving it there
+
+`metarush motion check --version name@version [--shape …]` draws a version checked here again, from MetaRush's own copy
+of its code (the same bytes, so the same version), in the ratios of the cuts that use it and the shape asked for that it
+lacks (D381). It only ever adds: the new shapes' frames and previews go beside the ones it had, and the frames,
+previews, contact sheet and check a person saw stay exactly as they were (one check adds at most three shapes, a
+version holds at most nine; past that a check — a redraw or the folder checked again — is refused, never trimmed). It runs like any check, in the jailed browser, and works from the dashboard and as a card
+in Claude's panel, which starts by itself and which Auto may run (D382): it is evidence, never a decision.
+
+Approval is per version and per what a person looked at: an approval covers exactly the shapes the person was shown
+(`approvedShapes`; the dashboard, the CLI and the panel's card name them, and a caller that names none gets only the
+first check's shapes, never a later drawing, D384). An approval from before shapes were recorded covers the shape its
+check drew only when that check came before the approval: older builds replaced frames when the same code was
+checked again, so newer frames were never approved and cuts are noted until a person approves the graphic there. A shape drawn later is approved
+by a person on the graphic's page (**Approve in this shape**) or with `metarush motion approve name@version --shape
+1920x1080`; drawing it, by anyone, never does. Frames are linked by their own SHA-256, so a card keeps showing what it
+showed.
+
+A cut checked or saved with a graphic in a shape nobody approved it in gets a warning (`motion_shape_undrawn` in the
+edit and cut check, `motion_shape` in QA): never drawn in the cut's ratio (the `command` draws it at a test size), or
+drawn there but approved only in other shapes (the `command` is a person's approval). A graphic drawn in a ratio covers
+every size of it. Versions with no test frames say nothing; one nobody approved at all is that approval's error.
+
+`metarush motion studio` opens at the project's shape (or `--shape`) and names the other shapes the graphic is used in.
 
 ## Stills in the live preview
 

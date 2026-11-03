@@ -65,7 +65,7 @@ func motionCheckCmd() *cobra.Command {
 	var details bool
 	var libraries []string
 	c := &cobra.Command{
-		Use:   "check <folder | name> | --version name@version [--library name@version]… [--project <project>] [--shape vertical|landscape|square] [--duration <s>] [--no-preview]",
+		Use:   "check <folder | name> | --version name@version [--library name@version]… [--project <project>] [--shape vertical|landscape|square|WxH] [--duration <s>] [--no-preview]",
 		Short: "Check a motion graphic: its imports (parsed), types, bundle, test frames and a short preview, drawn with no network; a passing version waits for a person's approval",
 		Long: `Check a motion graphic. <folder> is the component's folder (the one with index.tsx); a bare
 name means motion/<name> in the project folder you are in. MetaRush reads the files into
@@ -76,8 +76,16 @@ bundles it and draws test frames (and a short preview video) in a headless brows
 can't reach the network. Problems name the file and line. A passing version is recorded
 so a person can review and approve it; nothing renders it before that.
 
---version name@version checks a version MetaRush keeps but hasn't checked in this workspace:
-one brought in with a file from another workspace, with --library name@version for each
+Test frames are drawn in the shapes of the cuts that use the graphic (by exact size), else
+the shapes of cuts in other projects that use a graphic of that name, else the project's
+shape; when nothing says, both widescreen and vertical. --shape draws it in one shape
+(vertical, landscape, square or an exact size like 1080x1350).
+
+--version name@version draws a version checked here again, in the shapes of the cuts that
+use it (with --shape, in that shape too), keeping the shapes it was drawn in: the code and
+its version are unchanged, so its approval (or the wait for one) is too. It also checks a
+version MetaRush keeps but hasn't checked in this workspace: one brought in with a file
+from another workspace (give the whole version), with --library name@version for each
 shared library it should be drawn with (the versions the file brought).
 
 --json gives the contact sheet and frame paths (images to look at), the parameters as
@@ -119,10 +127,10 @@ JSON Schema and every problem with its code.`,
 		},
 	}
 	c.Flags().StringVar(&in.ProjectID, "project", "", "project whose shape, platform and brand the test frames use (default: the project folder's)")
-	c.Flags().StringVar(&in.Shape, "shape", "", "vertical, landscape or square (default: the project's cut, else vertical)")
+	c.Flags().StringVar(&in.Shape, "shape", "", "vertical, landscape, square or an exact size like 1080x1350 (default: the shapes of the cuts that use it)")
 	c.Flags().Float64Var(&in.Duration, "duration", 0, "seconds to run the graphic for in the test render (kept within its meta)")
 	c.Flags().BoolVar(&in.NoPreview, "no-preview", false, "skip the preview video (faster while iterating)")
-	c.Flags().StringVar(&in.Version, "version", "", "a version MetaRush keeps but hasn't checked here (brought in from another workspace): name@version")
+	c.Flags().StringVar(&in.Version, "version", "", "name@version: draw a version checked here again (its code and approval unchanged), or check one brought in from another workspace")
 	c.Flags().StringArrayVar(&libraries, "library", nil, "name@version: a shared library to draw it with (repeatable)")
 	addDetails(c, &details)
 	return c
@@ -151,11 +159,18 @@ func printMotionCheck(r *ops.MotionCheckOut, details bool) {
 			fmt.Printf("    (%s)\n", p.Code)
 		}
 	}
-	if r.OK && r.State == models.MotionWaiting {
+	if r.OK && r.State == models.MotionWaiting && !r.Redrawn {
 		fmt.Println("Its test frames and preview are in the dashboard under Motion graphics, ready for a person to review.")
 	}
 	if details {
 		fmt.Println("version:", r.Version, "("+r.Hash+")")
+		for _, s := range r.Shapes {
+			line := fmt.Sprintf("shape: %s %dx%d", s.Label, s.Width, s.Height)
+			if s.For != "" {
+				line += " (" + s.For + ")"
+			}
+			fmt.Println(line)
+		}
 		if r.Sheet != "" {
 			fmt.Println("contact sheet:", r.Sheet)
 		}
@@ -242,6 +257,21 @@ func printMotionShow(r *ops.MotionShowOut, source, details bool) {
 		fmt.Println(m.Summary)
 	}
 	fmt.Printf("Shows in the %s of the frame, for %.1f to %.1f seconds.\n", map[string]string{"lower": "lower band", "center": "middle", "full": "whole"}[m.Region], m.MinDuration, m.MaxDuration)
+	if len(r.Shapes) > 0 {
+		// Drawn in, and approved in (D381).
+		var ws []string
+		for _, sh := range r.Shapes {
+			w := sh.Label
+			if m.State == models.MotionApproved && !sh.Approved {
+				w += ", not approved in this shape yet"
+			}
+			if details {
+				w += " " + sh.Size
+			}
+			ws = append(ws, w)
+		}
+		fmt.Println("Drawn: " + strings.Join(ws, "; ") + ".")
+	}
 	if len(r.Fields) > 0 {
 		fmt.Println("Fields:")
 		for _, f := range r.Fields {
@@ -352,7 +382,7 @@ func plainWhen(t time.Time) string {
 }
 
 // motionDecision asks the person at the terminal and runs approve/reject/revoke.
-func motionDecision(c *cobra.Command, op, ref, word, note string, reject bool) error {
+func motionDecision(c *cobra.Command, op, ref, word, note string, reject bool, shapes ...string) error {
 	if !interactive() {
 		return fail(c, apperr.HumanOnly, "Only a person can decide about a motion graphic, in the dashboard or in their own terminal.", "Open Motion graphics in the dashboard, or run this command yourself in a terminal.")
 	}
@@ -393,7 +423,13 @@ func motionDecision(c *cobra.Command, op, ref, word, note string, reject bool) e
 	if ask(fmt.Sprintf("Type %q to %s this version of %s", word, word, show.Row.Name), "") != word {
 		return fail(c, apperr.Canceled, "nothing was decided", "")
 	}
-	in := ops.MotionDecideIn{Ref: show.Row.Name + "@" + show.Row.Hash, Reject: reject, Note: note}
+	in := ops.MotionDecideIn{Ref: show.Row.Name + "@" + show.Row.Hash, Reject: reject, Note: note, Shapes: shapes}
+	if op == "motion.approve" && !reject && len(shapes) == 0 && show.Row.State != models.MotionApproved {
+		// The shapes this person was shown, so one drawn meanwhile isn't approved unseen (D381).
+		for _, sh := range show.Shapes {
+			in.Shapes = append(in.Shapes, sh.Size)
+		}
+	}
 	return runOpWith(c, a, op, in, ops.Caller{Human: true}, func(o any) {
 		out := o.(*ops.MotionDecideOut)
 		fmt.Println(out.Summary)
@@ -404,20 +440,26 @@ func motionDecision(c *cobra.Command, op, ref, word, note string, reject bool) e
 }
 
 func motionApproveCmd() *cobra.Command {
+	var shapes []string
 	var reject bool
 	var note string
 	c := &cobra.Command{
-		Use:   "approve <name[@version]> [--reject] [--note \"…\"]",
+		Use:   "approve <name[@version]> [--shape WxH]… [--reject] [--note \"…\"]",
 		Short: "Approve (or turn down) one exact version of a motion graphic — people only: in an interactive terminal or the dashboard",
-		Args:  cobra.ExactArgs(1),
+		Long: `Approve (or turn down) one exact version of a motion graphic, after looking at its test frames
+and preview. Approval covers the shapes it was drawn in (or the --shape ones you looked at); a
+version drawn later in more shapes is approved in those with --shape (for example --shape
+1920x1080). People only: in an interactive terminal or the dashboard.`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			word := "approve"
 			if reject {
 				word = "reject"
 			}
-			return motionDecision(c, "motion.approve", args[0], word, note, reject)
+			return motionDecision(c, "motion.approve", args[0], word, note, reject, shapes...)
 		},
 	}
+	c.Flags().StringArrayVar(&shapes, "shape", nil, "a shape you looked at and approve it in: 1920x1080, vertical, landscape or square (repeatable)")
 	c.Flags().BoolVar(&reject, "reject", false, "turn it down instead")
 	c.Flags().StringVar(&note, "note", "", "a note kept with the decision")
 	return c
@@ -427,13 +469,16 @@ func motionStudioCmd() *cobra.Command {
 	var in ops.MotionCheckIn
 	var port int
 	c := &cobra.Command{
-		Use:   "studio <folder | name> [--port 4842] [--project <project>] [--shape …]",
+		Use:   "studio <folder | name> [--port 4842] [--project <project>] [--shape vertical|landscape|square|WxH]",
 		Short: "Preview a motion graphic in Remotion Studio in your browser (runs its code on this machine; for components you wrote or read)",
 		Long: `Opens Remotion Studio on this machine with the motion graphic over an empty frame of the
 project's shape, using preview.json for its fields. The component is scanned first (the same
 import rules as checks and renders). Unlike checks and renders, Studio runs in your own
 browser without the network jail, so use it for components you wrote or have read. Edit the
-files and reload the page; Ctrl-C stops it.`,
+files and reload the page; Ctrl-C stops it.
+
+It opens at the project's shape and names the other shapes the graphic is used in; --shape
+opens it in one of those (vertical, landscape, square or an exact size like 1080x1350).`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			if st, err := os.Stat(args[0]); err == nil && st.IsDir() {
@@ -449,16 +494,16 @@ files and reload the page; Ctrl-C stops it.`,
 				return err
 			}
 			defer a.Close()
-			dir, o, err := ops.MotionStudioSetup(c.Context(), a, &in)
+			dir, o, others, err := ops.MotionStudioShapes(c.Context(), a, &in)
 			if err != nil {
 				return failErr(c, err)
 			}
-			return runMotionStudio(c, a, dir, o, port)
+			return runMotionStudio(c, a, dir, o, others, port)
 		},
 	}
 	c.Flags().IntVar(&port, "port", 4842, "the Studio's port")
 	c.Flags().StringVar(&in.ProjectID, "project", "", "project whose shape, platform and brand the preview uses")
-	c.Flags().StringVar(&in.Shape, "shape", "", "vertical, landscape or square")
+	c.Flags().StringVar(&in.Shape, "shape", "", "vertical, landscape, square or an exact size like 1080x1350 (default: the project's shape)")
 	return c
 }
 

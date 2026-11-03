@@ -7,6 +7,8 @@ import { updateSelection } from '../../lib/workbench';
 import { CutPreview, type CutPreviewHandle } from '../../player/LazyCutPreview';
 import { cx, ErrorPanel, Skeleton } from '../../ui/primitives';
 import { Mixer } from './sound/Mixer';
+import { outputShape } from '../../lib/shape';
+import { useServedShape } from '../../lib/useShape';
 
 /*
  * The Sound tab: the preview, and everything about how the video sounds — how
@@ -32,6 +34,7 @@ export function SoundTab({ data, revisionId, onSettled }: {
   const [time, setTime] = useState(0);
   const [, setParams] = useSearchParams();
   const spec = rev.data?.spec;
+  const served = useServedShape({ revisionId });
 
   useEffect(() => {
     onSettled?.();
@@ -43,7 +46,9 @@ export function SoundTab({ data, revisionId, onSettled }: {
 
   if (rev.error) return <ErrorPanel error={rev.error} onRetry={() => void rev.refetch()} />;
   if (show.error) return <ErrorPanel error={show.error} onRetry={() => void show.refetch()} />;
-  const vertical = spec ? (spec.output.height ?? 1920) > (spec.output.width ?? 1080) : true;
+  // The cut's shape: the spec's by the one rule, else what the server says (D376); never a guess.
+  const shape = outputShape(spec?.output) ?? served;
+  const vertical = shape?.shape === 'vertical';
 
   return (
     <div className="space-y-5">

@@ -46,6 +46,9 @@ type ProjectSummary struct {
 	HeadApproval       string `json:"headApproval,omitempty"`
 	ThumbAssetID       string `json:"thumbAssetId,omitempty"`
 	URL                string `json:"url"`
+	// HeadShape is the shape of its main cut's latest version (D378): what a
+	// page shows while the project loads.
+	HeadShape *editspec.OutputShape `json:"headShape,omitempty"`
 }
 
 // ProjectListOut lists projects.
@@ -80,6 +83,9 @@ type ProjectShowOut struct {
 	// HouseSignoffs are the house sign-offs of the Content Settings it uses
 	// (D200) for its main cut, with whether each was given here.
 	HouseSignoffs []models.Signoff `json:"houseSignoffs,omitempty"`
+	// Shape is what shape its videos are (D378: ops.ProjectShape) and where
+	// that comes from; each cut and version carries its own.
+	Shape ProjectShapeOut `json:"shape"`
 }
 
 // ProjectUpdateIn edits name/brief.
@@ -182,7 +188,7 @@ func init() {
 		headInfo := map[string]models.Revision{}
 		if len(heads) > 0 {
 			var revs []models.Revision
-			_ = a.DB.Find(ctx, store.CRevisions, a.WorkspaceID(), bson.M{"_id": bson.M{"$in": heads}}, &revs, options.Find().SetProjection(bson.M{"spec": 0, "ops": 0}))
+			_ = a.DB.Find(ctx, store.CRevisions, a.WorkspaceID(), bson.M{"_id": bson.M{"$in": heads}}, &revs, options.Find().SetProjection(bson.M{"number": 1, "approval": 1, "spec.output": 1}))
 			for _, r := range revs {
 				headInfo[r.ID] = r
 			}
@@ -193,6 +199,9 @@ func init() {
 				s.HeadRevisionID = h.Head
 				if r, ok := headInfo[h.Head]; ok {
 					s.HeadRevisionNumber, s.HeadApproval = r.Number, r.Approval.State
+					if sh := r.Spec.Output.Shape(); sh.Shape != "" {
+						s.HeadShape = &sh
+					}
 				}
 			}
 			out.Projects = append(out.Projects, s)
@@ -265,6 +274,7 @@ func init() {
 				out.HouseSignoffs = append(out.HouseSignoffs, s)
 			}
 		}
+		out.Shape = ProjectShape(ctx, a, &p)
 		return out, nil
 	})
 	Def("project.update", "Rename a project, edit its brief, or archive it (archiving deletes it: people only, like project.delete)", Flags{Mutating: true}, func(ctx context.Context, a *app.App, in *ProjectUpdateIn) (*ProjectOut, error) {

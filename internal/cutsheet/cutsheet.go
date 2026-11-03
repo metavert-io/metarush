@@ -47,6 +47,8 @@ type Problem struct {
 	Message  string `json:"message"`
 	Hint     string `json:"hint,omitempty"`
 	Path     string `json:"path,omitempty" jsonschema:"description=JSON pointer into the edit spec (for findings from validation)."`
+	// Command is what fixes it when one command does (shown with details).
+	Command string `json:"command,omitempty"`
 }
 
 // HasErrors reports whether any problem is an error.

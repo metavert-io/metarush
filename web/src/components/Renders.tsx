@@ -11,6 +11,7 @@ import { QAChip, useQAReportDialog } from './QAReport';
 import { SendToEditorButton } from './SendToEditor';
 import { RenderDownload } from './SignoffReminder';
 import { RecoveringVideo } from '../player/Trouble';
+import { outputShape, shapeOf } from '../lib/shape';
 
 const ACTIVE = ['queued', 'rendering', 'uploading'];
 
@@ -43,7 +44,7 @@ export function RenderTile({
   const active = ACTIVE.includes(render.state);
   // D188: a review render is a review copy; the final render keeps its name.
   const name = render.quality === 'final' ? 'Final render' : 'Review copy';
-  const vertical = out ? out.height > out.width : render.preset.startsWith('vertical');
+  const vertical = (out ? shapeOf(out.width, out.height) : outputShape({ preset: render.preset })?.shape) === 'vertical'; // the one shape rule (D376)
   const play = () =>
     void dialog.open<never>(
       () => (

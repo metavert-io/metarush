@@ -36,13 +36,10 @@ func pick(o string, vertical, landscape, square float64) float64 {
 func newGeom(p *editspec.RenderPlan) geom {
 	w, h := float64(p.Width), float64(p.Height)
 	g := geom{W: w, H: h, u: math.Min(w, h) / 1080}
-	switch r := w / h; {
-	case r > 1.15:
-		g.orient = "landscape"
-	case r < 0.87:
-		g.orient = "vertical"
-	default:
-		g.orient = "square"
+	// The one shape rule (D376).
+	g.orient = string(editspec.ShapeOf(p.Width, p.Height))
+	if g.orient == "" {
+		g.orient = string(editspec.ShapeSquare)
 	}
 	clampM := func(v int, total float64) float64 { return math.Max(0, math.Min(float64(v), total*0.3)) }
 	g.safe = box{clampM(p.SafeArea.Left, w), clampM(p.SafeArea.Top, h), w - clampM(p.SafeArea.Right, w), h - clampM(p.SafeArea.Bottom, h)}
@@ -331,7 +328,8 @@ func (r *run) layout() {
 	}
 	r.captionTiming(lines)
 	r.endCardGap()
-	r.check("layout", models.QAHeuristic, "approximate template boxes and the caption band (2 lines) from plan geometry; overlap in time and space; end cards that stop < 1s before the end", "captions_hidden", "caption_overlay_stack", "overlay_overlap", "caption_flash", "caption_fast", "endcard_gap")
+	r.motionShapes()
+	r.check("layout", models.QAHeuristic, "approximate template boxes and the caption band (2 lines) from plan geometry; overlap in time and space; end cards that stop < 1s before the end", "captions_hidden", "caption_overlay_stack", "overlay_overlap", "caption_flash", "caption_fast", "endcard_gap", "motion_shape")
 	r.safeArea(g)
 }
 
@@ -576,4 +574,29 @@ func trunc(s string, n int) string {
 		return s
 	}
 	return string(rs[:n]) + "…"
+}
+
+// motionShapes notes motion graphics shown in a shape they were never drawn
+// in (D379): nobody has looked at them there. Drawing the same version in
+// that shape changes neither its code nor its approval.
+func (r *run) motionShapes() {
+	for _, g := range r.in.MotionShapes {
+		from, to := -1.0, 0.0
+		for _, o := range r.plan.Overlays {
+			for _, id := range g.OverlayIDs {
+				if o.ID == id {
+					f, t := float64(o.From)/r.fps, float64(o.From+o.DurationInFrames)/r.fps
+					if from < 0 || f < from {
+						from = f
+					}
+					to = max(to, t)
+				}
+			}
+		}
+		if from < 0 {
+			from = 0
+		}
+		r.add(&models.QAFinding{Severity: models.QAWarning, Kind: "motion_shape", Basis: models.QAHeuristic, From: from, To: to, OverlayIDs: g.OverlayIDs,
+			Message: g.Words(), Command: g.Command()})
+	}
 }

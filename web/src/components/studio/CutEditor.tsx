@@ -25,6 +25,8 @@ import { clipName, TimelineEditor, type PlayerControls } from './TimelineEditor'
 import { TransitionPicker } from './TransitionPicker';
 import { VoiceoverButton } from '../../screens/studio/VoiceoverTab';
 import { useTimelineEditor, type TimelineEditor as Editor } from './useTimelineEditor';
+import { outputShape } from '../../lib/shape';
+import { ShapeSkeleton } from '../../ui/ShapeBox';
 
 type Panel = 'clip' | 'words' | 'add' | 'review';
 const PANELS: Panel[] = ['clip', 'words', 'add', 'review'];
@@ -193,7 +195,9 @@ export function CutEditor({ data, onOpenSource, workspaceInstallations }: { data
       const at = placed.find((p) => f >= p.ownFrom && f < p.ownTo);
       return at ? spec.clips[at.index] : spec.clips[0];
     })();
-  const vertical = spec ? (spec.output.height ?? 1920) > (spec.output.width ?? 1080) : true;
+  // The cut's shape: the working copy's by the one rule, else the version's or the project's as the server says (D376, D378).
+  const shape = outputShape(spec?.output) ?? summary?.shape ?? data.shape;
+  const vertical = shape.shape === 'vertical';
 
   return (
     // Phones: player, timeline, then the panel; wider screens: player beside the panel, the timeline under both.
@@ -234,7 +238,7 @@ export function CutEditor({ data, onOpenSource, workspaceInstallations }: { data
             playRender={showing}
           />
         ) : (
-          <Skeleton className="aspect-[9/16] w-full max-w-[380px] rounded-[14px]" />
+          <ShapeSkeleton shape={shape} tall="max-w-[380px]" square="max-w-[480px]" className="rounded-[14px]" />
         )}
         <CopyStatus copies={copies} head={headRev} showing={showing} dirty={editor.dirty} onWatch={(r) => setChoice(r.id)} />
         <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px] text-subtle">

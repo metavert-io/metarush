@@ -21,6 +21,8 @@ import { CaptionTools } from './transcripts/CaptionCheck';
 import { CaptionLookPicker, captionLookName } from './studio/CaptionLook';
 import { QAChip, useQAReportDialog } from './QAReport';
 import { PreviewSwitch, renderName } from './studio/ReviewCopy';
+import { outputShape } from '../lib/shape';
+import { useServedShape } from '../lib/useShape';
 
 /**
  * Reviewing one revision: the Remotion preview, its editorial treatment (notes,
@@ -34,6 +36,7 @@ export function CutReview({ data, revisionId, onOpenSource, workspaceInstallatio
   workspaceInstallations?: Map<string, string>;
 }) {
   const rev = useOp('revision.show', { id: revisionId });
+  const served = useServedShape({ revisionId });
   const [plan, setPlan] = useState<RenderPlan | undefined>();
   const [time, setTime] = useState(0);
   const [clipId, setClipId] = useState<string | undefined>();
@@ -97,7 +100,9 @@ export function CutReview({ data, revisionId, onOpenSource, workspaceInstallatio
     return out;
   }, [data.revisions, revisionId]);
 
-  const vertical = spec ? (spec.output.height ?? 1920) > (spec.output.width ?? 1080) : true;
+  // The cut's shape: the spec's by the one rule, else what the server says (D376); never a guess.
+  const shape = outputShape(spec?.output) ?? served;
+  const vertical = shape?.shape === 'vertical';
   const seek = (s: number) => {
     preview.current?.seekToSeconds(s);
     setTime(s);

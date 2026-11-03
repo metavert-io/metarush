@@ -5,6 +5,7 @@ import { useOp } from '../api/queries';
 import type { AssetSummary } from '../api/types';
 import { loadPref, savePref } from '../lib/theme';
 import { cx, EmptyState, ErrorPanel, Segmented, Skeleton } from '../ui/primitives';
+import { frameAspect, shapeOf } from '../lib/shape';
 
 type Mode = 'smart' | 'even';
 
@@ -20,7 +21,9 @@ export function FrameGrid({ asset, onSeek }: { asset: AssetSummary; onSeek: (t: 
   const kf = useOp('footage.keyframes', asset.kind === 'video' ? { assetId: asset.id, mode } : null, { staleTime: 60_000 });
   if (!asset.variants.includes('proxy') && !asset.variants.includes('thumbnail'))
     return <EmptyState compact icon={<VideoCamera size={20} />} title="No frames yet" body="They are ready right after the preview copy is made on your computer." />;
-  const portrait = (asset.height ?? 0) > (asset.width ?? 0);
+  // The footage's own shape (D376) and ratio: frames are shown whole, never cropped to a fixed box.
+  const portrait = shapeOf(asset.width, asset.height) === 'vertical';
+  const ratio = frameAspect(asset, null, portrait ? '9 / 16' : '16 / 9');
   return (
     <div data-frame-grid={mode}>
       <div className="mb-2 flex items-center gap-2">
@@ -38,7 +41,7 @@ export function FrameGrid({ asset, onSeek }: { asset: AssetSummary; onSeek: (t: 
       {kf.isLoading ? (
         <div className={cx('grid gap-2', portrait ? 'grid-cols-3' : 'grid-cols-2')}>
           {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className={portrait ? 'aspect-[9/16]' : 'aspect-video'} />
+            <Skeleton key={i} style={{ aspectRatio: ratio }} />
           ))}
         </div>
       ) : kf.error ? (
@@ -48,8 +51,8 @@ export function FrameGrid({ asset, onSeek }: { asset: AssetSummary; onSeek: (t: 
           {(kf.data?.tiles ?? []).map((t) => (
             <li key={t.n}>
               <button type="button" onClick={() => onSeek(t.at)} className="group block w-full text-left" aria-label={`${t.caption} (${t.why})`} data-frame-tile={t.reason}>
-                <span className={cx('relative block overflow-hidden rounded-[9px] bg-inset', portrait ? 'aspect-[9/16]' : 'aspect-video')}>
-                  <img src={media.frame(asset.id, t.at, 320)} alt="" loading="lazy" className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]" />
+                <span className="relative block overflow-hidden rounded-[9px] bg-inset" style={{ aspectRatio: ratio }}>
+                  <img src={media.frame(asset.id, t.at, 320)} alt="" loading="lazy" className="h-full w-full object-contain transition-transform group-hover:scale-[1.02]" />
                   <span className="tc absolute left-1 top-1 rounded-[5px] bg-black/60 px-1 text-[10.5px] text-white">#{t.n}</span>
                 </span>
                 <span className="mt-1 block text-[11.5px] leading-snug text-muted">

@@ -185,7 +185,7 @@ func defaultShot(pin ConversationPin, out Output) Shot {
 		return Shot{Member: pics[0]}
 	case len(pics) > 3:
 		return Shot{Layout: LayoutGrid}
-	case out.Height > out.Width:
+	case out.Height > out.Width: // the engine's own rule, not the shape rule: saved versions draw as they always did (D383)
 		return Shot{Layout: LayoutStacked}
 	}
 	return Shot{Layout: LayoutSideBySide}

@@ -331,9 +331,11 @@ const check = async (args) => {
       ...sampleChanges.map((c, i) => [`change ${i + 1}`, at(c.at + 0.3)]),
     ];
     const shapes = Array.isArray(base.shapes) && base.shapes.length ? base.shapes.slice(0, 3) : [{ width: base.width, height: base.height, safeArea: base.safeArea, label: '' }];
+    // A shape is named by its exact size (D377: two vertical sizes never share files or frames).
+    const shapeName = (shape) => String(shape.key || shape.label || '');
     const previewFrames = persistent ? Math.min(total, Math.round(6 * fps)) : total;
     for (const [si, shape] of shapes.entries()) {
-      const tag = si === 0 ? '' : `${String(shape.label || si).replace(/[^a-z0-9-]/gi, '') || si}-`;
+      const tag = si === 0 ? '' : `${shapeName(shape).replace(/[^a-z0-9-]/gi, '') || si}-`;
       const shapePlan = { ...plan, width: shape.width, height: shape.height, safeArea: shape.safeArea ?? plan.safeArea };
       const inputProps = { plan: shapePlan };
       const comp = await selectComposition({ serveUrl, id: COMPOSITION_ID, inputProps, chromiumOptions, logLevel: 'warn', timeoutInMilliseconds: frameTimeoutMs, ...session.remotion });
@@ -354,7 +356,7 @@ const check = async (args) => {
         again = path.join(outDir, 'middle-again.png');
         await renderStill({ composition: comp, serveUrl, inputProps, frame: mid.frame, output: again, imageFormat: 'png', overwrite: true, chromiumOptions, timeoutInMilliseconds: frameTimeoutMs, logLevel: 'warn', ...session.remotion });
       }
-      emit({ type: 'frames', durationInFrames: total, fps, frames, again, shape: shape.label ?? '', width: shape.width, height: shape.height });
+      emit({ type: 'frames', durationInFrames: total, fps, frames, again, shape: shapeName(shape), width: shape.width, height: shape.height });
 
       if (!args['no-preview']) {
         const file = path.join(outDir, `preview${tag ? '-' + tag.slice(0, -1) : ''}.mp4`);
@@ -377,7 +379,7 @@ const check = async (args) => {
           onProgress: () => frameDog.tick(),
         });
         frameDog.stop();
-        emit({ type: 'preview', file, shape: shape.label ?? '' });
+        emit({ type: 'preview', file, shape: shapeName(shape) });
       }
     }
     const blocked = session.blocked();

@@ -8,6 +8,8 @@ import { cutPoint, OpError, removalOps, shorter } from '../../lib/words';
 import { Badge, Button, cx, EmptyState, Spinner } from '../../ui/primitives';
 import { plainRefusal } from '../../lib/editops';
 import type { TimelineEditor as Editor } from './useTimelineEditor';
+import { outputShape } from '../../lib/shape';
+import { shapeRatio } from '../../ui/ShapeBox';
 
 const LoopPreview = lazy(() => import('../../player/LoopPreview'));
 
@@ -237,7 +239,10 @@ export function CleanupReview({
   const plan = hear === 'without' ? (without?.index === cur ? without.plan : undefined) : (editor.plan ?? undefined);
   const inFrame = Math.round((t0 - 2) * fps);
   const outFrame = Math.round((t0 + (hear === 'without' ? 0 : (r?.seconds ?? 0)) + 1.5) * fps);
-  const vertical = spec ? (spec.output.height ?? 1920) > (spec.output.width ?? 1080) : false;
+  // The cut's own shape (D376): vertical, square or widescreen, at its ratio.
+  const shape = outputShape(spec?.output);
+  const vertical = shape?.shape === 'vertical';
+  const square = shape?.shape === 'square';
   const clip = r && spec ? spec.clips[r.clip - 1] : undefined;
   const where = clip ? clip.label || assets.get(clip.assetId)?.title || clip.id : '';
   const kinds = Object.entries(counts).map(([k, n]) => {
@@ -256,8 +261,8 @@ export function CleanupReview({
         {pauses ? ` (${shorter(allSecs)} in all)` : ''}. Listen to each one and choose; nothing changes until you {pauses ? 'shorten them' : 'take them out'}.
       </p>
       {r ? (
-        <div className={cx('grid gap-4', vertical ? 'sm:grid-cols-[200px_minmax(0,1fr)]' : 'sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]')}>
-          <div className={cx('relative overflow-hidden rounded-[12px] bg-inset', vertical ? 'mx-auto aspect-[9/16] w-[180px] sm:w-full' : 'aspect-video w-full')} data-cleanup-preview={hear}>
+        <div className={cx('grid gap-4', vertical ? 'sm:grid-cols-[200px_minmax(0,1fr)]' : square ? 'sm:grid-cols-[260px_minmax(0,1fr)]' : 'sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]')}>
+          <div className={cx('relative overflow-hidden rounded-[12px] bg-inset', vertical ? 'mx-auto w-[180px] sm:w-full' : square ? 'mx-auto w-[240px] sm:w-full' : 'w-full')} style={{ aspectRatio: shapeRatio(shape) }} data-cleanup-preview={hear} data-shape={shape?.shape}>
             <Suspense
               fallback={
                 <div className="grid h-full place-items-center">

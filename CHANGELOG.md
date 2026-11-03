@@ -1,6 +1,23 @@
 # Changelog
 
 ## Unreleased
+- **Motion graphics are drawn in the shape of the cuts that use them, even without a project**. A graphic checked
+  outside its project was drawn tall even when every cut using it is widescreen. Its test frames now follow the cuts
+  anywhere in your workspace that use it, else the project's shape; when nothing says, they are drawn both widescreen
+  and vertical, never quietly one. Two tall sizes (9:16 and 4:5) are drawn and shown apart, never mixed or stretched.
+- **Draw an approved graphic in another shape, and approve it in that shape**. `metarush motion check --version
+  name@version --shape landscape` draws the same version in that shape too, from a terminal or as a card in Claude's
+  panel. It only adds: the frames and preview you approved stay exactly as they were, and the approval keeps covering
+  the shapes you looked at. You approve the new shape on the graphic's page (Approve in this shape) or with
+  `metarush motion approve name@version --shape 1920x1080`.
+- **A heads-up when a cut uses a graphic in a shape nobody approved**. Checking or saving a cut, and the quality check
+  of its render, say when a motion graphic was never drawn in the cut's shape, or was drawn there but approved only in
+  others, with what to do. A graphic drawn widescreen covers widescreen cuts of every size.
+- **Test frames and pictures are shown whole, at their own shape**. Vertical frames on Claude's cards and in the
+  conversation are no longer cropped into a widescreen strip, square cuts show square, and players and loading boxes
+  take the cut's real shape instead of a guess.
+- **One answer to "what shape is this project"**. A project's shape comes from its main cut, else any cut, else where
+  the brief says it goes, else the shape most of its footage is in; `metarush project show` says which and why.
 
 ## 0.15.0 — 31 Oct 2026
 - **A conversation you rename keeps its new name**. A rename at the very moment a conversation saved could show the old

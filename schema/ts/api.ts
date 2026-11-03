@@ -1334,6 +1334,7 @@ severity: string
 code: string
 path?: string
 message: string
+command?: string
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema
@@ -1431,6 +1432,7 @@ hint?: string
  * JSON pointer into the edit spec (for findings from validation).
  */
 path?: string
+command?: string
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema
@@ -2857,6 +2859,9 @@ export interface CardPicture {
  */
 url: string
 label?: string
+width?: number
+height?: number
+shape?: string
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema

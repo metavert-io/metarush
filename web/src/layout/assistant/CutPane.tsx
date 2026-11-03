@@ -4,11 +4,14 @@ import { useOp } from '../../api/queries';
 import { duration, relative } from '../../lib/format';
 import { CutPreview } from '../../player/LazyCutPreview';
 import { Badge, Button, ErrorPanel, Skeleton } from '../../ui/primitives';
+import { useServedShape } from '../../lib/useShape';
+import { ShapeSkeleton } from '../../ui/ShapeBox';
 
 /** The conversation's project: its current cut, playable, and what version it is. */
 export function CutPane({ projectId, onNavigate }: { projectId?: string; onNavigate: () => void }) {
   const navigate = useNavigate();
   const q = useOp('project.show', projectId ? { id: projectId } : null, { staleTime: 15_000 });
+  const served = useServedShape({ projectId });
   if (!projectId) {
     return (
       <div className="grid h-full place-items-center px-6 text-center">
@@ -22,7 +25,7 @@ export function CutPane({ projectId, onNavigate }: { projectId?: string; onNavig
   if (q.isLoading) {
     return (
       <div className="space-y-3 p-4" aria-busy="true">
-        <Skeleton className="mx-auto aspect-[9/16] w-full max-w-[300px] rounded-[14px]" />
+        <ShapeSkeleton shape={served} tall="max-w-[300px]" square="max-w-[380px]" className="rounded-[14px]" />
         <Skeleton className="h-5 w-2/3" />
       </div>
     );
@@ -42,7 +45,7 @@ export function CutPane({ projectId, onNavigate }: { projectId?: string; onNavig
       </div>
       {head ? (
         <>
-          <CutPreview revisionId={head.id} renders={d.renders} maxHeight="min(56dvh, 560px)" />
+          <CutPreview revisionId={head.id} renders={d.renders} maxHeight="min(56dvh, 560px)" shape={head.shape} />
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[13px] text-fg">Version {head.number}</span>

@@ -13,6 +13,7 @@ import (
 	"github.com/metavert-io/metarush/internal/linkimport"
 	"github.com/metavert-io/metarush/internal/links"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/motion"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/voiceover"
 )
@@ -551,15 +552,30 @@ func (m *Manager) motionPictures(ctx context.Context, act *AssistantAction, hash
 		return
 	}
 	act.Frames = nil
+	stills := motion.Stills(comp)
 	for i, f := range comp.Frames {
 		label := strings.TrimSpace(f.Label)
 		if label == "" {
 			label = "At " + strconv.FormatFloat(f.At, 'f', 1, 64) + " s"
 		}
-		if len(comp.Shapes) > 1 && f.Shape != "" {
-			label = f.Shape + " · " + label // drawn in each shape the cuts need (D164)
+		// Every frame says its size and shape (D377), so the panel shows it
+		// at its own ratio, a row per size, however many shapes it was drawn in.
+		// By the frame's own SHA-256 (D381): the card keeps showing this picture
+		// whatever the version is drawn in later.
+		ref := strconv.Itoa(i)
+		if motion.ValidHash(f.Object.SHA256) {
+			ref = f.Object.SHA256
 		}
-		act.Frames = append(act.Frames, CardPicture{URL: "/media/motion/" + hash + "/frame-" + strconv.Itoa(i), Label: label})
+		pic := CardPicture{URL: "/media/motion/" + hash + "/frame-" + ref, Label: label, Width: f.Object.Width, Height: f.Object.Height, Shape: f.Shape}
+		for _, st := range stills {
+			if st.Index == i && (pic.Width == 0 || pic.Height == 0) {
+				pic.Width, pic.Height = st.Width, st.Height
+			}
+		}
+		if pic.Shape == "" {
+			pic.Shape = motion.ShapeLabel(pic.Width, pic.Height)
+		}
+		act.Frames = append(act.Frames, pic)
 	}
 	if comp.Sheet != nil {
 		act.Image = "/media/motion/" + hash + "/sheet"

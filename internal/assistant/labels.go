@@ -479,6 +479,9 @@ func resourceLabel(c *cliCall) string {
 	case "remotion refresh start", "remotion push start":
 		return "Asked you to start it yourself"
 	case "motion check":
+		if c.Flags["version"] != "" && first(c.Args) == "" {
+			return "Asked to draw a graphic in another shape"
+		}
 		return "Asked to check a graphic it made"
 	case "motion approve", "motion revoke":
 		return "Asked you to decide on a graphic"

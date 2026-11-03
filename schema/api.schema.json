@@ -1204,6 +1204,15 @@
         },
         "label": {
           "type": "string"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "shape": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -3653,6 +3662,9 @@
         },
         "message": {
           "type": "string"
+        },
+        "command": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -4783,6 +4795,9 @@
         "path": {
           "type": "string",
           "description": "JSON pointer into the edit spec (for findings from validation)."
+        },
+        "command": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

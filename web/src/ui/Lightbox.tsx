@@ -15,6 +15,10 @@ export interface LightboxItem {
   src: string;
   kind?: 'image' | 'video';
   label?: string;
+  /** A frame's size and shape in words, when known (D377): thumbnails show it at its own ratio. */
+  width?: number;
+  height?: number;
+  shape?: string;
 }
 
 export function Lightbox({ items, index, onClose, title }: { items: LightboxItem[]; index: number; onClose: () => void; title?: string }) {

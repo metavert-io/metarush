@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/links"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/motion"
@@ -22,6 +24,10 @@ import (
 // describeMotionCheck prepares "check the motion graphic Claude wrote": the
 // folder must be in this conversation's proposals.
 func (m *Manager) describeMotionCheck(ctx context.Context, c *conv, call *cliCall, a *AssistantAction) {
+	if v := strings.TrimSpace(call.Flags["version"]); v != "" && first(call.Args) == "" {
+		m.describeMotionRedraw(ctx, c, call, a, v)
+		return
+	}
 	path := first(call.Args)
 	if path == "" {
 		incomplete(a, "Check a motion graphic", "Claude did not name the component's folder.")
@@ -65,6 +71,43 @@ func (m *Manager) describeMotionCheck(ctx context.Context, c *conv, call *cliCal
 	setInput(a, "motion.check", in)
 }
 
+// describeMotionRedraw prepares drawing a version checked here in more shapes
+// (D377, D381): the same code, drawn again in the jailed browser like any
+// check. It only adds test frames and previews, so it starts by itself as a
+// safe step and Auto runs it; it never approves anything — a person's
+// approval in the new shape is what clears a cut's note.
+func (m *Manager) describeMotionRedraw(ctx context.Context, c *conv, call *cliCall, a *AssistantAction, ref string) {
+	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	comp, err := motion.Resolve(cctx, m.App.DB, m.App.WorkspaceID(), ref)
+	if err != nil {
+		incomplete(a, "Draw a motion graphic in another shape", firstLine(apperr.From(err).Message))
+		return
+	}
+	if comp.Kind == models.MotionKindLibrary {
+		incomplete(a, "Draw the shared library "+theirs(comp.Name), "A shared library draws nothing of its own; the graphics that use it are drawn instead.")
+		return
+	}
+	shape := strings.TrimSpace(call.Flags["shape"])
+	words := "in the shapes of the cuts that use it"
+	if shape != "" {
+		sh, ok := editspec.ParseShape(strings.ToLower(shape))
+		if !ok {
+			incomplete(a, "Draw the graphic "+theirs(comp.Name)+" in another shape", "Claude named a shape MetaRush doesn't know: say vertical, landscape, square or a size like 1080x1350.")
+			return
+		}
+		words = sh.Word + " (" + sh.Ratio + ")"
+	}
+	a.Title = "Draw the graphic " + theirs(comp.Name) + " " + words
+	a.Details = []string{"The same version, drawn again with no internet access: its code doesn't change, and the frames it has stay as they are",
+		"It doesn't approve anything: a person looks at the new frames and approves it in that shape"}
+	project := call.Flags["project"]
+	if project == "" {
+		project = c.projectID()
+	}
+	setInput(a, "motion.check", ops.MotionCheckIn{Version: comp.Name + "@" + comp.Hash, Shape: shape, ProjectID: project, NoPreview: hasBool(call, "no-preview")})
+}
+
 // describeMotionDecision prepares approving, turning down or withdrawing a
 // version: people only, after looking at its review page.
 func (m *Manager) describeMotionDecision(ctx context.Context, call *cliCall, a *AssistantAction) {
@@ -97,7 +140,15 @@ func (m *Manager) describeMotionDecision(ctx context.Context, call *cliCall, a *
 	default:
 		a.Title = "Approve the graphic " + theirs(comp.Name)
 		a.Details = []string{"Only people approve graphics. Claude suggested it; the decision is yours. Look at its frames and preview first."}
-		if comp.State == models.MotionApproved {
+		if shapes := shapeFlags(call); len(shapes) > 0 {
+			var ws []string
+			for _, k := range shapes {
+				if sh, ok := editspec.ParseShape(strings.ToLower(k)); ok {
+					ws = append(ws, sh.Word+" ("+sh.Ratio+")")
+				}
+			}
+			a.Title += " in " + joinWords(ws)
+		} else if comp.State == models.MotionApproved {
 			incomplete(a, a.Title, "This exact version is already approved.")
 			return
 		}
@@ -111,5 +162,31 @@ func (m *Manager) describeMotionDecision(ctx context.Context, call *cliCall, a *
 	a.Review = links.Motion(comp.Hash)
 	m.motionPictures(ctx, a, comp.Hash) // its test frames, contact sheet and preview, large on click
 	a.Rationale = clip(strings.TrimSpace(call.Flags["note"]), 1000)
-	setInput(a, op, ops.MotionDecideIn{Ref: comp.Name + "@" + comp.Hash, Reject: reject && op == "motion.approve", Note: clip(call.Flags["note"], 2000)})
+	in := ops.MotionDecideIn{Ref: comp.Name + "@" + comp.Hash, Reject: reject && op == "motion.approve", Note: clip(call.Flags["note"], 2000)}
+	if op == "motion.approve" && !reject {
+		// The approval covers exactly the shapes this card shows (D384): its
+		// frames are the ones drawn now, so a shape drawn after the card was
+		// made (by a safe step or Auto) is never approved unseen.
+		if in.Shapes = shapeFlags(call); len(in.Shapes) == 0 {
+			in.Shapes = comp.DrawnSizes()
+		}
+	}
+	setInput(a, op, in)
+}
+
+// shapeFlags are the --shape values Claude gave (repeatable, or comma-separated).
+func shapeFlags(call *cliCall) []string {
+	vals := call.Multi["shape"]
+	if len(vals) == 0 && call.Flags["shape"] != "" {
+		vals = []string{call.Flags["shape"]}
+	}
+	var out []string
+	for _, v := range vals {
+		for _, p := range strings.Split(v, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
 }

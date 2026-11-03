@@ -159,7 +159,7 @@ export function RecipePage({ name, version, planned }: { name: string; version?:
               <ul className="grid grid-cols-3 gap-1.5" aria-label="Stills of each section">
                 {stills.slice(0, 9).map((s, i) => (
                   <li key={i}>
-                    <Thumb src={s.url} alt={`The section “${s.section}”`} className="aspect-video w-full rounded-[8px]" />
+                    <Thumb src={s.url} alt={`The section “${s.section}”`} className="aspect-video w-full rounded-[8px]" fit="contain" />
                     <span className="mt-0.5 block truncate text-[11px] text-subtle">{s.section}</span>
                   </li>
                 ))}

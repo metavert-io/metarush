@@ -74,27 +74,30 @@ type EditApplyOut struct {
 
 // RevisionSummary is a revision without its full spec.
 type RevisionSummary struct {
-	ID          string           `json:"id"`
-	ProjectID   string           `json:"projectId"`
-	Branch      string           `json:"branch"`
-	Number      int              `json:"number"`
-	ParentID    string           `json:"parentId,omitempty"`
-	RebasedFrom string           `json:"rebasedFrom,omitempty"`
-	Title       string           `json:"title,omitempty"`
-	Instruction string           `json:"instruction,omitempty"`
-	Rationale   string           `json:"rationale,omitempty"`
-	Origin      string           `json:"origin,omitempty"`
-	Duration    float64          `json:"duration"`
-	Clips       int              `json:"clips"`
-	Overlays    int              `json:"overlays"`
-	Output      editspec.Output  `json:"output"`
-	SpecHash    string           `json:"specHash"`
-	Approval    models.Approval  `json:"approval"`
-	Warnings    []editspec.Issue `json:"warnings,omitempty"`
-	IsHead      bool             `json:"isHead"`
-	CreatedBy   models.Actor     `json:"createdBy"`
-	CreatedAt   time.Time        `json:"createdAt"`
-	URL         string           `json:"url"`
+	ID          string          `json:"id"`
+	ProjectID   string          `json:"projectId"`
+	Branch      string          `json:"branch"`
+	Number      int             `json:"number"`
+	ParentID    string          `json:"parentId,omitempty"`
+	RebasedFrom string          `json:"rebasedFrom,omitempty"`
+	Title       string          `json:"title,omitempty"`
+	Instruction string          `json:"instruction,omitempty"`
+	Rationale   string          `json:"rationale,omitempty"`
+	Origin      string          `json:"origin,omitempty"`
+	Duration    float64         `json:"duration"`
+	Clips       int             `json:"clips"`
+	Overlays    int             `json:"overlays"`
+	Output      editspec.Output `json:"output"`
+	// Shape is the version's shape (D376: Output.Shape()): what the
+	// dashboard shows it at, never worked out again in the browser.
+	Shape     editspec.OutputShape `json:"shape"`
+	SpecHash  string               `json:"specHash"`
+	Approval  models.Approval      `json:"approval"`
+	Warnings  []editspec.Issue     `json:"warnings,omitempty"`
+	IsHead    bool                 `json:"isHead"`
+	CreatedBy models.Actor         `json:"createdBy"`
+	CreatedAt time.Time            `json:"createdAt"`
+	URL       string               `json:"url"`
 	// Waiting are the sign-offs still waiting when a version is approved
 	// (D166): a reminder, never a lock.
 	Waiting  []models.Signoff `json:"waiting,omitempty"`
@@ -127,6 +130,9 @@ func summarizeRev(a *app.App, r models.Revision, head string) RevisionSummary {
 	if s.ByAgent = madeByAgent(&r); s.ByAgent != "" {
 		s.AgentName = AgentWords(s.ByAgent)
 	}
+	if s.Shape = r.Spec.Output.Shape(); s.Shape.Shape == "" {
+		s.Shape = (editspec.Output{Preset: editspec.PresetVertical}).Shape() // what Normalize renders it as
+	}
 	return s
 }
 
@@ -145,15 +151,15 @@ func rewordWarnings(ctx context.Context, a *app.App, r *models.Revision) []edits
 	if err != nil {
 		return r.Warnings
 	}
-	now := map[string]string{}
+	now := map[string]editspec.Issue{}
 	for _, is := range editspec.Validate(spec, facts, nil, true) {
-		now[is.Code+"\x00"+is.Path] = is.Message
+		now[is.Code+"\x00"+is.Path] = is
 	}
 	out := make([]editspec.Issue, len(r.Warnings))
 	for i, w := range r.Warnings {
 		out[i] = w
 		if m, ok := now[w.Code+"\x00"+w.Path]; ok {
-			out[i].Message = m
+			out[i].Message, out[i].Command = m.Message, m.Command
 		} else {
 			// Fixed since (the music's rights recorded, a transcript made): keep
 			// the saved words, without the commands older versions put in them.

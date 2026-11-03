@@ -1145,14 +1145,12 @@ func packPreview(ctx context.Context, a *app.App, in *ContentPackPreviewIn) (*Co
 		return nil, invalid("A preview is landscape, vertical or square, not %q.", in.Shape)
 	}
 	if preset == "" {
+		// The project's shape (D378) when something says it; else widescreen.
 		preset = editspec.PresetLandscape
 		if pid != "" {
 			if p, err := resolveProject(ctx, a, pid); err == nil {
-				if head := p.Branches["main"].Head; head != "" {
-					var rev models.Revision
-					if a.DB.GetByID(ctx, store.CRevisions, a.WorkspaceID(), head, &rev) == nil && rev.Spec.Output.Preset != "" {
-						preset = rev.Spec.Output.Preset
-					}
+				if ps := ProjectShape(ctx, a, p); ps.Known {
+					preset = editspec.PresetFor(ps.Shape)
 				}
 			}
 		}

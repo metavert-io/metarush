@@ -218,14 +218,13 @@ func quoteEach(xs []string) []string {
 	return out
 }
 
+// orientationWord is the shape of a w × h video by the one rule (D376):
+// landscape, vertical or square (square when it has no size).
 func orientationWord(w, h int) string {
-	switch r := float64(w) / float64(max(1, h)); {
-	case r > 1.15:
-		return "landscape"
-	case r < 0.87:
-		return "vertical"
+	if s := editspec.ShapeOf(w, h); s != "" {
+		return string(s)
 	}
-	return "square"
+	return string(editspec.ShapeSquare)
 }
 
 func shapeWords(o string) string {

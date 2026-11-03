@@ -38,6 +38,7 @@ export function defaultShot(clip: Clip, spec: Spec): Shot {
   const pics = (pin?.members ?? []).filter((m) => m.use !== 'sound').map((m) => m.id);
   if (pics.length === 1) return { at: clip.in, member: pics[0] };
   if (pics.length > 3) return { at: clip.in, layout: 'grid' };
+  // Go's defaultShot exactly: taller than wide, not the shape rule, so saved versions draw as they always did (D383).
   const vertical = (spec.output.height ?? 0) > (spec.output.width ?? 0);
   return { at: clip.in, layout: vertical ? 'stacked' : 'side-by-side' };
 }

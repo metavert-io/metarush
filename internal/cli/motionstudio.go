@@ -12,13 +12,14 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/motion"
+	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/renderer"
 	"github.com/metavert-io/metarush/internal/tools"
 )
 
 // runMotionStudio starts Remotion Studio for one component and waits until
 // the person stops it (Ctrl-C).
-func runMotionStudio(c *cobra.Command, a *app.App, dir string, o motion.CheckOptions, port int) error {
+func runMotionStudio(c *cobra.Command, a *app.App, dir string, o motion.CheckOptions, others []ops.MotionShapeOut, port int) error {
 	name := filepath.Base(dir)
 	if !motion.ValidName(name) {
 		return fail(c, apperr.InvalidInput, fmt.Sprintf("A motion graphic's folder name is its name; %q can't be one.", name), "Use lowercase letters, digits and dashes (like route-map).")
@@ -80,7 +81,10 @@ func runMotionStudio(c *cobra.Command, a *app.App, dir string, o motion.CheckOpt
 			}
 			switch ev.Type {
 			case "ready":
-				fmt.Printf("Remotion Studio is at %s (choose MetaRushEdit). Edit the files and reload the page; Ctrl-C stops it.\n", ev.URL)
+				fmt.Printf("Remotion Studio is at %s (choose MetaRushEdit), showing it %s. Edit the files and reload the page; Ctrl-C stops it.\n", ev.URL, studioShapeWords(o.Width, o.Height))
+				for _, s := range others {
+					fmt.Printf("It is also used %s%s: open Studio in that shape to see it there.\n", s.Label, studioFor(s.For))
+				}
 			case "rebuilt":
 				fmt.Println("Rebuilt; reload the page.")
 			case "problems":
@@ -98,4 +102,20 @@ func runMotionStudio(c *cobra.Command, a *app.App, dir string, o motion.CheckOpt
 		return failErr(c, apperr.Wrap(apperr.ToolFailed, err, "Remotion Studio stopped"))
 	}
 	return nil
+}
+
+// studioShapeWords says the frame Studio draws in: "widescreen (16:9)".
+func studioShapeWords(w, h int) string {
+	s := editspec.ShapeOfSize(w, h)
+	if s.Shape == "" {
+		return "in no shape"
+	}
+	return s.Word + " (" + s.Ratio + ")"
+}
+
+func studioFor(what string) string {
+	if what == "" {
+		return ""
+	}
+	return " (in “" + what + "”)"
 }

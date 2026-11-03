@@ -10,6 +10,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/editspec"
+	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
@@ -124,7 +125,7 @@ func TestARenderInAnotherShapeIsMarkedForThatRenderOnly(t *testing.T) {
 	c := clip(t, a, "Garage interview", p.ID)
 	rev := saveCut(t, a, p.ID, "", c.ID) // vertical
 	own := do[ops.RenderOut](t, a, "render.submit", ops.RenderSubmitIn{RevisionID: rev, Quality: "review", NoQA: true})
-	if own.Render.ShapeRule != 0 || own.Job.IdempotencyKey != "render:"+rev+":vertical-1080p:review" {
+	if own.Render.ShapeRule != 0 || own.Job.IdempotencyKey != "render:"+rev+":vertical-1080p:review" || own.Job.Type != jobs.TypeRender {
 		t.Fatalf("its own shape: %+v %s", own.Render, own.Job.IdempotencyKey)
 	}
 	same := do[ops.RenderOut](t, a, "render.submit", ops.RenderSubmitIn{RevisionID: rev, Preset: editspec.PresetVertical, Quality: "review", NoQA: true})
@@ -132,8 +133,12 @@ func TestARenderInAnotherShapeIsMarkedForThatRenderOnly(t *testing.T) {
 		t.Fatal("asking for its own preset is the same render")
 	}
 	wide := do[ops.RenderOut](t, a, "render.submit", ops.RenderSubmitIn{RevisionID: rev, Preset: editspec.PresetLandscape, Quality: "review", NoQA: true})
-	if wide.Render.ShapeRule != editspec.ReshapeRule || wide.Job.IdempotencyKey != "render:"+rev+":landscape-1080p:review:shape-1" {
-		t.Fatalf("a widescreen copy: %+v %s", wide.Render, wide.Job.IdempotencyKey)
+	// Its own job type: only a MetaRush that knows the rule takes it (D396).
+	if wide.Render.ShapeRule != editspec.ReshapeRule || wide.Job.IdempotencyKey != "render:"+rev+":landscape-1080p:review:shape-1" || wide.Job.Type != jobs.TypeRenderShape {
+		t.Fatalf("a widescreen copy: %+v %s %s", wide.Render, wide.Job.IdempotencyKey, wide.Job.Type)
+	}
+	if listed := do[ops.JobListOut](t, a, "job.list", ops.JobListIn{Type: jobs.TypeRender}); len(listed.Jobs) != 2 {
+		t.Fatalf("both kinds of render are listed as renders: %d", len(listed.Jobs))
 	}
 	if again := do[ops.RenderOut](t, a, "render.submit", ops.RenderSubmitIn{RevisionID: rev, Preset: editspec.PresetLandscape, Quality: "review", NoQA: true}); again.Created || again.Render.ID != wide.Render.ID {
 		t.Fatal("asking again gives the same widescreen copy")
@@ -154,6 +159,10 @@ func TestTheVersionsOwnShapeIsPicked(t *testing.T) {
 	}
 	if w := ops.OtherShapeWords(&newer, rev, "final render"); w != "Version 3 is widescreen, but it has no final render in that shape yet, so its vertical copy is used." {
 		t.Fatalf("words: %q", w)
+	}
+	tall := &models.Revision{Number: 4, Spec: editspec.Spec{Output: editspec.Output{Width: 1080, Height: 1350}}}
+	if w := ops.OtherShapeWords(&models.Render{Preset: editspec.PresetVertical}, tall, "review copy"); w != "Version 4 is 4:5, but it has no review copy in that shape yet, so its 9:16 copy is used." {
+		t.Fatalf("two vertical shapes are told apart by their ratios: %q", w)
 	}
 	if ops.OtherShapeWords(&older, rev, "final render") != "" || !ops.InOwnShape(&models.Render{}, rev) {
 		t.Fatal("its own shape says nothing")

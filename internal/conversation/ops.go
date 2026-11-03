@@ -402,6 +402,8 @@ type CallPlanOut struct {
 	Summary string                `json:"summary"`
 	// Why are the reasons for an automatic cut's choices (one per shot).
 	Why []string `json:"why,omitempty"`
+	// Shape is the shape an automatic cut is made in and why (D386).
+	Shape string `json:"shape,omitempty"`
 }
 
 func pinIn(ctx context.Context, a *app.App, in *CallPinIn) (*CallPlanOut, error) {

@@ -210,6 +210,8 @@ func (m *Manager) describeConvCut(ctx context.Context, call *cliCall, a *Assista
 	a.Details = []string{st.About}
 	if in.Shape != "" {
 		a.Details = append(a.Details, shapeWords(in.Shape))
+	} else if po.Shape != "" { // the shape it is made in when none was asked, and why (D386)
+		a.Details = append(a.Details, strings.TrimSuffix(po.Shape, "."))
 	}
 	if in.From != nil || in.To != nil {
 		from, to := 0.0, info.Length

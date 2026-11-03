@@ -16,7 +16,8 @@
 - **A vertical copy of a widescreen cut looks like a vertical cut**. Rendering a version in another shape now stacks
   the people of a call instead of squeezing them side by side, uses the margins of the platform for that shape (Shorts
   for a YouTube video), keeps faces in frame and moves middle captions lower on a wider picture — for that copy only;
-  the version and its own renders don't change, and copies made before stay as they are.
+  the version and its own renders don't change, and copies made before stay as they are. Only a computer with this
+  MetaRush makes such a copy: with older ones only, it waits and says so.
 - **Timelines from other editors keep their shape**. A 4:5 timeline becomes a 4:5 cut (it became 9:16), and any other
   shape is kept as near as MetaRush can, said when it isn't exact; a timeline that says no size takes the project's
   shape. A Remotion composition's first cut keeps its shape too.
@@ -26,8 +27,9 @@
   even when a copy in another shape was made later, and says so when only another shape is ready; drafts and posting
   pick the same way.
 - **The recorder records your camera in your project's shape when it can, and shows it whole**. The camera is asked
-  for the project's shape (a phone or a turned camera can record vertical), never cropped by the browser; the previews
-  show the whole picture at its real shape, and the page says the shape being recorded.
+  for the project's shape among its own modes (a phone or a turned camera can record vertical), never cropped by the
+  browser; a camera that can't records its own whole picture and the page says so; the previews show the whole
+  picture at its real shape.
 - **Slides made for a vertical cut fit it**. A code slide, a repository card or a diagram made for a vertical or
   square cut (`metarush resources make … --project … --cut …`) is drawn narrower — long code lines wrapped, the card's
   numbers in rows, a flowchart that runs down — so it reads on a phone; a newer commit's version keeps that shape.

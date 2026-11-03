@@ -111,7 +111,7 @@ func shapeOf(shape string) (string, string, error) {
 // latest version), else the project's when something says (its cuts, brief
 // or footage: ops.ProjectShape), at its own size (4:5 stays 4:5); else
 // widescreen, as conversation cuts always started.
-func callOutput(ctx context.Context, a *app.App, projectID, branch, shape string) (editspec.Output, error) {
+func callOutput(ctx context.Context, a *app.App, projectID, branch, shape string) (editspec.Output, string, error) {
 	if shape == "" && projectID != "" {
 		var p models.Project
 		if err := a.DB.GetByID(ctx, store.CProjects, a.WorkspaceID(), projectID, &p); err == nil {
@@ -127,12 +127,18 @@ func callOutput(ctx context.Context, a *app.App, projectID, branch, shape string
 				if out.Preset == "" {
 					out.Width, out.Height = ps.Width, ps.Height
 				}
-				return out, nil
+				return out, upperFirst(ps.Word) + " " + ps.Ratio + ", because " + lowerFirst(ps.Why), nil
 			}
 		}
 	}
 	preset, platform, err := shapeOf(shape)
-	return editspec.Output{Preset: preset, Platform: platform}, err
+	out := editspec.Output{Preset: preset, Platform: platform}
+	s := out.Shape()
+	why := upperFirst(s.Word) + " " + s.Ratio + ", as asked."
+	if shape == "" {
+		why = upperFirst(s.Word) + " " + s.Ratio + ": nothing says the project's shape yet, and conversation cuts start widescreen."
+	}
+	return out, why, err
 }
 
 // splitLayout is the layout for people talking together in a frame: the
@@ -258,7 +264,7 @@ func autoCutWith(ctx context.Context, a *app.App, in *CallCutIn, remember bool) 
 	if !ok {
 		return nil, invalid("style is %s, not %q", strings.Join(styleNames(), ", "), styleName)
 	}
-	out, err := callOutput(ctx, a, pid, in.Branch, in.Shape)
+	out, shapeWhy, err := callOutput(ctx, a, pid, in.Branch, in.Shape)
 	if err != nil {
 		return nil, err
 	}
@@ -366,7 +372,7 @@ func autoCutWith(ctx context.Context, a *app.App, in *CallCutIn, remember bool) 
 			}
 		}
 	}
-	po := &CallPlanOut{Result: res, Why: why, Changes: []string{fmt.Sprintf("%s: %d clips and %d shots, %s long", st.Label, len(spec.Clips), shots, secs(totalLength(spec)))}}
+	po := &CallPlanOut{Result: res, Why: why, Shape: shapeWhy, Changes: []string{fmt.Sprintf("%s: %d clips and %d shots, %s long", st.Label, len(spec.Clips), shots, secs(totalLength(spec)))}}
 	po.Summary = fmt.Sprintf("Ready: an automatic %s cut of %s with %d shots, each with its reason.", strings.ToLower(st.Label), c.Name, shots)
 	if in.Apply {
 		po.Applied = applyResult(ctx, a, res)
@@ -663,4 +669,23 @@ func firstNonEmpty(vs ...string) string {
 		}
 	}
 	return ""
+}
+
+func upperFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	return strings.ToUpper(string(r[0])) + string(r[1:])
+}
+
+func lowerFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	if len(r) > 1 && r[1] >= 'A' && r[1] <= 'Z' {
+		return s // an initialism
+	}
+	return strings.ToLower(string(r[0])) + string(r[1:])
 }

@@ -782,7 +782,7 @@ func (b *builder) renders(ctx context.Context, projectID string, other []models.
 	}
 	jobByID := map[string]models.Job{}
 	for _, j := range other {
-		if j.Type == jobs.TypeRender {
+		if jobs.IsRender(j.Type) {
 			jobByID[j.ID] = j
 		}
 	}

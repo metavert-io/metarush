@@ -459,6 +459,17 @@ func motionShapes(ctx context.Context, a *app.App, p *models.Project, name, plat
 						out = append(out, motion.CheckShape{Width: s.Width, Height: s.Height, Platform: d.Platform, For: d.Name})
 					}
 				}
+			case ShapeFromPlatforms:
+				// Every platform the brief names, in its shape with its margins
+				// (D397): TikTok and YouTube draw both, at most three.
+				out = nil
+				for _, pl := range p.Brief.Platforms {
+					pl = strings.ToLower(strings.TrimSpace(pl))
+					if shape := editspec.PlatformShape(pl); shape != "" && len(out) < 3 {
+						s := (editspec.Output{Preset: editspec.PresetFor(shape)}).Shape()
+						out = append(out, motion.CheckShape{Width: s.Width, Height: s.Height, Platform: pl, For: platformWords(pl)})
+					}
+				}
 			}
 			return motionShapeSet{Shapes: out, From: shapesProject}
 		}

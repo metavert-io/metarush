@@ -43,6 +43,10 @@ func TestACallCutStartsInTheProjectsShape(t *testing.T) {
 		return n
 	}
 
+	in0 := CallCutIn{CallRefIn: CallRefIn{Conversation: cv.Conversation.ID}, Style: "podcast", NameTags: new(bool)}
+	if po := scall[CallPlanOut](t, c.a, "conversation.cut", in0); po.Shape != "Widescreen 16:9, because most of its footage is widescreen." {
+		t.Fatalf("the shape it is made in, said: %q", po.Shape)
+	}
 	wide := cut(CallCutIn{})
 	if o := wide.Output; o.Preset != editspec.PresetLandscape || o.Platform != "youtube" || wide.Captions != nil || splits(wide)[editspec.LayoutStacked] > 0 || splits(wide)[editspec.LayoutSideBySide] == 0 {
 		t.Fatalf("widescreen footage: %+v captions %+v layouts %v", o, wide.Captions, splits(wide))

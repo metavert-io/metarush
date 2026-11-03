@@ -8787,6 +8787,9 @@
           },
           "type": "array"
         },
+        "shape": {
+          "type": "string"
+        },
         "suggestions": {
           "items": {
             "$ref": "#/$defs/CleanupInfo"
@@ -9210,6 +9213,9 @@
           },
           "type": "array"
         },
+        "shape": {
+          "type": "string"
+        },
         "conversation": {
           "$ref": "#/$defs/CallInfo"
         },
@@ -9572,6 +9578,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "shape": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -9732,6 +9741,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "shape": {
+          "type": "string"
         },
         "projectId": {
           "type": "string"
@@ -50197,6 +50209,9 @@
           },
           "type": "array"
         },
+        "shape": {
+          "type": "string"
+        },
         "branch": {
           "type": "string"
         },
@@ -71722,7 +71737,8 @@
             "busy",
             "retry_backoff",
             "starting",
-            "needs_component"
+            "needs_component",
+            "needs_newer"
           ]
         },
         "text": {

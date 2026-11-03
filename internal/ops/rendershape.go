@@ -47,5 +47,10 @@ func OtherShapeWords(rd *models.Render, rev *models.Revision, what string) strin
 	if rd == nil || InOwnShape(rd, rev) {
 		return ""
 	}
-	return "Version " + strconv.Itoa(rev.Number) + " is " + rev.Spec.Output.Shape().Word + ", but it has no " + what + " in that shape yet, so its " + RenderShape(rd, rev).Word + " copy is used."
+	own, copy := rev.Spec.Output.Shape(), RenderShape(rd, rev)
+	ow, cw := own.Word, copy.Word
+	if ow == cw { // the same word (a 4:5 version, a 9:16 copy): the ratios tell them apart
+		ow, cw = own.Ratio, copy.Ratio
+	}
+	return "Version " + strconv.Itoa(rev.Number) + " is " + ow + ", but it has no " + what + " in that shape yet, so its " + cw + " copy is used."
 }

@@ -23,11 +23,14 @@ const (
 	// WaitComponent: the computers that could run it lack a component a
 	// person adds in Settings → Components (D326).
 	WaitComponent = "needs_component"
+	// WaitNewer: the computers running MetaRush are too old to run it (a
+	// render in another shape, D396); a newer MetaRush on any of them does.
+	WaitNewer = "needs_newer"
 )
 
 // WaitReason explains why a queued job is not running yet.
 type WaitReason struct {
-	Code           string `json:"code" jsonschema:"enum=battery,enum=heavy_disabled,enum=no_worker,enum=busy,enum=retry_backoff,enum=starting,enum=needs_component"`
+	Code           string `json:"code" jsonschema:"enum=battery,enum=heavy_disabled,enum=no_worker,enum=busy,enum=retry_backoff,enum=starting,enum=needs_component,enum=needs_newer"`
 	Text           string `json:"text"`
 	Machine        string `json:"machine,omitempty"`
 	BatteryPercent *int   `json:"batteryPercent,omitempty"`
@@ -82,6 +85,20 @@ func Why(j models.Job, workers []models.WorkerDevice, now time.Time) *WaitReason
 					return &WaitReason{Code: WaitComponent, Machine: w.Name, Component: l.Component, Text: l.Says}
 				}
 			}
+		}
+	}
+	if len(capable) == 0 && j.Type == TypeRenderShape {
+		// Computers that render, but with a MetaRush too old for a copy in
+		// another shape (D396): it waits for a newer one, never drawn the old way.
+		var older []models.WorkerDevice
+		for _, w := range workers {
+			if Online(w, now) && handles(w, TypeRender) {
+				older = append(older, w)
+			}
+		}
+		if len(older) > 0 {
+			return &WaitReason{Code: WaitNewer, Machine: older[0].Name,
+				Text: "It waits for a computer with a newer MetaRush: " + names(older) + " can render, but not a copy in another shape. Update MetaRush there, or start a newer one."}
 		}
 	}
 	if len(capable) == 0 && j.Installation != "" {
@@ -166,6 +183,8 @@ func doing(typ string) string {
 		return "make transcripts"
 	case TypeRender:
 		return "render videos"
+	case TypeRenderShape:
+		return "render copies in another shape"
 	case TypeQA:
 		return "run quality checks"
 	case TypeDiarize:
@@ -233,7 +252,7 @@ func label(typ string) string {
 		return "waveform"
 	case TypeTranscribe:
 		return "transcription"
-	case TypeRender:
+	case TypeRender, TypeRenderShape:
 		return "render"
 	case TypeQA:
 		return "quality check"

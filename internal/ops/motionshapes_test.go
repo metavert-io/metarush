@@ -39,6 +39,14 @@ func TestMotionCheckShapesFollowTheCuts(t *testing.T) {
 		}
 		return out
 	}
+	// No cut and no deliverables: every platform the brief names, each with its margins (D397).
+	if _, err := a.DB.C(store.CProjects).UpdateOne(ctx, bson.M{"_id": p.Project.ID}, bson.M{"$set": bson.M{"brief.platforms": []string{"TikTok", "YouTube"}}}); err != nil {
+		t.Fatal(err)
+	}
+	shapes := checkShapes(ctx, a, proj(), "name-bar")
+	if got := fmt.Sprint(labels()); got != "[vertical 1080x1920 widescreen 1920x1080]" || shapes[0].Platform != "tiktok" || shapes[1].Platform != "youtube" {
+		t.Fatalf("from the brief's platforms: %s %+v", got, shapes)
+	}
 	// No cut yet: the brief's deliverables.
 	if _, err := a.DB.C(store.CProjects).UpdateOne(ctx, bson.M{"_id": p.Project.ID}, bson.M{"$set": bson.M{"brief.deliverables": []models.Deliverable{
 		{Name: "by email", Preset: "landscape-1080p"}, {Name: "social shorts", Preset: "vertical-1080p", Platform: "shorts"}}}}); err != nil {

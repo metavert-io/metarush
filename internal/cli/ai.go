@@ -154,7 +154,7 @@ func (f *aiFlags) add(c *cobra.Command, estimate bool) {
 	fl.BoolVar(&f.in.NoPeople, "no-people", false, "you say the pictures show no real people")
 	fl.StringVar(&f.in.Presenter, "presenter", "", "presenters: who reads it (a presenter's short name, or stock:<id>; default for a dubbed presenter clip: the same presenter)")
 	fl.IntVar(&f.in.Line, "line", 0, "presenters: read this narration line of the project's cut (1 is the first) instead of a clip")
-	fl.StringVar(&f.in.Branch, "cut", "", "presenters: the cut whose narration line it is (default: the main one)")
+	fl.StringVar(&f.in.Branch, "cut", "", "the cut it is for: a picture or a presenter's clip is made in its shape (unless --aspect says), and a presenter reads its narration line (default: the main one)")
 	fl.StringVar(&o.Background, "background", "", "presenters: a colour behind the presenter (#rrggbb, or green), for one filmed against a green screen")
 	if !estimate {
 		fl.Float64Var(&f.maxCost, "max-cost", 0, "the most you agree to pay, in US dollars (from the estimate)")

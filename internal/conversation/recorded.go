@@ -305,7 +305,7 @@ func LayoutCut(ctx context.Context, a *app.App, in LayoutCutIn) (*LayoutCutOut, 
 			return nil, invalid("%s is sound only, so it can't be shown", m.Name)
 		}
 	}
-	frame, err := callOutput(ctx, a, pid, in.Branch, in.Shape)
+	frame, _, err := callOutput(ctx, a, pid, in.Branch, in.Shape)
 	if err != nil {
 		return nil, err
 	}

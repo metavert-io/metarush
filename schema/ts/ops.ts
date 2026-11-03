@@ -5448,7 +5448,7 @@ updatedAt: string
  * via the `definition` "WaitReason".
  */
 export interface WaitReason {
-code: ("battery" | "heavy_disabled" | "no_worker" | "busy" | "retry_backoff" | "starting" | "needs_component")
+code: ("battery" | "heavy_disabled" | "no_worker" | "busy" | "retry_backoff" | "starting" | "needs_component" | "needs_newer")
 text: string
 machine?: string
 batteryPercent?: number
@@ -15101,6 +15101,7 @@ result?: PlanResult
 applied?: Applied
 summary: string
 why?: string[]
+shape?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -15399,6 +15400,7 @@ result?: PlanResult
 applied?: Applied
 summary: string
 why?: string[]
+shape?: string
 suggestions: CleanupInfo[]
 }
 /**
@@ -15519,6 +15521,7 @@ result?: PlanResult
 applied?: Applied
 summary: string
 why?: string[]
+shape?: string
 conversation: CallInfo
 members: CallMatchMember[]
 jobId?: string
@@ -15697,6 +15700,7 @@ result?: PlanResult
 applied?: Applied
 summary: string
 why?: string[]
+shape?: string
 projectId?: string
 /**
  * The new project's name.
@@ -28898,6 +28902,7 @@ result?: PlanResult
 applied?: Applied
 summary: string
 why?: string[]
+shape?: string
 branch: string
 newCut: boolean
 projectId: string

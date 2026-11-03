@@ -1182,9 +1182,14 @@ Read `docs/architecture.md` before structural changes.
   `GenEstimate.shapeFrom|shapeWhy|fitsCut`; the panel sends a shape only when chosen, `components/generate/shot.ts`),
   AI pictures for a cut and presenter clips take the cut's. `editspec.PlatformFor` picks the platform (so the
   margins) for a shape; `SafeAreaFor` is unchanged. A render in another shape is `Render.shapeRule: 1` with its own
-  key and `editspec.ForRender` → `Reshape` (engine layout rule, platform, middle captions, faces) for that render and
-  its QA only; older renders keep the size swap. `ops.PickRender` gives review links, drafts and posts the version's
-  own shape. The recorder asks for the project's shape (`record/camera.ts`, `resizeMode: none`, previews contain);
+  key and job type (`jobs.TypeRenderShape`, which older builds never lease; `jobs.IsRender`/`Kind` read both; with
+  only older computers it waits `needs_newer`, D396) and `editspec.ForRender` → `Reshape` (engine layout rule,
+  platform, middle captions, faces) for that render and its QA only; older renders keep the size swap. A price is
+  agreed for its shape (D394): the panel and cards send the estimate's shape with `maxUsd`; a priced make whose shape
+  MetaRush would choose from the cut, project or look without it is `E_CONFLICT` `shape_not_agreed`, and a card
+  without its shape is priced again in place (`replanShape`), never made. `ops.PickRender` gives review links, drafts and posts the version's
+  own shape. The recorder asks for the project's shape among the camera's own modes only (`record/camera.ts`,
+  `resizeMode: {exact: 'none'}`, tall/square by the long side, reopened at its own size if cropped; D395; previews contain);
   slides for a cut fit it (`video/render/slideshape.mjs`, `madeWith.shape`). Guard: `TestShapeChoicesLeaveSavedPlansAlone`
   (`testdata/shape-plans-2.golden.json`, written from main at 761c769: every guard case in every preset, a phone
   platform at every size, a spec with no size).

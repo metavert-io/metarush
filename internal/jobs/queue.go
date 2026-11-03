@@ -19,6 +19,18 @@ import (
 	"github.com/metavert-io/metarush/internal/store"
 )
 
+// IsRender reports a render job of either kind (TypeRender, TypeRenderShape).
+func IsRender(t string) bool { return t == TypeRender || t == TypeRenderShape }
+
+// Kind is a job type with both kinds of render as TypeRender, for what reads
+// them alike (words, details, notifications).
+func Kind(t string) string {
+	if t == TypeRenderShape {
+		return TypeRender
+	}
+	return t
+}
+
 // Job types.
 const (
 	TypeProxy        = "proxy"
@@ -29,8 +41,14 @@ const (
 	TypeEvidence     = "evidence"
 	TypeTranscribe   = "transcribe"
 	TypeRender       = "render"
-	TypeQA           = "qa"      // decode a finished render and check it against its plan
-	TypeDiarize      = "diarize" // re-detect who speaks when (e.g. after a speaker-count hint), keeping the words
+	// TypeRenderShape is a render of a version in another shape than its own
+	// that re-picks what depends on the shape (Render.shapeRule, D388, D396):
+	// its own type, so only builds that know the rule take it — an older one
+	// would draw it with the size changed only, and its check would then judge
+	// a plan the file doesn't have. It runs like any render otherwise.
+	TypeRenderShape = "render-shape"
+	TypeQA          = "qa"      // decode a finished render and check it against its plan
+	TypeDiarize     = "diarize" // re-detect who speaks when (e.g. after a speaker-count hint), keeping the words
 	// TypeVoiceover is narration work (scratch voice, AI voice, cleanup, matching
 	// a recording, a voice copy). It runs where it was asked for — the machine
 	// with the provider key and the recording — and is recorded as a job so it

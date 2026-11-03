@@ -171,7 +171,7 @@ function JobBody({ id, close }: { id: string; close: (how?: 'navigated') => void
         </div>
       ) : null}
 
-      {r.asset && j.type !== 'render' && j.type !== 'qa' ? (
+      {r.asset && j.type !== 'render' && j.type !== 'render-shape' && j.type !== 'qa' ? (
         <div className="mt-5 flex items-center gap-3 rounded-[12px] p-2.5 hairline">
           <Thumb src={r.asset.hasThumb ? media.asset(r.asset.id, 'thumbnail') : undefined} alt="" className="h-12 w-[76px] shrink-0 rounded-[8px]" fallback={r.asset.kind === 'audio' ? <MusicNotes size={15} /> : <VideoCamera size={15} />} />
           <div className="min-w-0 flex-1">
@@ -264,7 +264,7 @@ function JobBody({ id, close }: { id: string; close: (how?: 'navigated') => void
             Open version {render.revisionNumber}
           </Button>
         ) : null}
-        {j.type === 'render' && j.state === 'succeeded' && render && !render.qa ? (
+        {(j.type === 'render' || j.type === 'render-shape') && j.state === 'succeeded' && render && !render.qa ? (
           <Button variant="secondary" loading={busy === 'qa'} icon={<ShieldCheck size={13} />} onClick={() => void act('qa', () => call('qa.run', { id: render.id }), 'Quality check started')}>
             Check quality
           </Button>

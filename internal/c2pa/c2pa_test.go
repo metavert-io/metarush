@@ -1,20 +1,24 @@
 package c2pa
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -231,6 +235,56 @@ func TestSignerSignsOnlySignatureInputs(t *testing.T) {
 		if p := c.Problems(time.Now()); len(p) != 0 {
 			t.Errorf("%s: %v", alg, p)
 		}
+	}
+}
+
+// c2patool runs MetaRush's signer once for --signer-info and once to sign;
+// each run reaches the MetaRush that started it every time (a second, empty
+// write after MetaRush had answered and closed once broke the pipe on Linux).
+func TestSignerReachesMetaRushEveryTime(t *testing.T) {
+	cred, err := MakeTest("", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := newSession(cred, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.close()
+	f := strings.Fields(sess.signerPath())
+	run := func(stdin []byte, args ...string) ([]byte, error) {
+		cmd := exec.Command(f[0], append(f[1:], args...)...)
+		cmd.Env = append(os.Environ(), sess.env()...)
+		if stdin != nil {
+			cmd.Stdin = bytes.NewReader(stdin)
+		}
+		var errb bytes.Buffer
+		cmd.Stderr = &errb
+		out, err := cmd.Output()
+		if err != nil {
+			return nil, fmt.Errorf("%v: %s", err, errb.String())
+		}
+		return out, nil
+	}
+	for i := 0; i < 40; i++ {
+		out, err := run(nil, "--signer-info")
+		var info signerInfo
+		if err != nil || json.Unmarshal(out, &info) != nil || info.SignCert == "" || info.Alg != AlgES256 {
+			t.Fatalf("--signer-info, run %d: %q %v", i+1, out, err)
+		}
+	}
+	msg := append(append([]byte(nil), sigStructure...), "a claim"...)
+	sig, err := run(msg)
+	if err != nil || len(sig) != 64 {
+		t.Fatalf("signing: %d bytes, %v", len(sig), err)
+	}
+	d := sha256.Sum256(msg)
+	pub := cred.Leaf().PublicKey.(*ecdsa.PublicKey)
+	if !ecdsa.Verify(pub, d[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) {
+		t.Fatal("the signature doesn't verify")
+	}
+	if sess.signatures() != 1 {
+		t.Fatalf("signed %d times", sess.signatures())
 	}
 }
 

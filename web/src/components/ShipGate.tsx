@@ -127,7 +127,7 @@ export function ShipGate({ projectId, revisionId, className }: { projectId: stri
         <h2 className="text-[14px] font-semibold" data-ship-headline>
           {g.headline}
         </h2>
-        {!g.on ? <Badge tone="neutral">Reminders only</Badge> : null}
+        {!g.on && !held ? <Badge tone="neutral">Reminders only</Badge> : null}
         <div className="ml-auto flex flex-wrap gap-1.5">
           {held && overridable.length > 0 ? (
             <Button size="sm" variant="secondary" icon={<ShieldWarning size={13} />} onClick={() => void anyway()} disabled={busy !== null} data-ship-anyway>

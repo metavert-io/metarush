@@ -102,12 +102,11 @@ func SignerMain(args []string) int {
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(60 * time.Second))
+	// The request in one write: MetaRush answers --signer-info as soon as it
+	// has the line and closes, so a second, empty write could find the
+	// socket closed (a broken pipe on Linux).
 	head, _ := json.Marshal(req)
-	if _, err := conn.Write(append(head, '\n')); err != nil {
-		fmt.Fprintln(os.Stderr, "MetaRush's signer couldn't reach MetaRush:", err)
-		return 1
-	}
-	if _, err := conn.Write(payload); err != nil {
+	if _, err := conn.Write(append(append(head, '\n'), payload...)); err != nil {
 		fmt.Fprintln(os.Stderr, "MetaRush's signer couldn't reach MetaRush:", err)
 		return 1
 	}

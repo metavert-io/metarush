@@ -34,6 +34,8 @@ type Run = {
   stage: 'adding' | 'importing' | 'looking' | 'drafted' | 'failed';
   /** The draft was made before this was asked (the same video, asked again). */
   earlier?: boolean;
+  /** The file chosen was already in MetaRush (the same bytes): that clip stays what it is. */
+  already?: boolean;
   problem?: string;
   hint?: string;
 };
@@ -49,20 +51,20 @@ export function StartFromVideo({ className, compact }: { className?: string; com
   const id = useId();
   const busy = !!run && run.stage !== 'drafted' && run.stage !== 'failed';
 
-  const start = async (from: string, label: string, reference = false) => {
-    setRun({ from, label, stage: 'adding' });
+  const start = async (from: string, label: string, reference = false, already = false) => {
+    setRun({ from, label, stage: 'adding', already });
     try {
       const out = await call('recipe.fromVideo', { from, reference });
-      apply(from, label, out, !!out.existing);
+      apply(from, label, out, !!out.existing, already);
     } catch (e) {
       const err = toApiError(e);
-      setRun({ from, label, stage: 'failed', problem: err.message, hint: err.hint });
+      setRun({ from, label, stage: 'failed', problem: err.message, hint: err.hint, already });
     }
   };
 
-  const apply = (from: string, label: string, out: Out, earlier: boolean) => {
+  const apply = (from: string, label: string, out: Out, earlier: boolean, already = false) => {
     const stage = out.state === 'drafted' ? 'drafted' : out.state === 'importing' ? 'importing' : 'looking';
-    setRun({ from, label, out, stage, earlier, assetId: out.clip?.id, title: out.clip?.title, card: out.card ?? undefined });
+    setRun({ from, label, out, stage, earlier, already, assetId: out.clip?.id, title: out.clip?.title, card: out.card ?? undefined });
     if (stage === 'drafted') for (const k of ['recipe.list', 'asset.list', 'library.list']) void qc.invalidateQueries({ queryKey: [k] });
   };
 
@@ -94,7 +96,7 @@ export function StartFromVideo({ className, compact }: { className?: string; com
         if (sf?.state === 'made') {
           // The draft this box followed: made just now, whatever the answer calls it.
           const out = await call('recipe.fromVideo', { from: run.assetId });
-          if (!stopped) apply(run.from, run.label, out, false);
+          if (!stopped) apply(run.from, run.label, out, false, run.already);
         } else if (sf?.state === 'failed') {
           setRun({ ...run, title: c.clip.title, card: c.card, stage: 'failed', problem: sf.problem || 'The draft couldn’t be made.' });
         } else setRun({ ...run, title: c.clip.title, card: c.card, stage: 'looking' });
@@ -123,19 +125,23 @@ export function StartFromVideo({ className, compact }: { className?: string; com
     void start(links[0]!, links[0]!);
   };
 
-  // A video file on this computer: sent like a drop, then started from as a reference.
+  // A video file on this computer: sent like a drop, then started from as a
+  // reference — only when it made a new clip. A file already in MetaRush (the
+  // same bytes) stays what it is: the person's own footage is never marked as
+  // someone else's video (D442).
   const sendFile = async (file: File) => {
     setRun({ from: file.name, label: file.name, stage: 'adding' });
     const before = new Set(uploads.getSnapshot().map((u) => u.key));
     void uploads.add([{ file }], { label: 'the Inbox' });
-    const assetId = await new Promise<string>((resolve, reject) => {
+    const added = await new Promise<{ id: string; made: boolean }>((resolve, reject) => {
       const check = () => {
         const it = uploads.getSnapshot().find((u) => !before.has(u.key) && u.name === file.name);
         if (!it) return;
         if (['done', 'skipped', 'aliased'].includes(it.state)) {
-          const id = it.result?.assetId ?? it.duplicate?.assetId;
+          const id = it.result?.assetId || it.duplicate?.assetId;
+          const made = it.state === 'done' && (it.result?.status === 'ingested' || it.result?.status === 'resumed');
           stop();
-          if (id) resolve(id);
+          if (id) resolve({ id, made });
           else reject(new Error('The file came in, but MetaRush can’t find its clip.'));
         } else if (['failed', 'canceled'].includes(it.state)) {
           stop();
@@ -146,9 +152,9 @@ export function StartFromVideo({ className, compact }: { className?: string; com
       check();
     }).catch((e: Error) => {
       setRun({ from: file.name, label: file.name, stage: 'failed', problem: e.message });
-      return '';
+      return null;
     });
-    if (assetId) await start(assetId, file.name, true);
+    if (added) await start(added.id, file.name, added.made, !added.made);
   };
 
   const field = (
@@ -240,8 +246,14 @@ function Progress({ run }: { run: Run }) {
   ) : (
     'the video'
   );
+  const mine = run.already && !run.out?.clip?.reference;
   return (
     <div className="mt-4 border-t border-line pt-4" data-start-from-video-result={run.stage} aria-live="polite">
+      {mine && run.stage !== 'adding' ? (
+        <p className="mb-3 text-[12.5px] leading-relaxed text-muted" data-start-from-video-already>
+          That file is already in MetaRush{run.title ? <> as “<Theirs>{run.title}</Theirs>”</> : null}, so it stays your own footage: MetaRush drafts from it without marking it as someone else’s video.
+        </p>
+      ) : null}
       {run.stage === 'adding' ? (
         <div className="flex items-center gap-2 text-[13px] text-muted">
           <Spinner size={12} />

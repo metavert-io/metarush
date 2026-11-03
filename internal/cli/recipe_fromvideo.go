@@ -54,7 +54,11 @@ by itself when it's done (it shows on the Recipes tab); asking again says where 
 			defer a.Close()
 			ctx, cancel := signalCtx(c.Context())
 			defer cancel()
-			// A video file on this computer: added like a drop, then started from as a reference.
+			// A video file on this computer: added like a drop, then started from
+			// as a reference — only when adding it made a new clip. A file that
+			// is already here (the same bytes) stays what it is: the person's own
+			// footage is never marked as someone else's video (D442).
+			already := false
 			if st, err := os.Stat(in.From); err == nil && !st.IsDir() {
 				abs, _ := filepath.Abs(in.From)
 				b, _ := json.Marshal(ingest.FilesIn{Paths: []string{abs}, ProjectID: in.ProjectID})
@@ -63,14 +67,22 @@ by itself when it's done (it shows on the Recipes tab); asking again says where 
 					return failErr(c, err)
 				}
 				fo := res.(*ingest.FilesOut)
-				if len(fo.Results) == 0 || fo.Results[0].AssetID == "" {
+				var id string
+				if len(fo.Results) > 0 {
+					id = fo.Results[0].AssetID
+					if d := fo.Results[0].Duplicate; id == "" && d != nil {
+						id = d.AssetID
+					}
+				}
+				if id == "" {
 					msg := "That file couldn't be added."
 					if len(fo.Results) > 0 && fo.Results[0].Error != "" {
 						msg = fo.Results[0].Error
 					}
 					return fail(c, apperr.InvalidInput, msg, "Use a video file, or a link to the video.")
 				}
-				in.From, in.Reference = fo.Results[0].AssetID, true
+				made := fo.Results[0].Status == "ingested" || fo.Results[0].Status == "resumed"
+				in.From, in.Reference, already = id, made, !made
 			}
 			call := func() (*recipes.RecipeFromVideoOut, error) {
 				b, _ := json.Marshal(in)
@@ -88,6 +100,13 @@ by itself when it's done (it shows on the Recipes tab); asking again says where 
 				if out, err = waitFromVideo(c, a, out, call); err != nil {
 					return failErr(c, err)
 				}
+			}
+			if already && (out.Clip == nil || !out.Clip.Reference) {
+				title := "it"
+				if out.Clip != nil {
+					title = theirs(out.Clip.Title)
+				}
+				out.Message = "That file is already in MetaRush as " + title + ", so it stays your own footage: MetaRush drafts from it without marking it as someone else's video. " + out.Message
 			}
 			return emit(c, out, func() { printFromVideo(out, details) })
 		},

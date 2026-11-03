@@ -135,7 +135,7 @@ func referenceMine(ctx context.Context, a *app.App, in *FootageReferenceIn) (*Fo
 // what was asked ("make a shot from it").
 func RefuseReference(as *models.Asset, doing string) error {
 	return apperr.New(apperr.Conflict, "%s, so MetaRush doesn't %s. If it's your own video, say so on its page (This is mine) and try again.", ReferenceWords(as), doing).
-		WithCommand("metarush footage reference "+as.ID+" --mine").
+		WithCommand("metarush footage reference " + as.ID + " --mine").
 		WithDetails(map[string]any{"reason": "reference", "assetId": as.ID})
 }
 

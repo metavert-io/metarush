@@ -13535,7 +13535,6 @@ of?: string
 mode: ("off" | "on" | "required")
 means: string
 whose: string
-gateOn: boolean
 here: CredentialsHere
 summary: string
 lines: string[]
@@ -18551,6 +18550,7 @@ kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-s
 says: string
 overridable: boolean
 covered?: boolean
+anyway?: boolean
 problems?: GateProblem[]
 paths: GatePath[]
 }

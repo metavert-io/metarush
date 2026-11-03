@@ -28,6 +28,11 @@ video's record (`receipt`).
 - **Sent out anyway** (`sentAnyway`): each version a person sent out although the quality check or a sign-off
   held it ([ship-gate.md](ship-gate.md)) — who, when, their note in their words, and what held it; one line each
   ("was allowed to go out" until it went out with that note, `wentOut`), also in the delivered video's record.
+- **Content Credentials** (`signed`): each delivered video that carries them — the version, when, who delivered it,
+  whom the certificate names (or that it was a test certificate), whether MetaRush read the file back and they
+  checked out, the manifest's SHA-256 and the file's ([content-credentials.md](content-credentials.md)); one line per
+  version: "Version 3 went out with Content Credentials on 3 Nov 2026, signed by “Example Studio”: 2 files, checked
+  after signing."
 - **What left this computer** (`left`; also `metarush project leaves`): each receiver things of the project
   went to — AI services with what each request sent, what Claude and AI apps were shown (the activity log's record of
   the operations that show words or pictures, on their channels) and the panel's conversations, the hosts ability runs

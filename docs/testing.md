@@ -18,11 +18,14 @@ Measurements, run by hand when a recognizer or its settings change (build tag `v
 English recognizers' comparison, the loaded models against the CLI, and the multilingual path
 (`scripts/fetch-speech.sh` fetches openly licensed readings into the gitignored `tests/fixtures/speech/`,
 then `EVAL_SPEECH=tests/fixtures/speech EVAL_LANGS=es go test -tags voiceeval -run TestMultilingual
-./internal/transcribe/`, one language at a time).
+./internal/transcribe/`, one language at a time). Content Credentials with the real c2patool, once on a computer that
+has it: `METARUSH_REAL_C2PATOOL=<c2patool> go test -tags c2pareal -run TestRealC2patool ./internal/c2pa/`
+([content-credentials.md](content-credentials.md)).
 
 Fakes, so no test reaches a real service: `internal/assistant/fakeclaude` (Claude Code), `internal/testutil/fakeeleven`
 (ElevenLabs), `fakevideogen` (Gemini), `faketailscale` and `fakeserve` (Tailscale), `fakeytdlp` (yt-dlp), `fakerclone`
-(rclone and its Google Drives; the real rclone is refused under `go test`), `gcsemu`
+(rclone and its Google Drives; the real rclone is refused under `go test`), `fakec2patool` (c2patool, signing through
+MetaRush's own signer; the real one is refused under `go test` unless a test names it), `gcsemu`
 and gofakes3 (buckets), `dblink` (a database link a test can cut), `fakenode`, and a fake `brew` and `gh` where
 needed. Downloads are refused under `go test` (the stabilizer, the face model) unless a local copy is given, and so are
 Google's and ElevenLabs' real addresses (a test that forgets its fake fails before anything is sent).
@@ -52,7 +55,7 @@ once (default 2: three other builds may share the machine and the test mongod).
 
 | Run | Linux (CI `browser`) | Why not on Linux |
 |---|---|---|
-| about, abilities, accounts, catalogue, components, content, keep, motion-shapes, playback, recipes, recorder, remotion, review-desk, windows | yes | — (their footage is made with ffmpeg in the run; motion-shapes draws the route-map fixture in Remotion's own browser and has no footage; recipes talks only to the fake ElevenLabs and Gemini; recorder uses Chromium's fake camera and microphone and a canvas for the screen; windows plays a Windows browser in Chromium, and in Edge where it is installed; abilities and catalogue run their abilities in bubblewrap, which the browser job installs and lets make its sandbox, with the runs' temp folder outside the home folder, which a sandbox hides) |
+| about, abilities, accounts, catalogue, components, content, content-credentials, keep, motion-shapes, playback, recipes, recorder, remotion, review-desk, windows | yes | — (their footage is made with ffmpeg in the run; content-credentials signs with the c2patool stand-in it builds; motion-shapes draws the route-map fixture in Remotion's own browser and has no footage; recipes talks only to the fake ElevenLabs and Gemini; recorder uses Chromium's fake camera and microphone and a canvas for the screen; windows plays a Windows browser in Chromium, and in Edge where it is installed; abilities and catalogue run their abilities in bubblewrap, which the browser job installs and lets make its sandbox, with the runs' temp folder outside the home folder, which a sandbox hides) |
 | cards, delivery, generate, library, people, resources, sources, storage, transcript, voiceover, voiceover-live, acceptance | Mac only | they need `tests/fixtures/gen`, which `scripts/make-fixtures.sh` makes with macOS `say` (speech with known words) |
 | sound | Mac only | its fixtures are made with `say` too (`scripts/make-sound-fixtures.sh`) |
 | remote | Mac only | its check of spoofed Tailscale headers sends from `fe80::1%lo0` (`lo0` is macOS's name for loopback) |

@@ -143,11 +143,9 @@ type CredentialsStatusOut struct {
 	Settings *models.CredentialsSetting `json:"settings,omitempty"`
 	Of       string                     `json:"of,omitempty"`
 	// Mode is what applies (to the project, else the workspace); Means says what it does.
-	Mode  string `json:"mode" jsonschema:"enum=off,enum=on,enum=required"`
-	Means string `json:"means"`
-	Whose string `json:"whose"`
-	// GateOn: the ship gate is on here, so "required" holds what can't be signed.
-	GateOn  bool            `json:"gateOn"`
+	Mode    string          `json:"mode" jsonschema:"enum=off,enum=on,enum=required"`
+	Means   string          `json:"means"`
+	Whose   string          `json:"whose"`
 	Here    CredentialsHere `json:"here"`
 	Summary string          `json:"summary"`
 	Lines   []string        `json:"lines"`
@@ -169,7 +167,6 @@ func credentialsStatus(ctx context.Context, a *app.App, projectID string) (*Cred
 	}
 	out.Mode, out.Whose = CredentialsFor(ctx, a, projectID)
 	out.Means = credentialsMeans[out.Mode]
-	out.GateOn, _, _ = GateFor(ctx, a, projectID)
 	out.Here = credentialsHere(ctx, a)
 	switch out.Mode {
 	case models.CredentialsOff:
@@ -178,9 +175,6 @@ func credentialsStatus(ctx context.Context, a *app.App, projectID string) (*Cred
 		out.Summary = "Content Credentials are on (" + out.Whose + "). " + out.Here.Says
 	default:
 		out.Summary = "Content Credentials are required (" + out.Whose + "). " + out.Here.Says
-		if !out.GateOn {
-			out.Summary += " Versions only wait for them while the ship gate is on (Settings → General); now a delivery that can't be signed goes out without them and says so."
-		}
 	}
 	out.Lines = append(out.Lines, out.Summary)
 	if out.Mode != models.CredentialsOff && !out.Here.Ready {

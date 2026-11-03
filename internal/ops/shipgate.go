@@ -85,7 +85,10 @@ type GateHold struct {
 	// check and sign-offs; never the approval or a render that isn't there).
 	Overridable bool `json:"overridable"`
 	// Covered: a person already sent it out anyway past this (Override).
-	Covered  bool          `json:"covered,omitempty"`
+	Covered bool `json:"covered,omitempty"`
+	// Anyway: it holds with the gate off too — changed words whose consent
+	// ended (D309), Content Credentials the settings require (D418).
+	Anyway   bool          `json:"anyway,omitempty"`
 	Problems []GateProblem `json:"problems,omitempty"`
 	Paths    []GatePath    `json:"paths"`
 }
@@ -466,6 +469,7 @@ func ShipGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Re
 	for i := range out.Holds {
 		h := &out.Holds[i]
 		h.Overridable = gateKinds[h.Kind]
+		h.Anyway = h.Kind == models.HoldConsent || h.Kind == models.HoldCredentials
 		for _, o := range rev.ShipOverrides {
 			if h.Overridable && o.Covers(h.Key) {
 				h.Covered = true
@@ -544,9 +548,16 @@ func decide(out *ShipGateOut, rev *models.Revision) {
 			out.Unmeasured++
 		}
 	}
+	// With the gate off only what holds anyway keeps it back (D309, D418).
+	holding := slices.Clone(blocking)
+	for _, h := range open {
+		if out.On || h.holdsAnyway() {
+			holding = append(holding, h)
+		}
+	}
 	switch {
 	case !out.On:
-		out.Ready = len(blocking) == 0
+		out.Ready = len(holding) == 0
 		out.State = GateReady
 		out.Headline = "Ready to deliver"
 		if len(open)+len(covered) > 0 {
@@ -600,7 +611,7 @@ func decide(out *ShipGateOut, rev *models.Revision) {
 		out.Summary = fmt.Sprintf("%s can go out: sent out anyway by %s.", version, strings.Join(said, "; "))
 	default:
 		var says []string
-		for _, h := range append(blocking, open...) {
+		for _, h := range holding {
 			says = append(says, lowerFirst(strings.TrimSuffix(h.Says, ".")))
 		}
 		out.Summary = fmt.Sprintf("%s can't go out yet: %s.", version, strings.Join(says, "; "))
@@ -650,7 +661,7 @@ func heldError(gates []*ShipGateOut, what string) *apperr.Error {
 	for _, g := range gates {
 		var says []string
 		for _, h := range g.Holds {
-			if (h.Overridable && !h.Covered) || h.Kind == models.HoldConsent {
+			if (h.Overridable && !h.Covered && (g.On || h.holdsAnyway())) || h.Kind == models.HoldConsent {
 				says = append(says, lowerFirst(strings.TrimSuffix(h.Says, ".")))
 			}
 			consent = consent || h.Kind == models.HoldConsent
@@ -672,11 +683,16 @@ func heldError(gates []*ShipGateOut, what string) *apperr.Error {
 
 // letsOut reports whether the gate lets a version out (off, nothing holds
 // it, or a person sent it out anyway past everything that holds it); never
-// while it plays changed words whose consent is no longer in force.
+// while it plays changed words whose consent is no longer in force, nor
+// while Content Credentials its settings require can't be signed and nobody
+// sent it out without them.
 func (g *ShipGateOut) letsOut() bool {
 	for _, h := range g.Holds {
 		if h.Kind == models.HoldConsent {
 			return false // with the gate off too (D309)
+		}
+		if h.holdsAnyway() {
+			return false
 		}
 	}
 	if !g.On {
@@ -688,6 +704,14 @@ func (g *ShipGateOut) letsOut() bool {
 		}
 	}
 	return true
+}
+
+// holdsAnyway: a hold that keeps the version back with the gate off too
+// until a person covers it with a note, where it can be — Content
+// Credentials the settings require (D418: "required" is its own choice,
+// apart from the gate's).
+func (h GateHold) holdsAnyway() bool {
+	return h.Anyway && !h.Covered
 }
 
 // gateRecord is the gate in a delivered video's record (the .json next to it).

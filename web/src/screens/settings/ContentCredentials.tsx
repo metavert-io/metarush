@@ -163,12 +163,6 @@ export function ContentCredentialsSettings() {
             </span>
           ) : null}
         </p>
-        {mode === 'required' && !s.gateOn ? (
-          <p className="text-[12.5px] text-info">
-            Versions only wait for them while the ship gate is on (Settings → General, Before it goes out); until then a delivery that can’t be signed goes out without them and says
-            so.
-          </p>
-        ) : null}
       </OwnerOnly>
 
       <div className="mt-5 rounded-[12px] px-4 py-3 hairline" data-credentials-here data-ready={here.ready ? 'yes' : 'no'}>

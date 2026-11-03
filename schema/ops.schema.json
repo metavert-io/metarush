@@ -15511,9 +15511,6 @@
         "whose": {
           "type": "string"
         },
-        "gateOn": {
-          "type": "boolean"
-        },
         "here": {
           "$ref": "#/$defs/CredentialsHere"
         },
@@ -15533,7 +15530,6 @@
         "mode",
         "means",
         "whose",
-        "gateOn",
         "here",
         "summary",
         "lines"
@@ -23840,6 +23836,9 @@
           "type": "boolean"
         },
         "covered": {
+          "type": "boolean"
+        },
+        "anyway": {
           "type": "boolean"
         },
         "problems": {

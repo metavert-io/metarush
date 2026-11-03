@@ -378,7 +378,7 @@ Read `docs/architecture.md` before structural changes.
   kept. State file version 2: older pairings are the installation's owner's (`browserext.Of(a)`).
 - **Where things are in the dashboard** (D184, `web/src/layout/AccountMenu.tsx`, `web/src/screens/settings/`): the bar
   is Studio, Library (tabs incl. People, Motion, Recipes and Abilities), Renders, To-dos; Settings sections are routes
-  `/settings/<general|people|preferences|claude|footage|extension|storage|components|integrations|log|cli>` (preferences: D208, light/dark
+  `/settings/<general|people|preferences|claude|footage|extension|storage|delivery|components|integrations|log|cli>` (preferences: D208, light/dark
   moved there from General; extension: D191; its old
   Footage anchors redirect through `movedPart`; Brand left for Content Settings, D193: `/settings/brand` and
   `/settings/content` open the default's) opened from the account menu (avatar
@@ -718,6 +718,32 @@ Read `docs/architecture.md` before structural changes.
   (`facesUnseen`); `captions` accepts burned-in captions (index, or `captions:burned-in`); unmeasured promises change
   the Ready headline. Keep kind `promise` (`metarush keep promise`, `project rules add --promise` →
   a card a person keeps). Browser run `scripts/ship-gate-e2e.sh` (ports 5560–5569).
+- **Content Credentials in delivery** (D415–D424, `internal/c2pa`, `internal/ops/credentials.go`,
+  `deliver_credentials.go`, `internal/api/deliver.go`, `web/src/screens/settings/ContentCredentials.tsx`,
+  docs/content-credentials.md): MetaRush's own, never an ability (D286's was retired). `credentials.set` and
+  `content.credentials.set` (owners; off | on | required, Content Settings part `credentials`; asking less is people
+  only) make `deliver.export` sign every final video before it writes anything: `c2pa.Tool.Sign` runs c2patool
+  (allowlisted `tools.c2patool`, component `content-credentials` pinned by SHA-256, 0.28 or newer; refused under go
+  test unless named) in a private folder with an environment built from nothing and MetaRush's settings file (no
+  thumbnail, no remote manifests, the C2PA purposes), and `--signer-path` is MetaRush itself (`metarush c2pa-signer`,
+  dispatched before cobra), which asks the delivering process over a 0700 Unix socket with that signing's ticket; it
+  signs only COSE `Signature1` inputs, at most twice. The copy is read back (`c2pa.Check`: well formed, our
+  certificate's serial; an unknown signer is fine), its manifest store hashed, and only a copy that checks out is
+  placed (`placeNoClobber`). The key: `credentials.setup|remove` OwnerOnly + HumanOnly (the CLI at a person's
+  terminal); a labelled test certificate (`c2pa.MakeTest`, its authority's key forgotten) or PEM files read once,
+  checked as c2pa-rs checks them; raw PKCS#8 in the keychain (`content-credentials`) or `.env`
+  `METARUSH_CONTENT_CREDENTIALS_SECRET` (`NeverInherited`), the chain in `state/private/content-credentials.json`;
+  never the database, config, log (`logbook.RememberSecret`), argv, errors or an ability. The manifest
+  (`c2pa.Manifest`, `manifestFor` from the sidecar): title "Video", MetaRush + version, `c2pa.created` (composite, or
+  compositeSynthetic with AI parts) + `c2pa.placed` per part + `c2pa.edited`, all created assertions; ingredients by
+  `sha256:` with IPTC source types for AI parts (trainedAlgorithmicMedia; compositeWithTrainedAlgorithmicMedia for
+  lip sync and voice change; algorithmicallyEnhanced for clean-up, background removal, upscaling) — never names,
+  prompts, consents or a thumbnail. Records: `contentCredentials` in the sidecar and `DeliverFile`, a `## Content
+  Credentials` section in `.notes.md`, `Revision.contentCredentials` → the receipt's `signed`. Required: the gate's
+  `credentials` hold (overridable with a note, `Anyway`: it holds with the gate off too; never for timelines or
+  posts), and a signing that fails stops the delivery. The version page's Deliver… (`/api/deliver`: a new folder in
+  the exports folder). Tests: `internal/testutil/fakec2patool`, certificates made at run time; `-tags c2pareal` with
+  `METARUSH_REAL_C2PATOOL`; browser run `scripts/content-credentials-e2e.sh` (ports 5780–5789).
 - **What a project keeps** (D166, `internal/keep`, `internal/ops/keep.go|rules.go|signoffs.go`,
   `internal/assistant/keep.go|attachments.go`, docs/keeping.md): "Keep this?" cards come from Claude's refused
   `metarush keep …` (and `project rules add`, `cut signoffs add`, `improve add`) and from MetaRush's detectors at turn
@@ -959,7 +985,7 @@ Read `docs/architecture.md` before structural changes.
   (`metarush.ability-file/1`) + canonical `archive.json`; imports are state `imported` (never approved or set up),
   `ability check --version` checks them here, then an owner approves.
 - **The starter pack** (D283–D287, `abilities/` at the root, `internal/abilities/starter_test.go`, docs/abilities.md):
-  seven abilities as shipped folders; tests check each from its folder and run it against a fake of its service (the
+  six abilities as shipped folders; tests check each from its folder and run it against a fake of its service (the
   proxy's dial seam `testDial`, `fakeHosts`; never the real service). `result.json` takes `credit`/`author` (D283):
   clips and sounds record them as rights (D38, never over a person's), pictures as `Author`, `madeWith.Credit`;
   `AbilityMadeWith.CreditLine` is the delivery credit, and delivery writes credits into `.notes.md` (a file of its own
@@ -977,9 +1003,10 @@ Read `docs/architecture.md` before structural changes.
   paths, hard links, key stores by bytes or name, key-like text; `kind: whisper-translator` reads the ggml header) pins size/time/SHA-256;
   runs get a checked read-only copy (`clone_darwin.go`) at `$METARUSH_FILE_<NAME>`. Output `captions` (SRT/WebVTT ≤ 2
   MB, `language` from result.json) is kept on the run's one clip (`Asset.captions`, purge knows it);
-  `footage.captions` / `metarush footage captions`. Not yet runnable (D286 c2patool, D287 Resolve MCP): `# NOT YET
-  RUNNABLE.` first, notes say what's missing, `TestStarterNotYetRunnable` pins the refusal;
-  `install-c2patool.sh` pins c2patool 0.28.3 by SHA-256. Browser run: `scripts/starter-e2e.sh` (ports 5530–5539).
+  `footage.captions` / `metarush footage captions`. Not yet runnable (D287 Resolve MCP): `# NOT YET RUNNABLE.`
+  first, notes say what's missing, `TestStarterNotYetRunnable` pins the refusal; D286's content-credentials ability
+  was retired when Content Credentials became MetaRush's own (D415–D424). Browser run: `scripts/starter-e2e.sh`
+  (ports 5530–5539).
 - **The first-party catalogue and the menu** (D269–D272, `internal/ops/offers.go`, `internal/catalog/firstparty.go`,
   `menu.go`, docs/catalogue.md): what MetaRush does is about fifty abilities, each an `ops.Offer` annotation next to
   its operation (stable `ID`, group, title, sentence, fixed `Input`, `Needs`: a first-run item, OS, programs, keys,
@@ -1246,6 +1273,7 @@ scripts/playback-e2e.sh                                   # players through a da
 scripts/accounts-e2e.sh                                   # sign-in methods, invites, sign in/out, reset links, password change (D183)
 scripts/delivery-e2e.sh                                   # delivery notes, translated captions, whose Claude answers, the receipt (D237–D241; ports 5410–5419)
 scripts/ship-gate-e2e.sh                                  # the ship gate and promises: Held by…, a promise measured on a real render, Deliver anyway… with a note, the receipt (D298–D302; ports 5560–5569)
+scripts/content-credentials-e2e.sh                        # Content Credentials: required in Settings → Delivery, held, a test certificate, Deliver… from the version page, the file read back, the key nowhere else (D415–D424; ports 5780–5789; C2PATOOL= for the real one)
 scripts/windows-e2e.sh                                    # the dashboard as Windows 11 uses it: Windows file names, folders, downloads, line endings, Ctrl (D247; ports 5440–5449; Edge when installed)
 scripts/presenters-e2e.sh                                 # presenters with the fake D-ID and HeyGen: a test clip, approve, a clip, a stock clip, consent words, No presenters, retire (D273–D277; ports 5510–5519)
 scripts/workspace-export-e2e.sh                           # Settings → Storage → Export the workspace, then a CLI restore into a fresh home and the dashboard on the copy (D329–D333; ports 5670–5679)

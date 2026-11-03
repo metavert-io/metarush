@@ -45,7 +45,8 @@ export function ShipGate({ projectId, revisionId, className }: { projectId: stri
   if (gate.error || !gate.data) return <ErrorPanel error={gate.error} compact onRetry={() => void gate.refetch()} />;
   const g: Gate = gate.data;
   const open = g.holds.filter((h) => !h.covered);
-  const overridable = open.filter((h) => h.overridable);
+  // With the gate off only what holds anyway keeps it back (Content Credentials the settings require).
+  const overridable = open.filter((h) => h.overridable && (g.on || h.anyway));
   const held = g.state === 'held';
   const tone = held ? 'danger' : g.state === 'sent-anyway' || g.state === 'reminders' ? 'info' : 'ok';
 
@@ -145,7 +146,7 @@ export function ShipGate({ projectId, revisionId, className }: { projectId: stri
           {open.map((h) => (
             <li key={h.key} data-hold={h.kind}>
               <div className="flex flex-wrap items-center gap-2">
-                <span className={cx(!g.on && 'text-muted')}>{h.says}</span>
+                <span className={cx(!g.on && !h.anyway && 'text-muted')}>{h.says}</span>
                 {h.paths.map((p) =>
                   p.op ? (
                     <Button key={p.label} size="sm" variant="ghost" onClick={() => takePath(h, p)} disabled={busy !== null} data-hold-path={p.op}>

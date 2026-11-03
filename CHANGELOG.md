@@ -1,6 +1,21 @@
 # Changelog
 
 ## Unreleased
+- **Delivered videos can carry Content Credentials**. Turn them on in Settings → Delivery (or `metarush credentials
+  on`; a client's Content Settings can say on, required or off for their projects) and every final video MetaRush
+  delivers carries a signed record, in the open C2PA format, that it was made with MetaRush, which footage, sound and
+  pictures it uses (by their fingerprints, never their names) and which parts AI made or changed — no names of
+  people, projects or clients, no prompts, no thumbnail. Each computer that delivers signs with its own certificate:
+  a test certificate made there (verifiers show its signer as unknown), or your organisation's own, set up by an
+  owner in Settings → Delivery or with `metarush credentials setup`; its key stays in that computer's keychain and is
+  never handed to the signing tool. Each signed copy is read back and checked before it goes out; the video's record,
+  its notes file ("This video carries Content Credentials…") and the receipt say so, and a video that can't be signed
+  goes out without them and says why. "Required" holds a version until this computer can sign it (a person can still
+  send it out without them, with a note). The signing tool, c2patool, is a new optional component
+  (Settings → Components). `metarush credentials check <video>` reads any video's.
+- **Deliver from the version page**. Ready to deliver now has **Deliver…**: the final video goes to a new folder in
+  MetaRush exports (in Movies on a Mac, Videos elsewhere), checked against the render, with its record, notes and captions — the same delivery as
+  `metarush deliver` — and you can show it in Finder or, from another computer, download it.
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says

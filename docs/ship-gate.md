@@ -21,11 +21,13 @@ for review copies, `--preset` for some shapes) — and lists what holds it:
 | `qa-stale` | "… is out of date: it was checked before the promise “…”" (or its description changed, for a disclosure promise) | Check it again (`qa.run --force`) | yes |
 | `qa-errors` | "The quality check found 2 problems in its final render." with each problem, its time and its fix | Fix it (the problem's own change, saved as a new version), See the problems, Check it again | yes |
 | `signoff` | "Still waiting for the sign-off “Lena OKs the final version”." (house ones say whose settings) | Tick it (a person) | yes |
+| `credentials` | "Its videos must carry Content Credentials, and this computer can't sign them: no signing certificate is set up on this computer." (only where they are required, for final videos; [content-credentials.md](content-credentials.md)) | Set them up (a person who is an owner: Settings → Delivery) | yes: the videos go out without them, and their records say so |
 | `consent` | "At 0:02 Ada Lovelace says “fifteen” (words changed with AI in their voice copy), but her consent … is no longer in force …" (or a mouth matched to them) | Take them out (`cut.say.undo`, a new version) | no: it holds with the gate off too |
 
 Things worth checking (warnings) never hold. `--json` gives every hold with its stable `key`, `kind`, `says`,
-`problems` (message, time, fix, the fix's edit ops) and `paths` (the op and input the dashboard runs, the command),
-the renders and their checks, the promises as measured, and every note that sent the version out anyway.
+`anyway` (it holds with the gate off too), `problems` (message, time, fix, the fix's edit ops) and `paths` (the op and
+input the dashboard runs, the command), the renders and their checks, the promises as measured, and every note that
+sent the version out anyway.
 
 ## Where it holds
 
@@ -40,6 +42,11 @@ the renders and their checks, the promises as measured, and every note that sent
   forget them — the check of the version's final renders, else its review copies; a
   version never rendered hasn't been checked. A timeline for your own editing app goes anywhere else.
 - **Share for review** asks `ops.ShipGate` the same way ([outside-reviewers.md](outside-reviewers.md)).
+- **Content Credentials that are required** ([content-credentials.md](content-credentials.md)) hold with the gate off
+  too, as changed words' consent does: "required" is its own choice. A version this computer can't sign waits, and a
+  signing that fails during the delivery stops it (`E_HELD`, nothing written); a note that covers the `credentials`
+  hold sends it out without them. Timelines and posts to a platform never carry Content Credentials, so they never
+  wait for them.
 
 ## Whether it is on
 
@@ -114,6 +121,6 @@ lists the promises apart.
 ## Tests
 
 `internal/measures` (words → measures), `internal/qa` `TestPromisesGolden` (`testdata/promises.golden.json`:
-`UPDATE_GOLDEN=1` rewrites it), `internal/ops` `TestShipGate`, `internal/receipt`
+`UPDATE_GOLDEN=1` rewrites it), `internal/ops` `TestShipGate` and `TestShipGateCanRequireContentCredentials`, `internal/receipt`
 `TestReceiptSaysWhatWentOutAnyway`, `internal/keep` `TestKeepPromise`, `internal/assistant` `TestPromiseKeepCards`,
 and the browser run `scripts/ship-gate-e2e.sh` (ports 5560–5569, fakes only).

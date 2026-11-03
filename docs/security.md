@@ -260,6 +260,24 @@ after `config.yaml` switches; environment variables that would override the key 
 copy of the old secret is removed; the old key itself is deleted by a person (once no machine uses it), never by
 MetaRush, since a CI job or a script outside MetaRush may still use it.
 
+## Content Credentials signing keys ([content-credentials.md](content-credentials.md))
+A computer that signs delivered videos keeps a certificate chain and its private key. Only an owner sets them up, as a
+person (Settings → Delivery or their own terminal; `credentials.setup` and `credentials.remove` are OwnerOnly +
+HumanOnly, refused to Claude, Auto, MCP, AI apps and drafts). PEM files are read once, from paths a person names; the key
+is checked against the certificate and kept in the keychain (the raw PKCS#8 bytes), or in `<home>/.env` (0600) in env
+mode under a name `secretpath` keeps out of every environment MetaRush gives a program. It is never in MongoDB,
+`config.yaml`, the activity log (its forms are registered for redaction), an audit entry, an error, a command line, an
+API response or an ability's run. The chain is public and sits in `state/private/content-credentials.json` (0600).
+
+c2patool never gets the key. It is started through `internal/tools` with typed arguments, in a private folder, with an
+environment built from nothing (so no `C2PA_*` variable or settings file of the person's reaches it, and its built-in
+test key can't be used), and with MetaRush as its signing program (`--signer-path`): that program reaches the MetaRush
+that started c2patool over a Unix socket in a 0700 folder with a ticket made for that signing alone, and MetaRush signs at most twice per
+video and only C2PA signature inputs (a COSE `Signature1` structure), so the socket can't be used to sign anything else.
+A signed file that MetaRush didn't sign, or whose credentials don't check out when read back, is never delivered.
+Tests make their certificates and keys while they run; none is in the repository, and the real c2patool is refused
+under `go test`.
+
 ## Moving the media from the dashboard
 Settings → Storage moves the media with the same `storage.plan` / `storage.migrate` as the terminal.
 Both stay `LocalOnly` (and `storage.migrate` `HumanOnly`): `/api/ops` refuses them, and the dashboard gets three

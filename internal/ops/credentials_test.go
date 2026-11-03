@@ -377,6 +377,16 @@ func TestShipGateCanRequireContentCredentials(t *testing.T) {
 	if err := doErr(a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()}, person); code(err) != "E_HELD" || !strings.Contains(err.Error(), "can't sign them") {
 		t.Fatalf("delivered: %v", err)
 	}
+	// "Required" is its own choice: with the gate off it holds the version
+	// too (and nothing else does), so the page and delivery agree.
+	do[ops.GateSettingsOut](t, a, "delivery.gate.set", ops.GateSetIn{On: false})
+	if g := ready(); g.Ready || g.State != ops.GateHeld || len(g.Holds) != 1 || !g.Holds[0].Anyway || !strings.Contains(g.Summary, "must carry Content Credentials") {
+		t.Fatalf("held with the gate off: %+v", g)
+	}
+	if err := doErr(a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()}, person); code(err) != "E_HELD" || !strings.Contains(err.Error(), "must carry Content Credentials") {
+		t.Fatalf("delivered with the gate off: %v", err)
+	}
+	do[ops.GateSettingsOut](t, a, "delivery.gate.set", ops.GateSetIn{On: true})
 	// A timeline carries none: not held for them.
 	if tg, err := ops.TimelineGate(ctx, a, &p, mustRevision(t, a, rid)); err != nil || holdOf(tg, models.HoldCredentials) {
 		t.Fatalf("a timeline is held for Content Credentials: %+v %v", tg, err)

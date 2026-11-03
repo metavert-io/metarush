@@ -98,7 +98,7 @@ function DeliverForm({ revisionId, label, close }: { revisionId: string; label: 
   return (
     <div className="space-y-4">
       <p className="text-[13.5px] text-muted">
-        Delivers the final video of {label} to a new folder{host.remote ? ` on ${host.machine}` : ''} (in Movies, MetaRush exports), checked against the render, with its record,
+        Delivers the final video of {label} to a new folder in MetaRush exports{host.remote ? ` on ${host.machine}` : ''}, checked against the render, with its record,
         notes and captions next to it, and Content Credentials where they are on. Nothing is uploaded and nothing is written over.
       </p>
       {error ? <p className="text-[13px] text-danger">{error}</p> : null}

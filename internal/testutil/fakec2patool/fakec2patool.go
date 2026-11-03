@@ -50,6 +50,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -86,8 +87,9 @@ type State struct {
 	// SwapSignature: the copy carries a signature of its own key's in its
 	// COSE box, not the one the signer gave it.
 	SwapSignature bool `json:"swapSignature,omitempty"`
-	// Hold: before asking the signer it writes Hold+".ready" (its process ID)
-	// and waits, at most two minutes, until the file Hold is gone.
+	// Hold: before asking the signer (a signing only, never --version or a
+	// read) it writes Hold+".ready" (its process ID) and waits, at most two
+	// minutes, until the file Hold is gone.
 	Hold string `json:"hold,omitempty"`
 	// Exec: after the hold it becomes this program (the real c2patool) with
 	// its arguments, environment and open descriptors: the same process.
@@ -199,7 +201,9 @@ type claim struct {
 func Main(args []string, stdout, stderr io.Writer) int {
 	st := Load(os.Getenv(stateEnv))
 	if st.Exec != "" {
-		hold(st)
+		if slices.Contains(args, "--signer-path") {
+			hold(st) // a signing (never a --version or a read)
+		}
 		var env []string
 		for _, e := range os.Environ() {
 			if !strings.HasPrefix(e, runEnv+"=") && !strings.HasPrefix(e, stateEnv+"=") && !strings.HasPrefix(e, logEnv+"=") {

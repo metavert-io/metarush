@@ -1108,7 +1108,12 @@ func (s *Set) Version(ctx context.Context, name string) string {
 	case Sherpa, SherpaDiar:
 		arg = "--help"
 	}
-	res, _ := s.Run(Quiet(ctx), Spec{Tool: name, Args: []string{arg}})
+	spec := Spec{Tool: name, Args: []string{arg}}
+	if name == C2PATool {
+		// c2patool never gets the person's environment, not even to say its version (D436).
+		spec.CleanEnv, spec.Env = true, []string{"PATH=/usr/bin:/bin", "LANG=C"}
+	}
+	res, _ := s.Run(Quiet(ctx), spec)
 	v := "installed"
 	if res != nil {
 		out := string(res.Stdout) + string(res.Stderr)

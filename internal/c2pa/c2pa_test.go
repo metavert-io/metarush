@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -133,13 +134,22 @@ func TestSignThroughMetaRushsOwnSigner(t *testing.T) {
 			}
 		}
 	}
-	// The folder c2patool worked in (socket, link, manifest) is gone.
-	if m, _ := filepath.Glob(filepath.Join(os.TempDir(), "metarush-c2pa-*", "s")); len(m) > 0 {
-		for _, x := range m {
-			if st, err := os.Stat(filepath.Dir(x)); err == nil && time.Since(st.ModTime()) < time.Minute {
-				t.Errorf("a signing's folder was left: %s", filepath.Dir(x))
+	// The folder c2patool worked in (socket, link, manifest) is gone: the one
+	// its signer was in (other packages' tests may be signing meanwhile).
+	dirs := 0
+	for _, c := range calls {
+		for i, a := range c.Args {
+			if a == "--signer-path" && i+1 < len(c.Args) {
+				dir := filepath.Dir(strings.Fields(c.Args[i+1])[0])
+				dirs++
+				if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("the signing's folder was left: %s (%v)", dir, err)
+				}
 			}
 		}
+	}
+	if dirs != 1 {
+		t.Fatalf("%d signings", dirs)
 	}
 	// Reading the signed copy says the same; the render itself carries nothing.
 	rep, err := tool.Read(context.Background(), out)

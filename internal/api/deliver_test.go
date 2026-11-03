@@ -83,7 +83,8 @@ func TestDashboardDeliverWritesIntoItsOwnFolder(t *testing.T) {
 		t.Fatalf("the delivered video: %v %+v", err, out.Deliver.Files[0].ContentCredentials)
 	}
 	// With Content Credentials on: a second folder, the video signed.
-	tool, _ := fakec2patool.Write(t, fakec2patool.State{})
+	runs := filepath.Join(t.TempDir(), "c2patool.log")
+	tool, _ := fakec2patool.Write(t, fakec2patool.State{Log: runs})
 	d.a.Cfg.Tools.C2PATool = tool
 	d.a.Tools.Rescan(d.a.Cfg.Tools)
 	if err := d.a.DB.Insert(ctx, store.CWorkspaces, models.Workspace{ID: d.a.WorkspaceID(), WorkspaceID: d.a.WorkspaceID(), Name: "API test"}); err != nil {
@@ -102,6 +103,9 @@ func TestDashboardDeliverWritesIntoItsOwnFolder(t *testing.T) {
 		t.Fatalf("again: %d %+v %+v", code, env.Error, signed)
 	}
 	if c := signed.Deliver.Files[0].ContentCredentials; c == nil || !c.Signed || !c.Verified || !strings.Contains(signed.Deliver.Note, "carries Content Credentials") {
+		for _, r := range fakec2patool.Calls(runs) { // what c2patool was asked and said
+			t.Logf("c2patool %q: exit %d, said %q", r.Args, r.Exit, r.Said)
+		}
 		t.Fatalf("signed: %+v %s", c, signed.Deliver.Note)
 	}
 	// Show in Finder takes the delivery's folder like a timeline's.

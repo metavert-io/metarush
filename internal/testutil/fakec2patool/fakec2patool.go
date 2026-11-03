@@ -76,6 +76,10 @@ type State struct {
 type Call struct {
 	Args []string `json:"args"`
 	Env  []string `json:"env"`
+	// Exit is how it ended, Said what it wrote to its standard error (a
+	// failing test prints them).
+	Exit int    `json:"exit"`
+	Said string `json:"said,omitempty"`
 	// Signer is what the signer program was given (stdin is never logged:
 	// it is the claim, not a secret).
 	Signer []string `json:"signer,omitempty"`
@@ -168,12 +172,21 @@ type claim struct {
 	Label    string          `json:"label"`
 }
 
-// Main runs the fake with args and returns the exit code.
+// Main runs the fake with args and returns the exit code; with a log, each
+// run is logged once it ends.
 func Main(args []string, stdout, stderr io.Writer) int {
 	st := Load(os.Getenv(stateEnv))
-	if p := firstNonEmpty(os.Getenv(logEnv), st.Log); p != "" {
-		logCall(p, Call{Args: args, Env: os.Environ()})
+	p := firstNonEmpty(os.Getenv(logEnv), st.Log)
+	if p == "" {
+		return run(st, args, stdout, stderr)
 	}
+	var said bytes.Buffer
+	code := run(st, args, stdout, io.MultiWriter(stderr, &said))
+	logCall(p, Call{Args: args, Env: os.Environ(), Exit: code, Said: said.String()})
+	return code
+}
+
+func run(st State, args []string, stdout, stderr io.Writer) int {
 	var path, manifest, output, signer, settings string
 	force := false
 	for i := 0; i < len(args); i++ {

@@ -21,10 +21,11 @@ with the camera in a corner or side by side, and everything is transcribed like 
 1. **Screen**: *Choose a window, tab or screen…* opens the browser's picker. This dashboard's own tab is never
    offered. A tab's sound (and, where the system allows, a whole screen's) is recorded with it.
 2. **Camera**: pick one, or leave it off. Its bubble shows how you look. The camera is asked for the project's shape
-   (720p widescreen, vertical or square; widescreen when nothing says) only where it can — most webcams make only
-   widescreen, a phone or a turned camera can make vertical — and the browser never crops or stretches it: what is
-   recorded is the camera's real picture, shown whole, and the page says its shape ("Recording widescreen
-   (1280×720): the camera can't record vertical, so the cut frames it vertical"; D392).
+   (720p widescreen, or a tall or square picture by its long side; widescreen when nothing says) only among its own
+   modes — most webcams make only widescreen, a phone or a turned camera can make vertical — and the browser never
+   crops or stretches it (`resizeMode` exactly `none`; a browser that crops anyway has the camera opened again at its
+   own size): what is recorded is the camera's real picture, shown whole, and the page says its shape ("Recording
+   widescreen (1280×720): the camera can't record vertical, so the cut frames it vertical"; D392, D395).
 3. **Microphone**: the computer's default or another one, with its level ("Good", "Quiet", "Too loud"), or none.
 4. **How the first cut shows them** (with a screen and a camera): *Camera in a corner* (default), *Side by side* or
    *Screen only*. They are separate tracks either way, so any cut can change it.

@@ -6,27 +6,44 @@ import type { Shape } from '../../lib/shape';
  * recorder's unit tests (web/scripts/recorder-test.mjs) load it as it is.
  */
 
-/** The size a camera is asked for in each shape: 720p's. */
-const CAMERA_SIZE: Record<Shape, [number, number]> = { landscape: [1280, 720], vertical: [720, 1280], square: [960, 960] };
+/**
+ * The size a camera is asked for in each shape (D395): 720p widescreen, and a
+ * tall or square picture by its long side on both sides (1280), so the
+ * camera's own mode nearest it wins — its real tall mode when it has one
+ * (a phone, a turned camera), else its 720p widescreen one, never a smaller
+ * mode chosen for being nearer a narrow width.
+ */
+const CAMERA_SIZE: Record<Shape, [number, number]> = { landscape: [1280, 720], vertical: [1280, 1280], square: [1280, 1280] };
+const CAMERA_ASPECT: Record<Shape, number> = { landscape: 1.7778, vertical: 0.5625, square: 1 };
+
+/** A track setting the browser reports: whether it cropped or scaled the camera's picture itself. */
+export const croppedByBrowser = (s?: { resizeMode?: string } | null) => s?.resizeMode === 'crop-and-scale';
 
 /**
  * What the camera is asked for: the project's shape (widescreen when nothing
- * says) at 720p and 30 frames a second, where the camera can. Only ideals: a
- * camera that can't is recorded in its own shape, and the browser isn't asked
- * to crop or stretch it (resizeMode none), so what is recorded is the
- * camera's real picture, which the cut then frames.
+ * says) at 720p and 30 frames a second, where the camera can — only among the
+ * camera's own modes (resizeMode exactly none: the browser never crops or
+ * stretches it; a browser that doesn't know the setting ignores it, and
+ * openCamera opens it again at its own size if it cropped anyway). A camera
+ * that can't make the shape records its own, which the cut then frames.
  */
 export function cameraConstraints(deviceId?: string, shape?: Shape): MediaTrackConstraints {
-  const [width, height] = CAMERA_SIZE[shape ?? 'landscape'];
+  const s = shape ?? 'landscape';
+  const [width, height] = CAMERA_SIZE[s];
   const c: MediaTrackConstraints & { resizeMode?: ConstrainDOMString } = {
     ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
     width: { ideal: width },
     height: { ideal: height },
-    aspectRatio: { ideal: Math.round((width / height) * 10000) / 10000 },
+    aspectRatio: { ideal: CAMERA_ASPECT[s] },
     frameRate: { ideal: 30 },
-    resizeMode: { ideal: 'none' },
+    resizeMode: { exact: 'none' },
   };
   return c;
+}
+
+/** The camera at its own size, nothing more asked (when a browser cropped or refused the shape). */
+export function ownSizeConstraints(deviceId?: string): MediaTrackConstraints {
+  return { ...(deviceId ? { deviceId: { exact: deviceId } } : {}), width: { ideal: 1280 }, frameRate: { ideal: 30 } };
 }
 
 /**

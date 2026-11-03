@@ -17,7 +17,7 @@ const { TrackQueue, OffsetMismatch, Refused, BACKOFF } = await import(src('piece
 const { splitScript, sentences, estimateSeconds, promptLines } = await import(src('script.ts'));
 const { pickFormat, videoBits, formatOf, pacing, PIECE_MS } = await import(src('formats.ts'));
 const { withDeadline, NoAnswer, DEVICE_DEADLINE_MS, armedBy } = await import(path.join(here, '..', 'src', 'lib', 'deadline.ts'));
-const { cameraConstraints, recordingShapeWords } = await import(src('camera.ts'));
+const { cameraConstraints, recordingShapeWords, croppedByBrowser, ownSizeConstraints } = await import(src('camera.ts'));
 const { sizeShape } = await import(path.join(here, '..', 'src', 'lib', 'shape.ts'));
 
 let failed = 0;
@@ -261,16 +261,18 @@ eq('the format as kept', formatOf('video/webm; codecs="vp8, opus"'), 'video/webm
 // never cropped by the browser; what it really gives is said.
 {
   const v = cameraConstraints('cam-1', 'vertical');
-  eq('vertical: 720×1280 ideals', [v.width.ideal, v.height.ideal, v.aspectRatio.ideal], [720, 1280, 0.5625]);
+  eq('vertical: asked by its long side, tall', [v.width.ideal, v.height.ideal, v.aspectRatio.ideal], [1280, 1280, 0.5625]);
   eq('the device asked for exactly', v.deviceId, { exact: 'cam-1' });
-  eq('never cropped or stretched by the browser', v.resizeMode, { ideal: 'none' });
+  eq('only the camera’s own modes: never cropped or stretched by the browser', v.resizeMode, { exact: 'none' });
   eq('30 frames a second where it can', v.frameRate, { ideal: 30 });
-  eq('only ideals: a camera that can’t still opens', ['width', 'height', 'aspectRatio'].every((k) => Object.keys(v[k]).join() === 'ideal'), true);
+  eq('only ideals for the size: a camera that can’t still opens', ['width', 'height', 'aspectRatio'].every((k) => Object.keys(v[k]).join() === 'ideal'), true);
   const l = cameraConstraints(undefined, undefined);
   eq('nothing known: widescreen 1280×720, as before', [l.width.ideal, l.height.ideal, l.aspectRatio.ideal], [1280, 720, 1.7778]);
   eq('the default camera: no device asked for', 'deviceId' in l, false);
   const sq = cameraConstraints(undefined, 'square');
-  eq('square: 960×960', [sq.width.ideal, sq.height.ideal, sq.aspectRatio.ideal], [960, 960, 1]);
+  eq('square: by its long side', [sq.width.ideal, sq.height.ideal, sq.aspectRatio.ideal], [1280, 1280, 1]);
+  eq('a browser that cropped says so', [croppedByBrowser({ resizeMode: 'crop-and-scale' }), croppedByBrowser({ resizeMode: 'none' }), croppedByBrowser({}), croppedByBrowser(null)], [true, false, false, false]);
+  eq('opened again at its own size: no shape asked', ownSizeConstraints('cam-1'), { deviceId: { exact: 'cam-1' }, width: { ideal: 1280 }, frameRate: { ideal: 30 } });
   const tall = { shape: 'vertical', word: 'vertical' };
   eq('what is recorded, in words', recordingShapeWords(sizeShape(1280, 720), { shape: 'landscape', word: 'widescreen' }), 'Recording widescreen (1280×720).');
   eq('a camera that can’t make the project’s shape', recordingShapeWords(sizeShape(1280, 720), tall),

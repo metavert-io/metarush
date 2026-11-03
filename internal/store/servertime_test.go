@@ -162,6 +162,12 @@ func TestNobodyWaitsForADatabaseThatWentAway(t *testing.T) {
 			t.Fatalf("with an offset known: %v", err)
 		}
 	}
+	// The one measurement starts behind the callers, so it may not have asked
+	// yet when they return: wait for it, then make sure nobody asked again.
+	for deadline := time.Now().Add(5 * time.Second); db.ServerTimeAsked()-asked < 1 && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
 	if n := db.ServerTimeAsked() - asked; n != 1 {
 		t.Fatalf("20 callers asked %d times, want once", n)
 	}

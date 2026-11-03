@@ -12,6 +12,7 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/evidence"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/speakers"
 	"github.com/metavert-io/metarush/internal/store"
 )
 
@@ -93,6 +94,7 @@ func MarkReference(ctx context.Context, a *app.App, as *models.Asset, why string
 	as.Reference = ref
 	if res.ModifiedCount > 0 {
 		a.Audit(ctx, "footage.reference", "asset", as.ID, firstOr(as.ProjectIDs), map[string]any{"why": why})
+		_ = speakers.Reconcile(ctx, a, as.ID) // nobody in someone else's video is asked about: its voices' and faces' questions close
 	}
 	return nil
 }
@@ -121,6 +123,7 @@ func referenceMine(ctx context.Context, a *app.App, in *FootageReferenceIn) (*Fo
 		details["markedBy"], details["markedAt"] = was.By.UserID, was.At
 	}
 	a.Audit(ctx, "footage.reference.mine", "asset", as.ID, firstOr(as.ProjectIDs), details)
+	_ = speakers.Reconcile(ctx, a, as.ID) // the person's own video: who speaks and who is on screen are asked about again
 	return &FootageReferenceOut{Clip: summarize(*as), Changed: true, Message: fmt.Sprintf("“%s” is yours now: cuts can play it.", title)}, nil
 }
 

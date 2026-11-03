@@ -14,8 +14,9 @@
   MetaRush found in it, on this computer.
 - **Reference clips never play in a cut**. A clip marked a reference (someone else's video, kept to learn from) is
   refused in a cut's clips and sound, with how to say it's yours if it is: **This is mine…** on its page, or
-  `metarush footage reference <clip> --mine` in your own terminal (people only). Recipes never take one as footage;
-  `metarush import --reference` brings links in as references.
+  `metarush footage reference <clip> --mine` in your own terminal (people only). Recipes never take one as footage,
+  MetaRush never asks who speaks or who is on screen in one, and `metarush import --reference` brings links in as
+  references.
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says

@@ -558,9 +558,10 @@ MetaRush can start a recipe: `recipe.fromVideo` (`metarush recipe from-video <li
    learn from. No cut plays a reference — the edit and cut checks refuse it in a cut's clips or sound
    (`reference_footage`), saying how a person who made it says so (**This is mine…** on the clip's page, `metarush
    footage reference <clip> --mine`: people only) — and no recipe run takes one as footage (a project's or a
-   collection's newest footage leaves references out; one given by name is refused). Marking a clip a reference
-   (`footage.reference`) is refused while a cut's latest version plays it. A clip already in MetaRush stays what it is
-   (`--reference` marks it).
+   collection's newest footage leaves references out; one given by name is refused). Nobody in a reference is asked
+   about: MetaRush never asks who speaks or who is on screen in someone else's video (marking one closes those
+   questions; saying it's yours brings them back). Marking a clip a reference (`footage.reference`) is refused while a
+   cut's latest version plays it. A clip already in MetaRush stays what it is (`--reference` marks it).
 2. **MetaRush looks at it** like any footage — its words and voices, its cuts, pauses and loudness, and on a Mac
    what's on screen — and then says **what it does** (`footage.whatItDoes`, `metarush footage what-it-does <clip>`, the
    clip's **What it does** tab), read from that evidence on this computer with no AI service:
@@ -586,7 +587,7 @@ MetaRush can start a recipe: `recipe.fromVideo` (`metarush recipe from-video <li
    asked, once (`asset.startFrom`: waiting → making → made) — and saved through `recipe.write` like any sheet:
    - one required footage input: the person's own footage, given each run;
    - a chosen section per section of the video, with its length (a fifth either side) and a purpose that describes it
-     ("A hook of about 3 s: a question to camera.");
+     ("a hook, about 3 s: a question to camera");
    - the video's shape at its preset, for the platform it came from, and its captions as the cut's captions when
      they are burned in;
    - rules: its length (measured), how short the hook is (a sign-off a person ticks), captions wherever someone speaks

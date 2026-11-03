@@ -199,7 +199,7 @@ func TestStartFromAVideoDraftsARecipe(t *testing.T) {
 			t.Errorf("section %d: %+v (the video's: %s %.1f s)", i, s, cs.Name, cs.Length)
 		}
 	}
-	if !strings.HasPrefix(d.Sections[0].Purpose, "A hook of about 3 s: a question to camera") {
+	if !strings.HasPrefix(d.Sections[0].Purpose, "a hook, about 3 s: a question to camera") {
 		t.Errorf("the hook's purpose describes it: %q", d.Sections[0].Purpose)
 	}
 	if len(d.Inputs) != 1 || d.Inputs[0].Kind != models.RecipeFootage || !d.Inputs[0].Required || len(d.Inputs[0].Default.Items) > 0 {

@@ -246,7 +246,7 @@ export function ReferenceNote({ clip, className }: { clip: { id: string; title: 
     }
   };
   return (
-    <div className={cx('flex flex-wrap items-start gap-3 rounded-[12px] bg-inset px-3 py-2.5 text-[12.5px] leading-relaxed text-muted', className)} data-reference-note>
+    <div className={cx('flex flex-wrap items-start gap-3 rounded-[12px] bg-hover px-3 py-2.5 text-[12.5px] leading-relaxed text-muted', className)} data-reference-note>
       <HandPalm size={16} className="mt-[2px] shrink-0 text-subtle" aria-hidden />
       <div className="min-w-0 flex-1">
         <Badge tone="neutral">Reference</Badge> Someone else’s video, kept to learn from: no cut plays it.

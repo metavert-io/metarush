@@ -317,7 +317,8 @@ func candidatesWith(ctx context.Context, a *app.App, assetID string, rec *recogn
 		return 0, nil, err
 	}
 	st := visual.Load(ctx, a.DB, a.WorkspaceID(), assetID)
-	if st == nil || len(st.Index.Tracks) == 0 {
+	// A reference is someone else's video, kept to learn from (D398): nobody in it is asked about.
+	if as.IsReference() || st == nil || len(st.Index.Tracks) == 0 {
 		if _, err := closeOldQuestions(ctx, a, assetID, nil); err != nil {
 			return 0, nil, err
 		}

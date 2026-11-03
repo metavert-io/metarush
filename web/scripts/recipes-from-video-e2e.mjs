@@ -207,6 +207,8 @@ try {
   check('A: once MetaRush has looked, the box shows the draft', !!drafted, failedText.slice(0, 300));
   if (!drafted) throw new Error('no draft');
   await shot(page, 'A-drafted-desktop-dark');
+  const draftedText = await box.locator('[data-start-from-video-drafted]').innerText();
+  check('A: the box says the draft it followed is made (not “earlier”)', /Drafted: /.test(draftedText) && !/Drafted earlier/.test(draftedText), draftedText.slice(0, 160));
   const shown = box.locator('[data-what-it-does]');
   const sectionNames = await shown.locator('[data-what-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-what-section')));
   const wantNames = truth.sections.map((s) => s.name);
@@ -269,6 +271,7 @@ try {
   check('D: the clip opens on What it does, with the reference’s note', (await note.count()) === 1 && /Someone else’s video, kept to learn from/.test(await note.innerText()));
   await plainIn(page.locator('[data-reference-note]').first(), 'D: the reference’s note');
   await plainIn(doesPanel, 'D: what the video does on its page');
+  await doesPanel.scrollIntoViewIfNeeded();
   await shot(page, 'D-clip-what-it-does-desktop-dark');
   await note.locator('[data-reference-mine]').click();
   const mine = page.locator('[data-mr-dialog="open"]').last();
@@ -277,6 +280,8 @@ try {
   await shot(page, 'D-this-is-mine-desktop-dark');
   await mine.getByRole('button', { name: 'Cancel' }).click();
   check('D: cancelled, it stays a reference', !!(await api(page, 'asset.show', { id: refId })).asset.reference);
+  const asks = (await api(page, 'todos.list', { assetId: refId })).todos;
+  check('D: nobody in someone else’s video is asked about (no voice or face questions)', asks.length === 0, JSON.stringify(asks.map((t) => `${t.kind}: ${t.question}`)));
   const tried = await api(page, 'edit.check', {
     plan: { projectId: project, instruction: 'try the liked video', spec: { schemaVersion: 1, title: 'Try', output: { preset: 'vertical-1080p', fps: 30 }, clips: [{ id: 'liked', assetId: refId, in: 0, out: 3 }] } },
   });
@@ -365,6 +370,7 @@ try {
     const { ctx: lctx, page: light } = await newPage(browser, { theme: 'light', phone: false, state });
     await light.goto(`${base}/?asset=${refId}&panel=does`);
     await light.locator('[data-what-it-does]').first().waitFor({ timeout: 30_000 });
+    await light.locator('[data-what-it-does]').first().scrollIntoViewIfNeeded();
     await shot(light, 'G-clip-what-it-does-desktop-light');
     await openRecipes(light);
     await shot(light, 'G-recipes-desktop-light');
@@ -372,6 +378,7 @@ try {
     const { ctx: plctx, page: plight } = await newPage(browser, { theme: 'light', phone: true, state });
     await plight.goto(`${base}/?asset=${refId}&panel=does`);
     await plight.locator('[data-what-it-does]').first().waitFor({ timeout: 30_000 });
+    await plight.locator('[data-what-it-does]').first().scrollIntoViewIfNeeded();
     await shot(plight, 'G-clip-what-it-does-phone-light');
     await noSideways(plight, 'G phone light: the clip’s What it does');
     await plight.goto(`${base}/library/recipes?recipe=${draftName}`);

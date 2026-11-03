@@ -25,10 +25,18 @@ func VoiceKey(v models.AssetSpeaker) string {
 // Reconcile brings an asset's speaker to-dos in line with its voices: an
 // unnamed voice gets "Who is this?" (or "Is this Ada?" when it sounds like
 // someone), named and brief voices get none, and questions about voices that
-// no longer exist are closed.
+// no longer exist are closed. A reference — someone else's video, kept to
+// learn from (D398) — asks about nobody in it.
 func Reconcile(ctx context.Context, a *app.App, assetID string) error {
 	var as models.Asset
 	if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), assetID, &as); err != nil {
+		return err
+	}
+	if as.IsReference() {
+		if _, err := todos.CloseStale(ctx, a, "speaker:"+as.ID+":", nil); err != nil {
+			return err
+		}
+		_, err := faces.Candidates(ctx, a, as.ID) // its face questions close too
 		return err
 	}
 	voices, err := Voices(ctx, a, assetID, false)

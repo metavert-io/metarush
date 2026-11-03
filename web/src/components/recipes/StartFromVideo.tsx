@@ -27,10 +27,13 @@ type Run = {
   from: string;
   label: string;
   out?: Out;
-  /** The clip, once it is in. */
+  /** The clip, once it is in, and its title. */
   assetId?: string;
+  title?: string;
   card?: ops.WhatItDoes;
   stage: 'adding' | 'importing' | 'looking' | 'drafted' | 'failed';
+  /** The draft was made before this was asked (the same video, asked again). */
+  earlier?: boolean;
   problem?: string;
   hint?: string;
 };
@@ -50,16 +53,16 @@ export function StartFromVideo({ className, compact }: { className?: string; com
     setRun({ from, label, stage: 'adding' });
     try {
       const out = await call('recipe.fromVideo', { from, reference });
-      apply(from, label, out);
+      apply(from, label, out, !!out.existing);
     } catch (e) {
       const err = toApiError(e);
       setRun({ from, label, stage: 'failed', problem: err.message, hint: err.hint });
     }
   };
 
-  const apply = (from: string, label: string, out: Out) => {
+  const apply = (from: string, label: string, out: Out, earlier: boolean) => {
     const stage = out.state === 'drafted' ? 'drafted' : out.state === 'importing' ? 'importing' : 'looking';
-    setRun({ from, label, out, stage, assetId: out.clip?.id, card: out.card ?? undefined });
+    setRun({ from, label, out, stage, earlier, assetId: out.clip?.id, title: out.clip?.title, card: out.card ?? undefined });
     if (stage === 'drafted') for (const k of ['recipe.list', 'asset.list', 'library.list']) void qc.invalidateQueries({ queryKey: [k] });
   };
 
@@ -89,11 +92,12 @@ export function StartFromVideo({ className, compact }: { className?: string; com
         if (stopped) return;
         const sf = c.clip.startFrom;
         if (sf?.state === 'made') {
+          // The draft this box followed: made just now, whatever the answer calls it.
           const out = await call('recipe.fromVideo', { from: run.assetId });
-          if (!stopped) apply(run.from, run.label, out);
+          if (!stopped) apply(run.from, run.label, out, false);
         } else if (sf?.state === 'failed') {
-          setRun({ ...run, card: c.card, stage: 'failed', problem: sf.problem || 'The draft couldn’t be made.' });
-        } else setRun({ ...run, card: c.card, stage: 'looking' });
+          setRun({ ...run, title: c.clip.title, card: c.card, stage: 'failed', problem: sf.problem || 'The draft couldn’t be made.' });
+        } else setRun({ ...run, title: c.clip.title, card: c.card, stage: 'looking' });
       } catch (e) {
         if (!stopped) {
           const err = toApiError(e);
@@ -229,21 +233,32 @@ export function StartFromVideo({ className, compact }: { className?: string; com
 }
 
 function Progress({ run }: { run: Run }) {
-  const what = <Theirs>{run.out?.clip?.title || run.label}</Theirs>;
+  const what = run.title ? (
+    <>
+      “<Theirs>{run.title}</Theirs>”
+    </>
+  ) : (
+    'the video'
+  );
   return (
     <div className="mt-4 border-t border-line pt-4" data-start-from-video-result={run.stage} aria-live="polite">
       {run.stage === 'adding' ? (
         <div className="flex items-center gap-2 text-[13px] text-muted">
-          <Spinner size={12} /> Bringing in {what}…
+          <Spinner size={12} />
+          <span className="min-w-0">
+            Bringing in “<Theirs>{run.label}</Theirs>”…
+          </span>
         </div>
       ) : run.stage === 'importing' ? (
         <div className="flex items-center gap-2 text-[13px] text-muted">
-          <Spinner size={12} /> Bringing the video in as a reference…
+          <Spinner size={12} />
+          <span className="min-w-0">Bringing the video in as a reference…</span>
         </div>
       ) : run.stage === 'looking' ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-[13px] text-muted">
-            <Spinner size={12} /> MetaRush is looking at {what}. The draft is saved by itself once it has; you can leave this page.
+            <Spinner size={12} />
+            <span className="min-w-0">MetaRush is looking at {what}. The draft is saved by itself once it has; you can leave this page.</span>
           </div>
           {run.card && run.card.sections.length ? <WhatItDoesView card={run.card} /> : null}
         </div>
@@ -253,13 +268,13 @@ function Progress({ run }: { run: Run }) {
           {run.hint ? <p className="mt-1 text-muted">{run.hint}</p> : null}
         </div>
       ) : run.out ? (
-        <Drafted out={run.out} />
+        <Drafted out={run.out} earlier={!!run.earlier} />
       ) : null}
     </div>
   );
 }
 
-function Drafted({ out }: { out: Out }) {
+function Drafted({ out, earlier }: { out: Out; earlier: boolean }) {
   const r = out.recipe;
   return (
     <div className="space-y-4" data-start-from-video-drafted>
@@ -267,7 +282,7 @@ function Drafted({ out }: { out: Out }) {
         <div className="flex flex-wrap items-center gap-3 rounded-[12px] bg-accent-soft px-3 py-2.5">
           <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-fg">
             <span className="font-medium">
-              {out.existing ? 'Drafted earlier: ' : 'Drafted: '}
+              {earlier ? 'Drafted earlier: ' : 'Drafted: '}
               <Theirs>{r.title}</Theirs>
             </span>
             <span className="text-muted"> — {r.makes}. A draft: a person makes it current before it runs.</span>

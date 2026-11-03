@@ -552,7 +552,7 @@ function useRecipeActions() {
 function DraftedFrom({ reference }: { reference: NonNullable<RecipeShowOut['doc']['reference']> }) {
   const original = webLink(reference.url);
   return (
-    <div className="rounded-[12px] bg-inset px-4 py-3 text-[13px] leading-relaxed text-muted" data-drafted-from>
+    <div className="rounded-[12px] bg-hover px-4 py-3 text-[13px] leading-relaxed text-muted" data-drafted-from>
       Drafted from what a video someone liked does{reference.who ? <>, posted by <Theirs>{reference.who}</Theirs></> : null}: its sections, lengths and pacing, never its
       footage, words or pictures.{' '}
       {reference.assetId ? (

@@ -454,8 +454,9 @@ func draftTitle(c *breakdown.WhatItDoes, clip breakdown.WhatClip) string {
 	return "Like “" + shorten(clip.Title, 80) + "”"
 }
 
-// draftPurpose says what a section is for, in MetaRush's words: its kind, its
-// length and what happens in it ("A hook of about 3 s: a question to camera.").
+// draftPurpose says what a section is for, in MetaRush's words and the way
+// purposes read ("For a hook, about 3 s: a question to camera"): its kind, its
+// length and what happens in it.
 func draftPurpose(s breakdown.WhatSection) string {
 	kind := map[string]string{breakdown.KindHook: "a hook", breakdown.KindIntro: "an intro", breakdown.KindCTA: "a call to action", breakdown.KindEnd: "an end card"}[s.Kind]
 	if s.Kind == breakdown.KindBody {
@@ -464,7 +465,8 @@ func draftPurpose(s breakdown.WhatSection) string {
 			kind = "the body"
 		}
 	}
-	return upperFirst(kind) + " of about " + seconds(roundHalf(s.Length)) + ": " + strings.TrimSuffix(s.Does, ".") + "."
+	does := strings.Replace(strings.TrimSuffix(s.Does, "."), ": ", ", ", 1) // "the first point, a voice over pictures"
+	return kind + ", about " + seconds(roundHalf(s.Length)) + ": " + does
 }
 
 // draftCount is how many moments a section has: a part with several shots up

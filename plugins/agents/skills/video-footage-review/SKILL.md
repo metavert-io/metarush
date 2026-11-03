@@ -32,7 +32,11 @@ and [reference/editorial.md](reference/editorial.md).
    --json` (they confirm; times and the cut stay put). A wrong speaker for a stretch is `metarush transcript speaker`.
    Saved versions keep their words until one new version takes every fix (`metarush transcript pending list <prj>`):
    never render after each fix.
-4. **Measure (evidence).** `metarush footage moments --project <prj> --json` for pauses/scenes across the project
+4. **Measure (evidence).** `metarush footage what-it-does <ast> --json` says how a whole video is built: its
+   sections with times (hook, intro, parts, call to action, end card), pacing, who speaks, burned-in captions, words
+   on screen, what plays under the voices and how it ends (`card.lines` read plainly). A clip marked a **reference**
+   (`clip.reference`) is someone else's video kept to learn from: review it, never put it in a cut.
+   `metarush footage moments --project <prj> --json` for pauses/scenes across the project
    (speech moments carry who said them); `metarush footage evidence <ast> --json` for loudness, black/frozen frames and
    technical problems (describe loudness in plain words, such as "a little quiet for phones", not LUFS or peak numbers).
 5. **Look (vision).** You cannot watch video, so see it through text and stills, in this order:

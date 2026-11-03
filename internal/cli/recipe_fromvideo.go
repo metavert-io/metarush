@@ -40,7 +40,7 @@ draft keeps where it came from and never its footage, words or pictures. A perso
 
 Without --wait the video is brought in and looked at by MetaRush running on this computer, and the draft is saved
 by itself when it's done (it shows on the Recipes tab); asking again says where it stands. --wait does it here.`,
-		Example: "  metarush recipe from-video https://www.youtube.com/watch?v=… --wait\n  metarush recipe from-video https://www.tiktok.com/@…/video/… --project \"Shop tips\"\n  metarush recipe from-video ~/Downloads/their-video.mp4 --wait",
+		Example: "  metarush recipe from-video 'https://www.youtube.com/watch?v=…' --wait\n  metarush recipe from-video 'https://www.tiktok.com/@…/video/…' --project \"Shop tips\"\n  metarush recipe from-video ~/Downloads/their-video.mp4 --wait",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			in.From = args[0]

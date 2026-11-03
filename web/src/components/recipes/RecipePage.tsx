@@ -10,6 +10,7 @@ import { RecoveringVideo } from '../../player/Trouble';
 import { useDialog } from '../../ui/Dialog';
 import { useToast } from '../../ui/Toast';
 import { Badge, Button, cx, EmptyState, ErrorPanel, Freshness, Skeleton, Spinner, Theirs, Thumb } from '../../ui/primitives';
+import { webLink } from '../WhatItDoes';
 import { RECIPE_QUERIES, recipesLink, runLinks, runTone, stateShort, type RecipeDiffOut, type RecipeRunBrief, type RecipeShowOut, type RecipeVersionRow } from './api';
 import { Differences } from './Differences';
 import { exportRecipeFile, ImportedNote, useImportRecipe } from './Files';
@@ -120,6 +121,7 @@ export function RecipePage({ name, version, planned }: { name: string; version?:
       <PlannedBanner name={r.name} canRun={canRun} onRun={() => void run({ recipe: r.name, title: r.title })} />
 
       {d.imported ? <ImportedNote imported={d.imported} /> : null}
+      {d.doc.reference ? <DraftedFrom reference={d.doc.reference} /> : null}
 
       {v.state !== 'current' ? (
         <div className="rounded-[12px] bg-info-soft px-4 py-3 text-[13px] text-info" data-version-banner>
@@ -540,4 +542,30 @@ function useRecipeActions() {
       }
     },
   };
+}
+
+/**
+ * Where a recipe drafted from a video someone liked came from (D400): the
+ * reference clip and its link. Its sections only describe what that video
+ * does: none of its footage, words or pictures is in the recipe.
+ */
+function DraftedFrom({ reference }: { reference: NonNullable<RecipeShowOut['doc']['reference']> }) {
+  const original = webLink(reference.url);
+  return (
+    <div className="rounded-[12px] bg-inset px-4 py-3 text-[13px] leading-relaxed text-muted" data-drafted-from>
+      Drafted from what a video someone liked does{reference.who ? <>, posted by <Theirs>{reference.who}</Theirs></> : null}: its sections, lengths and pacing, never its
+      footage, words or pictures.{' '}
+      {reference.assetId ? (
+        <Link to={`/?asset=${reference.assetId}&panel=does`} className="font-medium text-accent-text hover:underline">
+          What the video does
+        </Link>
+      ) : null}
+      {reference.assetId && original ? ' · ' : null}
+      {original ? (
+        <a href={original} target="_blank" rel="noreferrer noopener" className="font-medium text-accent-text hover:underline">
+          Open the original
+        </a>
+      ) : null}
+    </div>
+  );
 }

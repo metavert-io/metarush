@@ -1197,6 +1197,18 @@ new art and a warmer voice" makes a new version of the same cut.
   things in one project; its words treated as data; its motion graphics and Remotion versions waiting for a check and
   a person's approval there.
 
+### Start from a video you like
+Paste a link to a video you like (YouTube, TikTok, X) or choose its file — **Start from a video you like** on the
+Recipes tab and on Home, or `metarush recipe from-video <link | clip | file> [--wait]`. It comes in as a **reference**:
+someone else's video, kept to learn from, that no cut plays (the edit check refuses it and says how to mark a video as
+yours; only a person says so, with **This is mine…**). MetaRush looks at it like any footage and says **what it
+does** — its hook, intro, parts, call to action and end card with times, its pacing, who speaks, burned-in captions,
+titles, what plays under the voices and how it ends — on this computer, with no AI service (the clip's **What it
+does** tab, `metarush footage what-it-does <clip>`). Then it drafts a recipe shaped like it, for your own footage:
+sections with their lengths, its shape and captions, rules (its length, a short hook) and hints (pacing, your layout
+pack's title card and end screen, music under the voices). The draft says where it came from and never holds the
+video's footage, words or pictures; a person makes it current. In the Claude panel it is a card.
+
 ### Starter recipes and a sample first
 - **Starter recipes**: MetaRush comes with "a call becomes an episode with shorts" and "a release tag becomes a
   release video", offered on the Recipes tab and Home (**Add the starter recipes**, **Use this one**;
@@ -1587,6 +1599,8 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush recipe again <recipe>#N --input voice=Cleo --note "a warmer voice"` / `recipe runs [--run <recipe>#N] [--wait]` / `recipe compare <recipe>#1 <recipe>#2` | make it again (a new version of the same cut) / runs and what they wait for / two runs side by side |
 | `metarush recipe update <recipe> --patch file.json` / `recipe publish <recipe>` / `recipe continue <run>` / `recipe stop <run>` / `recipe archive <recipe>` | a draft of the recipe (`--dry-run`: what it would change) / make a version current, let a waiting run go on (people only) / stop a run / archive |
 | `metarush recipe diff <recipe> [--to N] [--from N\|current]` | what changed between two versions in plain words (default: the newest draft against the version it was made from) |
+| `metarush recipe from-video <link \| clip \| file> [--project P] [--name N] [--wait]` | start a recipe from a video you like: it comes in as a reference no cut plays, and what it does is drafted for your own footage (a draft a person makes current) |
+| `metarush footage what-it-does <clip> [--details]` / `footage reference <clip> [--mine]` | what a video does: its sections with times, pacing, voices, captions, words on screen, music / mark a clip as a reference (someone else's video), or say it's yours (people only) |
 | `metarush recipe suggestions <recipe> [--only key]… [--save]` | what people kept changing in its approved runs, with why and what a draft would change; `--save` makes the draft (a person makes it current) |
 | `metarush recipe triggers [<recipe>] [--new-files on\|off] [--weekly "monday 09:00"\|off] [--dismiss]` | when recipes plan a run by themselves, whom they tell and the plan waiting; changing it is people only; it never starts a run |
 | `metarush recipe export <recipe> [file]` / `recipe import <file> [--project P] [--name n] [--dry-run]` | the recipe as one file for another workspace (its pictures, footage and approved code by hash) / bring one in as a draft (its code waits for a person here) |

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"github.com/metavert-io/metarush/internal/links"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
+	"github.com/metavert-io/metarush/internal/resources"
 )
 
 // Recipes in the Claude panel (D211, docs/recipes.md): Claude's refused
@@ -1484,14 +1486,31 @@ func (m *Manager) describeRecipeFromVideo(ctx context.Context, call *cliCall, a 
 	in := recipeFromVideoIn{From: from, ProjectID: call.Flags["project"], Name: call.Flags["name"], Title: clip(strings.TrimSpace(call.Flags["title"]), 120), Reference: hasBool(call, "reference")}
 	view := &RecipeCardView{Kind: recipeCardFromVideo, Title: "a video"}
 	link := strings.Contains(from, "://") || strings.HasPrefix(strings.ToLower(from), "www.")
+	host := ""
 	if link {
-		view.Video, view.VideoFrom = "the video at "+clip(from, 80), from
+		// A web address, as the link import takes it (the import itself checks it again).
+		addr := from
+		if !strings.Contains(addr, "://") {
+			addr = "https://" + addr
+		}
+		u, err := url.Parse(addr)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil {
+			incomplete(a, what, "That isn't a web address MetaRush can use.")
+			return
+		}
+		if !resources.AllowLocalPages() && resources.LocalAddress(u.Hostname()) {
+			unavailable(a, what, "That address is on this computer or a local network, so MetaRush won't download from it.")
+			return
+		}
+		host = strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+		in.From, view.VideoFrom, view.Title = addr, addr, "the video at "+host
 	}
 	// A clip already here (or the clip a link already became): read its card, nothing changes.
 	ref := from
 	if !link {
 		if card, err := recipeOp[videoCardSeen](ctx, m, "footage.whatItDoes", map[string]string{"assetId": ref}); err == nil {
-			view.Video, view.VideoFrom = card.Clip.Title, card.Clip.Link
+			view.Video, view.VideoFrom, view.Title = card.Clip.Title, card.Clip.Link, card.Clip.Title
+			a.Title = clip("Start a recipe from "+quoted(clip(card.Clip.Title, 80)), 160)
 			if card.Card.Ready {
 				view.Does = card.Card.Lines
 			}
@@ -1500,11 +1519,9 @@ func (m *Manager) describeRecipeFromVideo(ctx context.Context, call *cliCall, a 
 			return
 		}
 	}
-	view.Title = view.Video
 	a.Recipe = view
-	a.Title = clip("Start a recipe from "+quoted(clip(view.Video, 80)), 160)
 	if link {
-		a.Title = "Start a recipe from the video at this link"
+		a.Title = "Start a recipe from the video at " + host
 		a.Details = append(a.Details, "It comes in as a reference: someone else's video, kept to learn from, that no cut plays.")
 	} else if in.Reference {
 		a.Details = append(a.Details, "It becomes a reference: someone else's video, kept to learn from, that no cut plays.")
@@ -1586,10 +1603,11 @@ func (m *Manager) checkDraftWork(ctx context.Context, w ActionWork, end ender) (
 		}](ctx, m, "recipe.show", map[string]string{"recipe": sf.Recipe}); err == nil && r.Recipe.Title != "" {
 			title = r.Recipe.Title
 		}
-		w.Link = links.Recipe(sf.Recipe) + "&version=" + strconv.Itoa(sf.Version)
-		return end(WorkFinished, fmt.Sprintf("The draft %s is saved, made from what %s does", quoted(title), quoted(card.Clip.Title)),
+		done, ended := end(WorkFinished, fmt.Sprintf("The draft %s is saved, made from what %s does", quoted(title), quoted(card.Clip.Title)),
 			fmt.Sprintf("The draft recipe %s (version %d, a draft) is saved from the video %s (%s). Read its sheet with `metarush recipe checkout %s -`; to refine it, write the changed sheet to the proposals folder and run `metarush recipe check <file> --save` (a card the person saves). Only a person makes it current.",
 				sf.Recipe, sf.Version, card.Clip.Title, assetID, sf.Recipe))
+		done.Link, done.AssetID = links.Recipe(sf.Recipe)+"&version="+strconv.Itoa(sf.Version), assetID // end keeps the work as it started
+		return done, ended
 	case sf.State == "failed":
 		return end(WorkFailed, "The draft couldn't be made: "+strings.TrimSuffix(sf.Problem, "."), "Drafting from the video "+assetID+" failed: "+sf.Problem)
 	}

@@ -361,8 +361,8 @@ try {
         return w.clip.startFrom?.state === 'made' ? w : null;
       }, 900_000, 3000);
       const r = made ? await api(page, 'recipe.show', { recipe: made.clip.startFrom.recipe }) : null;
-      // A file has no link or channel: the draft is named after the clip (MetaRush names it from its first look).
-      check('G: its draft is made too, named after the clip', !!r && r.recipe.title === `Like “${made.clip.title}”` && r.recipe.current === 0 && !r.doc.reference?.url,
+      // A file has no link or channel: the draft's title is MetaRush's own words, never the clip's (D444).
+      check('G: its draft is made too, titled in MetaRush’s words', !!r && r.recipe.title === 'Like a 26-second vertical video you liked' && r.recipe.current === 0 && !r.doc.reference?.url,
         JSON.stringify(r ? { title: r.recipe.title, clip: made.clip.title, current: r.recipe.current, reference: r.doc.reference } : made));
     }
   }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
@@ -237,7 +238,113 @@ func fromClip(ctx context.Context, a *app.App, as *models.Asset, sf models.Start
 		out.Next = "Follow it on the activity bar; asking again says where it stands."
 		return out, nil
 	}
-	return draftNow(ctx, a, as, sf)
+	// Draft now, under the claim the hook takes (D444): one computer drafts.
+	claimed, err := claimDraft(ctx, a, as, &sf)
+	if err != nil {
+		return nil, err
+	}
+	if !claimed {
+		var now models.Asset
+		if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), as.ID, &now); err == nil && now.StartFrom != nil && now.StartFrom.State == models.StartFromMade {
+			return fromClip(ctx, a, &now, sf, false) // drafted meanwhile
+		}
+		out := &RecipeFromVideoOut{State: FromVideoLooking, Waiting: []string{"drafting it"}, JobIDs: []string{}}
+		if card, err := breakdown.CardOf(ctx, a, as); err == nil {
+			out.Clip, out.Card = &card.Clip, &card.Card
+		}
+		out.Message = fmt.Sprintf("MetaRush is drafting from “%s” right now; the draft shows on the Recipes tab in a moment.", as.DisplayTitle())
+		out.Next = "Asking again says where it stands."
+		return out, nil
+	}
+	out, err := draftNow(ctx, a, as, sf)
+	if err != nil {
+		draftFailed(ctx, a, as.ID, err)
+		return nil, err
+	}
+	return out, nil
+}
+
+// claimDraft takes the right to draft from a clip now (D444), as the hook does:
+// nobody holds it, or the computer that did stopped making it (by the
+// server's time); a draft made already is no hold only for another name.
+func claimDraft(ctx context.Context, a *app.App, as *models.Asset, sf *models.StartFromVideo) (bool, error) {
+	if sf.At.IsZero() {
+		sf.At = time.Now().UTC()
+	}
+	sf.State, sf.Problem, sf.RecipeID, sf.Recipe, sf.Version, sf.MadeAt, sf.MakingAt = models.StartFromMaking, "", "", "", 0, nil, nil
+	free := bson.A{
+		bson.M{"startFrom": bson.M{"$exists": false}},
+		bson.M{"startFrom.state": bson.M{"$in": bson.A{models.StartFromWaiting, models.StartFromFailed}}},
+		bson.M{"$and": bson.A{bson.M{"startFrom.state": models.StartFromMaking}, store.StaleBefore("startFrom.makingAt", draftStale)}},
+	}
+	if sf.Name != "" {
+		free = append(free, bson.M{"startFrom.state": models.StartFromMade, "startFrom.recipe": bson.M{"$ne": sf.Name}})
+	}
+	set := bson.M{"startFrom.for": sf.For, "startFrom.at": sf.At, "startFrom.state": models.StartFromMaking, "updatedAt": time.Now().UTC()}
+	unset := bson.M{"startFrom.problem": "", "startFrom.recipeId": "", "startFrom.recipe": "", "startFrom.version": "", "startFrom.madeAt": ""}
+	for field, v := range map[string]string{"projectId": sf.ProjectID, "name": sf.Name, "title": sf.Title} {
+		if v != "" {
+			set["startFrom."+field] = v
+		} else {
+			unset["startFrom."+field] = ""
+		}
+	}
+	res, err := a.DB.C(store.CAssets).UpdateOne(ctx, bson.M{"_id": as.ID, "workspaceId": a.WorkspaceID(), "$or": free},
+		bson.M{"$set": set, "$unset": unset, "$currentDate": bson.M{"startFrom.makingAt": true}})
+	if err != nil {
+		return false, apperr.Wrap(apperr.Database, err, "MetaRush couldn't start the draft from “%s”.", as.DisplayTitle())
+	}
+	return res.ModifiedCount > 0, nil
+}
+
+// draftFailed records that a draft couldn't be made, in plain words, so the
+// clip's page and the Add box say it (and asking again tries again).
+func draftFailed(ctx context.Context, a *app.App, assetID string, err error) {
+	_ = a.DB.Update(context.WithoutCancel(ctx), store.CAssets, a.WorkspaceID(), assetID, bson.M{"$set": bson.M{"startFrom.state": models.StartFromFailed,
+		"startFrom.problem": apperr.From(err).Message}, "$unset": bson.M{"startFrom.makingAt": ""}})
+}
+
+// draftStale is how long a claim to draft holds before another computer
+// takes it (a draft takes seconds; its computer stopped).
+const draftStale = 10 * time.Minute
+
+// DraftSweepEvery is how often a daemon looks for drafts nobody finished.
+var DraftSweepEvery = time.Minute
+
+// RunDraftSweep drafts from clips whose draft a computer stopped making (its
+// claim stale by the server's time) or whose last look ended without the hook
+// hearing it (D444): nothing waits on a browser tab or a terminal. Every
+// daemon runs it; the claim keeps it to one draft.
+func RunDraftSweep(ctx context.Context, a *app.App, logf func(string, ...any)) {
+	t := time.NewTicker(DraftSweepEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		if n := SweepDrafts(ctx, a); n > 0 && logf != nil {
+			logf("recipes: drafted %d from videos someone liked", n)
+		}
+	}
+}
+
+// SweepDrafts is one look of RunDraftSweep; it returns how many it drafted.
+func SweepDrafts(ctx context.Context, a *app.App) int {
+	var as []models.Asset
+	filter := bson.M{"$or": bson.A{bson.M{"startFrom.state": models.StartFromWaiting},
+		bson.M{"$and": bson.A{bson.M{"startFrom.state": models.StartFromMaking}, store.StaleBefore("startFrom.makingAt", draftStale)}}}}
+	if err := a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), filter, &as, options.Find().SetProjection(bson.M{"_id": 1}).SetLimit(50)); err != nil {
+		return 0
+	}
+	n := 0
+	for _, x := range as {
+		if DraftWhenLooked(ctx, a, x.ID) {
+			n++
+		}
+	}
+	return n
 }
 
 // lookFor is what MetaRush still has to look at in a clip before it drafts
@@ -345,34 +452,34 @@ func sectionsWords(d *models.RecipeDoc) string {
 // computer finished the last one, as the person who asked — claimed waiting →
 // making by check-and-set, so it is made once (a claim nobody finished in ten
 // minutes is taken again).
-func DraftWhenLooked(ctx context.Context, a *app.App, assetID string) {
+func DraftWhenLooked(ctx context.Context, a *app.App, assetID string) bool {
 	var as models.Asset
 	if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), assetID, &as); err != nil || as.StartFrom == nil {
-		return
+		return false
 	}
 	if st := as.StartFrom.State; st != models.StartFromWaiting && st != models.StartFromMaking {
-		return
+		return false
 	}
 	if as.State != models.AssetAvailable {
-		return
+		return false
 	}
 	if waiting, _ := lookFor(ctx, a, &as); len(waiting) > 0 {
-		return
+		return false
 	}
 	claim := bson.M{"_id": as.ID, "workspaceId": a.WorkspaceID(), "$or": bson.A{bson.M{"startFrom.state": models.StartFromWaiting},
-		bson.M{"$and": bson.A{bson.M{"startFrom.state": models.StartFromMaking}, store.StaleBefore("startFrom.makingAt", 10*time.Minute)}}}}
+		bson.M{"$and": bson.A{bson.M{"startFrom.state": models.StartFromMaking}, store.StaleBefore("startFrom.makingAt", draftStale)}}}}
 	res, err := a.DB.C(store.CAssets).UpdateOne(ctx, claim, bson.M{"$set": bson.M{"startFrom.state": models.StartFromMaking}, "$currentDate": bson.M{"startFrom.makingAt": true}})
 	if err != nil || res.ModifiedCount == 0 {
-		return
+		return false
 	}
 	sf := *as.StartFrom
 	ia := *a
 	ia.Actor = sf.For
 	if _, err := draftNow(ctx, &ia, &as, sf); err != nil {
-		problem := apperr.From(err).Message
-		_ = a.DB.Update(ctx, store.CAssets, a.WorkspaceID(), as.ID, bson.M{"$set": bson.M{"startFrom.state": models.StartFromFailed, "startFrom.problem": problem},
-			"$unset": bson.M{"startFrom.makingAt": ""}})
+		draftFailed(ctx, a, as.ID, err)
+		return false
 	}
+	return true
 }
 
 func nonNilStrings(xs []string) []string {
@@ -451,7 +558,12 @@ func draftTitle(c *breakdown.WhatItDoes, clip breakdown.WhatClip) string {
 	case clip.Link != "":
 		return "Like a " + what + " from " + models.PlatformName(clip.Platform)
 	}
-	return "Like “" + shorten(clip.Title, 80) + "”"
+	// A file (or a link only its owner can open): MetaRush's own words, never
+	// the clip's title, which may be the video's own (D444).
+	if c.Length >= 1 {
+		return fmt.Sprintf("Like a %d-second %s you liked", int(math.Round(c.Length)), what)
+	}
+	return "Like a " + what + " you liked"
 }
 
 // draftPurpose says what a section is for, in MetaRush's words and the way

@@ -82,8 +82,10 @@ func CardOf(ctx context.Context, a *app.App, as *models.Asset) (*WhatItDoesOut, 
 
 func clipOf(as *models.Asset) WhatClip {
 	c := WhatClip{ID: as.ID, Title: as.DisplayTitle(), Reference: as.IsReference(), StartFrom: as.StartFrom}
-	if s := as.Source; s != nil && s.URL != "" && s.Generated == nil && s.Remotion == nil && s.MadeWith == nil {
-		c.Link, c.Platform, c.Who = s.URL, s.Platform, s.Who()
+	// Only a link anyone may open (a public video page a link import brought
+	// in): never a cloud folder's or this computer's address (D444).
+	if l := as.Source.PublicLink(); l != "" {
+		c.Link, c.Platform, c.Who = l, as.Source.Platform, as.Source.Who()
 	}
 	return c
 }

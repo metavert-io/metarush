@@ -13109,6 +13109,36 @@
         "link"
       ]
     },
+    "ContentCredentialsSettings": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on",
+            "required"
+          ]
+        },
+        "timestampUrl": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedBy": {
+          "$ref": "#/$defs/Actor"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode",
+        "updatedAt",
+        "updatedBy"
+      ]
+    },
     "ContentDefaultIn": {
       "properties": {
         "projectId": {
@@ -13711,6 +13741,9 @@
         },
         "gate": {
           "$ref": "#/$defs/GateSetting"
+        },
+        "credentials": {
+          "$ref": "#/$defs/CredentialsSetting"
         },
         "leave": {
           "$ref": "#/$defs/LeaveRules"
@@ -15220,6 +15253,32 @@
         "y",
         "w",
         "h"
+      ]
+    },
+    "CredentialsSetting": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on",
+            "required"
+          ]
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedBy": {
+          "$ref": "#/$defs/Actor"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode",
+        "updatedAt",
+        "updatedBy"
       ]
     },
     "Crop": {
@@ -23408,7 +23467,8 @@
             "qa-stale",
             "qa-errors",
             "signoff",
-            "consent"
+            "consent",
+            "credentials"
           ]
         },
         "says": {
@@ -62178,7 +62238,8 @@
             "qa-stale",
             "qa-errors",
             "signoff",
-            "consent"
+            "consent",
+            "credentials"
           ]
         },
         "says": {
@@ -72591,6 +72652,9 @@
         },
         "reviewLinks": {
           "$ref": "#/$defs/ReviewLinkSettings"
+        },
+        "contentCredentials": {
+          "$ref": "#/$defs/ContentCredentialsSettings"
         },
         "deletionsPaused": {
           "$ref": "#/$defs/DeletionsPause"

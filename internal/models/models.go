@@ -74,6 +74,9 @@ type Workspace struct {
 	// ReviewLinks is the owners' word on links for people outside the
 	// workspace (D314): nil means anyone may share, for up to 7 days.
 	ReviewLinks *ReviewLinkSettings `bson:"reviewLinks,omitempty" json:"reviewLinks,omitempty"`
+	// ContentCredentials is whether delivered videos carry Content
+	// Credentials (D418; owners): nil means off.
+	ContentCredentials *ContentCredentialsSettings `bson:"contentCredentials,omitempty" json:"contentCredentials,omitempty"`
 	// DeletionsPaused is set on a restored copy (D333): nothing deletes by
 	// itself there — the Trash on its schedule, review links ending and their
 	// pages going, old activity cleared out — while the original may still use
@@ -863,6 +866,10 @@ type Revision struct {
 	// that let it out (D299): the receipt says "went out" only for these.
 	// Both lists only grow.
 	SentOut []ShipSent `bson:"sentOut,omitempty" json:"sentOut,omitempty"`
+	// ContentCredentials are the delivered videos of this version that carry
+	// Content Credentials (D420): who signed, whether they checked out, the
+	// manifest's hash. Outside the spec and its hash; it only grows.
+	ContentCredentials []SignedDelivery `bson:"contentCredentials,omitempty" json:"contentCredentials,omitempty"`
 }
 
 // How a version was asked to be reviewed (ReviewAsk.How).

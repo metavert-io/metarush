@@ -13532,6 +13532,7 @@ packDraft?: PackDraft
 signoffs?: Signoff[]
 aiServices?: AIServiceRules
 gate?: GateSetting
+credentials?: CredentialsSetting
 leave?: LeaveRules
 createdAt: string
 createdBy: Actor
@@ -13769,6 +13770,15 @@ createdBy: Actor
  */
 export interface GateSetting {
 mode: ("on" | "off")
+updatedAt: string
+updatedBy: Actor
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsSetting".
+ */
+export interface CredentialsSetting {
+mode: ("off" | "on" | "required")
 updatedAt: string
 updatedBy: Actor
 }
@@ -18030,7 +18040,7 @@ holds: ShipHold[]
  */
 export interface ShipHold {
 key: string
-kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent")
+kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent" | "credentials")
 says: string
 }
 /**
@@ -18306,7 +18316,7 @@ lines: string[]
  */
 export interface GateHold {
 key: string
-kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent")
+kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent" | "credentials")
 says: string
 overridable: boolean
 covered?: boolean
@@ -37193,6 +37203,7 @@ reviewFollow?: ReviewFollowSettings
 estimates?: EstimateSettings
 shipGate?: ShipGateSettings
 reviewLinks?: ReviewLinkSettings
+contentCredentials?: ContentCredentialsSettings
 deletionsPaused?: DeletionsPause
 }
 /**
@@ -37248,6 +37259,16 @@ export interface ReviewLinkSettings {
 off?: boolean
 ownersOnly?: boolean
 maxDays?: number
+updatedAt: string
+updatedBy: Actor
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ContentCredentialsSettings".
+ */
+export interface ContentCredentialsSettings {
+mode: ("off" | "on" | "required")
+timestampUrl?: string
 updatedAt: string
 updatedBy: Actor
 }

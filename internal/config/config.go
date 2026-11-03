@@ -321,6 +321,10 @@ type Tools struct {
 	// Rclone is the person's own rclone, through which MetaRush reads Google
 	// Drive folders without syncing them (D220); default: found on PATH.
 	Rclone string `yaml:"rclone,omitempty"`
+	// C2PATool is c2patool, the C2PA project's own tool, which puts Content
+	// Credentials into delivered videos (D421): the pinned download MetaRush
+	// adds as a component, else found on PATH.
+	C2PATool string `yaml:"c2patool,omitempty"`
 }
 
 // Improve schedules the weekly improvement report (D78): the activity log's
@@ -865,6 +869,7 @@ func (c *Config) applyEnv() {
 	str("D2", &c.Tools.D2)
 	str("TAILSCALE", &c.Tools.Tailscale)
 	str("RCLONE", &c.Tools.Rclone)
+	str("C2PATOOL", &c.Tools.C2PATool)
 	str("WHISPER_CLI", &c.Tools.WhisperCLI)
 	str("WHISPER_SERVER", &c.Tools.WhisperServer)
 	str("MODELS_DIR", &c.Tools.ModelsDir)

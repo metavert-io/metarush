@@ -18,7 +18,7 @@ func TestShotIsMadeWhereTheRoleIs(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
 	testapp.HandedOver(t, e.a, "studio-mini")
-	in := generate.GenShotIn{ProjectID: e.project, Prompt: "a red paper boat drifting on a pond", Seconds: 3, Resolution: "360p"}
+	in := generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a red paper boat drifting on a pond", Seconds: 3, Resolution: "360p"}
 	est, err := call[generate.GenEstimate](t, e.a, "generate.estimate", in, false)
 	if err != nil || !est.Allowed {
 		t.Fatalf("the estimate still works: %+v %v", est, err)

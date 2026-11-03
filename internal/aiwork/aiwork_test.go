@@ -1045,7 +1045,7 @@ func TestVideoFollowsTheClipsProjects(t *testing.T) {
 	if _, err := call[generate.GenRunOut](t, e.a, "generate.extend", ext, false); codeOf(err) != apperr.Conflict {
 		t.Fatalf("extend into another project, asked for: %v", err)
 	}
-	shot := generate.GenShotIn{ProjectID: other, Prompt: "the scene goes on", Seconds: 4, Resolution: "720p", NoPeople: true, From: &generate.FrameRef{AssetID: res.AssetID, At: 1}}
+	shot := generate.GenShotIn{AspectRatio: "16:9", ProjectID: other, Prompt: "the scene goes on", Seconds: 4, Resolution: "720p", NoPeople: true, From: &generate.FrameRef{AssetID: res.AssetID, At: 1}}
 	vest, err := call[generate.GenEstimate](t, e.a, "generate.estimate", shot, false)
 	if err != nil || vest.Allowed {
 		t.Fatalf("a shot starting on the client's frame: %+v %v", vest, err)

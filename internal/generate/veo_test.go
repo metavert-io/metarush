@@ -23,7 +23,7 @@ func TestShotWithVeo(t *testing.T) {
 	ctx := context.Background()
 	f, key := fakevertex.Start(t)
 	f.ReadyAfter = 0
-	in := generate.GenShotIn{ProjectID: e.project, Prompt: "a red paper boat drifting on a pond", Model: "vertex/veo-3.1-fast-generate-001", Seconds: 8, Resolution: "720p"}
+	in := generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a red paper boat drifting on a pond", Model: "vertex/veo-3.1-fast-generate-001", Seconds: 8, Resolution: "720p"}
 	est, err := call[generate.GenEstimate](t, e.a, "generate.estimate", in, false)
 	if err != nil {
 		t.Fatal(err)

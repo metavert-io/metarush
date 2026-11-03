@@ -423,7 +423,7 @@ func TestConsentRecords(t *testing.T) {
 		}
 	}
 	// A generated clip is never anyone's consent.
-	shot, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "a pond at dawn", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
+	shot, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a pond at dawn", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -491,7 +491,7 @@ func TestCancelWhileItIsBeingMade(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
 	e.fake.ReadyAfter = 1 << 20 // it never finishes by itself
-	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "a very slow boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
+	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a very slow boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -555,7 +555,7 @@ func TestSweepClosesWhatWasLeft(t *testing.T) {
 	ws := e.a.WorkspaceID()
 	shot := func(prompt string) generate.GenView {
 		t.Helper()
-		out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: prompt, Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
+		out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: prompt, Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -680,7 +680,7 @@ func TestConfigureAndSettings(t *testing.T) {
 		t.Fatalf("team settings %+v", st)
 	}
 	// New shots follow them: a draft is 360p, final quality 4K (upscaled, said so).
-	in := generate.GenShotIn{ProjectID: e.project, Prompt: "a heron lands", Seconds: 3}
+	in := generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a heron lands", Seconds: 3}
 	est, err := call[generate.GenEstimate](t, e.a, "generate.estimate", in, false)
 	if err != nil || est.Resolution != "360p" || est.Quality != "draft" {
 		t.Fatalf("draft %+v %v", est, err)

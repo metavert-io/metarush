@@ -50,7 +50,7 @@ func TestTheSweepGoesByTheServersClock(t *testing.T) {
 	ctx := context.Background()
 	ws := e.a.WorkspaceID()
 	restore := testutil.SkewClock(t, -skew)
-	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "a heron on a post", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
+	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a heron on a post", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
 	restore()
 	if err != nil {
 		t.Fatal(err)
@@ -162,7 +162,7 @@ func TestTheDailyLimitIsTheServersDay(t *testing.T) {
 	for _, off := range []time.Duration{-skew, skew, tomorrow + time.Minute} {
 		restore := testutil.SkewClock(t, off)
 		before := day()
-		out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "a kingfisher diving", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
+		out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a kingfisher diving", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -214,7 +214,7 @@ func TestConsentInForceGoesByTheServersClock(t *testing.T) {
 		defer restore()
 		fn()
 	}
-	shot := generate.GenShotIn{ProjectID: e.project, Prompt: "she waves from the porch", From: &generate.FrameRef{AssetID: porch.ID, At: 1}, Seconds: 4}
+	shot := generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "she waves from the porch", From: &generate.FrameRef{AssetID: porch.ID, At: 1}, Seconds: 4}
 	g := &models.Generation{ProjectID: e.project, ConsentIDs: []string{c.Consent.ID}}
 	look := generate.LookCreateIn{Title: "Wren", Person: "Wren Tolliver", Description: "A woman with a grey braid and a green coat.",
 		Stills: []generate.LookStillIn{{AssetID: porch.ID, At: 1}, {AssetID: porch.ID, At: 2}}}
@@ -316,7 +316,7 @@ func TestATicketIsStampedInTheServersTime(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
 	testutil.ServerOff(t, e.a.DB, -10*time.Minute)
-	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "a heron on a post", Seconds: 3, Resolution: "360p", MaxUSD: usd(2)}, false)
+	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a heron on a post", Seconds: 3, Resolution: "360p", MaxUSD: usd(2)}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

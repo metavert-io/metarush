@@ -48,7 +48,7 @@ func TestTheShotAsksForItsOwnPart(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	shot := generate.GenShotIn{ProjectID: f.teaser, Prompt: "a red paper boat on a pond", Seconds: 3, Resolution: "360p", NoPeople: true}
+	shot := generate.GenShotIn{AspectRatio: "16:9", ProjectID: f.teaser, Prompt: "a red paper boat on a pond", Seconds: 3, Resolution: "360p", NoPeople: true}
 	est := must[generate.GenEstimate](t, f.a, "generate.estimate", shot, false)
 	shot.MaxUSD = &est.USD
 	gen := must[generate.GenRunOut](t, f.a, "generate.shot", shot, true)

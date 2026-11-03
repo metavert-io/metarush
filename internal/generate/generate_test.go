@@ -110,7 +110,7 @@ func ledger(t *testing.T, a *app.App, scope, key string) models.GenSpend {
 func TestShotFromWords(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
-	in := generate.GenShotIn{ProjectID: e.project, Prompt: "a red paper boat drifting on a pond", Seconds: 3, Resolution: "360p"}
+	in := generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a red paper boat drifting on a pond", Seconds: 3, Resolution: "360p"}
 	est, err := call[generate.GenEstimate](t, e.a, "generate.estimate", in, false)
 	if err != nil {
 		t.Fatal(err)
@@ -242,7 +242,7 @@ func TestBudgetReserveAndSettle(t *testing.T) {
 	if st.ProjectBudgetUSD == nil || *st.ProjectBudgetUSD != 0.25 || st.ProjectBudgetDefault || st.DailyCapUSD != 10 || !st.DailyCapDefault {
 		t.Fatalf("settings %+v", st)
 	}
-	in := generate.GenShotIn{ProjectID: e.project, Prompt: "a paper boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}
+	in := generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a paper boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}
 	first, err := call[generate.GenRunOut](t, e.a, "generate.shot", in, false)
 	if err != nil {
 		t.Fatal(err)
@@ -271,7 +271,7 @@ func TestBudgetReserveAndSettle(t *testing.T) {
 	if _, err := call[generate.GenSettingsOut](t, e.a, "generate.configure", generate.GenConfigureIn{ProjectID: e.project, BudgetUSD: usd(0)}, true); err != nil {
 		t.Fatal(err)
 	}
-	big := generate.GenShotIn{ProjectID: e.project, Prompt: "a paper boat", Seconds: 10, Resolution: "4k", Takes: 4, MaxUSD: usd(100)}
+	big := generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a paper boat", Seconds: 10, Resolution: "4k", Takes: 4, MaxUSD: usd(100)}
 	_, err = call[generate.GenRunOut](t, e.a, "generate.shot", big, false)
 	if codeOf(err) != apperr.Budget || !strings.Contains(apperr.From(err).Message, "today's limit") {
 		t.Fatalf("over the daily cap: %v", err)
@@ -345,12 +345,12 @@ func TestConsentIsRequired(t *testing.T) {
 	from := func(as *models.Asset) *generate.FrameRef { return &generate.FrameRef{AssetID: as.ID, At: 1} }
 
 	// A frame showing Maya, without her consent.
-	_, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "she walks out of the kitchen", From: from(withMaya), Seconds: 4, MaxUSD: usd(5)}, false)
+	_, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "she walks out of the kitchen", From: from(withMaya), Seconds: 4, MaxUSD: usd(5)}, false)
 	if codeOf(err) != apperr.ConsentRequired || !strings.Contains(apperr.From(err).Message, "Maya") {
 		t.Fatalf("a frame showing someone: %v", err)
 	}
 	// A frame MetaRush can't check, unless the person says it shows no one.
-	_, err = call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "the garden at dusk", From: from(unknown), Seconds: 4, MaxUSD: usd(5)}, false)
+	_, err = call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "the garden at dusk", From: from(unknown), Seconds: 4, MaxUSD: usd(5)}, false)
 	if codeOf(err) != apperr.ConsentRequired {
 		t.Fatalf("a frame nobody checked: %v", err)
 	}
@@ -358,7 +358,7 @@ func TestConsentIsRequired(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Naming her in the prompt is her likeness too.
-	_, err = call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "Maya dancing on the beach", Seconds: 4, MaxUSD: usd(5)}, false)
+	_, err = call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "Maya dancing on the beach", Seconds: 4, MaxUSD: usd(5)}, false)
 	if codeOf(err) != apperr.ConsentRequired {
 		t.Fatalf("a name in the prompt: %v", err)
 	}
@@ -403,7 +403,7 @@ func TestConsentIsRequired(t *testing.T) {
 	if _, err := call[generate.ConsentOut](t, e.a, "consent.revoke", generate.ConsentRevokeIn{ID: c.Consent.ID}, true); err != nil {
 		t.Fatal(err)
 	}
-	_, err = call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "she walks out of the kitchen", From: from(withMaya), Seconds: 4, MaxUSD: usd(5)}, false)
+	_, err = call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "she walks out of the kitchen", From: from(withMaya), Seconds: 4, MaxUSD: usd(5)}, false)
 	if codeOf(err) != apperr.ConsentRequired {
 		t.Fatalf("after withdrawing: %v", err)
 	}
@@ -438,7 +438,7 @@ func TestLooks(t *testing.T) {
 		t.Fatalf("look %+v", l.Look)
 	}
 	// A draft look isn't used for shots.
-	_, err = call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "walks into the garage", Look: "ada", Seconds: 6, MaxUSD: usd(5)}, false)
+	_, err = call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "walks into the garage", Look: "ada", Seconds: 6, MaxUSD: usd(5)}, false)
 	if codeOf(err) != apperr.Conflict {
 		t.Fatalf("a draft look: %v", err)
 	}
@@ -452,7 +452,7 @@ func TestLooks(t *testing.T) {
 	if err != nil || !est.Allowed || est.Task != videogen.TaskReferenceToVideo || !est.Likeness {
 		t.Fatalf("estimate %+v %v", est, err)
 	}
-	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "walks into the garage", Look: "ada", Seconds: 6, MaxUSD: usd(est.USD)}, false)
+	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "walks into the garage", Look: "ada", Seconds: 6, MaxUSD: usd(est.USD)}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +492,7 @@ func TestResumeAfterRestart(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
 	e.fake.ReadyAfter = 3
-	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "a slow boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
+	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a slow boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -524,7 +524,7 @@ func TestResumeAfterRestart(t *testing.T) {
 	}
 	// A send that began and never got an answer recorded (the process died
 	// mid-request): not sent again; the estimate counts as spent.
-	out2, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "another boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
+	out2, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "another boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -546,7 +546,7 @@ func TestProviderTrouble(t *testing.T) {
 	ctx := context.Background()
 	shot := func(prompt string, res string, secs int) *generate.GenRunOut {
 		t.Helper()
-		out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: prompt, Seconds: secs, Resolution: res, NoPeople: true, MaxUSD: usd(10)}, false)
+		out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: prompt, Seconds: secs, Resolution: res, NoPeople: true, MaxUSD: usd(10)}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -627,7 +627,7 @@ func TestFreeTierEndsAtOnce(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
 	e.fake.SetFreeTier(fakevideogen.FreeTierOnStatus)
-	in := generate.GenShotIn{ProjectID: e.project, Prompt: "a red paper boat drifting on a pond", Seconds: 3, Resolution: "360p", MaxUSD: usd(0.5)}
+	in := generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a red paper boat drifting on a pond", Seconds: 3, Resolution: "360p", MaxUSD: usd(0.5)}
 	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", in, false)
 	if err != nil {
 		t.Fatal(err)
@@ -719,7 +719,7 @@ func TestPollRateLimitsDontWaitForEver(t *testing.T) {
 	defer func(w time.Duration) { generate.PollLimitWait = w }(generate.PollLimitWait)
 	shot := func(prompt string) *generate.GenRunOut {
 		t.Helper()
-		out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: prompt, Seconds: 3, Resolution: "360p", NoPeople: true, MaxUSD: usd(1)}, false)
+		out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: prompt, Seconds: 3, Resolution: "360p", NoPeople: true, MaxUSD: usd(1)}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -786,7 +786,7 @@ func TestPollRateLimitsDontWaitForEver(t *testing.T) {
 func TestKeyNeverWritten(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
-	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "a boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
+	out, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "a boat", Seconds: 3, Resolution: "360p", MaxUSD: usd(1)}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -794,7 +794,7 @@ func TestKeyNeverWritten(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A failed request too (its error text is recorded).
-	out, _ = call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "[fake:celebrity] x", Seconds: 3, Resolution: "360p", NoPeople: true, MaxUSD: usd(1)}, false)
+	out, _ = call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "[fake:celebrity] x", Seconds: 3, Resolution: "360p", NoPeople: true, MaxUSD: usd(1)}, false)
 	_, _ = e.run(t, ctx, out.JobIDs[0])
 	_, _ = call[providers.TestOut](t, e.a, "provider.test", providers.TestIn{Name: videogen.GeminiName}, false)
 	e.a.Log.Flush(ctx)
@@ -848,7 +848,7 @@ func TestRecognizedFaceIsNotANameForConsent(t *testing.T) {
 	if _, err := call[generate.ConsentOut](t, e.a, "consent.record", rec, true); err != nil {
 		t.Fatal(err)
 	}
-	_, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{ProjectID: e.project, Prompt: "she waves from the porch",
+	_, err := call[generate.GenRunOut](t, e.a, "generate.shot", generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "she waves from the porch",
 		From: &generate.FrameRef{AssetID: porch.ID, At: 1}, Seconds: 4, MaxUSD: usd(5)}, false)
 	if codeOf(err) != apperr.ConsentRequired || !strings.Contains(apperr.From(err).Message, "looks like Maya") {
 		t.Fatalf("a face recognized by its looks only: %v", err)
@@ -879,7 +879,7 @@ func TestShotFromAPicture(t *testing.T) {
 	if err != nil || added.Resource == nil {
 		t.Fatalf("add the picture: %+v %v", added, err)
 	}
-	in := generate.GenShotIn{ProjectID: e.project, Prompt: "the pond at dawn, mist rising", From: &generate.FrameRef{Picture: added.Resource.Name}, Seconds: 4, Resolution: "720p"}
+	in := generate.GenShotIn{AspectRatio: "16:9", ProjectID: e.project, Prompt: "the pond at dawn, mist rising", From: &generate.FrameRef{Picture: added.Resource.Name}, Seconds: 4, Resolution: "720p"}
 	est, err := call[generate.GenEstimate](t, e.a, "generate.estimate", in, false)
 	if err != nil {
 		t.Fatal(err)

@@ -252,12 +252,9 @@ func runAI(c *cobra.Command, op string, in any, maxUSD **float64, dry, wait, det
 				ae = ae.WithCommand(sameCommandWith(c, extra...))
 			}
 		}
-		if d["reason"] == "shape_not_agreed" {
-			// --max-cost without --aspect (D394): the shape to say, by its flag.
-			if ar, _ := d["aspectRatio"].(string); ar != "" {
-				ae = apperr.New(apperr.Conflict, "%s Say the shape with the price: --aspect %s.", ae.Message, ar).WithHint(ae.Hint).
-					WithDetails(d).WithCommand(sameCommandWith(c, "--aspect", ar))
-			}
+		if ar, _ := d["aspectRatio"].(string); d["reason"] == "shape_not_agreed" && ar != "" && !jsonMode(c) {
+			// --max-cost without --aspect (D394): the shape to say, by the flag just typed without it.
+			return fail(c, apperr.Conflict, ae.Message+" Say the shape with the price: --aspect "+ar+".", ae.Hint)
 		}
 		return failErr(c, ae)
 	}

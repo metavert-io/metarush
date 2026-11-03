@@ -12,6 +12,7 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
+	"github.com/metavert-io/metarush/internal/secretpath"
 )
 
 // Content Credentials (D415–D424, docs/content-credentials.md): `metarush
@@ -118,6 +119,23 @@ func readPEMFile(path, what string) (string, error) {
 	return string(b), nil
 }
 
+// keyFileSafe refuses a private key that a sync folder uploads or git would
+// commit, as other secrets are (internal/secretpath): it may already be out,
+// so the person gets a new one rather than signing with it.
+func keyFileSafe(path string) error {
+	switch v := secretpath.Inspect(path); {
+	case v.Kind == secretpath.KindSync:
+		return apperr.New(apperr.InvalidInput, "The private key is in a folder %s uploads, so MetaRush won't take it from there.", v.Service).
+			WithHint("It may already have been uploaded: ask your certificate authority for a new certificate and key, keep the key outside synced folders, and set it up from there.").
+			WithDetails(map[string]any{"path": v.Path})
+	case v.Kind == secretpath.KindGit && !v.Ignored:
+		return apperr.New(apperr.InvalidInput, "The private key is in a git repository that would commit it, so MetaRush won't take it from there.").
+			WithHint("Move it out of the repository (if it was ever committed, ask your certificate authority for a new certificate and key), then set it up from there.").
+			WithDetails(map[string]any{"path": v.Path})
+	}
+	return nil
+}
+
 func credentialsSetupCmd() *cobra.Command {
 	var in ops.CredentialsSetupIn
 	var cert, key string
@@ -145,6 +163,9 @@ Each computer that delivers needs its own. A sample is signed and checked right 
 				}
 				var err error
 				if in.Certificate, err = readPEMFile(cert, "certificate"); err != nil {
+					return failErr(c, err)
+				}
+				if err := keyFileSafe(key); err != nil {
 					return failErr(c, err)
 				}
 				if in.PrivateKey, err = readPEMFile(key, "private key"); err != nil {
@@ -281,7 +302,7 @@ func credentialsModeCmd(mode string) *cobra.Command {
 			return runOpWith(c, a, "credentials.set", in, ops.Caller{Human: interactive() && !agentAtTheKeys(c)}, func(o any) { printCredentialsStatus(c, o.(*ops.CredentialsStatusOut)) })
 		},
 	}
-	cmd.Flags().StringVar(&url, "timestamp-url", "", "a timestamp service (RFC 3161) that vouches for when each video is signed; it receives a fingerprint, never the video")
+	cmd.Flags().StringVar(&url, "timestamp-url", "", "a timestamp service (RFC 3161, an https address on the internet) that vouches for when each video is signed; it receives a fingerprint, never the video")
 	cmd.Flags().BoolVar(&noTimestamp, "no-timestamp", false, "no timestamp service")
 	return cmd
 }

@@ -843,8 +843,9 @@ func loosening(ctx context.Context, a *app.App, projectID, what, command string,
 type settingsHolds struct {
 	on                 bool
 	promises, signoffs []string
-	// credentials: Content Credentials required on every video (D418).
-	credentials bool
+	// credentials is how much Content Credentials are asked (0 off, 1 on,
+	// 2 required; D418): asking less is loosening too.
+	credentials int
 }
 
 func holdsOfSettings(ctx context.Context, a *app.App, owner string) settingsHolds {
@@ -852,7 +853,7 @@ func holdsOfSettings(ctx context.Context, a *app.App, owner string) settingsHold
 	ws := workspaceGate(ctx, a)
 	h.on = ws != nil && ws.On
 	if wc := workspaceCredentials(ctx, a); wc != nil {
-		h.credentials = wc.Mode == models.CredentialsRequired
+		h.credentials = credentialsRank[wc.Mode]
 	}
 	if owner == "" {
 		return h
@@ -865,7 +866,7 @@ func holdsOfSettings(ctx context.Context, a *app.App, owner string) settingsHold
 		h.on = rec.Gate.Mode == models.GateOn
 	}
 	if rec.Credentials != nil {
-		h.credentials = rec.Credentials.Mode == models.CredentialsRequired
+		h.credentials = credentialsRank[rec.Credentials.Mode]
 	}
 	for _, r := range rec.HouseRules {
 		if r.Promise {
@@ -895,8 +896,11 @@ func gateSwitch(ctx context.Context, a *app.App, projectName, fromOwner, toOwner
 	if from.on && !to.on {
 		drops = append(drops, "holding versions back for the quality check and sign-offs")
 	}
-	if from.credentials && !to.credentials {
-		drops = append(drops, "Content Credentials on every video")
+	switch {
+	case from.credentials > to.credentials && from.credentials == credentialsRank[models.CredentialsRequired] && to.credentials > 0:
+		drops = append(drops, "Content Credentials required on every video")
+	case from.credentials > to.credentials:
+		drops = append(drops, "Content Credentials on its videos")
 	}
 	for _, p := range from.promises {
 		if !has(to.promises, p) {

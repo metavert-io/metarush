@@ -544,6 +544,31 @@ func TestTwoDeliveriesIntoOneFolderNeverSwapBytes(t *testing.T) {
 	}
 }
 
+// Moving a project to settings that ask less of Content Credentials is
+// loosening (D418): an owner's, as a person — like a gate turned off.
+func TestFollowingSettingsThatAskLessIsAnOwnersAsAPerson(t *testing.T) {
+	a, _ := credentialsApp(t, fakec2patool.State{})
+	strict, loose := project(t, a, "Strict client"), project(t, a, "Loose client")
+	for _, p := range []models.Project{strict, loose} {
+		do[ops.ContentShowOut](t, a, "content.own", ops.ContentOwnIn{ProjectID: p.ID})
+	}
+	do[ops.CredentialsStatusOut](t, a, "content.credentials.set", ops.ContentCredentialsSetIn{ProjectID: strict.ID, Mode: models.CredentialsOn})
+	do[ops.CredentialsStatusOut](t, a, "content.credentials.set", ops.ContentCredentialsSetIn{ProjectID: loose.ID, Mode: models.CredentialsOff})
+	err := doErr(a, "content.follow", ops.ContentFollowIn{ProjectID: strict.ID, Follow: loose.ID}, ops.Caller{})
+	if code(err) != "E_HUMAN_ONLY" || !strings.Contains(err.Error(), "Content Credentials") {
+		t.Fatalf("an agent moved it to settings without them: %v", err)
+	}
+	member := ops.OverHTTP(context.Background(), func() bool { return false })
+	b, _ := json.Marshal(ops.ContentFollowIn{ProjectID: strict.ID, Follow: loose.ID})
+	if _, err := ops.Call(member, a, "content.follow", b, ops.Caller{Human: true, Remote: true}); code(err) != "E_UNAUTHORIZED" {
+		t.Fatalf("a member: %v", err)
+	}
+	do[ops.ContentShowOut](t, a, "content.follow", ops.ContentFollowIn{ProjectID: strict.ID, Follow: loose.ID})
+	if mode, _ := ops.CredentialsFor(context.Background(), a, strict.ID); mode != models.CredentialsOff {
+		t.Fatalf("followed: %s", mode)
+	}
+}
+
 func holdOf(g *ops.ShipGateOut, kind string) bool {
 	for _, h := range g.Holds {
 		if h.Kind == kind && !h.Covered {

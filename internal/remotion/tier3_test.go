@@ -282,7 +282,7 @@ func TestMacProfileHidesAndAllows(t *testing.T) {
 	ap := &apart{Root: "/r", Cache: "/home/me/.metarush/cache/remotion/refresh/x", Read: []string{"/home/me/.local/node"}, Hide: []string{"/home/me", "/home/me/.metarush", "/src/teaser"}}
 	p := macProfile(ap)
 	order := []string{`(deny file-write* (subpath "/"))`, `(deny file-read-data file-read-xattr file-write* (subpath "/home/me")`, `(allow file-read-data file-read-xattr (subpath "/home/me/.local/node"))`,
-		`(allow file-read* file-write* (subpath "/r") (subpath "/home/me/.metarush/cache/remotion/refresh/x"))`, `com.apple.SecurityServer`}
+		`(allow file-read-data file-read-xattr file-read* file-write* (subpath "/r") (subpath "/home/me/.metarush/cache/remotion/refresh/x"))`, `com.apple.SecurityServer`}
 	at := -1
 	for _, o := range order {
 		i := strings.Index(p, o)
@@ -290,6 +290,21 @@ func TestMacProfileHidesAndAllows(t *testing.T) {
 			t.Fatalf("%q missing or out of order in\n%s", o, p)
 		}
 		at = i
+	}
+	// What's inside the temporary folders other programs work in is out of
+	// reach (D439); a refresh's room inside them is let back in after.
+	inside := insideFor()
+	tmp, _ := filepath.EvalSymlinks(os.TempDir())
+	for _, want := range []string{tmp, filepath.Clean(os.TempDir())} {
+		if !slices.Contains(inside, want) {
+			t.Errorf("the temporary folder %s isn't kept out: %v", want, inside)
+		}
+	}
+	room := filepath.Join(tmp, "metarush-refresh-x")
+	p2 := macProfile(&apart{Root: room, Inside: inside})
+	deny, allow := strings.Index(p2, "(regex "+sbRegexInside(tmp)+")"), strings.Index(p2, "(allow file-read-data file-read-xattr file-read* file-write* (subpath "+sbQuote(room)+")")
+	if deny < 0 || allow < deny || !strings.Contains(p2, "(remote unix-socket (subpath "+sbQuote(tmp)+"))") {
+		t.Errorf("the room under the temporary folder: deny at %d, allow at %d\n%s", deny, allow, p2)
 	}
 	args := bwrapArgs(&apart{Root: "/r", Cache: "/c", Work: "/r/work", Modules: "/env/node_modules", Hide: []string{os.TempDir()}}, -1)
 	joined := strings.Join(args, " ")
@@ -600,12 +615,38 @@ func TestRefreshStepsNeverReachMetaRush(t *testing.T) {
 		t.Skip("steps run here only on a Mac with sandbox-exec and Node.js")
 	}
 	root, _ := filepath.EvalSymlinks(t.TempDir())
-	ap = &apart{Root: root, Work: root, Read: readableFor(a.Tools.Path(tools.Node)), Hide: hiddenFor(a, ""), Ports: ports}
-	script := `const net = require("net");
+	ap = &apart{Root: root, Work: root, Read: readableFor(a.Tools.Path(tools.Node)), Hide: hiddenFor(a, ""), Inside: insideFor(), Ports: ports}
+	// Another program's file and socket in the temporary folder (D439): out of reach.
+	other, err := os.MkdirTemp("", "mr-other-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(other)
+	_ = os.WriteFile(filepath.Join(other, "note.txt"), []byte("another program's"), 0o600)
+	sock := filepath.Join(other, "s")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			c.Close()
+		}
+	}()
+	script := `const net = require("net"); const fs = require("fs");
 const tryPort = (p) => new Promise((ok) => { const s = net.connect(p, "127.0.0.1"); s.on("connect", () => { s.destroy(); ok(p + " REACHED"); }); s.on("error", (e) => ok(p + " refused " + e.code)); });
+const trySock = (p) => new Promise((ok) => { const s = net.connect(p); s.on("connect", () => { s.destroy(); ok("socket REACHED"); }); s.on("error", (e) => ok("socket refused " + e.code)); });
 const listen = () => new Promise((ok) => { const srv = net.createServer(); srv.on("error", (e) => ok("listen refused " + e.code)); srv.listen(0, "0.0.0.0", () => { srv.close(); ok("LISTENED"); }); });
-(async () => { for (const p of process.argv.slice(1)) console.log(await tryPort(Number(p))); console.log(await listen()); })();`
-	args2 := []string{"-e", script}
+(async () => { const [sock, note, ...ports] = process.argv.slice(1);
+  for (const p of ports) console.log(await tryPort(Number(p)));
+  console.log(await listen()); console.log(await trySock(sock));
+  try { fs.readFileSync(note); console.log("file REACHED"); } catch (e) { console.log("file refused " + e.code); } })();`
+	args2 := []string{"-e", script, sock, filepath.Join(other, "note.txt")}
 	for _, p := range []int{db[0], a.Cfg.Dashboard.Port} {
 		args2 = append(args2, strconv.Itoa(p))
 	}
@@ -618,7 +659,7 @@ const listen = () => new Promise((ok) => { const srv = net.createServer(); srv.o
 	if res != nil {
 		out = string(res.Stdout) + string(res.Stderr)
 	}
-	if strings.Contains(out, "REACHED") || strings.Contains(out, "LISTENED") || strings.Count(out, "refused") < 3 {
+	if strings.Contains(out, "REACHED") || strings.Contains(out, "LISTENED") || strings.Count(out, "refused") < 5 {
 		t.Fatalf("a step reached MetaRush's services or listened:\n%s", out)
 	}
 }

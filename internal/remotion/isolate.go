@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -64,6 +65,9 @@ type apart struct {
 	Modules string   // Linux: the package environment's node_modules, mounted read-only at Work/node_modules
 	Read    []string // folders it may read inside hidden ones (Node.js's installation)
 	Hide    []string // folders it may never read or write (MetaRush's, the person's home, the original)
+	// Inside are folders whose contents it never reads, writes or connects
+	// to, though it passes through them (the temporary folders its room is in).
+	Inside []string
 	// Ports are MetaRush's own services' ports (the dashboard and daemon,
 	// the database when it is on this computer): never reached, on any
 	// address. Loopback is closed as a whole on a Mac; on Linux the steps
@@ -172,6 +176,31 @@ func hiddenFor(a *app.App, original string) []string {
 	return dedupeStrings(out)
 }
 
+// insideFor lists the temporary folders other programs of the person's work
+// in — $TMPDIR (on a Mac the person's own) and /tmp — whose contents, files
+// and sockets a refresh never sees (D439). Its own room is in one of them
+// and is let back in; the folders themselves stay on its way (a program
+// asking where it is reads them).
+func insideFor() []string {
+	var out []string
+	add := func(p string) {
+		if p == "" {
+			return
+		}
+		if abs, err := filepath.Abs(p); err == nil {
+			p = abs
+		}
+		if real, err := filepath.EvalSymlinks(p); err == nil {
+			out = append(out, real)
+		}
+		out = append(out, filepath.Clean(p))
+	}
+	add(os.TempDir())
+	add(os.Getenv("TMPDIR"))
+	add("/tmp")
+	return dedupeStrings(out)
+}
+
 // readableFor are folders inside hidden ones a step needs to read: Node.js's
 // own installation (its binary and npm).
 func readableFor(node string) []string {
@@ -214,6 +243,11 @@ func sbQuote(p string) string {
 	return strconv.Quote(p)
 }
 
+// sbRegexInside matches everything inside a folder (not the folder itself).
+func sbRegexInside(p string) string {
+	return `#"^` + regexp.QuoteMeta(strings.TrimSuffix(p, "/")) + `/"`
+}
+
 // macProfile is the sandbox-exec profile of one run. Later rules win: writes
 // are denied everywhere, then allowed in the run's own folders; reading the
 // contents of the hidden folders is denied (their names may still be looked
@@ -231,6 +265,13 @@ func macProfile(ap *apart) string {
 		}
 		b.WriteString(")\n")
 	}
+	if len(ap.Inside) > 0 {
+		b.WriteString("(deny file-read-data file-read-xattr file-write*")
+		for _, h := range ap.Inside {
+			b.WriteString(" (regex " + sbRegexInside(h) + ")")
+		}
+		b.WriteString(")\n")
+	}
 	if len(ap.Read) > 0 {
 		b.WriteString("(allow file-read-data file-read-xattr")
 		for _, r := range ap.Read {
@@ -238,7 +279,10 @@ func macProfile(ap *apart) string {
 		}
 		b.WriteString(")\n")
 	}
-	b.WriteString("(allow file-read* file-write*")
+	// The same operations the denials name (Seatbelt lets a rule naming
+	// file-read-data outrank one that says file-read*, whatever the order):
+	// so the room and its cache are readable inside a hidden folder too.
+	b.WriteString("(allow file-read-data file-read-xattr file-read* file-write*")
 	for _, w := range []string{ap.Root, ap.Cache} {
 		if w != "" {
 			b.WriteString(" (subpath " + sbQuote(w) + ")")
@@ -260,7 +304,7 @@ func macProfile(ap *apart) string {
 		b.WriteString(")\n")
 	}
 	b.WriteString("(deny network-outbound (remote unix-socket (subpath \"/private/tmp\"))")
-	for _, h := range ap.Hide {
+	for _, h := range append(append([]string{}, ap.Hide...), ap.Inside...) {
 		b.WriteString(" (remote unix-socket (subpath " + sbQuote(h) + "))")
 	}
 	b.WriteString(")\n(deny network-inbound)\n")
@@ -272,7 +316,10 @@ func macProfile(ap *apart) string {
 // writable, its packages read-only, a fresh /dev, /proc and /tmp.
 func bwrapArgs(ap *apart, uid int) []string {
 	args := []string{"--die-with-parent", "--new-session", "--unshare-ipc", "--unshare-uts", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp"}
-	for _, h := range ap.Hide {
+	for _, h := range append(append([]string{}, ap.Hide...), ap.Inside...) {
+		if h == "/tmp" {
+			continue // already a fresh one
+		}
 		if st, err := os.Stat(h); err == nil && st.IsDir() {
 			args = append(args, "--tmpfs", h)
 		}

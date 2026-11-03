@@ -75,6 +75,10 @@ type AssetSummary struct {
 	FixState   string   `json:"fixState,omitempty"`
 	Fixed      bool     `json:"fixed,omitempty"`
 	FixesFit   int      `json:"fixesFit,omitempty"`
+	// Reference: someone else's video, kept to learn from (D398); no cut plays
+	// it. StartFrom is a draft asked for from it (D401) and how that went.
+	Reference *models.AssetReference `json:"reference,omitempty"`
+	StartFrom *models.StartFromVideo `json:"startFrom,omitempty"`
 }
 
 // Summarize is the compact row for an asset (title backfilled for older assets).
@@ -83,7 +87,8 @@ func Summarize(as models.Asset) AssetSummary { return summarize(as) }
 func summarize(as models.Asset) AssetSummary {
 	s := AssetSummary{ID: as.ID, Title: as.DisplayTitle(), Name: as.Name, Kind: as.Kind, State: as.State, Duration: as.Media.Duration, Width: as.Media.Width, Height: as.Media.Height,
 		FPS: as.Media.FPS, HasAudio: as.Media.HasAudio, VFR: as.Media.VFR, HDR: as.Media.HDR, Size: as.Size, SHA256: as.SHA256,
-		Transcript: as.Transcript, Analysis: as.Analysis, ProjectIDs: as.ProjectIDs, Tags: as.Tags, CreatedAt: as.CreatedAt, CreatedBy: as.CreatedBy, Variants: []string{}, Source: as.Source}
+		Transcript: as.Transcript, Analysis: as.Analysis, ProjectIDs: as.ProjectIDs, Tags: as.Tags, CreatedAt: as.CreatedAt, CreatedBy: as.CreatedBy, Variants: []string{}, Source: as.Source,
+		Reference: as.Reference, StartFrom: as.StartFrom}
 	for _, al := range as.Aliases {
 		s.Aliases = append(s.Aliases, al.Name)
 	}

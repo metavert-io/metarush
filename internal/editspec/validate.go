@@ -213,6 +213,9 @@ func Validate(s *Spec, facts Facts, base *Spec, allowUnlock bool) []Issue {
 		if !a.InProject {
 			out = append(out, errI("asset_not_in_project", p+"/assetId", "%s isn't part of this project yet; add it to the project first.", a.Name))
 		}
+		if a.Reference {
+			out = append(out, referenceIssue(p+"/assetId", upperFirst(who), a))
+		}
 		if r := a.Remotion; r != nil && r.State != MotionApproved {
 			// A composition MetaRush rendered from a Remotion source (D136):
 			// only versions a person approved go into cuts.
@@ -255,6 +258,9 @@ func Validate(s *Spec, facts Facts, base *Spec, allowUnlock bool) []Issue {
 		}
 		if !a.HasAudio {
 			out = append(out, errI("no_audio_stream", p+"/assetId", "%s has no sound, so it can't play as %s.", a.Name, who))
+		}
+		if a.Reference {
+			out = append(out, referenceIssue(p+"/assetId", upperFirst(who), a))
 		}
 		if !a.InProject {
 			out = append(out, errI("asset_not_in_project", p+"/assetId", "%s isn't part of this project yet; add it to the project first.", a.Name))
@@ -502,4 +508,13 @@ func lockViolations(base, next *Spec) []Issue {
 	}
 	out = append(out, voiceoverLockViolations(base, next)...)
 	return out
+}
+
+// referenceIssue refuses a reference clip in a cut (D398): someone else's
+// video, kept to learn from, never plays in one. The words say how a person
+// who made it marks it as theirs; the command is behind Details.
+func referenceIssue(path, who string, a AssetFacts) Issue {
+	is := errI("reference_footage", path, "%s plays “%s”, which is a reference: someone else's video, kept to learn from, so no cut plays it. If it's your own video, say so on its page (This is mine) and check the change again; otherwise choose footage of your own.", who, a.Name)
+	is.Command = "metarush footage reference " + a.ID + " --mine"
+	return is
 }

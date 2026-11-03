@@ -573,7 +573,33 @@ type Asset struct {
 	// clip ("Not Lena anywhere in this clip", D189): never suggested for its
 	// faces, and their voice is no evidence for them.
 	NotOnScreen []string `bson:"notOnScreen,omitempty" json:"notOnScreen,omitempty"`
+	// Reference marks a clip as a reference (D398): someone else's video, kept
+	// to learn from. No cut plays it until a person says it is theirs.
+	Reference *AssetReference `bson:"reference,omitempty" json:"reference,omitempty"`
+	// StartFrom is a draft asked for from this video ("Start from a video you
+	// like", D401): made once MetaRush has looked at it, as the person who asked.
+	StartFrom *StartFromVideo `bson:"startFrom,omitempty" json:"startFrom,omitempty"`
 }
+
+// Why a clip is a reference (AssetReference.Why, D398).
+const (
+	ReferenceStartFrom = "start-from" // brought in to start from ("Start from a video you like")
+	ReferenceMarked    = "marked"     // a person (or Claude, through a card) said so
+)
+
+// AssetReference marks a clip as a reference (D398): a video someone else
+// made, kept to learn from (what it does, how it is paced), never played in a
+// cut. The edit check refuses it in clips and sound; a person who made it
+// says so on its page (footage.reference.mine, people only), which takes the
+// mark off.
+type AssetReference struct {
+	By  Actor     `bson:"by" json:"by"`
+	At  time.Time `bson:"at" json:"at"`
+	Why string    `bson:"why,omitempty" json:"why,omitempty" jsonschema:"enum=,enum=start-from,enum=marked"`
+}
+
+// IsReference reports a clip marked as someone else's video, kept to learn from (D398).
+func (a *Asset) IsReference() bool { return a != nil && a.Reference != nil }
 
 // AssetAlias is another filename an asset's bytes arrived under.
 type AssetAlias struct {

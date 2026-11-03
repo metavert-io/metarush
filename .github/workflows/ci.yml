@@ -78,8 +78,16 @@ jobs:
         run: |
           scripts/ci-mongo.sh start
           scripts/ci-mongo.sh watch
+      # The open models that look at what's on screen, face fingerprints and their stand-in models run
+      # through onnxruntime (D413): the transcriber's pinned Linux build, checked by its SHA-256.
+      - id: ort
+        name: onnxruntime
+        run: |
+          lib="$(scripts/ci-onnxruntime.sh "$RUNNER_TEMP/onnxruntime")"
+          echo "lib=$lib" >> "$GITHUB_OUTPUT"
       - name: test (with coverage)
         env:
+          METARUSH_ORT_LIB: ${{ steps.ort.outputs.lib }}
           # A new connection's first packet now and then goes unanswered on the runners while MongoDB answers
           # everything else (scripts/ci-mongo.sh watch): give such an attempt up after 2 s so the driver tries
           # again at once, instead of a test waiting out its whole deadline.

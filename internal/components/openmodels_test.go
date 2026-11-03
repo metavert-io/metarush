@@ -129,3 +129,29 @@ func TestTheOpenModelsArePinnedDownloads(t *testing.T) {
 		t.Fatalf("adding it again: %v", err)
 	}
 }
+
+// CI's onnxruntime (scripts/ci-onnxruntime.sh, D413) is the transcriber's
+// build this component list downloads on Linux, so the Go tests on Linux run
+// the stand-in models through the library people get.
+func TestCIOnnxruntimeIsThePinnedOne(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "scripts", "ci-onnxruntime.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(b)
+	var found bool
+	for _, p := range pins {
+		if p.ID != "sherpa-onnx" || !p.For("linux", "amd64") {
+			continue
+		}
+		found = true
+		for _, want := range []string{`URL="` + p.URL + `"`, `SHA256="` + p.SHA256 + `"`, `TAKE="` + p.Take + `"`} {
+			if !strings.Contains(script, want) {
+				t.Errorf("scripts/ci-onnxruntime.sh doesn't say %s", want)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no Linux build of the transcriber is pinned")
+	}
+}

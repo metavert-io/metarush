@@ -57,6 +57,8 @@ type Saved struct {
 	SetAt       time.Time
 	SetBy       string
 	Kept        string
+	// Problems say what keeps the certificate from signing now (Public only).
+	Problems []string
 }
 
 func statePath(cfg *config.Config) string {
@@ -153,7 +155,7 @@ func Public(cfg *config.Config) (*Saved, error) {
 			WithCommand("metarush credentials setup")
 	}
 	c := &Credential{Chain: chain, Alg: st.Alg}
-	return &Saved{Certificate: c.Facts(), SetAt: st.SetAt, SetBy: st.SetBy, Kept: keptHere(cfg)}, nil
+	return &Saved{Certificate: c.Facts(), SetAt: st.SetAt, SetBy: st.SetBy, Kept: keptHere(cfg), Problems: c.Problems(time.Now())}, nil
 }
 
 func keptHere(cfg *config.Config) string {

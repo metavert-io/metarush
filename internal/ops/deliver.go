@@ -59,6 +59,9 @@ type DeliverFile struct {
 	QAVerdict string   `json:"qaVerdict,omitempty"`
 	// SentAnyway are the notes that sent it out past what held it (D299), each with its person.
 	SentAnyway []models.ShipOverride `json:"sentAnyway,omitempty"`
+	// ContentCredentials says whether it carries Content Credentials (D420);
+	// when it does, Size and SHA256 are the delivered file's, credentials and all.
+	ContentCredentials *DeliveryCredentials `json:"contentCredentials,omitempty"`
 }
 
 // DeliverOut lists what was written.
@@ -144,14 +147,17 @@ type DeliverySidecar struct {
 	Receipt *DeliveryReceipt `json:"receipt,omitempty"`
 	// Gate is the ship gate when it went out (D298, D299): on or off, what
 	// held it, and the person's note that sent it out anyway.
-	Gate       *DeliveryGate    `json:"gate,omitempty"`
-	NotesFile  string           `json:"notesFile,omitempty" jsonschema:"description=The Markdown file next to the video with its title\\, description\\, chapters and show notes."`
-	QA         *models.RenderQA `json:"qa,omitempty"`
-	Warnings   []string         `json:"warnings,omitempty"`
-	ExportedAt time.Time        `json:"exportedAt"`
-	ExportedBy models.Actor     `json:"exportedBy"`
-	Machine    string           `json:"machine"`
-	Generator  string           `json:"generator"`
+	Gate *DeliveryGate `json:"gate,omitempty"`
+	// ContentCredentials are the Content Credentials the file carries (D420):
+	// signed, by whom, checked, the manifest's hash — or why it carries none.
+	ContentCredentials *DeliveryCredentials `json:"contentCredentials,omitempty"`
+	NotesFile          string               `json:"notesFile,omitempty" jsonschema:"description=The Markdown file next to the video with its title\\, description\\, chapters and show notes."`
+	QA                 *models.RenderQA     `json:"qa,omitempty"`
+	Warnings           []string             `json:"warnings,omitempty"`
+	ExportedAt         time.Time            `json:"exportedAt"`
+	ExportedBy         models.Actor         `json:"exportedBy"`
+	Machine            string               `json:"machine"`
+	Generator          string               `json:"generator"`
 }
 
 // DeliveryCaptions are a delivered video's captions files (D148).
@@ -237,6 +243,9 @@ type DeliveryGeneratedClip struct {
 	Model        string `json:"model"`
 	Look         string `json:"look,omitempty"`
 	Likeness     bool   `json:"likeness,omitempty"`
+	// Edited: an AI model changed a picture, making nothing new (its
+	// background taken away, made larger), rather than making it.
+	Edited bool `json:"edited,omitempty"`
 	// Presenter names who reads the lines in a presenter clip (D277), the
 	// consent a person's presenter relies on, and its watermark ("none" when
 	// the service documents none).
@@ -611,7 +620,7 @@ func init() {
 					exts = append(exts, "."+l+".srt", "."+l+".vtt")
 				}
 			}
-			if !it.rev.DeliveryNotes.Empty() || gates[it.rev.ID].record().SentAnyway != nil {
+			if !it.rev.DeliveryNotes.Empty() || gates[it.rev.ID].record().SentAnyway != nil || credentialsApply(ctx, a, it, quality) {
 				exts = append(exts, ".notes.md")
 			}
 			for _, ext := range exts {
@@ -628,24 +637,61 @@ func init() {
 		if len(exists) > 0 {
 			return nil, alreadyThere(exists, dir)
 		}
+		made := false
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			made = true
+		}
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, apperr.Wrap(apperr.InvalidInput, err, "MetaRush couldn't make the folder %s.", filepath.Base(dir)).WithDetails(map[string]any{"folder": dir})
 		}
+		// Each video's record, then its Content Credentials (D418–D420):
+		// every final video is signed before anything is written, and where
+		// they are required and signing fails, nothing is.
+		scs := map[*deliveryItem]*DeliverySidecar{}
+		for _, it := range items {
+			sc := buildSidecar(a, it, it.base+".mp4")
+			scs[it] = &sc
+		}
+		creds, err := signDeliveries(ctx, a, items, scs, dir, quality, gates)
+		if err != nil {
+			if made {
+				_ = os.Remove(dir) // only when still empty
+			}
+			return nil, err
+		}
+		defer func() { // a signed copy left by a stop part-way (placed ones are gone already)
+			for _, ic := range creds {
+				if ic.tmp != "" {
+					_ = os.Remove(ic.tmp)
+				}
+			}
+		}()
 		// 2. Copy, verify, write sidecars.
 		out := &DeliverOut{Dir: dir, Files: []DeliverFile{}, Warnings: []string{}}
 		notes, creditsOnly := false, false
 		for _, it := range items {
 			o := it.render.Output
-			src, err := a.Cache.Ensure(ctx, a.Media, o.StorageKey, o.SHA256, o.Size, nil)
-			if err != nil {
-				return out, apperr.Wrap(apperr.Storage, err, "The %s couldn't be copied to this machine, so it wasn't exported.", strings.ToLower(models.RenderLabel(it.render.Quality, it.rev.Number))).
-					WithHint("Check the internet connection and try again.").WithDetails(map[string]any{"renderId": it.render.ID})
-			}
 			dst := filepath.Join(dir, it.base+".mp4")
-			if err := copyVerified(src, dst, o.SHA256, "the render"); err != nil {
-				return out, err
+			ic := creds[it]
+			if ic != nil && ic.tmp != "" {
+				// The signed copy, checked when it was read back: placed as the render's copy would be.
+				if err := placeNoClobber(ic.tmp, dst); err != nil {
+					return out, err
+				}
+			} else {
+				src, err := a.Cache.Ensure(ctx, a.Media, o.StorageKey, o.SHA256, o.Size, nil)
+				if err != nil {
+					return out, apperr.Wrap(apperr.Storage, err, "The %s couldn't be copied to this machine, so it wasn't exported.", strings.ToLower(models.RenderLabel(it.render.Quality, it.rev.Number))).
+						WithHint("Check the internet connection and try again.").WithDetails(map[string]any{"renderId": it.render.ID})
+				}
+				if err := copyVerified(src, dst, o.SHA256, "the render"); err != nil {
+					return out, err
+				}
 			}
-			sc := buildSidecar(a, it, filepath.Base(dst))
+			sc := *scs[it]
+			if ic != nil {
+				sc.ContentCredentials = ic.rec
+			}
 			// Captions files where the place takes them, with the words the video
 			// was made with (D148).
 			var capFiles []string
@@ -695,11 +741,16 @@ func init() {
 			// The ship gate (D298, D299): what held it, and who sent it out anyway.
 			sc.Gate = gates[it.rev.ID].record()
 			anyway := sentAnywayMarkdown(sc.Gate)
+			signedMD := ""
+			if ic != nil && quality == "final" {
+				signedMD = credentialsMarkdown(ic.rec)
+			}
 			// The version's delivery notes (D237): in the record and as a file to
 			// paste from, with the credits its outside files ask for (D283) — a
 			// file of its own when only an ability's licences ask for credit, or
-			// when a person sent it out anyway (D299).
-			if n, credits := it.rev.DeliveryNotes, creditLines(sc.Credits); !n.Empty() || abilityCredits(sc.Credits) || anyway != "" {
+			// when a person sent it out anyway (D299), or to say what Content
+			// Credentials it carries (D420).
+			if n, credits := it.rev.DeliveryNotes, creditLines(sc.Credits); !n.Empty() || abilityCredits(sc.Credits) || anyway != "" || signedMD != "" {
 				nf := filepath.Join(dir, it.base+".notes.md")
 				md := fmt.Sprintf("# %s\n\nNotes on version %d of %s.\n", cutTitle(&it.rev, &it.proj), it.rev.Number, cutTitle(&it.rev, &it.proj))
 				if abilityCredits(sc.Credits) || (len(credits) > 0 && n.Empty()) {
@@ -714,6 +765,9 @@ func init() {
 				}
 				if anyway != "" {
 					md += "\n" + anyway
+				}
+				if signedMD != "" {
+					md += "\n" + signedMD
 				}
 				if err := writeExclusive(nf, []byte(md)); err != nil {
 					return out, err
@@ -742,6 +796,20 @@ func init() {
 			}
 			if sc.Gate != nil {
 				f.SentAnyway = sc.Gate.SentAnyway
+			}
+			if ic != nil {
+				f.ContentCredentials = ic.rec
+				if ic.rec.Signed {
+					f.Size, f.SHA256 = ic.rec.Size, ic.rec.SHA256
+					if err := recordSigned(ctx, a, it.rev.ID, models.SignedDelivery{At: time.Now().UTC(), By: a.Actor, File: filepath.Base(dst), Folder: filepath.Base(dir),
+						Preset: it.render.Preset, Signer: ic.rec.Signer, Test: ic.rec.TestCertificate, Verified: ic.rec.Verified, ManifestHash: ic.rec.ManifestHash,
+						SHA256: ic.rec.SHA256, Fingerprint: ic.rec.Fingerprint, Timestamped: ic.rec.Timestamped}); err != nil {
+						a.Audit(ctx, "delivery.credentials.unrecorded", "revision", it.rev.ID, it.proj.ID, map[string]any{"error": err.Error()})
+						out.Warnings = append(out.Warnings, fmt.Sprintf("MetaRush couldn't note on version %d that %s carries Content Credentials, so the receipt doesn't list it; its .json and .notes.md files say so.", it.rev.Number, filepath.Base(dst)))
+					}
+				} else if ic.rec.Problem != "" {
+					out.Warnings = append(out.Warnings, filepath.Base(dst)+": "+lowerFirst(ic.rec.Says))
+				}
 			}
 			out.Files = append(out.Files, f)
 		}
@@ -814,6 +882,7 @@ func init() {
 				break
 			}
 		}
+		out.Note += credentialsNote(out.Files)
 		for _, f := range out.Files {
 			if len(f.Captions) > 0 {
 				out.Note += " The .srt and .vtt files are its captions, for places that take a captions file (YouTube, Facebook, LinkedIn, Vimeo); later text fixes reach them without a new render."

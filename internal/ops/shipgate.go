@@ -156,7 +156,7 @@ type ShipGateOut struct {
 
 // gateKinds are the holds the gate is about (a person may send it out past them).
 var gateKinds = map[string]bool{models.HoldQAMissing: true, models.HoldQARunning: true, models.HoldQAFailed: true, models.HoldQAStale: true,
-	models.HoldQAErrors: true, models.HoldSignoff: true}
+	models.HoldQAErrors: true, models.HoldSignoff: true, models.HoldCredentials: true}
 
 // GateFor says whether the gate holds a project's versions: the Content
 // Settings it uses when they say, else the workspace's choice (off while
@@ -448,6 +448,13 @@ func ShipGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Re
 		out.Holds = append(out.Holds, GateHold{ShipHold: models.ShipHold{Key: "signoff:" + s.ID + "@" + orBranch(rev.Branch), Kind: models.HoldSignoff, Says: says},
 			Paths: []GatePath{{Label: "Tick it", Op: "cut.signoffs.done", Input: map[string]any{"projectId": p.ID, "branch": orBranch(rev.Branch), "signoff": s.ID}, Command: cmd, People: true}}})
 	}
+	// Content Credentials its videos must carry, which this computer can't
+	// sign (D418): final deliveries only.
+	if quality == "final" {
+		if h := credentialsHold(ctx, a, p); h != nil {
+			out.Holds = append(out.Holds, *h)
+		}
+	}
 	// Changed words whose consent is no longer in force (D309): never sent out anyway.
 	heard, err := saidHeardInRevision(ctx, a, rev)
 	if err != nil {
@@ -737,13 +744,36 @@ func sentAnywayMarkdown(d *DeliveryGate) string {
 	return b.String()
 }
 
+// withoutKind is the gate without one kind of hold (worked out again): a
+// post sends the render as it is, so Content Credentials don't hold it.
+func withoutKind(g *ShipGateOut, rev *models.Revision, kind string) *ShipGateOut {
+	var holds []GateHold
+	for _, h := range g.Holds {
+		if h.Kind != kind {
+			holds = append(holds, h)
+		}
+	}
+	if len(holds) == len(g.Holds) {
+		return g
+	}
+	g.Holds, g.Lines, g.SentAnyway, g.Override, g.Unmeasured = holds, []string{}, []models.ShipOverride{}, nil, 0
+	if g.Holds == nil {
+		g.Holds = []GateHold{}
+	}
+	decide(g, rev)
+	return g
+}
+
 // TimelineGate is the gate for a timeline exported into a delivery folder:
 // the quality check of the version's final renders, else its review copies;
 // a version never rendered hasn't been checked.
 func TimelineGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Revision) (*ShipGateOut, error) {
 	g, err := ShipGate(ctx, a, p, rev, "final", nil)
-	if err != nil || len(g.Renders) > 0 {
+	if err != nil {
 		return g, err
+	}
+	if len(g.Renders) > 0 {
+		return withoutKind(g, rev, models.HoldCredentials), nil // a timeline carries no Content Credentials
 	}
 	if r, err := ShipGate(ctx, a, p, rev, "review", nil); err != nil || len(r.Renders) > 0 {
 		return r, err
@@ -757,7 +787,7 @@ func TimelineGate(ctx context.Context, a *app.App, p *models.Project, rev *model
 	}
 	holds := []GateHold{h}
 	for _, x := range g.Holds {
-		if x.Kind != models.HoldRender {
+		if x.Kind != models.HoldRender && x.Kind != models.HoldCredentials { // a timeline carries no Content Credentials
 			holds = append(holds, x)
 		}
 	}
@@ -785,12 +815,17 @@ func loosening(ctx context.Context, a *app.App, projectID, what, command string,
 type settingsHolds struct {
 	on                 bool
 	promises, signoffs []string
+	// credentials: Content Credentials required on every video (D418).
+	credentials bool
 }
 
 func holdsOfSettings(ctx context.Context, a *app.App, owner string) settingsHolds {
 	var h settingsHolds
 	ws := workspaceGate(ctx, a)
 	h.on = ws != nil && ws.On
+	if wc := workspaceCredentials(ctx, a); wc != nil {
+		h.credentials = wc.Mode == models.CredentialsRequired
+	}
 	if owner == "" {
 		return h
 	}
@@ -800,6 +835,9 @@ func holdsOfSettings(ctx context.Context, a *app.App, owner string) settingsHold
 	}
 	if rec.Gate != nil {
 		h.on = rec.Gate.Mode == models.GateOn
+	}
+	if rec.Credentials != nil {
+		h.credentials = rec.Credentials.Mode == models.CredentialsRequired
 	}
 	for _, r := range rec.HouseRules {
 		if r.Promise {
@@ -828,6 +866,9 @@ func gateSwitch(ctx context.Context, a *app.App, projectName, fromOwner, toOwner
 	var drops []string
 	if from.on && !to.on {
 		drops = append(drops, "holding versions back for the quality check and sign-offs")
+	}
+	if from.credentials && !to.credentials {
+		drops = append(drops, "Content Credentials on every video")
 	}
 	for _, p := range from.promises {
 		if !has(to.promises, p) {

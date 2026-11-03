@@ -185,7 +185,7 @@ operations are LocalOnly; the dashboard's two endpoints choose every path themse
 
 ## The starter pack
 
-Seven abilities in `abilities/` at the repository's root (its README has the table), each with `notes.md` on its
+Six abilities in `abilities/` at the repository's root (its README has the table), each with `notes.md` on its
 licences, cost, keys, what leaves this computer and what a person installs; `go test ./internal/abilities/ -run
 Starter` checks each as shipped and runs it against a fake of its service on this computer.
 
@@ -201,8 +201,8 @@ Starter` checks each as shipped and runs it against a fake of its service on thi
   kept with the clip.
 - `comfyui-local` — pictures from the ComfyUI server on this computer (GPL, run beside MetaRush, never bundled):
   nothing leaves; an owner agrees to port 8188 at approval, a person starts each run.
-- `content-credentials` — Content Credentials on a delivered video with c2patool: **not yet runnable** (a delivered
-  video as input, a copy beside it, signing without the key in the sandbox); a pinned installer for c2patool.
+- Content Credentials on delivered videos were planned here as an ability; they are built into delivery instead
+  ([content-credentials.md](content-credentials.md)), so no ability ever holds a signing key.
 - `davinci-resolve` — DaVinci Resolve Studio through its community MCP server: **not yet runnable** (an MCP server
   MetaRush hosts, its tools as people's steps, reaching a running app).
 

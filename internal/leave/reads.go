@@ -41,7 +41,7 @@ var readsShow = map[string]string{
 	"conversation.detect": "-", "conversation.list": "-", "conversation.moments": "W", "conversation.show": "W", "conversation.styles": "-",
 	"cut.check": "W", "cut.compare": "W", "cut.diff": "W", "cut.show": "W", "cut.signoffs.list": "-", "cut.where": "-",
 	"cut.say.estimate": "W", "cut.say.list": "W", "cut.say.show": "W",
-	"delivery.notes": "W", "delivery.ready": "W", "delivery.gate": "-", "draft.list": "W", "edit.check": "W", "edit.preview": "W", "edit.templates": "-", "edit.transitions": "-",
+	"delivery.notes": "W", "delivery.ready": "W", "delivery.gate": "-", "credentials.status": "-", "credentials.test": "-", "credentials.check": "W", "draft.list": "W", "edit.check": "W", "edit.preview": "W", "edit.templates": "-", "edit.transitions": "-",
 	"extension.status":          "-",
 	"footage.describe.settings": "-", "footage.evidence": "W", "footage.faces": "PA", "footage.frames": "PA", "footage.keyframes": "WPA",
 	"footage.language": "-", "footage.captions": "W", "footage.moments": "W", "footage.sheet": "WPA", "footage.speakers": "VW", "footage.speakers.samples": "V",

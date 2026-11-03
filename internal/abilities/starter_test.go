@@ -1,21 +1,16 @@
 package abilities
 
 import (
-	"archive/tar"
-	"archive/zip"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -1079,12 +1074,14 @@ func TestStarterEnglishCaptions(t *testing.T) {
 	}
 }
 
-// ---- not yet runnable: Content Credentials (D286) and DaVinci Resolve (D287) ----
+// ---- not yet runnable: DaVinci Resolve (D287) ----
 
-// TestStarterNotYetRunnable keeps the two abilities MetaRush can't run yet
-// honest: their check is refused for exactly the things notes.md says are
-// missing, and the rest of each manifest is sound. When MetaRush grows one of
-// them, this fails and says to move the ability on.
+// TestStarterNotYetRunnable keeps the ability MetaRush can't run yet honest:
+// its check is refused for exactly the things notes.md says are missing, and
+// the rest of its manifest is sound. When MetaRush grows them, this fails and
+// says to move the ability on. (Content Credentials, D286, were written here
+// as an ability that couldn't run; they are built into delivery instead,
+// D415, so the ability left the pack and no ability ever holds a signing key.)
 func TestStarterNotYetRunnable(t *testing.T) {
 	a := starterApp(t)
 	cases := []struct {
@@ -1092,7 +1089,6 @@ func TestStarterNotYetRunnable(t *testing.T) {
 		missing []string // manifest lines MetaRush can't read yet
 		rest    []string // what Validate still says without them
 	}{
-		{"content-credentials", []string{"signs:"}, []string{"inputs.video: kind is one of", "\"delivered-copy\" isn't something MetaRush takes in"}},
 		{"davinci-resolve", []string{"serves:", "tools:", "app:"}, nil},
 	}
 	for _, c := range cases {
@@ -1139,7 +1135,7 @@ func TestStarterNotYetRunnable(t *testing.T) {
 	}
 }
 
-// TestStarterPackIsWhole: the folder has the seven starter abilities and the
+// TestStarterPackIsWhole: the folder has the six starter abilities and the
 // three people-only posting abilities (D307, not yet runnable), each with its
 // notes, each in the README's table, and each runnable one tested above.
 func TestStarterPackIsWhole(t *testing.T) {
@@ -1149,7 +1145,7 @@ func TestStarterPackIsWhole(t *testing.T) {
 		t.Fatal(err)
 	}
 	readme, _ := os.ReadFile(filepath.Join(root, "README.md"))
-	want := []string{"comfyui-local", "content-credentials", "davinci-resolve", "english-captions", "freesound-effects", "linkedin-video", "open-media", "pexels-stock",
+	want := []string{"comfyui-local", "davinci-resolve", "english-captions", "freesound-effects", "linkedin-video", "open-media", "pexels-stock",
 		"podcast-episode", "vimeo-upload"}
 	var got []string
 	for _, e := range entries {
@@ -1172,110 +1168,6 @@ func TestStarterPackIsWhole(t *testing.T) {
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("the starter pack: %v, want %v", got, want)
 	}
-}
-
-// TestStarterC2patoolInstall: the install script takes only the pinned
-// download, from a fake release on this computer (never GitHub).
-func TestStarterC2patoolInstall(t *testing.T) {
-	for _, p := range []string{"curl", "unzip", "tar"} {
-		if _, err := exec.LookPath(p); err != nil {
-			t.Skip("no " + p + " on this computer")
-		}
-	}
-	name, archive := fakeC2patoolArchive(t)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/"+name {
-			http.NotFound(w, r)
-			return
-		}
-		_, _ = w.Write(archive)
-	}))
-	t.Cleanup(srv.Close)
-	script := filepath.Join(starterFolder(t, "content-credentials"), "install-c2patool.sh")
-	home := t.TempDir()
-	install := func(env ...string) (string, string, error) {
-		prefix := filepath.Join(t.TempDir(), "c2patool")
-		cmd := exec.Command("sh", script, "--prefix", prefix)
-		cmd.Env = append([]string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin", "HOME=" + home, "TMPDIR=" + t.TempDir()}, env...)
-		b, err := cmd.CombinedOutput()
-		return prefix, string(b), err
-	}
-	// The real pin refuses the fake.
-	prefix, said, err := install("C2PATOOL_BASE_URL=" + srv.URL)
-	if err == nil || !strings.Contains(said, "isn't the c2patool 0.28.3 this script pins") {
-		t.Fatalf("a download that isn't the pinned one: %v %s", err, said)
-	}
-	if _, err := os.Stat(prefix); err == nil {
-		t.Fatal("nothing is installed when the download isn't the pinned one")
-	}
-	// A test pin only with a download from this computer.
-	sum := sha256.Sum256(archive)
-	if _, said, err := install("C2PATOOL_BASE_URL=https://example.invalid/dl", "C2PATOOL_TEST_PIN="+hex.EncodeToString(sum[:])); err == nil || !strings.Contains(said, "only for a test download") {
-		t.Fatalf("a test pin elsewhere: %v %s", err, said)
-	}
-	prefix, said, err = install("C2PATOOL_BASE_URL="+srv.URL, "C2PATOOL_TEST_PIN="+hex.EncodeToString(sum[:]))
-	if err != nil || !strings.Contains(said, "c2patool 0.28.3 (fake)") || !strings.Contains(said, "metarush ability setup content-credentials --program c2patool="+prefix+"/c2patool") {
-		t.Fatalf("the pinned install: %v %s", err, said)
-	}
-	if st, err := os.Stat(filepath.Join(prefix, "c2patool")); err != nil || st.Mode()&0o111 == 0 {
-		t.Fatalf("the program: %v", err)
-	}
-	// An address that only starts like this computer's names another host:
-	// the real pins and HTTPS stay.
-	if _, said, err := install("C2PATOOL_BASE_URL=http://127.0.0.1:1@evil.example/dl", "C2PATOOL_TEST_PIN="+hex.EncodeToString(sum[:])); err == nil || !strings.Contains(said, "only for a test download") {
-		t.Fatalf("an address with a user part: %v %s", err, said)
-	}
-	// A link planted where the program goes is replaced, never written through.
-	victim := filepath.Join(t.TempDir(), "victim")
-	_ = os.WriteFile(victim, []byte("keep me"), 0o644)
-	planted := filepath.Join(t.TempDir(), "planted")
-	_ = os.MkdirAll(planted, 0o755)
-	if err := os.Symlink(victim, filepath.Join(planted, "c2patool")); err != nil {
-		t.Fatal(err)
-	}
-	cmd2 := exec.Command("sh", script, "--prefix", planted)
-	cmd2.Env = []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin", "HOME=" + home, "TMPDIR=" + t.TempDir(), "C2PATOOL_BASE_URL=" + srv.URL, "C2PATOOL_TEST_PIN=" + hex.EncodeToString(sum[:])}
-	if b, err := cmd2.CombinedOutput(); err != nil {
-		t.Fatalf("installing over a planted link: %v %s", err, b)
-	}
-	if got, _ := os.ReadFile(victim); string(got) != "keep me" {
-		t.Fatalf("the link's target was written: %q", got)
-	}
-	if st, err := os.Lstat(filepath.Join(planted, "c2patool")); err != nil || st.Mode()&os.ModeSymlink != 0 {
-		t.Fatalf("the program replaced the link: %v", err)
-	}
-	// Never inside the home folder.
-	cmd := exec.Command("sh", script, "--prefix", filepath.Join(home, "bin"))
-	cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + home}
-	if b, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(b), "inside your home folder") {
-		t.Fatalf("a home folder: %v %s", err, b)
-	}
-}
-
-// fakeC2patoolArchive is a release archive for this computer holding a
-// stand-in c2patool, named as the script expects.
-func fakeC2patoolArchive(t *testing.T) (string, []byte) {
-	prog := "#!/bin/sh\necho 'c2patool 0.28.3 (fake)'\n"
-	var b bytes.Buffer
-	if runtime.GOOS == "darwin" {
-		z := zip.NewWriter(&b)
-		h := &zip.FileHeader{Name: "c2patool/c2patool", Method: zip.Deflate}
-		h.SetMode(0o755)
-		w, _ := z.CreateHeader(h)
-		_, _ = w.Write([]byte(prog))
-		_ = z.Close()
-		return "v0.28.3-universal-apple-darwin.zip", b.Bytes()
-	}
-	if runtime.GOARCH != "amd64" {
-		t.Skip("c2patool 0.28.3 has no download for this computer")
-	}
-	gz := gzip.NewWriter(&b)
-	tw := tar.NewWriter(gz)
-	_ = tw.WriteHeader(&tar.Header{Name: "c2patool/c2patool", Mode: 0o755, Size: int64(len(prog)), Typeflag: tar.TypeReg})
-	_, _ = tw.Write([]byte(prog))
-	_ = tw.Close()
-	_ = gz.Close()
-	return "v0.28.3-x86_64-unknown-linux-gnu.tar.gz", b.Bytes()
 }
 
 // fakeComfyScript is a fake ComfyUI in a process of its own (a real

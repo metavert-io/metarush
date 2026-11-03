@@ -66,6 +66,9 @@ var clockAllowed = map[string]struct {
 	Why string
 }{
 	"internal/dbmove/late.go looker.account":                        {1, "how long this look has run, in one process"},
+	"internal/c2pa/store.go Public":                                 {1, "a signing certificate's dates against this computer's clock, as c2patool judges them when it signs here"},
+	"internal/ops/credentials.go setupCredentials":                  {3, "a signing certificate made, checked and kept on this computer: its dates against this computer's clock, as c2patool judges them; when it was set up is this computer's own record"},
+	"internal/ops/deliver_credentials.go signDeliveries":            {1, "a signing certificate's dates against this computer's clock, as c2patool judges them when it signs here"},
 	"internal/aiwork/presenter_retire.go linkServer.add":            {1, "the link server's own memory, in one process"},
 	"internal/aiwork/presenter_retire.go linkServer.serve":          {1, "the link server's own memory, in one process"},
 	"internal/aiwork/presenters.go askWords":                        {1, "turns the adapter's end by this computer's clock into time left; what is stored is the server's now plus that"},

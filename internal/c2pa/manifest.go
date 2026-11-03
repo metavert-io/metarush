@@ -187,8 +187,11 @@ func (m Manifest) Counts() (parts, generative, changed int) {
 func partWord(p Part) string {
 	switch p.AI {
 	case AIEnhanced:
-		if p.What == "picture" {
+		switch p.What {
+		case "picture":
 			return "Picture changed with AI"
+		case "sound", "voice":
+			return "Sound cleaned up with AI"
 		}
 		return "Part changed with AI"
 	case AIEdited:

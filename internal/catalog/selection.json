@@ -172,7 +172,7 @@
     {"ask": "Bring in a public-domain photo of the moon, with the credit it needs", "op": "open-media"},
     {"ask": "Find a recorded door slam in a sound library", "op": "sound-library"},
     {"ask": "Write English captions for {clip}, which is spoken in Spanish", "op": "english-captions", "alt": ["captions.translate"]},
-    {"ask": "Add content credentials to the finished video so people can see how it was made", "op": "content-credentials"},
+    {"ask": "Add content credentials to the finished video so people can see how it was made", "op": "metarush/content-credentials", "alt": ["credentials.set", "credentials.status"]},
     {"ask": "Build this cut in my other editing app, clip by clip", "op": "other-editor", "alt": ["export.timeline"]},
     {"ask": "Find a licensed music track with a calm mood for the background", "op": "stock-music"},
     {"ask": "Steady the shaky footage of {clip}", "op": "metarush/steady-footage", "alt": ["asset.fixes.set"]},

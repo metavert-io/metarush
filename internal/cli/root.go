@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/metavert-io/metarush/internal/activity"
+	"github.com/metavert-io/metarush/internal/c2pa"
 	"github.com/metavert-io/metarush/internal/ingest"
 	"github.com/metavert-io/metarush/internal/intake"
 	"github.com/metavert-io/metarush/internal/sandbox"
@@ -27,6 +28,12 @@ func Execute() {
 	// no command line of its own.
 	if len(os.Args) > 1 && os.Args[1] == sandbox.ForwardCommand {
 		os.Exit(sandbox.ForwardMain(os.Args[2:]))
+	}
+	// c2patool signing a delivery's Content Credentials runs this binary as
+	// its signer (D416): it asks the MetaRush that started c2patool to sign,
+	// over a private socket; no settings, no database, no key of its own.
+	if len(os.Args) > 1 && os.Args[1] == c2pa.SignerCommand {
+		os.Exit(c2pa.SignerMain(os.Args[2:]))
 	}
 	root := &cobra.Command{
 		Use:           "metarush",
@@ -68,7 +75,7 @@ func commands() []*cobra.Command {
 		activityCmd(), notificationsCmd(), searchCmd(), watchCmd(), auditCmd(), previewCmd(), peopleCmd(), todosCmd(),
 		logCmd(), improveCmd(), motionCmd(), remotionCmd(), rendererCmd(), serviceCmd(), resourcesCmd(), addCmd(), brandCmd(), contentCmd(), keepCmd(),
 		exportCmd(), storageCmd(), mcpCmd(), draftCmd(), transcribeModelServerCmd(), databaseCmd(), setupCommand(),
-		libraryCmd(), collectionCmd(), trashCmd(), remoteCmd(), generateCmd(), aiCmd(), presenterCmd(), looksCmd(), consentCmd(), captionsCmd(), authCmd(), usersCmd(), accountCmd(), recipeCmd(), abilityCmd(), catalogueCmd(), publishCmd(), shareCmd(), componentsCmd()} // recipeCmd: Recipes
+		libraryCmd(), collectionCmd(), trashCmd(), remoteCmd(), generateCmd(), aiCmd(), presenterCmd(), looksCmd(), consentCmd(), captionsCmd(), authCmd(), usersCmd(), accountCmd(), recipeCmd(), abilityCmd(), catalogueCmd(), publishCmd(), shareCmd(), componentsCmd(), credentialsCmd()} // recipeCmd: Recipes
 }
 
 // Ensure op packages register.

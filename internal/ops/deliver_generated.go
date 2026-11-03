@@ -129,7 +129,7 @@ func aiPictures(a *app.App, it *deliveryItem, g *DeliveryGenerated) *DeliveryGen
 				}
 			}
 			g.Clips = append(g.Clips, DeliveryGeneratedClip{Kind: "picture", ResourceID: r.ID, Title: firstNonEmpty(r.Title, r.Name), GenerationID: mw.GenerationID,
-				Provider: mw.ProviderTitle, Model: mw.Model, SHA256: pin.SHA256, UsedAs: []string{"picture:" + n}, Likeness: likeness})
+				Provider: mw.ProviderTitle, Model: mw.Model, SHA256: pin.SHA256, UsedAs: []string{"picture:" + n}, Likeness: likeness, Edited: mw.Edit})
 			g.Likeness = g.Likeness || likeness
 			if mw.Watermark != "" {
 				g.Watermark = mw.Watermark

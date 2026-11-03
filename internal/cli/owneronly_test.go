@@ -35,6 +35,7 @@ var ownerOnlyOps = []string{
 	"ability.approve", "ability.revoke",
 	"publish.setup",
 	"delivery.gate.set", "content.gate.set",
+	"credentials.setup", "credentials.remove", "credentials.set", "content.credentials.set",
 	"share.settings.set",
 	"workspace.export", "workspace.exports", "workspace.adopt",
 	"database.plan", "database.move", "database.switch", "database.abandon",

@@ -132,6 +132,12 @@ func (t Tool) Sign(ctx context.Context, in SignIn) (*Signed, error) {
 		return nil, err
 	}
 	defer sess.close()
+	// c2patool tells a video's format by its name: the render is shown to it
+	// as video.mp4 (a link in the private folder; it only reads it).
+	video, err := nameAsVideo(sess.dir, in.Video, ".mp4")
+	if err != nil {
+		return nil, err
+	}
 	mf, sf := filepath.Join(sess.dir, "manifest.json"), filepath.Join(sess.dir, "settings.json")
 	if err := os.WriteFile(mf, in.Manifest, 0o600); err != nil {
 		return nil, err
@@ -141,7 +147,7 @@ func (t Tool) Sign(ctx context.Context, in SignIn) (*Signed, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, runLimit(in.Video))
 	defer cancel()
-	args := []string{in.Video, "--manifest", mf, "--output", in.Out, "--signer-path", sess.signerPath(), "--settings", sf}
+	args := []string{video, "--manifest", mf, "--output", in.Out, "--signer-path", sess.signerPath(), "--settings", sf}
 	res, err := t.Tools.Run(ctx, tools.Spec{Tool: tools.C2PATool, Args: args, Env: append(cleanEnv(sess.dir), sess.env()...), CleanEnv: true, Dir: sess.dir})
 	if err != nil {
 		_ = os.Remove(in.Out)
@@ -156,7 +162,7 @@ func (t Tool) Sign(ctx context.Context, in SignIn) (*Signed, error) {
 		if why := sess.refused(); why != "" {
 			said = strings.TrimSpace(said + " (MetaRush: " + why + ")")
 		}
-		return nil, apperr.Wrap(apperr.Internal, err, "c2patool couldn't put Content Credentials into the video.").
+		return nil, apperr.Wrap(apperr.ToolFailed, err, "c2patool couldn't put Content Credentials into the video.").
 			WithDetails(map[string]any{"c2patool": said})
 	}
 	out := &Signed{Signatures: sess.signatures()}
@@ -201,9 +207,17 @@ func (t Tool) Read(ctx context.Context, path string) (*Report, error) {
 	if err := os.WriteFile(sf, settingsFile(), 0o600); err != nil {
 		return nil, err
 	}
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext == "" || len(ext) > 6 {
+		ext = ".mp4"
+	}
+	video, err := nameAsVideo(dir, path, ext)
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, runLimit(path))
 	defer cancel()
-	res, err := t.Tools.Run(ctx, tools.Spec{Tool: tools.C2PATool, Args: []string{path, "--settings", sf}, Env: cleanEnv(dir), CleanEnv: true, Dir: dir})
+	res, err := t.Tools.Run(ctx, tools.Spec{Tool: tools.C2PATool, Args: []string{video, "--settings", sf}, Env: cleanEnv(dir), CleanEnv: true, Dir: dir})
 	if err != nil {
 		if res != nil && strings.Contains(string(res.Stderr), "No claim found") {
 			return &Report{None: true}, nil
@@ -212,9 +226,23 @@ func (t Tool) Read(ctx context.Context, path string) (*Report, error) {
 		if res != nil {
 			said = lastLines(string(res.Stderr), 4)
 		}
-		return nil, apperr.Wrap(apperr.Internal, err, "c2patool couldn't read the video's Content Credentials.").WithDetails(map[string]any{"c2patool": said})
+		return nil, apperr.Wrap(apperr.ToolFailed, err, "c2patool couldn't read the video's Content Credentials.").WithDetails(map[string]any{"c2patool": said})
 	}
 	return ParseReport(res.Stdout)
+}
+
+// nameAsVideo links a file into a private folder under a name with the
+// extension c2patool reads its format from.
+func nameAsVideo(dir, path, ext string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	p := filepath.Join(dir, "video"+ext)
+	if err := os.Symlink(abs, p); err != nil {
+		return "", err
+	}
+	return p, nil
 }
 
 // cleanEnv is all c2patool gets of an environment: a home and temporary

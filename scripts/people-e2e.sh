@@ -14,6 +14,10 @@
 #   KEEP=1 scripts/people-e2e.sh             # keep the home, database and server for a look afterwards
 #   METARUSH_PEOPLE_PORT=5363 SKIP_BUILD=1 PEOPLE_SHOTS=<folder> scripts/people-e2e.sh
 #   METARUSH_FACE_MODEL=<sface.onnx>         # a copy of the face model, so nothing is downloaded
+#   METARUSH_SCREEN_INDEX=open-models SCREEN_MODELS=<folder> scripts/people-e2e.sh
+#                                            # the same with the open models looking (D405), on a Mac too:
+#                                            # SCREEN_MODELS holds them (go run ./scripts/fetchscreenmodels <folder>),
+#                                            # linked into the run's own models folder beside this computer's speech models
 #
 # The throwaway database is dropped on exit through store.DropTestDatabase
 # (scripts/droptestdb refuses anything but local metarush-test-*).
@@ -38,6 +42,16 @@ MR() { ./bin/metarush --home "$H" "$@"; }
 J() { python3 -I -c "import json,sys;d=json.load(sys.stdin);print($1)"; }
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 export METARUSH_VISION_CACHE="$BASE/vision-cache"
+if [ "${METARUSH_SCREEN_INDEX:-}" = "open-models" ]; then
+  [ -n "${SCREEN_MODELS:-}" ] || { echo "SCREEN_MODELS: a folder with the open models (go run ./scripts/fetchscreenmodels <folder>)"; exit 1; }
+  shared="${METARUSH_MODELS_DIR:-$HOME/.local/share/metarush-models}"
+  mkdir -p "$BASE/models"
+  for d in "$shared"/*; do
+    if [ -e "$d" ] && [ "$(basename "$d")" != screen-index ]; then ln -s "$d" "$BASE/models/"; fi
+  done
+  ln -s "$SCREEN_MODELS" "$BASE/models/screen-index"
+  export METARUSH_MODELS_DIR="$BASE/models"
+fi
 scripts/make-fixtures.sh >/dev/null
 scripts/make-call-fixtures.sh >/dev/null
 if [ "${SKIP_BUILD:-}" != "1" ]; then
@@ -52,8 +66,9 @@ METARUSH_MONGODB_URI="$URI" MR init --yes --test-db --secrets env --db-name "$DB
 echo "METARUSH_MONGODB_URI=$URI" > "$H/.env"; chmod 600 "$H/.env"
 if [ -n "${METARUSH_FACE_MODEL:-}" ]; then mkdir -p "$H/components/faces" && cp "$METARUSH_FACE_MODEL" "$H/components/faces/"; fi
 if ! MR footage visuals status --json | J 'd["data"]["here"]["supported"]' | grep -q True; then
-  echo "the on-screen index needs a Mac: nothing to check here"; exit 0
+  echo "this computer can't look at what's on screen: nothing to check here"; exit 0
 fi
+MR footage visuals status --json | J '"looks with: %s (%s)" % (d["data"]["here"]["backend"], d["data"]["here"]["text"])'
 
 step "a call in a project whose cut uses its first minutes; someone else's voice; one of the call's faces elsewhere"
 P=$(MR project create "Garden club" --json | J 'd["data"]["project"]["id"]')

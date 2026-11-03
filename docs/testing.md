@@ -90,6 +90,9 @@ and leaves `browser.yml`'s matrix.
     https://huggingface.co/opencv/face_recognition_sface/resolve/3d7082438a6e4551e840c9b2bb60b71e8da4b524/face_recognition_sface_2021dec.onnx
   shasum -a 256 face_recognition_sface_2021dec.onnx   # 0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79
   ```
+- **The open models** for running `people` and `acceptance` with them on a Mac (D405): `go run
+  ./scripts/fetchscreenmodels <folder>` once, then `METARUSH_SCREEN_INDEX=open-models SCREEN_MODELS=<folder>` before
+  the script; the run links them into its own models folder beside this computer's speech models.
 
 ## How to run
 

@@ -291,7 +291,7 @@
         {"model": "kokoro-v1", "kind": "voice", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "second", "usd": 0},
         {"model": "kitten-nano", "kind": "voice", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "second", "usd": 0},
         {"model": "apple-vision", "kind": "background-removal", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "picture", "usd": 0},
-        {"model": "birefnet", "kind": "background-removal", "effective": "2026-11-03", "checked": "2026-11-03", "source": "docs/visual-index.md", "unit": "picture", "usd": 0},
+        {"model": "birefnet", "kind": "background-removal", "effective": "2026-10-25", "checked": "2026-11-03", "source": "docs/visual-index.md", "unit": "picture", "usd": 0},
         {"model": "real-esrgan-x4v3", "kind": "upscale", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "picture", "usd": 0},
         {"model": "parakeet-v2", "kind": "transcription", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "minute", "usd": 0},
         {"model": "whisper-cpp", "kind": "transcription", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "minute", "usd": 0}

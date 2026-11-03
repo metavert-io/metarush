@@ -489,7 +489,7 @@ type VisualStatusIn struct{}
 
 // VisionHere is this machine's on-screen helper.
 type VisionHere struct {
-	Supported bool `json:"supported" jsonschema:"description=This computer can look at what's on screen at all (a Mac with Apple Vision, or macOS and Linux with the open models)."`
+	Supported bool `json:"supported" jsonschema:"description=This computer can look at what's on screen at all (a Mac with Apple Vision\\, or macOS and Linux with the open models)."`
 	Ready     bool `json:"ready"`
 	CanBuild  bool `json:"canBuild" jsonschema:"description=The Xcode Command Line Tools can build the helper here."`
 	// Backend is how this computer looks (D408): apple-vision or open-models;
@@ -566,5 +566,16 @@ func init() {
 			return false, "the open models that look at the picture (Seeing what's on screen, in Settings → Components)"
 		}
 		return false, "Apple's command line developer tools, to build the helper that looks at the picture"
+	})
+	// Cutting a photo's subject out (D414): Apple Vision on a Mac, the cut-out
+	// model where the open models are this computer's way of looking.
+	RegisterReady("cut-outs", func(_ context.Context, a *app.App) (bool, string) {
+		switch {
+		case looker.CutOutReady(a.Cfg, a.Tools) == nil:
+			return true, ""
+		case looker.Chosen(a.Cfg) == looker.AppleVision:
+			return false, "the helper that looks at the picture (Seeing what's on screen, in Settings → Components)"
+		}
+		return false, "the cut-out model (Cutting out a picture's subject, in Settings → Components)"
 	})
 }

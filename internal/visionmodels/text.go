@@ -97,8 +97,13 @@ func (t *textFinder) find(p *picture) ([]line, error) {
 	if len(outs) == 0 || len(outs[0].Data) < W*H {
 		return nil, errors.New("the text detector answered in an unexpected shape")
 	}
-	prob := outs[0].Data[:W*H]
-	sx, sy := float64(p.w)/float64(W), float64(p.h)/float64(H)
+	return t.linesOf(outs[0].Data[:W*H], W, H, float64(p.w)/float64(W), float64(p.h)/float64(H), p.w, p.h), nil
+}
+
+// linesOf turns the detector's map (W×H, how sure each pixel is text) into
+// upright line boxes in the picture's pixels (sx, sy: the picture's pixels
+// per map pixel; pw×ph: the picture's size).
+func (t *textFinder) linesOf(prob []float32, W, H int, sx, sy float64, pw, ph int) []line {
 	var lines []line
 	for _, c := range components(prob, W, H, float32(t.thresh)) {
 		if len(lines) >= 1000 {
@@ -128,7 +133,7 @@ func (t *textFinder) find(p *picture) ([]line, error) {
 		}
 		lines = append(lines, line{
 			x0: math.Max(0, x0*sx), y0: math.Max(0, y0*sy),
-			x1: math.Min(float64(p.w), x1*sx), y1: math.Min(float64(p.h), y1*sy), score: score})
+			x1: math.Min(float64(pw), x1*sx), y1: math.Min(float64(ph), y1*sy), score: score})
 	}
 	// Top to bottom, left to right (the order the helper reads in).
 	sort.SliceStable(lines, func(i, j int) bool {
@@ -141,7 +146,7 @@ func (t *textFinder) find(p *picture) ([]line, error) {
 		sort.SliceStable(lines, func(i, j int) bool { return lines[i].score > lines[j].score })
 		lines = lines[:maxLines]
 	}
-	return lines, nil
+	return lines
 }
 
 // region is a connected part of the map above the threshold.

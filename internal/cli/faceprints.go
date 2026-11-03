@@ -16,18 +16,22 @@ import (
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/faceid"
 	"github.com/metavert-io/metarush/internal/faces"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/onnx"
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/vision"
 )
 
 // facePrintsCmd is `metarush footage faces prints <folder>` (hidden): the face
-// fingerprints of still pictures, made exactly the way clips' faces are
-// (Apple Vision's landmarks, the aligned face, SFace through onnxruntime), for
-// measuring recognition with tools/vision/eval/faces.py. One JSON line per
-// picture, like the on-screen helper's --face-prints output.
+// fingerprints of still pictures, made exactly the way clips' faces are (the
+// five points from this computer's looker — Apple Vision's landmarks, or
+// YuNet's with the open models, --with chooses — the aligned face, SFace
+// through onnxruntime), for measuring recognition with
+// tools/vision/eval/faces.py. One JSON line per picture, like the on-screen
+// helper's --face-prints output.
 func facePrintsCmd() *cobra.Command {
 	var bar bool
+	var with string
 	cmd := &cobra.Command{
 		Use: "prints <folder>", Hidden: true, Args: cobra.ExactArgs(1),
 		Short: "Face fingerprints of the JPEG pictures in a folder, one JSON line each (measuring recognition: tools/vision/eval/faces.py)",
@@ -50,10 +54,18 @@ func facePrintsCmd() *cobra.Command {
 			}
 			ts := tools.New(cfg.Tools)
 			ctx := c.Context()
-			if _, _, err := vision.Ensure(ctx, ts, h); err != nil {
+			switch with {
+			case "":
+			case config.ScreenAppleVision, config.ScreenOpenModels:
+				cfg.SetScreenIndexChoice(with)
+			default:
+				return fail(c, "E_INVALID_INPUT", "--with is apple-vision or open-models.", "")
+			}
+			lk, _, _, err := looker.Open(ctx, cfg, ts)
+			if err != nil {
 				return failErr(c, err)
 			}
-			if !vision.Rich(ctx, ts) {
+			if lk.Backend() == looker.AppleVision && !vision.Rich(ctx, ts) {
 				return failErr(c, apperr.New(apperr.ToolMissing, "Recognizing faces needs the on-screen helper of this MetaRush on a Mac.").WithCommand("metarush doctor"))
 			}
 			lib := onnx.Library(ts.Path(tools.Sherpa))
@@ -73,7 +85,7 @@ func facePrintsCmd() *cobra.Command {
 				return failErr(c, err)
 			}
 			enc := json.NewEncoder(os.Stdout)
-			return vision.Analyze(ctx, ts, dir, vision.Options{Text: "off", Landmarks: true}, func(f vision.Frame) {
+			return lk.Analyze(ctx, dir, vision.Options{Text: "off", Landmarks: true}, func(f vision.Frame) {
 				row := map[string]any{"file": f.File, "w": f.W, "h": f.H}
 				var found []map[string]any
 				img, derr := decodeJPEG(filepath.Join(dir, f.File))
@@ -102,6 +114,7 @@ func facePrintsCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&bar, "thresholds", false, "print the thresholds recognition decides with, as JSON")
+	cmd.Flags().StringVar(&with, "with", "", "what finds the faces and their points: apple-vision or open-models (default: this computer's way)")
 	return cmd
 }
 

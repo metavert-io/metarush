@@ -66,6 +66,7 @@ var ort struct {
 	once    sync.Once
 	err     error
 	lib     string
+	real    string // where lib leads
 	version string
 
 	createEnv            func(level int32, logID string, out *uintptr) uintptr
@@ -104,7 +105,7 @@ const Available = true
 // bind loads the onnxruntime library once per process.
 func bind(lib string) error {
 	ort.once.Do(func() {
-		ort.lib = lib
+		ort.lib, ort.real = lib, realPath(lib)
 		h, err := purego.Dlopen(lib, purego.RTLD_NOW|purego.RTLD_LOCAL)
 		if err != nil {
 			ort.err = fmt.Errorf("load %s: %w", lib, err)
@@ -164,10 +165,19 @@ func bind(lib string) error {
 			ort.err = err
 		}
 	})
-	if ort.err == nil && lib != ort.lib {
+	if ort.err == nil && lib != ort.lib && realPath(lib) != ort.real {
 		return fmt.Errorf("onnxruntime already loaded from %s", ort.lib)
 	}
 	return ort.err
+}
+
+// realPath is where a path leads (a link to the library loaded is that
+// library).
+func realPath(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return p
 }
 
 // Version is the loaded library's version ("" before a model was opened).

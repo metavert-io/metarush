@@ -217,6 +217,26 @@ func Open(ctx context.Context, cfg *config.Config, ts *tools.Set) (l Looker, st 
 	return open{e: e}, st, false, nil
 }
 
+// Here is this computer's looker when it is ready now, never setting it up
+// (no helper built, nothing downloaded): for reads beside a job's own work,
+// such as a render's quality check (nil when it isn't ready).
+func Here(ctx context.Context, cfg *config.Config, ts *tools.Set) Looker {
+	if Chosen(cfg) == AppleVision {
+		if !vision.Rich(ctx, ts) {
+			return nil
+		}
+		return apple{ts: ts, protocol: ts.Version(ctx, tools.Vision)}
+	}
+	if !openStatus(ts).Ready {
+		return nil
+	}
+	e, err := visionmodels.OpenEngine(onnx.Library(ts.Path(tools.Sherpa)), visionmodels.StoreIn(ts.ModelsDir()).IndexPaths())
+	if err != nil {
+		return nil
+	}
+	return open{e: e}
+}
+
 // apple is the on-screen helper (Apple Vision).
 type apple struct {
 	ts       *tools.Set

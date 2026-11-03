@@ -6,7 +6,7 @@ import { Badge, ErrorPanel, Segmented, Skeleton } from '../../ui/primitives';
 
 /*
  * Settings → Footage → Looking at your footage: the on-screen index (Apple Vision on a
- * Mac: free, nothing uploaded) and written scene descriptions by the person's
+ * Mac, the open models elsewhere: free, nothing uploaded) and written scene descriptions by the person's
  * own Claude Code (off unless turned on; it uses their Claude Code usage).
  */
 export function LookingSettings() {
@@ -37,7 +37,7 @@ export function LookingSettings() {
         Looking at your footage
       </h2>
       <p className="mb-4 max-w-[78ch] text-[12.5px] leading-relaxed text-muted">
-        On a Mac, MetaRush looks at about one frame a second of each clip with Apple Vision: people and faces, the place, things and animals, and text on screen. It stays on your computer and costs nothing. Search finds clips by what is on screen, and Claude Code reads it before saying anything about the picture.
+        MetaRush looks at about one frame a second of each clip: on a Mac with Apple Vision (people and faces, the place, things and animals, and text on screen), elsewhere with open models once Seeing what's on screen is added in Settings → Components (people and faces, text on screen, and what stands out). It stays on your computer and costs nothing. Search finds clips by what is on screen, and Claude Code reads it before saying anything about the picture.
       </p>
       {status.error ? <ErrorPanel compact error={status.error} onRetry={() => void status.refetch()} /> : null}
       {s ? (
@@ -46,7 +46,15 @@ export function LookingSettings() {
             <dt className="text-subtle">This computer</dt>
             <dd className="min-w-0 text-fg">
               <span className="mr-2">{s.here.text}</span>
-              {s.here.ready ? <Badge tone="ok">ready</Badge> : s.here.supported ? <Badge tone="accent">set up on first use</Badge> : <Badge>not a Mac</Badge>}
+              {s.here.ready ? (
+                <Badge tone="ok">{s.here.backend === 'open-models' ? 'ready: open models' : 'ready: Apple Vision'}</Badge>
+              ) : s.here.supported && s.here.canBuild ? (
+                <Badge tone="accent">set up on first use</Badge>
+              ) : s.here.supported ? (
+                <Badge>not added</Badge>
+              ) : (
+                <Badge>not on this computer</Badge>
+              )}
               {s.here.fix ? <span className="mt-1 block text-[11.5px] text-subtle">{s.here.fix}</span> : null}
             </dd>
           </div>

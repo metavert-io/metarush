@@ -5,8 +5,10 @@ Downloads the public-domain photos listed in faceset.json from Wikimedia
 Commons into a temporary folder and fingerprints the main face of each:
 
   --metarush <path to metarush>  the face fingerprints MetaRush ships (D114):
-      Apple Vision's landmarks, the aligned face and SFace through onnxruntime,
-      exactly as clips are fingerprinted (`metarush footage faces prints`).
+      the five points (Apple Vision's landmarks on a Mac, YuNet's with the open
+      models: --with apple-vision|open-models), the aligned face and SFace
+      through onnxruntime, exactly as clips are fingerprinted (`metarush
+      footage faces prints`).
   --helper <path to metarush-vision>  Apple Vision's general image feature
       print of the face crop (D73, measured and rejected), at several margins.
 
@@ -19,37 +21,53 @@ nobody confirmed stand in for strangers, over many random draws. The bar is the
 voices' (D60): no face may be named automatically as the wrong person.
 Nothing is kept or committed.
 
-  python3 -I tools/vision/eval/faces.py --metarush bin/metarush [--folder photos]
+  python3 -I tools/vision/eval/faces.py --metarush bin/metarush [--folder photos] [--with open-models]
   python3 -I tools/vision/eval/faces.py --helper bin/metarush-vision
 """
 import argparse, base64, itertools, json, math, os, random, struct, subprocess, sys, tempfile, time, urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 API = "https://commons.wikimedia.org/w/api.php"
-UA = "metarush-face-eval/1 (test measurement)"
+UA = "metarush-face-eval/1 (https://github.com/metavert-io/metarush; a test measurement)"
 
 
 def curl(url):
-    return subprocess.run(["curl", "-sS", "-m", "60", "-A", UA, url], check=True, capture_output=True).stdout
+    return subprocess.run(["curl", "-sS", "-f", "-m", "60", "-A", UA, url], check=True, capture_output=True).stdout
 
 
-def thumb(title, width=640):
-    q = {"action": "query", "titles": title, "prop": "imageinfo", "iiprop": "url", "iiurlwidth": width, "format": "json"}
+def thumbs(titles, width=640):
+    """The thumbnail addresses of up to 50 titles in one request (Commons rate-limits one request per photo)."""
+    q = {"action": "query", "titles": "|".join(titles), "prop": "imageinfo", "iiprop": "url", "iiurlwidth": width, "format": "json"}
     d = json.loads(curl(API + "?" + urllib.parse.urlencode(q)))
-    page = next(iter(d["query"]["pages"].values()))
-    return page["imageinfo"][0]["thumburl"]
+    named = {n["to"]: n["from"] for n in d["query"].get("normalized", [])}
+    out = {}
+    for page in d["query"]["pages"].values():
+        if page.get("imageinfo"):
+            out[named.get(page["title"], page["title"])] = page["imageinfo"][0]["thumburl"]
+    return out
 
 
 def fetch(people, folder):
-    for who, titles in people.items():
-        for i, title in enumerate(titles, 1):
-            dest = os.path.join(folder, f"{who}-{i}.jpg")
-            if os.path.exists(dest):
+    want = [(os.path.join(folder, f"{who}-{i}.jpg"), title) for who, titles in people.items() for i, title in enumerate(titles, 1)]
+    want = [(d, t) for d, t in want if not os.path.exists(d)]
+    for start in range(0, len(want), 50):
+        batch = want[start:start + 50]
+        urls = {}
+        for attempt in range(5):
+            try:
+                time.sleep(2 + 15 * attempt)  # be gentle with Commons
+                urls = thumbs([t for _, t in batch])
+                break
+            except Exception as e:  # noqa: BLE001
+                print(f"retry the photos' addresses: {e}", file=sys.stderr)
+        for dest, title in batch:
+            if title not in urls:
+                print(f"no address for {title}", file=sys.stderr)
                 continue
             for attempt in range(4):
                 try:
-                    time.sleep(2 + 4 * attempt)  # be gentle with Commons
-                    data = curl(thumb(title))
+                    time.sleep(3 + 20 * attempt)
+                    data = curl(urls[title])
                     if data[:3] != b"\xff\xd8\xff":
                         raise RuntimeError("not a JPEG")
                     open(dest, "wb").write(data)
@@ -83,8 +101,8 @@ def helper_prints(helper, folder, margin):
     return main_faces(out.splitlines())
 
 
-def metarush_prints(metarush, folder, home):
-    cmd = [metarush] + (["--home", home] if home else []) + ["footage", "faces", "prints", folder]
+def metarush_prints(metarush, folder, home, with_=None):
+    cmd = [metarush] + (["--home", home] if home else []) + ["footage", "faces", "prints", folder] + (["--with", with_] if with_ else [])
     out = subprocess.run(cmd, capture_output=True, check=True).stdout.decode()
     return main_faces(out.splitlines())
 
@@ -216,6 +234,7 @@ def main():
     ap.add_argument("--metarush", help="path to metarush (measures what ships)")
     ap.add_argument("--home", help="the MetaRush home to run it with (a test home)")
     ap.add_argument("--helper", help="path to metarush-vision (Apple's feature print)")
+    ap.add_argument("--with", dest="with_", choices=["apple-vision", "open-models"], help="what finds the faces and their points (default: the computer's own way)")
     ap.add_argument("--folder", help="reuse downloaded photos")
     ap.add_argument("--trials", type=int, default=200)
     ap.add_argument("--auto", type=float, help="try another automatic-name threshold (default: what MetaRush uses)")
@@ -231,14 +250,14 @@ def main():
         for margin in (0.8, 1.0, 1.35, 2.0):
             print(f"Apple feature print, crop {margin}x the face: {json.dumps(pairs_report(helper_prints(args.helper, folder, margin)))}")
     if args.metarush:
-        found = metarush_prints(args.metarush, folder, args.home)
+        found = metarush_prints(args.metarush, folder, args.home, args.with_)
         faces = dedupe(found)
         th = thresholds(args.metarush, args.home)
         for k in ("auto", "margin", "suggest"):
             if getattr(args, k) is not None:
                 th[k] = getattr(args, k)
         print(f"fingerprinted {len(found)} faces; left out {len(found) - len(faces)} near-copies of another photo of the same person")
-        print(f"SFace (what ships): {json.dumps(pairs_report(faces))}")
+        print(f"SFace (what ships{', points from ' + args.with_ if args.with_ else ''}): {json.dumps(pairs_report(faces))}")
         print(f"thresholds: {json.dumps(th)}")
         for enroll in (1, 2, 3):
             r = play(faces, th, enroll, 0.25, args.trials, 7 + enroll)

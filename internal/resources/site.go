@@ -381,7 +381,7 @@ func storePage(ctx context.Context, a *app.App, req FetchRequest, p PageShot, ta
 		}
 		text = string([]rune(text)[:min(len([]rune(text)), 20000)])
 	}
-	look := TagInput{Name: pageWords(final) + ".png", Kind: models.ResourceWebsite, Version: &v, Path: desktop, Pages: pagePaths, Palette: pi.Palette, Tools: a.Tools}
+	look := TagInput{Name: pageWords(final) + ".png", Kind: models.ResourceWebsite, Version: &v, Path: desktop, Pages: pagePaths, Palette: pi.Palette, Tools: a.Tools, Cfg: a.Cfg}
 	tags := append(AutoTags(ctx, look), models.ResourceTag{Tag: "website", Source: "page", Confidence: 0.9, Why: "it is a snapshot of a web page"})
 	v.Text = text
 	if v.Text == "" {

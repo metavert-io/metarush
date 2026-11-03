@@ -67,7 +67,7 @@ func init() {
 		fix("remove-hum", "Remove hum", "Takes the electrical hum out of a recording's sound; the original is kept.", models.FixHum, []string{"buzz", "mains hum"}, video),
 		fix("even-loudness", "Even out loudness", "Makes a recording as loud as the rest, all the way through; the original is kept.", models.FixLoudness, []string{"too quiet", "volume"}, video),
 		fix("trim-silent-ends", "Trim silent ends", "Trims the silence at the start and end of a recording; the original is kept.", models.FixEnds, []string{"cut the silence at the start"}, video),
-		fix("remove-background", "A photo's subject", "Takes the background out of a photo or a logo, leaving its subject; a background that isn't one plain colour needs a Mac, or the cut-out model on other computers (without them, only plain-colour backgrounds).", models.FixBackground, []string{"cut out", "transparent background"},
-			ops.Needs{}),
+		fix("remove-background", "A photo's subject", "Takes the background out of a photo or a logo, leaving its subject; a background that isn't one plain colour needs a Mac, or the cut-out model on other computers.", models.FixBackground, []string{"cut out", "transparent background"},
+			ops.Needs{Setup: "cut-outs", Partly: "only plain-colour backgrounds"}),
 		fix("larger-pictures", "Larger, sharper pictures", "Makes a small picture larger and sharper for a full-screen shot.", models.FixLarger, []string{"upscale", "low resolution"}, ops.Needs{}))
 }

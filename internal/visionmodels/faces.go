@@ -102,11 +102,25 @@ func (f *faceFinder) run(p *picture) ([]faceAt, error) {
 	if err != nil {
 		return nil, err
 	}
+	return decodeYuNet(func(name string) []float32 {
+		if i, ok := f.out[name]; ok && i < len(outs) {
+			return outs[i].Data
+		}
+		return nil
+	}, W, H)
+}
+
+// decodeYuNet turns YuNet's answer for a W×H input (out names a tensor's
+// values) into faces: at each stride, a cell's score is √(class × object),
+// its box is offset from the cell and sized by exp() of the answer, and its
+// five points are offsets from the cell, all in strides (OpenCV's
+// FaceDetectorYN::postProcess).
+func decodeYuNet(out func(name string) []float32, W, H int) ([]faceAt, error) {
 	var faces []faceAt
 	for _, s := range []int{8, 16, 32} {
 		cols, rows := W/s, H/s
-		cls, obj := outs[f.out[fmt.Sprintf("cls_%d", s)]].Data, outs[f.out[fmt.Sprintf("obj_%d", s)]].Data
-		box, kps := outs[f.out[fmt.Sprintf("bbox_%d", s)]].Data, outs[f.out[fmt.Sprintf("kps_%d", s)]].Data
+		cls, obj := out(fmt.Sprintf("cls_%d", s)), out(fmt.Sprintf("obj_%d", s))
+		box, kps := out(fmt.Sprintf("bbox_%d", s)), out(fmt.Sprintf("kps_%d", s))
 		if len(cls) < rows*cols || len(obj) < rows*cols || len(box) < 4*rows*cols || len(kps) < 10*rows*cols {
 			return nil, errors.New("the face model answered in an unexpected shape")
 		}

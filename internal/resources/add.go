@@ -334,7 +334,7 @@ func AddFile(ctx context.Context, a *app.App, path string, o AddOptions) (*AddRe
 	if _, err := a.Cache.Adopt(prepared, sha); err != nil && o.Defer {
 		return nil, fmt.Errorf("keep a local copy of %s: %w", name, err)
 	}
-	look := TagInput{Name: name, Kind: sn.Kind, Version: &v, Path: prepared, Pages: pagePaths, Palette: palette, Tools: a.Tools}
+	look := TagInput{Name: name, Kind: sn.Kind, Version: &v, Path: prepared, Pages: pagePaths, Palette: palette, Tools: a.Tools, Cfg: a.Cfg}
 	tags := AutoTags(ctx, look)
 	if t := FindText(ctx, look); t != "" {
 		v.Text = t

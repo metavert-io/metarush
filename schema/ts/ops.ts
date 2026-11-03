@@ -1595,7 +1595,7 @@ input: ExtensionStatusIn
 output: ExtensionStatusOut
 }
 /**
- * Schedule local analysis (transcript, technical evidence, and what's on screen on a Mac) for an asset or a whole project
+ * Schedule local analysis (transcript, technical evidence, and what's on screen where a computer can look) for an asset or a whole project
  */
 "footage.analyze": {
 input: AnalyzeIn
@@ -1798,7 +1798,7 @@ input: VisualsIn
 output: VisualsOut
 }
 /**
- * Say whether clips get looked at (Apple Vision on a Mac), on this machine and in the workspace, and how many are done
+ * Say whether clips get looked at (Apple Vision on a Mac, the open models elsewhere), on this machine and in the workspace, and how many are done
  */
 "footage.visuals.status": {
 input: VisualStatusIn
@@ -4066,7 +4066,7 @@ input: WatchStatusIn
 output: WatchStatusOut
 }
 /**
- * Change this installation's worker settings (heavy-job battery threshold) in its config.yaml; owners
+ * Change this installation's worker settings (heavy-job battery threshold, how it looks at what's on screen) in its config.yaml; owners
  */
 "worker.configure": {
 input: WorkerConfigureIn
@@ -4080,7 +4080,7 @@ input: WorkerListIn
 output: WorkerListOut
 }
 /**
- * Show this installation's battery state and heavy-job battery policy
+ * Show this installation's battery state, heavy-job battery policy and how it looks at what's on screen
  */
 "worker.settings": {
 input: WorkerSettingsIn
@@ -20206,6 +20206,8 @@ assetId: string
 title: string
 state: ("available" | "queued" | "running" | "failed" | "missing" | "unavailable" | "none")
 summary: string
+lookedWith?: ("" | "apple-vision" | "open-models")
+notLookedFor?: string[]
 lines: Line[]
 faces: FaceRow[]
 text: TextSpan[]
@@ -20326,7 +20328,7 @@ export interface VisualStatusIn {
 export interface VisualStatusOut {
 here: VisionHere
 /**
- * This Mac or another Mac in the workspace can look at clips.
+ * This computer or another computer in the workspace can look at clips.
  */
 possible: boolean
 /**
@@ -20349,7 +20351,7 @@ summary: string
  */
 export interface VisionHere {
 /**
- * This is a Mac (Apple Vision exists here).
+ * This computer can look at what's on screen at all (a Mac with Apple Vision, or macOS and Linux with the open models).
  */
 supported: boolean
 ready: boolean
@@ -20357,6 +20359,9 @@ ready: boolean
  * The Xcode Command Line Tools can build the helper here.
  */
 canBuild: boolean
+backend: ("apple-vision" | "open-models")
+engine: string
+sees: string[]
 text: string
 fix?: string
 }
@@ -36846,6 +36851,7 @@ export interface WorkerConfigureIn {
  * Defer heavy jobs only on battery
  */
 heavyBatteryThreshold?: number
+screenIndex?: ("auto" | "apple-vision" | "open-models")
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -36866,6 +36872,8 @@ deferReason?: string
  */
 fakeBattery?: boolean
 configPath: string
+screenIndex: ("auto" | "apple-vision" | "open-models")
+looksWith: ScreenIndexHere
 note?: string
 }
 /**
@@ -36878,6 +36886,22 @@ percent: number
 charging: boolean
 onAc: boolean
 source: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ScreenIndexHere".
+ */
+export interface ScreenIndexHere {
+backend: ("apple-vision" | "open-models")
+supported: boolean
+ready: boolean
+canSetUp?: boolean
+stale?: boolean
+text: string
+fix?: string
+engine: string
+path?: string
+sees: string[]
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -36911,6 +36935,7 @@ tools: {
 }
 jobTypes: string[]
 lacks?: WorkerLack[]
+screenIndex?: ("" | "apple-vision" | "open-models")
 concurrency: number
 running: number
 acceptsHeavy: boolean

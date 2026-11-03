@@ -13,6 +13,7 @@ import (
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/faces"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/motion"
 	"github.com/metavert-io/metarush/internal/ops"
@@ -161,11 +162,13 @@ func qaHandler(ctx context.Context, w *Worker, j *models.Job, report Report) (ma
 		}
 	}
 	onScreen, faceNames := onScreenFacts(ctx, a, plan)
+	// The rendered frames are read where this computer can look (D116):
+	// Apple Vision's helper on a Mac, the open models elsewhere (D411).
 	var look qa.Looker
-	if vision.Rich(ctx, a.Tools) {
+	if lk := looker.Here(ctx, a.Cfg, a.Tools); lk != nil {
 		look = func(ctx context.Context, dir string) ([]vision.Frame, error) {
 			var out []vision.Frame
-			err := vision.Analyze(ctx, a.Tools, dir, vision.Options{}, func(f vision.Frame) { out = append(out, f) })
+			err := lk.Analyze(ctx, dir, vision.Options{}, func(f vision.Frame) { out = append(out, f) })
 			return out, err
 		}
 	}

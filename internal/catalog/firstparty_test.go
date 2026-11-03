@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -267,7 +266,8 @@ func TestFirstPartyGeneratorRules(t *testing.T) {
 
 // Without FFmpeg, nothing that transcribes, measures or looks at footage
 // says it works here (D270): the first run's transcripts item alone isn't
-// enough, and the on-screen index needs what vision.CanRun needs.
+// enough, and the on-screen index needs what looker.CanRun needs (FFmpeg
+// first, on a Mac and elsewhere).
 func TestWorksHereWithoutFFmpeg(t *testing.T) {
 	a := testapp.New(t)
 	missing := "/nonexistent/metarush-test/ffmpeg"
@@ -290,9 +290,6 @@ func TestWorksHereWithoutFFmpeg(t *testing.T) {
 			continue
 		}
 		want := "FFmpeg"
-		if (id == "faces" || id == "whats-on-screen") && thisOS() != "darwin" {
-			want = "a Mac"
-		}
 		if !strings.Contains(e.Missing, want) {
 			t.Errorf("%s: %q doesn't say it needs %s", id, e.Missing, want)
 		}
@@ -302,5 +299,3 @@ func TestWorksHereWithoutFFmpeg(t *testing.T) {
 		t.Errorf("find-and-replace: %+v", e)
 	}
 }
-
-func thisOS() string { return runtime.GOOS }

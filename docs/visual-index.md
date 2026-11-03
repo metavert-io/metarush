@@ -329,7 +329,7 @@ the better of the similarity to the mean and the mean of the three closest finge
 | Decision | Bar (cosine) |
 |---|---|
 | Named automatically | ≥ 0.60 and at least 0.15 above the runner-up; ≥ 0.66 while fewer than two other people have confirmed faces |
-| Asked about ("Is this …?") | ≥ 0.38 |
+| Asked about ("Is this …?") | ≥ 0.38 (≥ 0.41 for a face the open models found, D448) |
 | A confirmed face asked about again | < 0.30 against the person's other confirmed faces (three or more) |
 
 **The model's licence.** OpenCV Zoo's `models/face_recognition_sface` says "All files in this directory are licensed
@@ -535,9 +535,37 @@ Transcription on this computer (whose install brings onnxruntime). **Recognizing
 computer with both. Doctor checks each. Workers take the `visual` job wherever the component is ready, and a
 computer that gains it looks at the clips nobody looked at yet (catch-up on start and whenever a component is added).
 
+**Fills** (D445): a landscape shot made vertical, square or 4:5 (or a portrait shot made landscape) over a blurred,
+enlarged copy of itself shows the copy's faces too, larger and blurred. Apple Vision rarely takes them for faces; YuNet
+often did, so following movement moved into the blur and one person became two. The open models now find such a frame
+— the picture centred along the frame's long side, bands beside it with little detail next to it, straight lines where
+the picture ends, and bands that follow the picture enlarged and blurred — and leave out faces mostly outside the
+picture. Plain walls, studio backdrops and letterbox bars don't follow the picture, so they aren't fills; a fill whose
+picture is itself plain near its edges (graphics, screen recordings) may not be found, and then its copy's faces
+count, as they often do with Apple Vision. Measured on the faceset made into fills (`TestFillsOnTheFaceset`): faces in
+the copy that Apple Vision didn't see went from 38 to 0 (9:16, blur 8), 12 to 0 (blur 16), 7 to 0 (1:1), 9 to 0 (4:5)
+and 20 to 0 (portrait made landscape), with 183–186 of 186 fills found; no face Apple Vision found was left out, in the
+fills or in 1,591 faces of photos and video frames that aren't fills (as they are, cropped, blurred all over, small,
+letterboxed). The garden call made 9:16: Apple Vision saw 12 faces in the copy, the open models none.
+
 **A Mac gets the first look** (D410): a computer with the open models leaves a new clip alone for two minutes at a
-time, at most five times, while a Mac in the workspace that uses Apple Vision and takes big jobs was seen in the last
-two minutes; then it looks itself. The job's wait says why.
+time, at most five times, while a Mac in the workspace that uses Apple Vision, takes big jobs, offers to look and lacks
+nothing for it was seen in the last two minutes; then it looks itself. The job's wait says why. A Mac whose person left
+Seeing what's on screen out, with no helper built, doesn't offer to look, so nothing waits for it (D446). A computer
+that finds it can't look after all (a helper that didn't build, a model changed after it was added) stops offering to
+until its components or settings change, and hands the clip back, not counted as a try, when another computer that
+looks was seen in the last day; with none, the clip fails as before, with the one step that fixes it.
+
+**Apple Vision's indexes stay Apple Vision's** (D447): a clip Apple Vision looked at is looked at again (a person
+asking, or catch-up after an upgrade) only by a Mac while one that looks was seen in the last 30 days — the computer
+with the open models puts it back, waiting longer each time, at most three hours. After 30 days without one it looks
+itself and keeps what Apple Vision saw that the open models don't look for: the places, things, animals and gestures
+(`kept` in the index, said in the readout's note).
+
+**Fingerprints say what found the face** (D448, `printsBy`): `apple-vision` or `open-models` (older ones are Apple
+Vision's). Matching treats both alike — one library can hold both, where a workspace has a Mac and a computer without
+one — except that a face the open models found is asked about ("Is this Ada?") from 0.41 rather than 0.38: at 0.38 they
+asked about the wrong person more often than Apple Vision does; at 0.41 no more often.
 
 **What stays on Apple Vision**: lip sync's check that every face in the part it changes is named (D279) still looks
 with the helper, so on Linux it asks for a Mac. Cutting a photo's subject out uses Apple's mask on a Mac that keeps
@@ -547,7 +575,8 @@ Apple Vision and BiRefNet elsewhere (the fix **A photo's subject**, and AI work'
 #### Measured
 `go test -tags screeneval ./internal/visionmodels` (`TestCompareBackends`, `TestCompareCutOuts`; the models from `go
 run ./scripts/fetchscreenmodels <folder>` in `METARUSH_SCREEN_MODELS`) looks at the same frames with both on a Mac;
-`tools/vision/eval/faces.py --metarush bin/metarush --with open-models` plays the recognition rules out on the faceset.
+`tools/vision/eval/faces.py --metarush bin/metarush --with open-models` plays the recognition rules out on the faceset
+(`--mix`: both ways in one library).
 Measured 3 Nov 2026 on an M5 Pro Mac mini shared with other builds (a load around 17, so the times are long for both):
 
 | | Apple Vision | The open models |
@@ -562,6 +591,9 @@ Measured 3 Nov 2026 on an M5 Pro Mac mini shared with other builds (a load aroun
 | Faceset, 200 draws: precision with 1 / 2 / 3 faces confirmed | **1.00 / 1.00 / 1.00** | **1.00 / 1.00 / 1.00** |
 | Recall (named automatically) with 1 / 2 / 3 faces confirmed | 0.445 / 0.641 / 0.725 | 0.417 / 0.570 / 0.659 |
 | Recall with only 1 / only 2 people known | 0.52 / 0.495 | 0.426 / 0.425 |
+| Asked about the wrong person (of known faces), 1 / 2 / 3 confirmed | 0.73% / 0.53% / 0.27% | 0.33% / 0.28% / 0.24% (0.73% / 0.77% / 0.76% asking from 0.38) |
+| Named or asked about the right person, 1 / 2 / 3 confirmed | 0.81 / 0.88 / 0.91 | 0.70 / 0.81 / 0.84 (0.71 / 0.83 / 0.85 from 0.38) |
+| Strangers asked about, 1 / 2 / 3 confirmed | 3.7% / 6.7% / 7.1% | 0.9% / 2.3% / 3.1% |
 | Nearest face is the same person | 152 of 163 | 150 of 167 |
 | Most alike different people (the bar is 0.60) | 0.497 | 0.521 |
 | Time a frame (proxy at 960 px) | 73 ms | 194 ms |
@@ -570,6 +602,18 @@ Measured 3 Nov 2026 on an M5 Pro Mac mini shared with other builds (a load aroun
 No face was named as the wrong person with either. The open models name a little less on their own (they find
 slightly different faces in the faceset's photos, so a few more are asked about instead), and they read fewer
 scripts and none of the labels, animals or gestures: that is why a Mac keeps Apple Vision and gets the first look.
+
+**Both ways in one library** (`faces.py --mix`, the 161 photos fingerprinted both ways, 200 draws each): the same
+photo's two fingerprints are 0.94 alike (median); different people across the two ways at most 0.488 (0.521 within
+one). Precision stays 1.00 whichever way faces were confirmed and asked about:
+
+| Confirmed / asked about | Recall, 1 / 2 / 3 confirmed | Only 1 / 2 people known | Wrong person asked, 1 / 2 / 3 | Most alike wrong person |
+|---|---|---|---|---|
+| Apple Vision / Apple Vision | 0.448 / 0.666 / 0.753 | 0.536 / 0.488 | 0.72% / 0.28% / 0.19% | 0.521 |
+| Open models / open models | 0.415 / 0.564 / 0.653 | 0.466 / 0.422 | 0.34% / 0.30% / 0.25% | 0.536 |
+| Apple Vision / open models | 0.432 / 0.622 / 0.701 | 0.529 / 0.460 | 0.28% / 0.08% / 0.17% | 0.504 |
+| Open models / Apple Vision | 0.432 / 0.602 / 0.692 | 0.486 / 0.428 | 0.28% / 0.27% / 0.13% | 0.524 |
+| Each face either way at random | 0.436 / 0.603 / 0.697 | 0.438 / 0.472 | 0.44% / 0.30% / 0.18% | 0.521 |
 
 **Windows**: MetaRush itself does not build for Windows yet (process groups and free-space checks use Unix calls in
 `internal/tools` and `internal/storagemove`), and `internal/onnx` reports onnxruntime as unavailable there

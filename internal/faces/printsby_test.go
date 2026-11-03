@@ -2,6 +2,7 @@ package faces
 
 import (
 	"context"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -53,5 +54,26 @@ func TestPrintsSayWhatFoundTheFace(t *testing.T) {
 				t.Fatalf("an index by %q: %d prints by %q", c.backend, len(f.Prints), f.PrintsBy)
 			}
 		}
+	}
+}
+
+// Faces are decided with the thresholds for what found them (D448): a face
+// the open models found 0.40 like Ada isn't asked about; Apple Vision's is.
+func TestQuestionsFollowWhatFoundTheFace(t *testing.T) {
+	ada := make([]float32, faceid.Dim)
+	ada[0] = 1
+	v := make([]float32, faceid.Dim)
+	v[0], v[1] = 0.40, float32(math.Sqrt(1-0.40*0.40))
+	rec := &recognizer{th: faceid.DefaultThresholds, people: []faceid.Profile{faceid.NewProfile("per_ada", "Ada", []faceid.Exemplar{{Source: "fac_a", Vec: ada, Weight: 1}})}}
+	face := models.FaceTrack{PrintModel: faceid.ModelName, Prints: []models.FacePrint{{At: 1, Q: 0.7, V: v}}}
+	if d := rec.decide(face, nil); len(d.Suggestions) != 1 {
+		t.Fatalf("Apple Vision's face (before the tag): %+v", d)
+	}
+	face.PrintsBy = visual.BackendOpenModels
+	if d := rec.decide(face, nil); len(d.Suggestions) != 0 {
+		t.Fatalf("the open models' face: %+v", d)
+	}
+	if printsBy([]models.FaceTrack{{}, face}) != visual.BackendOpenModels {
+		t.Fatal("a group's faces say what found them")
 	}
 }

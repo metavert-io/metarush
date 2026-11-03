@@ -8,7 +8,9 @@
   renders. Add **Seeing what's on screen** in Settings → Components (about 31 MB). A Mac keeps Apple Vision, which also
   names places, things and animals and sees gestures, and gets the first look at new clips while it is about; a Mac can
   use the open models too, to compare (Settings → Footage → Looking at your footage). Face recognition stays as careful
-  as before: in our measurement no face was named as the wrong person with either.
+  as before: in our measurement no face was named as the wrong person with either, nor with the two mixed in one
+  library. A shot made vertical over a blurred copy of itself doesn't count the copy's faces, and a clip Apple Vision
+  looked at keeps its places, things and animals.
 - **Remove the background on Linux**. The new **Cutting out a picture's subject** component (about 225 MB) cuts a
   photo's subject out with an open model where Apple Vision isn't there: the pictures fix and AI cut-outs use it.
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every

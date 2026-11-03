@@ -213,3 +213,24 @@ func TestSetupDownloadsAndChecks(t *testing.T) {
 		t.Fatal("and never kept")
 	}
 }
+
+// A face the open models found is asked about from SuggestOpen, one Apple
+// Vision found (or any from before it was recorded) from Suggest (D448): a
+// face 0.40 like Ada's is "Is this Ada?" in the one case, not in the other.
+func TestSuggestOpen(t *testing.T) {
+	th := DefaultThresholds
+	if th.For("").Suggest != th.Suggest || th.For("apple-vision").Suggest != th.Suggest || th.For("open-models").Suggest != th.SuggestOpen || th.SuggestOpen <= th.Suggest {
+		t.Fatalf("%+v", th)
+	}
+	ada := make([]float32, Dim)
+	ada[0] = 1
+	face := make([]float32, Dim)
+	face[0], face[1] = 0.40, float32(math.Sqrt(1-0.40*0.40))
+	people := []Profile{NewProfile("per_ada", "Ada", []Exemplar{{Source: "fac_a", Vec: ada, Weight: 1}})}
+	if d := Decide(face, people, nil, th.For("apple-vision")); len(d.Suggestions) != 1 || d.Auto != nil {
+		t.Fatalf("Apple Vision's face: %+v", d)
+	}
+	if d := Decide(face, people, nil, th.For("open-models")); len(d.Suggestions) != 0 {
+		t.Fatalf("the open models' face: %+v", d)
+	}
+}

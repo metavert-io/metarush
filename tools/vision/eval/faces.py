@@ -21,7 +21,14 @@ nobody confirmed stand in for strangers, over many random draws. The bar is the
 voices' (D60): no face may be named automatically as the wrong person.
 Nothing is kept or committed.
 
-  python3 -I tools/vision/eval/faces.py --metarush bin/metarush [--folder photos] [--with open-models]
+  --mix  fingerprints the photos both ways (Apple Vision's points and the open
+      models') and plays the rules with faces confirmed one way and asked about
+      the other, and with each face either way at random (D448): one library
+      holds both where a workspace has a Mac and a computer without one.
+  --suggest-sweep 0.38,0.40  plays the rules at other asking thresholds.
+
+  python3 -I tools/vision/eval/faces.py --metarush bin/metarush [--folder photos] [--with open-models] [--suggest-sweep …]
+  python3 -I tools/vision/eval/faces.py --metarush bin/metarush --folder photos --mix
   python3 -I tools/vision/eval/faces.py --helper bin/metarush-vision
 """
 import argparse, base64, itertools, json, math, os, random, struct, subprocess, sys, tempfile, time, urllib.parse
@@ -160,7 +167,7 @@ def score(v, prof):
     return max(cos(v, centroid), sum(sims) / len(sims))
 
 
-def decide(v, profiles, th, truth=None, worst=None):
+def decide(v, profiles, th, truth=None, worst=None, by=None):
     ranked = sorted(((score(v, p), pid) for pid, p in profiles.items()), reverse=True)
     if not ranked:
         return None, None
@@ -175,14 +182,21 @@ def decide(v, profiles, th, truth=None, worst=None):
     second = ranked[1][0] if len(ranked) > 1 else -1
     if best >= need and best - second >= th["margin"]:
         return "auto", pid
-    if best >= th["suggest"]:
+    # A face the open models found is asked about from suggestOpen (D448).
+    ask = max(th["suggest"], th.get("suggestOpen", 0)) if by == "open-models" else th["suggest"]
+    if best >= ask:
         return "ask", pid
     return None, None
 
 
-def play(faces, th, enroll, strangers, trials, seed):
-    """Random draws: some people are known (enroll faces each confirmed), the rest strangers."""
+def play(faces, th, enroll, strangers, trials, seed, query=None, mix=None, by=None, query_by=None, mix_by=None):
+    """Random draws: some people are known (enroll faces each confirmed), the rest strangers.
+    query: the fingerprints faces are asked about with (default: faces, those confirmed);
+    mix: other fingerprints of the same photos, each face's taken from faces or mix at random in every draw;
+    by, query_by, mix_by: what found the faces of each (apple-vision or open-models)."""
     rng = random.Random(seed)
+    if query is None:
+        query, query_by = faces, by
     people = sorted({who(n) for n in faces})
     by = {p: sorted(n for n in faces if who(n) == p) for p in people}
     eligible = [p for p in people if len(by[p]) > enroll]
@@ -190,6 +204,7 @@ def play(faces, th, enroll, strangers, trials, seed):
          "strangerAuto": 0, "strangerAsked": 0, "strangerNothing": 0, "strangers": 0, "worstWrong": []}
     wrong_scores = []
     for _ in range(trials):
+        pick = {n: ((faces[n], by) if rng.random() < 0.5 else (mix[n], mix_by)) for n in faces} if mix else None
         unknown = set(rng.sample(eligible, max(0, round(strangers * len(eligible)))))
         profiles, queries = {}, []
         for p in people:
@@ -198,10 +213,11 @@ def play(faces, th, enroll, strangers, trials, seed):
             if p in unknown or p not in eligible:
                 queries += [(n, None) for n in names]
                 continue
-            profiles[p] = profile([faces[n] for n in names[:enroll]])
+            profiles[p] = profile([pick[n][0] if pick else faces[n] for n in names[:enroll]])
             queries += [(n, p) for n in names[enroll:]]
         for n, truth in queries:
-            what, pid = decide(faces[n], profiles, th, truth, wrong_scores)
+            v, vby = pick[n] if pick else (query[n], query_by)
+            what, pid = decide(v, profiles, th, truth, wrong_scores, vby)
             if truth is None:
                 t["strangers"] += 1
                 t["strangerAuto" if what == "auto" else "strangerAsked" if what == "ask" else "strangerNothing"] += 1
@@ -221,6 +237,8 @@ def play(faces, th, enroll, strangers, trials, seed):
     t["autoPrecision"] = round(t["autoRight"] / autos, 4) if autos else None
     t["autoRecall"] = round(t["autoRight"] / t["known"], 4) if t["known"] else None
     t["namedOrAskedRight"] = round((t["autoRight"] + t["askRight"]) / t["known"], 4) if t["known"] else None
+    t["askedWrongPerson"] = round(t["askWrong"] / t["known"], 4) if t["known"] else None
+    t["strangersAsked"] = round(t["strangerAsked"] / t["strangers"], 4) if t["strangers"] else None
     t["worstWrong"] = sorted(set(t["worstWrong"]))[:10]
     ws = sorted(wrong_scores)
     if ws:
@@ -240,6 +258,8 @@ def main():
     ap.add_argument("--auto", type=float, help="try another automatic-name threshold (default: what MetaRush uses)")
     ap.add_argument("--margin", type=float, help="try another lead over the runner-up")
     ap.add_argument("--suggest", type=float, help="try another asking threshold")
+    ap.add_argument("--suggest-sweep", help="asking thresholds to play the rules at, comma-separated")
+    ap.add_argument("--mix", action="store_true", help="fingerprint both ways and confirm one way, ask the other (D448)")
     args = ap.parse_args()
     if not args.metarush and not args.helper:
         ap.error("give --metarush or --helper")
@@ -249,6 +269,9 @@ def main():
     if args.helper:
         for margin in (0.8, 1.0, 1.35, 2.0):
             print(f"Apple feature print, crop {margin}x the face: {json.dumps(pairs_report(helper_prints(args.helper, folder, margin)))}")
+    if args.metarush and args.mix:
+        mixed(args, folder)
+        return
     if args.metarush:
         found = metarush_prints(args.metarush, folder, args.home, args.with_)
         faces = dedupe(found)
@@ -260,12 +283,49 @@ def main():
         print(f"SFace (what ships{', points from ' + args.with_ if args.with_ else ''}): {json.dumps(pairs_report(faces))}")
         print(f"thresholds: {json.dumps(th)}")
         for enroll in (1, 2, 3):
-            r = play(faces, th, enroll, 0.25, args.trials, 7 + enroll)
+            r = play(faces, th, enroll, 0.25, args.trials, 7 + enroll, by=args.with_)
             print(f"confirmed {enroll} face(s) per known person, a quarter of people unknown, {args.trials} draws: {json.dumps(r)}")
         people = len({who(n) for n in faces})
         for known in (1, 2):
-            r = play(faces, th, 2, 1 - known / people, args.trials, 31 + known)
+            r = play(faces, th, 2, 1 - known / people, args.trials, 31 + known, by=args.with_)
             print(f"only {known} known (2 faces confirmed each), everyone else a stranger, {args.trials} draws: {json.dumps(r)}")
+        for at in [float(x) for x in (args.suggest_sweep or "").split(",") if x]:
+            t = dict(th, suggest=at, suggestOpen=at)
+            for enroll in (1, 2, 3):
+                r = play(faces, t, enroll, 0.25, args.trials, 7 + enroll, by=args.with_)
+                print(f"asking from {at}: confirmed {enroll}: askedWrongPerson {r['askedWrongPerson']} namedOrAskedRight {r['namedOrAskedRight']} strangersAsked {r['strangersAsked']} autoPrecision {r['autoPrecision']}")
+
+
+def summary(r):
+    keep = ("autoPrecision", "autoRecall", "namedOrAskedRight", "askedWrongPerson", "strangersAsked", "autoWrong", "strangerAuto", "wrongPersonScoreMax")
+    return {k: r.get(k) for k in keep}
+
+
+def mixed(args, folder):
+    """Both ways in one library (D448): confirmed with one, asked about with the other, or each face either way."""
+    A, O = dedupe(metarush_prints(args.metarush, folder, args.home, "apple-vision")), dedupe(metarush_prints(args.metarush, folder, args.home, "open-models"))
+    both = sorted(set(A) & set(O))
+    a, o = {n: A[n] for n in both}, {n: O[n] for n in both}
+    th = thresholds(args.metarush, args.home)
+    print(f"photos fingerprinted both ways: {len(both)} (Apple Vision {len(A)}, the open models {len(O)})")
+    same_photo = sorted(cos(a[n], o[n]) for n in both)
+    print(f"the same photo, the two ways' fingerprints: min {same_photo[0]:.3f} median {same_photo[len(same_photo) // 2]:.3f}")
+    same, diff = [], []
+    for x, y in itertools.permutations(both, 2):
+        (same if who(x) == who(y) else diff).append(cos(a[x], o[y]))
+    q = lambda xs, p: sorted(xs)[min(len(xs) - 1, int(p * len(xs)))]
+    print(f"across the two ways: same person median {q(same, 0.5):.3f}; different people median {q(diff, 0.5):.3f} p99 {q(diff, 0.99):.3f} max {max(diff):.3f}")
+    people = len({who(n) for n in both})
+    A_, O_ = "apple-vision", "open-models"
+    for label, faces, by, query, query_by, mix in (("Apple Vision", a, A_, None, None, None), ("the open models", o, O_, None, None, None),
+                                                   ("confirmed with Apple Vision, asked with the open models", a, A_, o, O_, None),
+                                                   ("confirmed with the open models, asked with Apple Vision", o, O_, a, A_, None),
+                                                   ("each face either way at random", a, A_, None, None, o)):
+        kw = dict(query=query, mix=mix, by=by, query_by=query_by, mix_by=O_)
+        for enroll in (1, 2, 3):
+            print(f"{label}, confirmed {enroll}: {json.dumps(summary(play(faces, th, enroll, 0.25, args.trials, 7 + enroll, **kw)))}")
+        for known in (1, 2):
+            print(f"{label}, only {known} known: {json.dumps(summary(play(faces, th, 2, 1 - known / people, args.trials, 31 + known, **kw)))}")
 
 
 if __name__ == "__main__":

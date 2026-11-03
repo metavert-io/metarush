@@ -39,7 +39,7 @@ func facePrintsCmd() *cobra.Command {
 			if bar {
 				th := faces.Thresholds
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{"auto": th.Auto, "margin": th.Margin, "fewAuto": th.FewAuto, "fewOthers": th.FewOthers,
-					"suggest": th.Suggest, "conflict": faces.ConflictThreshold, "model": faceid.ModelName})
+					"suggest": th.Suggest, "suggestOpen": th.SuggestOpen, "conflict": faces.ConflictThreshold, "model": faceid.ModelName})
 			}
 			h, err := home()
 			if err != nil {

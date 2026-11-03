@@ -127,11 +127,11 @@ export function ContentCredentialsSettings() {
       body: (
         <p className="text-[13px]">
           A timestamp service vouches for when each video was signed, so its Content Credentials still check out after the certificate runs out. It receives a fingerprint of
-          what was signed, never the video. Leave it empty for none.
+          what was signed, never the video or anything of the client&apos;s. Its address is https, on the internet. Leave it empty for none.
         </p>
       ),
       label: 'Its address',
-      placeholder: 'http://timestamp.example.com',
+      placeholder: 'https://timestamp.example.com',
       defaultValue: ws?.timestampUrl ?? '',
       maxLength: 200,
       confirmLabel: 'Save',

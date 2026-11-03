@@ -73,6 +73,9 @@ type itemCredentials struct {
 	// signed is the signed copy waiting in its private folder (nil none):
 	// placed where the video goes, then checked again (placeSigned).
 	signed *c2pa.Signed
+	// anyway: a person sent it out without them, with a note (no warning:
+	// it was their decision, and the note says it).
+	anyway bool
 }
 
 // removeSigned throws away the signed copies still waiting.
@@ -121,6 +124,7 @@ func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs 
 		}
 		if g := gates[it.rev.ID]; g != nil {
 			if coveredCredentialsHold(g) != nil {
+				ic.anyway = true
 				rec.Problem = "a person sent it out without them, with a note"
 				rec.Says = "This video went out without Content Credentials: " + rec.Problem + "."
 				continue
@@ -155,7 +159,8 @@ func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs 
 			rec.Problem = why
 			rec.Says = "This video went out without Content Credentials: " + why + "."
 			if runtime {
-				failed = why
+				// Remembered as what went wrong ("The last signing on this computer failed: …").
+				failed = strings.TrimPrefix(why, "signing it failed: ")
 			}
 			if !rec.Required {
 				return nil

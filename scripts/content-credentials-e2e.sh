@@ -3,11 +3,14 @@
 # installation that talks to nothing outside this computer. A short cut of a test clip gets its final render
 # here and its quality check. Delivery from the CLI with Content Credentials off carries none. The browser run
 # (web/scripts/content-credentials-e2e.mjs) approves the version as a person, makes Content Credentials
-# required in Settings → Delivery, sees the version held for them ("Set them up"), makes a test certificate in
-# the styled dialog, tries it on a sample, delivers from the version page (Deliver…) and reads what the video
-# carries, then the receipt's Content Credentials and the project's own part. Then the script reads the
-# delivered file's record, notes and Content Credentials back (c2patool), checks the manifest names nothing of
-# the project, and looks for the private key everywhere it must never be: the log, the dashboard's output, the
+# required in Settings → Delivery, sees the version held for them ("Set them up"), turns the gate off and sees
+# it held still, sends it out without them with a note (Deliver anyway…), turns the gate on again, makes a test
+# certificate in the styled dialog, tries it on a sample, delivers from the version page (Deliver…) and reads
+# what the video carries; with the stand-in it then makes signing fail (nothing written, the version held for
+# the failed signing) and lets a sample that works free it; then the receipt's Content Credentials and the
+# project's own part. Then the script reads both delivered folders back — the signed file's record, notes and
+# Content Credentials (c2patool), the manifest naming nothing of the project, and the one sent without them with
+# its note — and looks for the private key everywhere it must never be: the log, the dashboard's output, the
 # records and the home's state. Desktop and 390 px phone, dark and light, screenshots; no native browser
 # dialog, no sideways scrolling, plain words.
 #
@@ -55,11 +58,17 @@ if [ "${SKIP_BUILD:-}" != "1" ]; then
   nice -n 10 npm run build -w web >/dev/null
   go build -o bin/metarush ./cmd/metarush
 fi
+FAKE_STATE=""
 if [ -n "${C2PATOOL:-}" ]; then
   TOOL="$C2PATOOL"
   echo "the real c2patool: $("$TOOL" --version)"
 else
-  go build -o "$BASE/bin/c2patool" ./internal/testutil/fakec2patool/cmd/fake-c2patool
+  # MetaRush runs c2patool with an environment built from nothing, so the stand-in's state file (the browser run
+  # makes it fail and work again) is named by a wrapper.
+  go build -o "$BASE/bin/fake-c2patool" ./internal/testutil/fakec2patool/cmd/fake-c2patool
+  FAKE_STATE="$BASE/c2patool-state.json"; echo '{}' > "$FAKE_STATE"
+  printf '#!/bin/sh\nexec /usr/bin/env METARUSH_FAKE_C2PATOOL_STATE=%s %s "$@"\n' "'$FAKE_STATE'" "'$BASE/bin/fake-c2patool'" > "$BASE/bin/c2patool"
+  chmod 755 "$BASE/bin/c2patool"
   TOOL="$BASE/bin/c2patool"
   echo "the stand-in c2patool"
 fi
@@ -114,12 +123,37 @@ for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null
 step "the browser run"
 SHOTS="${CREDENTIALS_SHOTS:-$BASE/screenshots}"
 METARUSH_DASHBOARD="http://127.0.0.1:$PORT" METARUSH_MINT="./bin/metarush --home $H dashboard --print-link --no-open" \
-CREDENTIALS_PROJECT="$P" CREDENTIALS_REVISION="$R1" CREDENTIALS_SHOTS="$SHOTS" node web/scripts/content-credentials-e2e.mjs
+CREDENTIALS_PROJECT="$P" CREDENTIALS_REVISION="$R1" CREDENTIALS_SHOTS="$SHOTS" CREDENTIALS_FAKE_STATE="$FAKE_STATE" \
+node web/scripts/content-credentials-e2e.mjs
 
-step "what the dashboard delivered: the record, the notes and the file's Content Credentials"
-FOLDER=$(python3 -I -c 'import os,sys; fs=[f for f in os.listdir(sys.argv[1]) if not f.startswith(".")]; assert len(fs)==1, fs; print(os.path.join(sys.argv[1], fs[0]))' "$BASE/exports")
-echo "folder: $(basename "$FOLDER")"
-VIDEO=$(ls "$FOLDER"/*.mp4); RECORD="${VIDEO%.mp4}.json"; NOTES="${VIDEO%.mp4}.notes.md"
+step "what the dashboard delivered: one folder sent without them with a note, one signed (a signing that failed wrote none)"
+python3 -I - "$BASE/exports" > "$BASE/folders.txt" <<'PY'
+import glob, json, os, sys
+root = sys.argv[1]
+C2PA = bytes.fromhex("d8fec3d61b0e483c92975828877ec481")
+signed, anyway = [], []
+folders = [f for f in sorted(os.listdir(root)) if not f.startswith(".")]
+assert len(folders) == 2, ("two delivered folders, not", folders)
+for f in folders:
+    videos = glob.glob(os.path.join(root, f, "*.mp4"))
+    assert len(videos) == 1, (f, videos)
+    c = json.load(open(videos[0][:-4] + ".json")).get("contentCredentials") or {}
+    (signed if c.get("signed") else anyway).append(videos[0])
+assert len(signed) == 1 and len(anyway) == 1, ("one signed, one sent without them", signed, anyway)
+v = anyway[0]
+c = json.load(open(v[:-4] + ".json"))["contentCredentials"]
+assert c.get("required") and not c.get("signed") and "with a note" in c.get("problem", ""), c
+assert C2PA not in open(v, "rb").read(), "the video sent without them carries Content Credentials"
+notes = open(v[:-4] + ".notes.md").read()
+assert "## Sent out anyway" in notes and "without Content Credentials" in notes, notes[-800:]
+assert "The client takes this one without Content Credentials." in notes, "the note isn't in the notes file"
+print(signed[0])
+print("sent without them, with a note: %s" % os.path.basename(os.path.dirname(v)), file=sys.stderr)
+PY
+VIDEO=$(head -1 "$BASE/folders.txt"); FOLDER=$(dirname "$VIDEO")
+echo "signed: $(basename "$FOLDER")"
+RECORD="${VIDEO%.mp4}.json"; NOTES="${VIDEO%.mp4}.notes.md"
+[ ! -e "$H/state/private/content-credentials-failed.json" ] || { echo "a failed signing is still remembered after a sample worked"; exit 1; }
 python3 -I - "$VIDEO" "$RECORD" <<'PY'
 import hashlib, json, sys
 video, record = sys.argv[1], sys.argv[2]
@@ -184,6 +218,7 @@ MR deliver --revision "$R1" --out "$BASE/deliveries/cli" --json | J '"delivered:
 MR deliver --revision "$R1" --out "$BASE/deliveries/cli2" --json | J 'd["data"]["files"][0]["contentCredentials"]["signed"] or sys.exit("not signed")' >/dev/null
 MR project receipt "$P" --json | J '"\n".join(l for l in d["data"]["lines"] if "Content Credentials" in l)'
 MR project receipt "$P" --json | J 'len(d["data"]["signed"]) == 3 or sys.exit("the receipt lists %d signed files, not 3" % len(d["data"]["signed"]))' >/dev/null
+MR project receipt "$P" --json | J 'any("must carry Content Credentials" in h and x["wentOut"] for x in d["data"]["sentAnyway"] for h in x["held"]) or sys.exit("the receipt doesn'"'"'t list the version sent without them: %s" % d["data"]["sentAnyway"])' >/dev/null
 
 step "the private key is nowhere it must never be"
 MR log export --out "$BASE/log.jsonl" >/dev/null

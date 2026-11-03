@@ -8,11 +8,16 @@
   people, projects or clients, no prompts, no thumbnail. Each computer that delivers signs with its own certificate:
   a test certificate made there (verifiers show its signer as unknown), or your organisation's own, set up by an
   owner in Settings → Delivery or with `metarush credentials setup`; its key stays in that computer's keychain and is
-  never handed to the signing tool. Each signed copy is read back and checked before it goes out; the video's record,
-  its notes file ("This video carries Content Credentials…") and the receipt say so, and a video that can't be signed
-  goes out without them and says why. "Required" holds a version until this computer can sign it (a person can still
-  send it out without them, with a note). The signing tool, c2patool, is a new optional component
-  (Settings → Components). `metarush credentials check <video>` reads any video's.
+  never handed to the signing tool, which gets one signature per video and must put exactly that one in the file.
+  Each signed copy is read back and checked before it goes out; the video's record, its notes file ("This video
+  carries Content Credentials…") and the receipt say so, and a video that can't be signed goes out without them and
+  says why. "Required" holds a version until this computer can sign it — and after a signing here failed, until Try it
+  on a sample works — with the ship gate off too; a person can still send it out without them, with a note. The
+  signing tool, c2patool, is a new optional component (Settings → Components). `metarush credentials check <video>`
+  reads any video's.
+- **Remotion refreshes can't see other programs' temporary files**. A source's own refresh steps can no longer read,
+  write or connect to anything inside the temporary folders other programs use (the system's temporary folders and, on
+  a Mac, the other folders of yours beside them), apart from their own copy and cache.
 - **Deliver from the version page**. Ready to deliver now has **Deliver…**: the final video goes to a new folder in
   MetaRush exports (in Movies on a Mac, Videos elsewhere), checked against the render, with its record, notes and captions — the same delivery as
   `metarush deliver` — and you can show it in Finder or, from another computer, download it.

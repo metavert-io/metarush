@@ -300,6 +300,10 @@ func TestMacProfileHidesAndAllows(t *testing.T) {
 			t.Errorf("the temporary folder %s isn't kept out: %v", want, inside)
 		}
 	}
+	// On a Mac, the person's caches beside it too.
+	if caches := filepath.Join(filepath.Dir(tmp), "C"); runtime.GOOS == "darwin" && strings.HasPrefix(tmp, "/private/var/folders/") && dirExists(caches) && !slices.Contains(inside, caches) {
+		t.Errorf("the person's caches beside the temporary folder aren't kept out: %v", inside)
+	}
 	room := filepath.Join(tmp, "metarush-refresh-x")
 	p2 := macProfile(&apart{Root: room, Inside: inside})
 	deny, allow := strings.Index(p2, "(regex "+sbRegexInside(tmp)+")"), strings.Index(p2, "(allow file-read-data file-read-xattr file-read* file-write* (subpath "+sbQuote(room)+")")

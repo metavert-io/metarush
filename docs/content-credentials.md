@@ -30,9 +30,15 @@ They are off until an owner turns them on.
   and what delivery says tell you why.
 - **Required**: the same, but a video that can't be signed doesn't go out. A version this computer can't sign waits
   ([the ship gate](ship-gate.md): "Its videos must carry Content Credentials, and this computer can't sign them: …",
-  with Set them up), and a signing that fails during the delivery stops it — nothing is written — with the gate off
-  too. A person can still send it out without them, with a note (`metarush deliver override`, Deliver anyway…), which
-  is kept and shows on the receipt. Moving a project to settings that don't require them is an owner's, as a person.
+  with Set them up), with the gate off too. A signing that fails during the delivery stops it — nothing is written —
+  and this computer remembers it until a signing works again: the version then waits with "Its videos must carry
+  Content Credentials, and the last signing on this computer failed (…)", and **Try it on a sample** (`metarush
+  credentials test`) signs MetaRush's own sample — when that checks out, the version is ready again. Either way a
+  person can send it out without them, with a note (`metarush deliver override`, Deliver anyway…), gate on or off; the
+  note is kept and shows on the receipt, and the delivered video's record and notes say it went out without them.
+- **Asking less** — required → on → off, in the workspace or a client's Content Settings, and moving a project to
+  settings that ask less (following another project's, its own, a new default) — is an owner's, as a person (never
+  Claude, Auto, MCP or another AI app), as turning the ship gate off is.
 - **Review copies** are never signed: only final videos are.
 - **Timelines** for other editing apps carry none, and a version isn't held for them there. **Posts to YouTube** send
   the render as it is: they carry none yet, and the post's plan says so.
@@ -59,7 +65,9 @@ run out; signed by itself (use a test certificate instead); a certificate author
 digital signatures; no extended key usage, "any" usage, or one C2PA doesn't take (it takes email protection, document
 signing, C2PA claim signing and Microsoft's C2PA signing); no authority key identifier; issued with SHA-1; the chain out
 of order; a key that doesn't belong to it, or one protected with a password. Keys: ECDSA on P-256, P-384 or P-521 (signed
-ES256, ES384, ES512), RSA of 2048 bits or more (PS256), Ed25519.
+ES256, ES384, ES512), RSA of 2048 bits or more (PS256), Ed25519. It won't read a key from a sync folder (iCloud Drive,
+Dropbox, Google Drive, OneDrive) or from a folder a git repository would commit: move the file out first (or have git
+ignore it).
 
 **Where it is kept**: the private key in this computer's keychain (an installation that keeps its secrets in its
 secrets file keeps it there, never put into the environment of anything MetaRush runs); the certificate chain, which is
@@ -84,24 +92,35 @@ build it from its source (`cargo install c2patool --version 0.28.3`). MetaRush n
 
 1. Delivery checks everything first, as always (approval, the ship gate, What may leave, names), then signs every final
    video before writing anything.
-2. c2patool writes a signed copy of the render next to where the video goes (a hidden file), with the manifest MetaRush
-   wrote. **It never sees the key**: its signer is MetaRush itself. c2patool runs MetaRush as its signing program;
-   that program asks the MetaRush that started c2patool, over a socket in a private folder only this signing knows, to
-   sign — and only C2PA signatures, at most twice. c2patool runs with an environment of its own (none of the C2PA
-   variables or settings of yours reach it, so its built-in test key can never be used), MetaRush's own settings file
-   (no thumbnail, no remote manifests, the purposes a certificate may name), and a signing MetaRush didn't sign is
-   thrown away.
+2. c2patool writes a signed copy of the render, with the manifest MetaRush wrote, in a private folder of that signing's
+   own inside the home's private state (`state/private`, which only your account can open). **It never sees the
+   key**: its signer is MetaRush itself. c2patool runs MetaRush as its signing program, and that program asks the
+   MetaRush that started c2patool to sign over a connection MetaRush handed to c2patool when it started it (one end
+   of a socket pair, which c2patool's signing program inherits): there is no socket file anyone could connect to, and
+   no ticket or address in an environment or on a command line. MetaRush signs **one** C2PA signature per signing
+   (reserved before it signs; anything else c2patool asks for is refused, and the copy thrown away), keeps what it
+   returned, and the copy must carry exactly that signature — a copy whose signature MetaRush didn't make for it is
+   thrown away. c2patool runs with an environment of its own (none of the C2PA variables or settings of yours reach it,
+   so its built-in test key can never be used) and MetaRush's own settings file (no thumbnail, no remote manifests,
+   the purposes a certificate may name).
 3. MetaRush reads the copy back with c2patool and checks it: well formed, the signature and the video's bytes match, and
    signed with this computer's certificate. An unknown signer is not a failure (MetaRush gives c2patool no trust list;
-   verifiers decide whom they trust). It also hashes the manifest store itself.
-4. Only a copy that checks out is placed, with the same rule as every delivery: never over an existing file. A copy
-   that doesn't check out is never delivered: the render goes out without Content Credentials instead (or, where they
-   are required, nothing goes out), and delivery says so plainly.
+   verifiers decide whom they trust). It also hashes the copy and its manifest store.
+4. Only a copy that checks out is placed, with the same rule as every delivery: never over an existing file. It is
+   linked into place from the private folder (copied, and hashed as it is written, when the folders are on different
+   disks), then MetaRush hashes the placed file again: only when its SHA-256 and its manifest store's are the checked
+   copy's is anything recorded; otherwise the file is removed and nothing goes out. A copy that doesn't check out is
+   never delivered: the render goes out without Content Credentials instead (or, where they are required, nothing goes
+   out), and delivery says so plainly.
 
 A timestamp service is optional (Settings → Delivery → Add one, `metarush credentials on --timestamp-url <url>`): it
-vouches for when each video was signed, so its Content Credentials still check out after the certificate runs out. It
-receives a fingerprint of what was signed, never the video. Without one, nothing leaves this computer when a video is
-signed.
+vouches for when each video was signed, so its Content Credentials still check out after the certificate runs out.
+Only an owner, as a person, chooses one. Its address is `https://` and a name on the internet: addresses given as
+numbers, `localhost`, names ending in `.local`, `.internal`, `.lan` or `.home.arpa`, names without a dot, and names that
+lead to this computer or a local network (looked up when it is set and again before each signing) are refused. c2patool
+asks it itself, during the signing, with a fingerprint (an RFC 3161 hash) of what is signed and a random number, never the video,
+its pictures or sound, or anything of the client's — so What may leave isn't asked. Without one, nothing leaves this
+computer when a video is signed.
 
 ## What the manifest says
 
@@ -115,8 +134,12 @@ signed.
 | Signature | the computer's certificate chain; with a timestamp service, its timestamp |
 
 The parts are what the delivery's record lists: the footage and sound the cut plays, the cuts it nests and what they
-play, the narration's recordings, the pictures it shows (fonts aren't parts), and every AI-generated part — so the
-manifest discloses exactly what the record, the quality check and the receipt disclose. At most 200 parts are listed.
+play (their narration and pictures included), a call's recordings, the narration's recordings, the pictures it shows
+(fonts aren't parts), and every part AI made or changed — so the manifest discloses exactly what the record, the
+quality check and the receipt disclose. What AI did to a part comes from one answer (`models.AIWorkOf`), read by the
+manifest, the record and the quality check alike: the kind of AI work that made it (generated video, a picture made from
+words, a picture made larger…), never a guess from its name; a kind MetaRush doesn't know counts as made by AI. At most
+200 parts are listed.
 
 **Digital source types** (IPTC's, as C2PA uses them):
 
@@ -151,7 +174,9 @@ Each video's record (the `.json` next to it) has `contentCredentials`:
 ```
 
 `signed` and `verified` are false, with `problem` and `says`, when it carries none; `testCertificate` marks a test
-certificate; `required` says the settings ask for them. `sha256` and `size` are the delivered file's (its credentials
+certificate; `required` says the settings ask for them. The record's AI parts say what AI did in the same words:
+`generated[].work` is `made` or `edited`, and each picture's `ai` is `made`, `edited` or `enhanced` (a background taken
+away, made larger — said, not disclosed as AI-generated). `sha256` and `size` are the delivered file's (its credentials
 included); the render's own stay under `render`. `manifestHash` is the SHA-256 of the manifest store in the file.
 
 The `.notes.md` file says it in a few plain sentences ("This video carries Content Credentials, …", or why it went out
@@ -170,7 +195,9 @@ check out, who signed them and whether that is this computer's certificate.
 - **A project's Settings tab → Content Credentials**: a client's own word.
 - **The version page**: Ready to deliver has **Deliver…**, which delivers the final video into a new folder in
   MetaRush exports (in Movies on a Mac, Videos elsewhere; Show in Finder, or from another computer download it),
-  saying what Content Credentials each video carries. Held by "its videos must carry Content Credentials" has Set them up.
+  saying what Content Credentials each video carries. Held by "its videos must carry Content Credentials" has Set them up
+  (or, after a signing that failed, Try it on a sample) and Deliver anyway…, with the gate on or off. A delivery that
+  can't sign where they are required says why in the dialog, and nothing is written.
 
 ## Commands
 
@@ -189,18 +216,27 @@ Every command takes `--json`.
 
 ## Testing
 
-- `go test ./internal/c2pa/ ./internal/ops/ -run 'Credentials|Manifest|ShipGateCanRequire|DeliveryWithout'` uses a
-  c2patool stand-in (`internal/testutil/fakec2patool`) that speaks the same signing protocol — it asks MetaRush's
-  signer for the chain and the signature and checks them against the certificate — writes the Content Credentials box
-  where c2patool does, and can be told to fail. Certificates and keys are made while the tests run; none is ever kept
-  in the repository. The real c2patool is never run under `go test` unless a test names it.
+- `go test ./internal/c2pa/ ./internal/ops/ -run 'Credential|Manifest|ShipGateCanRequire|DeliveryWithout|ARequiredSigning|TwoDeliveries|FollowingSettings'`
+  uses a c2patool stand-in (`internal/testutil/fakec2patool`) that speaks the same signing protocol — it asks
+  MetaRush's signer for the chain and the signature and checks them against the certificate — writes the Content
+  Credentials store where and as c2patool does (JUMBF, a COSE signature), and can be told to fail, to ask for more
+  signatures, to sign a claim of its own first, to put another signature in the copy, or to wait while a test tries to
+  reach the signer from outside (`TestTheSignerIsNoOracle`, `TestOneSignaturePerSigningAndOnlyOurs`). Certificates
+  and keys are made while the tests run; none is ever kept in the repository. The real c2patool is never run under
+  `go test` unless a test names it.
+- `TestManifestSaysWhatAIDidAndNoNames` and `TestRecordAndManifestAgreeOnWhatAIDid` (`internal/ops`) hold the
+  manifest to every kind of AI part — nested cuts' AI narration and pictures, a call's recordings, pictures made larger
+  — and to the record; `TestEveryKindSaysWhatAIDid` (`internal/aiservices`) to every kind of AI work there is.
 - Once on a computer that has the real one:
   `METARUSH_REAL_C2PATOOL=/path/to/c2patool go test -tags c2pareal -run TestRealC2patool -v ./internal/c2pa/` signs
   a short video ffmpeg makes with a test certificate and with brought certificates of every key kind, reads each back,
-  checks every assertion is a created one, and searches the signed file for names that must never be in it.
-- The browser run `scripts/content-credentials-e2e.sh` (ports 5780–5789) turns them on in Settings → Delivery with a
-  test certificate, delivers from the version page, and reads the delivered file's credentials back
-  (`C2PATOOL=/path/to/c2patool` uses the real one).
+  checks every assertion is a created one, and searches the signed file for names that must never be in it;
+  `TestRealC2patoolIsNoOracle` pauses the real c2patool mid-signing and tries everything its process shows another
+  program to get a signature of its own.
+- The browser run `scripts/content-credentials-e2e.sh` (ports 5780–5789) makes them required in Settings → Delivery,
+  sends a held version out without them with a note while the gate is off, sets up a test certificate, delivers from
+  the version page and reads the delivered file's credentials back; with the stand-in it also makes a signing fail
+  (nothing written, the version held) and a sample free it (`C2PATOOL=/path/to/c2patool` uses the real one).
 
 ## Not yet
 

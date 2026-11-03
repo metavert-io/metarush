@@ -177,10 +177,12 @@ func hiddenFor(a *app.App, original string) []string {
 }
 
 // insideFor lists the temporary folders other programs of the person's work
-// in — $TMPDIR (on a Mac the person's own) and /tmp — whose contents, files
-// and sockets a refresh never sees (D439). Its own room is in one of them
-// and is let back in; the folders themselves stay on its way (a program
-// asking where it is reads them).
+// in — $TMPDIR (on a Mac the person's own) and /tmp, and on a Mac the other
+// folders of the person's own beside $TMPDIR (/var/folders/…/C, the caches;
+// 0, system services' own) — whose contents, files and sockets a refresh
+// never sees (D439; Linux's /run/user/<uid> is emptied by bwrapArgs). Its own
+// room is in one of them and is let back in; the folders themselves stay on
+// its way (a program asking where it is reads them).
 func insideFor() []string {
 	var out []string
 	add := func(p string) {
@@ -198,7 +200,35 @@ func insideFor() []string {
 	add(os.TempDir())
 	add(os.Getenv("TMPDIR"))
 	add("/tmp")
+	for _, d := range perUserBeside(os.TempDir()) {
+		add(d)
+	}
 	return dedupeStrings(out)
+}
+
+// perUserBeside are the folders beside a Mac's per-person temporary folder
+// (/private/var/folders/<x>/<y>/T): the person's own caches and services'
+// folders there (C, 0, X); nothing elsewhere.
+func perUserBeside(tmp string) []string {
+	real, err := filepath.EvalSymlinks(tmp)
+	if err != nil || filepath.Base(real) != "T" {
+		return nil
+	}
+	user := filepath.Dir(real)
+	if filepath.Dir(filepath.Dir(user)) != "/private/var/folders" {
+		return nil
+	}
+	ents, err := os.ReadDir(user)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range ents {
+		if e.IsDir() && e.Name() != "T" {
+			out = append(out, filepath.Join(user, e.Name()))
+		}
+	}
+	return out
 }
 
 // readableFor are folders inside hidden ones a step needs to read: Node.js's

@@ -821,7 +821,7 @@ func init() {
 						a.Audit(ctx, "delivery.credentials.unrecorded", "revision", it.rev.ID, it.proj.ID, map[string]any{"error": err.Error()})
 						out.Warnings = append(out.Warnings, fmt.Sprintf("MetaRush couldn't note on version %d that %s carries Content Credentials, so the receipt doesn't list it; its .json and .notes.md files say so.", it.rev.Number, filepath.Base(dst)))
 					}
-				} else if ic.rec.Problem != "" {
+				} else if ic.rec.Problem != "" && !ic.anyway {
 					out.Warnings = append(out.Warnings, filepath.Base(dst)+": "+lowerFirst(ic.rec.Says))
 				}
 			}

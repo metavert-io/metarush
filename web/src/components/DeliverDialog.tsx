@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Certificate, CheckCircle, DownloadSimple, FolderOpen, PaperPlaneTilt } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
-import { request } from '../api/client';
+import { request, toApiError } from '../api/client';
 import type { DeliverHereIn, DeliverHereOut } from '../api/types';
 import { useHost } from '../lib/host';
 import { useDialog } from '../ui/Dialog';
@@ -31,7 +31,10 @@ function DeliverForm({ revisionId, label, close }: { revisionId: string; label: 
       setDone(out);
       for (const k of ['delivery.ready', 'project.receipt', 'project.show'] as const) void qc.invalidateQueries({ queryKey: [k] });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const err = toApiError(e);
+      setError([err.message, err.hint].filter(Boolean).join(' '));
+      // A signing that failed is remembered: the version's page now says what holds it.
+      for (const k of ['delivery.ready', 'credentials.status'] as const) void qc.invalidateQueries({ queryKey: [k] });
     } finally {
       setBusy(false);
     }
@@ -101,7 +104,11 @@ function DeliverForm({ revisionId, label, close }: { revisionId: string; label: 
         Delivers the final video of {label} to a new folder in MetaRush exports{host.remote ? ` on ${host.machine}` : ''}, checked against the render, with its record,
         notes and captions next to it, and Content Credentials where they are on. Nothing is uploaded and nothing is written over.
       </p>
-      {error ? <p className="text-[13px] text-danger">{error}</p> : null}
+      {error ? (
+        <p className="text-[13px] text-danger" data-deliver-error>
+          {error}
+        </p>
+      ) : null}
       <div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={() => close()} disabled={busy}>
           Cancel

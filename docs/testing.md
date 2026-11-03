@@ -19,7 +19,8 @@ English recognizers' comparison, the loaded models against the CLI, and the mult
 (`scripts/fetch-speech.sh` fetches openly licensed readings into the gitignored `tests/fixtures/speech/`,
 then `EVAL_SPEECH=tests/fixtures/speech EVAL_LANGS=es go test -tags voiceeval -run TestMultilingual
 ./internal/transcribe/`, one language at a time). Content Credentials with the real c2patool, once on a computer that
-has it: `METARUSH_REAL_C2PATOOL=<c2patool> go test -tags c2pareal -run TestRealC2patool ./internal/c2pa/`
+has it: `METARUSH_REAL_C2PATOOL=<c2patool> go test -tags c2pareal -run TestRealC2patool ./internal/c2pa/` (with
+`TestRealC2patoolIsNoOracle`: another program trying to get a signature while the real c2patool signs)
 ([content-credentials.md](content-credentials.md)).
 
 Fakes, so no test reaches a real service: `internal/assistant/fakeclaude` (Claude Code), `internal/testutil/fakeeleven`

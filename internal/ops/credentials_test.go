@@ -466,7 +466,7 @@ func TestARequiredSigningThatFailsCanGoOutWithANote(t *testing.T) {
 	}
 	g := ready()
 	if g.Ready || len(g.Holds) != 1 || !strings.HasPrefix(g.Holds[0].Key, "credentials:failed:") || g.Holds[0].Paths[0].Op != "credentials.test" ||
-		!strings.Contains(g.Holds[0].Says, "the last signing on this computer failed") {
+		!strings.Contains(g.Holds[0].Says, "the last signing on this computer failed") || strings.Contains(g.Holds[0].Says, "signing it failed") {
 		t.Fatalf("held for the failed signing: %+v", g)
 	}
 	sent := do[ops.ShipGateOut](t, a, "delivery.override", ops.ShipOverrideIn{ShipGateIn: ops.ShipGateIn{ProjectID: p.ID}, Note: "Signing is down; the client takes it without.", Holds: shownKeys(g)})
@@ -476,6 +476,10 @@ func TestARequiredSigningThatFailsCanGoOutWithANote(t *testing.T) {
 	out := do[ops.DeliverOut](t, a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()})
 	if c := out.Files[0].ContentCredentials; c == nil || c.Signed || !strings.Contains(c.Problem, "with a note") || len(out.Files[0].SentAnyway) != 1 {
 		t.Fatalf("sent without them: %+v", out.Files[0])
+	}
+	// The person's own decision isn't a warning (the note says it).
+	if w := strings.Join(out.Warnings, " "); strings.Contains(w, "Content Credentials") {
+		t.Errorf("warned about what the person decided: %s", w)
 	}
 	// It works again: a sample clears what failed, and the next delivery is signed.
 	if err := fakec2patool.Save(state, fakec2patool.State{}); err != nil {

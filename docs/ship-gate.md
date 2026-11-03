@@ -21,7 +21,7 @@ for review copies, `--preset` for some shapes) — and lists what holds it:
 | `qa-stale` | "… is out of date: it was checked before the promise “…”" (or its description changed, for a disclosure promise) | Check it again (`qa.run --force`) | yes |
 | `qa-errors` | "The quality check found 2 problems in its final render." with each problem, its time and its fix | Fix it (the problem's own change, saved as a new version), See the problems, Check it again | yes |
 | `signoff` | "Still waiting for the sign-off “Lena OKs the final version”." (house ones say whose settings) | Tick it (a person) | yes |
-| `credentials` | "Its videos must carry Content Credentials, and this computer can't sign them: no signing certificate is set up on this computer." (only where they are required, for final videos; [content-credentials.md](content-credentials.md)) | Set them up (a person who is an owner: Settings → Delivery) | yes: the videos go out without them, and their records say so |
+| `credentials` | "Its videos must carry Content Credentials, and this computer can't sign them: no signing certificate is set up on this computer." (only where they are required, for final videos; [content-credentials.md](content-credentials.md)); after a signing that failed, "… and the last signing on this computer failed (3 Nov 2026, 14:05 UTC): …" | Set them up (a person who is an owner: Settings → Delivery); after a failed signing, Try it on a sample first (`credentials.test`: when MetaRush's own sample signs and checks out, the hold is gone) | yes, gate on or off: the videos go out without them, and their records say so |
 | `consent` | "At 0:02 Ada Lovelace says “fifteen” (words changed with AI in their voice copy), but her consent … is no longer in force …" (or a mouth matched to them) | Take them out (`cut.say.undo`, a new version) | no: it holds with the gate off too |
 
 Things worth checking (warnings) never hold. `--json` gives every hold with its stable `key`, `kind`, `says`,
@@ -44,9 +44,11 @@ sent the version out anyway.
 - **Share for review** asks `ops.ShipGate` the same way ([outside-reviewers.md](outside-reviewers.md)).
 - **Content Credentials that are required** ([content-credentials.md](content-credentials.md)) hold with the gate off
   too, as changed words' consent does: "required" is its own choice. A version this computer can't sign waits, and a
-  signing that fails during the delivery stops it (`E_HELD`, nothing written); a note that covers the `credentials`
-  hold sends it out without them. Timelines and posts to a platform never carry Content Credentials, so they never
-  wait for them.
+  signing that fails during the delivery stops it (`E_HELD`, nothing written) and is remembered on this computer until
+  a signing works again, so the version then waits for that (`credentials:failed:…`). A note that covers the
+  `credentials` hold sends it out without them — with the gate on or off, since the hold says `anyway`: Deliver
+  anyway… shows for it, and `delivery.override` takes it, while the gate is off. Timelines and posts to a platform
+  never carry Content Credentials, so they never wait for them.
 
 ## Whether it is on
 
@@ -61,8 +63,8 @@ sent the version out anyway.
   owner's, which keeps reminders only. With it off, delivery still writes what would have held the version into its
   record, and the sign-off reminders work as before.
 - Moving a project to other settings — its own empty ones, another project's, or making another project's the
-  default — that would drop a gate that's on, a promise or a house sign-off is a person's who is an owner (copying the
-  settings it uses keeps them all, so anyone may).
+  default — that would drop a gate that's on, a promise, a house sign-off, or ask less of Content Credentials
+  (required → on → off) is a person's who is an owner (copying the settings it uses keeps them all, so anyone may).
 - **Older computers:** a computer in the workspace on an older MetaRush may deliver without waiting. While the gate is
   on, the version page, `metarush deliver ready` and Settings → General say how many there are; update them. A
   version held by changed words' consent (`consent`) says so with the gate off too: an older build doesn't check it.

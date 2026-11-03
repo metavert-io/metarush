@@ -1081,9 +1081,11 @@ MetaRush delivers carries Content Credentials: a signed C2PA record that it was 
 sound and pictures it uses (by fingerprint, never by name) and which parts AI made or changed, signed with the
 certificate of the computer that delivers it. A test certificate made on this computer, or your organisation's own
 (its key kept in this computer's keychain, never in the database, a log or a command line, and never handed to
-c2patool: c2patool asks MetaRush to sign). Each copy is read back and checked before it goes out; the record, the
-notes file and the receipt say so. "Required" makes the ship gate hold a version this computer can't sign
-([Content Credentials](docs/content-credentials.md)).
+c2patool: c2patool asks MetaRush to sign, over a connection only that signing has, one signature per video, and the
+copy must carry exactly that signature). Each copy is read back and checked before it goes out; the record, the notes
+file and the receipt say so. "Required" makes the ship gate hold a version this computer can't sign, or whose last
+signing here failed (Try it on a sample), with the gate off too; a person can still send it out without them, with a
+note ([Content Credentials](docs/content-credentials.md)).
 
 ### Titles, descriptions, chapters and show notes
 Claude Code writes a version's delivery notes on your own Claude plan (**Ask Claude to write them** on the version's
@@ -1815,10 +1817,11 @@ checks below in order, log each step and end with a table; [testing](docs/testin
   both themes.
 - `scripts/content-credentials-e2e.sh` runs `web/scripts/content-credentials-e2e.mjs` (ports 5780–5789; ffmpeg and a
   renderer on this computer; the c2patool stand-in, or `C2PATOOL=<the real one>`): Content Credentials made required
-  in Settings → Delivery hold the version (Set them up), a test certificate made in a styled dialog and tried on a
-  sample, Deliver… from the version page signs the video, then its record, notes and credentials are read back, the
-  manifest names nothing of the project and the key is nowhere but the keychain or secrets file, desktop and 390 px
-  phone in both themes.
+  in Settings → Delivery hold the version (Set them up), with the gate off too, where Deliver anyway… with a note sends
+  it out without them; a test certificate made in a styled dialog and tried on a sample, Deliver… from the version page
+  signs the video; with the stand-in a signing that fails writes nothing and holds the version until Try it on a sample
+  works; then the records, notes and credentials are read back, the manifest names nothing of the project and the key
+  is nowhere but the keychain or secrets file, desktop and 390 px phone in both themes.
 - `node web/scripts/cutsheet-e2e.mjs` drives the studio's Script tab (Formatted, Markdown and Edit: live check, save,
   older versions, compare, a clip that plays the cut from there; desktop and phone, both themes).
 - `node web/scripts/motion-e2e.mjs` drives the Motion graphics page (review, approve, withdraw; desktop and phone, both

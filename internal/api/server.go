@@ -36,6 +36,7 @@ import (
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/recorder"
 	"github.com/metavert-io/metarush/internal/sessions"
+	"github.com/metavert-io/metarush/internal/sso"
 	"github.com/metavert-io/metarush/internal/version"
 	"github.com/metavert-io/metarush/web"
 )
@@ -88,7 +89,10 @@ type Access struct {
 	// Machine is the computer MetaRush runs on, as people call it ("Sam's MacBook").
 	Machine string `json:"machine"`
 	// SignedInWith is how this browser signed in.
-	SignedInWith string `json:"signedInWith" jsonschema:"enum=link,enum=password,enum=tailscale"`
+	SignedInWith string `json:"signedInWith" jsonschema:"enum=link,enum=password,enum=tailscale,enum=sso"`
+	// Provider is the organization's sign-in it came through, by name
+	// ("Google"), when SignedInWith is sso.
+	Provider string `json:"provider,omitempty"`
 	// Login is the Tailscale account, when signed in with it.
 	Login string `json:"login,omitempty"`
 	// Secure: the page is HTTPS (or this computer's own address, which
@@ -307,6 +311,13 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 			case method == models.AuthPassword:
 				writeErr(w, apperr.New(apperr.Unauthorized, "This browser is not signed in to MetaRush.").
 					WithHint("Sign in with your email and password.").WithDetails(map[string]any{"reason": "no_session", "remote": public, "method": method}))
+			case method == models.AuthSSO:
+				hint := "Sign in with your organization's account."
+				if b := ssoButton(auth.Settings(r.Context(), s.App)); b != nil {
+					hint = "Sign in with " + b.Title + "."
+				}
+				writeErr(w, apperr.New(apperr.Unauthorized, "This browser is not signed in to MetaRush.").
+					WithHint(hint).WithDetails(map[string]any{"reason": "no_session", "remote": public, "method": method}))
 			case public:
 				writeErr(w, apperr.New(apperr.Unauthorized, "This browser is not signed in to MetaRush on %s.", s.App.Cfg.MachineName()).
 					WithHint("Sign in to Tailscale with the account the owner let in, then open this page again.").
@@ -374,9 +385,8 @@ func (s *Server) auth(w http.ResponseWriter, r *http.Request) {
 	}
 	s.App.Log.Secret(n) // the used nonce is never logged
 	acc := accessOf(r)
-	method := auth.Method(r.Context(), s.App)
 	switch {
-	case acc.public && acc.login != "" && s.App.Cfg.Remote().IdentitySignIn() && method == models.AuthTailscale:
+	case acc.public && acc.login != "" && s.App.Cfg.Remote().IdentitySignIn() && auth.TailscaleOn(r.Context(), s.App):
 		// A listed Tailscale account: the link signs that person in, the same
 		// way opening the address does.
 		if _, err := s.signInTailscale(r.Context(), w, acc); err != nil {
@@ -442,8 +452,15 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	owners := auth.OwnerNames(r.Context(), s.App)
+	provider := ""
+	if via == "sso" {
+		provider = sso.Title(p.Provider, "")
+		if st := auth.Settings(r.Context(), s.App); st.SSO != nil && st.SSO.Provider == p.Provider {
+			provider = sso.Title(p.Provider, st.SSO.Label)
+		}
+	}
 	writeOK(w, Session{Avatar: avatar, User: user, Owner: ops.IsOwnerCaller(r.Context()), Owners: owners, Installation: s.App.Cfg.Installation, Workspace: s.App.Cfg.Workspace,
-		Version: version.Version, Access: Access{Remote: acc.public, Machine: s.App.Cfg.MachineName(), SignedInWith: via, Login: p.Login,
+		Version: version.Version, Access: Access{Remote: acc.public, Machine: s.App.Cfg.MachineName(), SignedInWith: via, Provider: provider, Login: p.Login,
 			Secure: !acc.public || acc.secure, PublicURL: rm.PublicURL}})
 }
 
@@ -516,9 +533,20 @@ func (s *Server) callOp(w http.ResponseWriter, r *http.Request) {
 	out, err := ops.Call(r.Context(), a, name, body, ops.Caller{Human: true, Remote: true, Elsewhere: accessOf(r).public})
 	if err == nil && name == "account.password" {
 		// Signed out everywhere else; this browser carries on with a new sign-in.
-		if who, ok := personOf(r); ok && auth.Method(r.Context(), s.App) == models.AuthPassword {
+		if who, ok := personOf(r); ok && auth.PasswordOn(r.Context(), s.App) {
 			if u, uerr := auth.GetUser(r.Context(), s.App, who.UserID); uerr == nil {
-				s.startSession(w, r, u)
+				s.startSession(w, r, u, models.AuthPassword, "")
+			}
+		}
+	}
+	if err == nil && name == "auth.method.set" {
+		// The owner just switched to their organization's account with the
+		// test sign-in they did here: a password session that no longer counts
+		// carries on as their organization sign-in (D430).
+		st := auth.Settings(r.Context(), s.App)
+		if who, ok := personOf(r); ok && who.Via == "password" && st.Method == models.AuthSSO && st.SSO != nil && !auth.PasswordOn(r.Context(), s.App) {
+			if u, uerr := auth.GetUser(r.Context(), s.App, who.UserID); uerr == nil && len(u.SSO) > 0 {
+				s.startSession(w, r, u, models.AuthSSO, st.SSO.Provider)
 			}
 		}
 	}

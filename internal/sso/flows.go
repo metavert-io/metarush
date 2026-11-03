@@ -189,14 +189,30 @@ func (s *Store) Begin(ticket string) (*Flow, string, error) {
 	return f, state, nil
 }
 
-// Finish takes the sign-in a state belongs to, once.
-func (s *Store) Finish(state string) (*Flow, error) {
+// Finish takes the sign-in a state belongs to, once. where (when given) is
+// asked first whether the answer came back where the sign-in began; a
+// sign-in it refuses stays for its own browser.
+func (s *Store) Finish(state string, where func(*Flow) error) (*Flow, error) {
 	if len(state) < 20 || len(state) > 100 || strings.ContainsAny(state, "/\\.") {
 		return nil, ErrGone
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	f, err := claim(filepath.Join(s.dir, "flows", hashOf(state)+".json"))
+	p := filepath.Join(s.dir, "flows", hashOf(state)+".json")
+	if where != nil {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return nil, ErrGone
+		}
+		var peek Flow
+		if json.Unmarshal(b, &peek) != nil {
+			return nil, ErrGone
+		}
+		if err := where(&peek); err != nil {
+			return nil, err
+		}
+	}
+	f, err := claim(p)
 	if err != nil {
 		return nil, err
 	}
@@ -287,3 +303,9 @@ func (r *TestResult) Fresh() bool { return r != nil && time.Since(r.At) <= TestL
 
 // ClearTest forgets the last test (the setup it tested changed).
 func (s *Store) ClearTest() { _ = os.Remove(filepath.Join(s.dir, "test.json")) }
+
+// Addresses of the dashboard's sign-in steps (internal/api).
+const (
+	BeginPath    = "/auth/sso/begin"
+	CallbackPath = "/auth/sso/callback"
+)

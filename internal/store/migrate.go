@@ -214,6 +214,14 @@ var Migrations = []Migration{
 			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "move", Value: 1}, {Key: "n", Value: 1}}),
 			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "state", Value: 1}}))
 	}},
+	// v63–v65 belong to builds merged in parallel.
+	{Version: 66, Name: "signing in with an organization's account: each account is one person", Up: func(ctx context.Context, d *DB) error {
+		// A provider's account is linked to one person of a workspace (D429):
+		// two sign-ins linking it at the same moment can't make two people.
+		return createIndexes(ctx, d, CUsers,
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "sso.key", Value: 1}},
+				options.Index().SetName("sso_account").SetUnique(true).SetPartialFilterExpression(bson.M{"sso.key": bson.M{"$exists": true}})))
+	}},
 }
 
 // migratePresenters indexes people's own presenters (D273: one per short

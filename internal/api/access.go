@@ -64,8 +64,10 @@ type person struct {
 	// Login is the Tailscale account, when signed in with it.
 	Login string
 	// Via is how they signed in: link (a one-time sign-in link on this
-	// computer), password or tailscale (D183).
+	// computer), password, tailscale (D183) or sso (D425).
 	Via string
+	// Provider is the organization's sign-in an sso session came through.
+	Provider string
 	// token is the session cookie's value (to see that it still exists).
 	token string
 }
@@ -219,8 +221,8 @@ func (s *Server) hostGuard(next http.Handler) http.Handler {
 		if login := strings.ToLower(remote.DecodeHeader(r.Header.Get("Tailscale-User-Login"))); login != "" && onTailnet {
 			acc.login, acc.name = login, remote.DecodeHeader(r.Header.Get("Tailscale-User-Name"))
 		}
-		if rm.IdentitySignIn() && acc.login != "" && !rm.Allowed(acc.login) && auth.Method(r.Context(), s.App) == models.AuthTailscale {
-			// Tailscale identity counts only when it is the sign-in method (D183).
+		if rm.IdentitySignIn() && acc.login != "" && !rm.Allowed(acc.login) && auth.TailscaleOn(r.Context(), s.App) {
+			// Tailscale identity counts only when it signs people in (D183, D431).
 			s.refuse(w, r, refusedNotListed, acc.login)
 			return
 		}
@@ -343,7 +345,7 @@ func (s *Server) signedIn(w http.ResponseWriter, r *http.Request) (person, bool,
 	acc := accessOf(r)
 	rm := s.App.Cfg.Remote()
 	ctx := r.Context()
-	method := auth.Method(ctx, s.App)
+	settings := auth.Settings(ctx, s.App)
 	st := sessions.For(s.App.Cfg.StateDir())
 	var sess sessions.Session
 	var have bool
@@ -357,7 +359,7 @@ func (s *Server) signedIn(w http.ResponseWriter, r *http.Request) (person, bool,
 	if have && sess.Public != acc.public {
 		have = false // a session is only good where it was made
 	}
-	if method == models.AuthTailscale && acc.public && rm.IdentitySignIn() && acc.login != "" {
+	if auth.TailscaleOn(ctx, s.App) && acc.public && rm.IdentitySignIn() && acc.login != "" {
 		// hostGuard already turned away accounts that aren't on the list.
 		if have && sess.Login == acc.login {
 			return person{UserID: sess.UserID, UserName: sess.UserName, Email: emailOf(sess.Login), Login: sess.Login, Via: "tailscale", token: token}, true, nil
@@ -384,7 +386,7 @@ func (s *Server) signedIn(w http.ResponseWriter, r *http.Request) (person, bool,
 		// sent, or Tailscale isn't the sign-in method any more: it ends here.
 		return end()
 	case sess.Method == models.AuthPassword:
-		if method != models.AuthPassword || time.Since(sess.LastUsed) > auth.SessionIdle || !auth.SessionValid(ctx, s.App, sess.UserID, sess.CreatedAt) {
+		if !auth.PasswordOn(ctx, s.App) || time.Since(sess.LastUsed) > auth.SessionIdle || !auth.SessionValid(ctx, s.App, sess.UserID, sess.CreatedAt) {
 			return end()
 		}
 		u, err := auth.GetUser(ctx, s.App, sess.UserID)
@@ -394,6 +396,21 @@ func (s *Server) signedIn(w http.ResponseWriter, r *http.Request) (person, bool,
 		}
 		st.Touch(token, time.Now())
 		return person{UserID: sess.UserID, UserName: name, Email: email, Via: "password", token: token}, true, nil
+	case sess.Method == models.AuthSSO:
+		// An organization sign-in (D425): good while people sign in that way
+		// with that provider, like a password session otherwise (30 days at
+		// most, 7 unused, ended by "sign out everywhere" on any computer).
+		if settings.Method != models.AuthSSO || settings.SSO == nil || settings.SSO.Provider != sess.Provider ||
+			time.Since(sess.LastUsed) > auth.SessionIdle || !auth.SessionValid(ctx, s.App, sess.UserID, sess.CreatedAt) {
+			return end()
+		}
+		u, err := auth.GetUser(ctx, s.App, sess.UserID)
+		name, email := sess.UserName, ""
+		if err == nil {
+			name, email = u.Name, u.Email
+		}
+		st.Touch(token, time.Now())
+		return person{UserID: sess.UserID, UserName: name, Email: email, Via: "sso", Provider: sess.Provider, token: token}, true, nil
 	}
 	// A one-time link's session: the owner, on this computer only (D183).
 	if acc.public {

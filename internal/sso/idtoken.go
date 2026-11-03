@@ -41,7 +41,7 @@ type Claims struct {
 	NotBefore     numericDate `json:"nbf"`
 	Nonce         string      `json:"nonce"`
 	Email         string      `json:"email"`
-	EmailVerified flexBool    `json:"email_verified"`
+	EmailVerified *flexBool   `json:"email_verified"` // nil: the provider doesn't say
 	Name          string      `json:"name"`
 	Preferred     string      `json:"preferred_username"`
 	// Google: the account's Google Workspace domain (absent for personal accounts).
@@ -87,6 +87,10 @@ func (d numericDate) Time() time.Time { return time.Unix(int64(d), 0) }
 
 // flexBool is true, or "true" (some providers send it as text).
 type flexBool bool
+
+// said reports a claim that is there and true; denied one there and false.
+func said(b *flexBool) bool   { return b != nil && bool(*b) }
+func denied(b *flexBool) bool { return b != nil && !bool(*b) }
 
 func (f *flexBool) UnmarshalJSON(b []byte) error {
 	var v bool
@@ -249,11 +253,11 @@ func (c *Client) identity(cl *Claims) *Identity {
 	case Google:
 		id.Key = keyOf("google", cl.Subject)
 		id.Domain = strings.ToLower(strings.TrimSpace(cl.HD))
-		id.EmailRefuted = email != "" && !bool(cl.EmailVerified)
+		id.EmailRefuted = email != "" && !said(cl.EmailVerified)
 		// Google answers for an address only when it is a Gmail address or the
 		// account belongs to a Google Workspace domain (hd); an outside address
 		// it once checked may have changed hands since.
-		id.EmailTrusted = email != "" && bool(cl.EmailVerified) && (gmail(email) || id.Domain != "")
+		id.EmailTrusted = email != "" && said(cl.EmailVerified) && (gmail(email) || id.Domain != "")
 		switch {
 		case email == "":
 			id.Why = "Google didn't give the account's email"
@@ -281,8 +285,8 @@ func (c *Client) identity(cl *Claims) *Identity {
 		}
 	default:
 		id.Key = keyOf("oidc", cl.Issuer, cl.Subject)
-		id.EmailRefuted = email != "" && !bool(cl.EmailVerified)
-		id.EmailTrusted = email != "" && bool(cl.EmailVerified)
+		id.EmailRefuted = email != "" && denied(cl.EmailVerified)
+		id.EmailTrusted = email != "" && said(cl.EmailVerified)
 		if id.EmailTrusted {
 			_, domain, _ := strings.Cut(email, "@")
 			id.Domain = strings.ToLower(domain)

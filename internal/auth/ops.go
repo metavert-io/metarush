@@ -13,19 +13,24 @@ import (
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/sessions"
+	"github.com/metavert-io/metarush/internal/sso"
 	"github.com/metavert-io/metarush/internal/store"
 )
 
 // Account is a person of the workspace as Settings → People shows them.
 type Account struct {
-	ID          string     `json:"id"`
-	Name        string     `json:"name"`
-	Email       string     `json:"email,omitempty"`
-	Role        string     `json:"role" jsonschema:"enum=owner,enum=member"`
-	State       string     `json:"state" jsonschema:"enum=active,enum=invited,enum=disabled,enum=earlier"`
-	HasPassword bool       `json:"hasPassword"`
-	You         bool       `json:"you"`
-	Logins      []string   `json:"logins,omitempty" jsonschema:"description=Tailscale logins linked to them (owners see them)."`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Email       string   `json:"email,omitempty"`
+	Role        string   `json:"role" jsonschema:"enum=owner,enum=member"`
+	State       string   `json:"state" jsonschema:"enum=active,enum=invited,enum=disabled,enum=earlier"`
+	HasPassword bool     `json:"hasPassword"`
+	You         bool     `json:"you"`
+	Logins      []string `json:"logins,omitempty" jsonschema:"description=Tailscale logins linked to them (owners see them)."`
+	// SignsInWith are the organization accounts they sign in with ("Google:
+	// maya@example.com"; owners see them, D429).
+	SignsInWith []string   `json:"signsInWith,omitempty"`
+	HasSSO      bool       `json:"hasSso" jsonschema:"description=They sign in with an organization's account."`
 	LastSignIn  *time.Time `json:"lastSignIn,omitempty"`
 	InviteUntil *time.Time `json:"inviteUntil,omitempty" jsonschema:"description=When their invite link stops working (an invite not yet accepted)."`
 	Work        int        `json:"work" jsonschema:"description=How many things they did, from the workspace's history (owners see it)."`
@@ -35,7 +40,7 @@ type Account struct {
 
 // AuthStatusOut is how this MetaRush signs people in.
 type AuthStatusOut struct {
-	Method      string   `json:"method" jsonschema:"enum=single,enum=password,enum=tailscale"`
+	Method      string   `json:"method" jsonschema:"enum=single,enum=password,enum=tailscale,enum=sso"`
 	You         *Account `json:"you,omitempty"`
 	Owner       bool     `json:"owner" jsonschema:"description=The person asking is an owner."`
 	Owners      []string `json:"owners" jsonschema:"description=The owners' names: they change this computer's settings, keys, storage and who signs in."`
@@ -46,9 +51,10 @@ type AuthStatusOut struct {
 	Summary     string   `json:"summary"`
 }
 
-// AuthMethodIn chooses the sign-in method, with the owner's own sign-in.
+// AuthMethodIn chooses the sign-in method, with the owner's own sign-in (for
+// sso: the test sign-in they just did on this computer, D430).
 type AuthMethodIn struct {
-	Method          string `json:"method" jsonschema:"enum=single,enum=password,enum=tailscale"`
+	Method          string `json:"method" jsonschema:"enum=single,enum=password,enum=tailscale,enum=sso"`
 	Email           string `json:"email,omitempty" jsonschema:"maxLength=254,description=Email and password: your email."`
 	Password        string `json:"password,omitempty" jsonschema:"maxLength=1024,description=Email and password: your password (12 characters or more)."`
 	CurrentPassword string `json:"currentPassword,omitempty" jsonschema:"maxLength=1024,description=Your current password, when you have one."`
@@ -117,7 +123,7 @@ type AuthResetOut struct {
 }
 
 func init() {
-	ops.Def("auth.status", "How people sign in to this MetaRush (just you on this computer, email and password, or Tailscale accounts) and who you are", ops.Flags{}, status)
+	ops.Def("auth.status", "How people sign in to this MetaRush (just you on this computer, email and password, Tailscale accounts, or their organization's account) and who you are", ops.Flags{}, status)
 	ops.Def("auth.method.set", "Choose how people sign in, giving your own sign-in at the same step (owners, on this computer)", ops.Flags{Mutating: true, HumanOnly: true, OwnerOnly: true}, setMethodOp)
 	ops.Def("auth.reset", "Put sign-in back to a fresh install's: just the owner on this computer, everyone signed out, people kept with their history (on this computer)", ops.Flags{Mutating: true, HumanOnly: true, LocalOnly: true}, resetOp)
 	ops.Def("users.list", "The workspace's people: accounts, invites, earlier people and their roles", ops.Flags{}, listOp)
@@ -166,8 +172,10 @@ func personOf(ctx context.Context, a *app.App, u *models.User, owner bool) Accou
 		}
 	}
 	p.HasPassword = HasPassword(ctx, a, u.ID)
+	p.HasSSO = ssoLinked(u)
 	if owner {
 		p.Logins = u.Logins
+		p.SignsInWith = SSOWords(u)
 		n, _ := a.DB.C(store.CAudit).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "actor.userId": u.ID})
 		p.Work = int(n)
 		if u.State == models.UserInvited {
@@ -186,13 +194,31 @@ func methodWords(m string) string {
 		return "People sign in with their email and password."
 	case models.AuthTailscale:
 		return "People sign in with their Tailscale accounts."
+	case models.AuthSSO:
+		return "People sign in with their organization's account."
 	}
 	return "Just you, on this computer: nobody else can sign in."
 }
 
+// statusWords says how people sign in, naming the provider (D425).
+func statusWords(ctx context.Context, a *app.App) string {
+	st := Settings(ctx, a)
+	if st.Method == models.AuthSSO && st.SSO != nil {
+		s := "People sign in with " + sso.Title(st.SSO.Provider, st.SSO.Label) + "."
+		if st.SSO.AlsoPassword {
+			s += " Passwords still work too."
+		}
+		if st.SSO.AlsoTailscale {
+			s += " Tailscale accounts still work too."
+		}
+		return s
+	}
+	return methodWords(st.Method)
+}
+
 func status(ctx context.Context, a *app.App, _ *ops.EmptyIn) (*AuthStatusOut, error) {
 	m := Method(ctx, a)
-	out := &AuthStatusOut{Method: m, Here: !ops.CallerFrom(ctx).Elsewhere, Summary: methodWords(m)}
+	out := &AuthStatusOut{Method: m, Here: !ops.CallerFrom(ctx).Elsewhere, Summary: statusWords(ctx, a)}
 	// As owner-only ops decide (D191): the signed-in person's role over HTTP,
 	// this computer's own command line counts as the owner.
 	out.Owner = ops.IsOwnerCaller(ctx)
@@ -241,8 +267,12 @@ func setMethodOp(ctx context.Context, a *app.App, in *AuthMethodIn) (*AuthStatus
 		if err := clearTailscaleLogins(a); err != nil {
 			return nil, err
 		}
+	case models.AuthSSO:
+		if err := setSSOMethod(ctx, a); err != nil {
+			return nil, err
+		}
 	default:
-		return nil, apperr.New(apperr.InvalidInput, "Choose single, password or tailscale.")
+		return nil, apperr.New(apperr.InvalidInput, "Choose single, password, tailscale or sso.")
 	}
 	return status(ctx, a, nil)
 }

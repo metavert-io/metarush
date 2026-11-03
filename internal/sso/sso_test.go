@@ -321,16 +321,18 @@ func TestDiscoveryIsChecked(t *testing.T) {
 }
 
 func TestProvidersSayWhoseEmailCounts(t *testing.T) {
+	t1, f1 := flexBool(true), flexBool(false)
+	yes, no := &t1, &f1
 	g := &Client{Kind: Google, ClientID: "a"}
 	for _, tc := range []struct {
 		cl              Claims
 		trusted, refute bool
 		domain          string
 	}{
-		{Claims{Email: "maya@gmail.com", EmailVerified: true}, true, false, ""},
-		{Claims{Email: "maya@example.com", EmailVerified: true, HD: "example.com"}, true, false, "example.com"},
-		{Claims{Email: "maya@example.com", EmailVerified: true}, false, false, ""}, // an outside address Google once checked
-		{Claims{Email: "maya@gmail.com", EmailVerified: false}, false, true, ""},
+		{Claims{Email: "maya@gmail.com", EmailVerified: yes}, true, false, ""},
+		{Claims{Email: "maya@example.com", EmailVerified: yes, HD: "example.com"}, true, false, "example.com"},
+		{Claims{Email: "maya@example.com", EmailVerified: yes}, false, false, ""}, // an outside address Google once checked
+		{Claims{Email: "maya@gmail.com", EmailVerified: no}, false, true, ""},
 		{Claims{}, false, false, ""},
 	} {
 		id := g.identity(&tc.cl)
@@ -354,13 +356,16 @@ func TestProvidersSayWhoseEmailCounts(t *testing.T) {
 		t.Errorf("keys: %s %s %s", a.Key, b.Key, c.Key)
 	}
 	o := &Client{Kind: OIDC, ClientID: "a"}
-	if id := o.identity(&Claims{Email: "Maya@Example.com", EmailVerified: true}); !id.EmailTrusted || id.Domain != "example.com" {
+	if id := o.identity(&Claims{Email: "Maya@Example.com", EmailVerified: yes}); !id.EmailTrusted || id.Domain != "example.com" {
 		t.Errorf("oidc: %+v", id)
 	}
-	if id := o.identity(&Claims{Email: "maya@example.com"}); id.EmailTrusted || id.Domain != "" {
+	if id := o.identity(&Claims{Email: "maya@example.com"}); id.EmailTrusted || id.EmailRefuted || id.Domain != "" {
+		t.Errorf("oidc without a word on the email: %+v", id)
+	}
+	if id := o.identity(&Claims{Email: "maya@example.com", EmailVerified: no}); id.EmailTrusted || !id.EmailRefuted {
 		t.Errorf("oidc unverified: %+v", id)
 	}
-	if id := o.identity(&Claims{Email: "two@@example.com", EmailVerified: true}); id.Email != "" || id.EmailTrusted {
+	if id := o.identity(&Claims{Email: "two@@example.com", EmailVerified: yes}); id.Email != "" || id.EmailTrusted {
 		t.Errorf("oidc odd email: %+v", id)
 	}
 }
@@ -463,15 +468,15 @@ func TestSignInsInProgressWorkOnce(t *testing.T) {
 		}
 		return nil
 	})
-	got, err := st.Finish(state)
+	got, err := st.Finish(state, nil)
 	if err != nil || got.Nonce != f.Nonce || got.Verifier != f.Verifier {
 		t.Fatalf("finish: %v", err)
 	}
-	if _, err := st.Finish(state); !errors.Is(err, ErrGone) {
+	if _, err := st.Finish(state, nil); !errors.Is(err, ErrGone) {
 		t.Fatalf("an answer replayed: %v", err)
 	}
 	for _, bad := range []string{"", "short", "../../etc/passwd/../../../../x", strings.Repeat("a", 200)} {
-		if _, err := st.Finish(bad); err == nil {
+		if _, err := st.Finish(bad, nil); err == nil {
 			t.Errorf("%q finished", bad)
 		}
 	}

@@ -12,6 +12,9 @@ export type AssetSummary = ops.AssetSummary;
 export type Asset = ops.Asset;
 export type AssetShowOut = ops.AssetShowOut;
 export type RevisionSummary = ops.RevisionSummary;
+// Shapes (D376, D378): what the server says a cut, version or project is.
+export type OutputShape = ops.OutputShape;
+export type ProjectShapeOut = ops.ProjectShapeOut;
 // Drafts from AI apps and the review desk (D248–D250).
 export type DraftView = ops.DraftView;
 export type DraftReviewCopy = ops.DraftReviewCopy;

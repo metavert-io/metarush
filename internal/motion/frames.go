@@ -32,7 +32,11 @@ type Frame struct {
 	At    float64 // seconds from the graphic's start
 	Path  string
 	Ms    int    // how long it took to draw
-	Shape string // the shape it was drawn in (D164; "" the only one)
+	Shape string // the shape it was drawn in, in words (D164; "" the only one)
+	// Key is the exact size it was drawn at ("1080x1920", D377): frames of
+	// two shapes with the same word never mix.
+	Key           string
+	Width, Height int
 }
 
 func loadPNG(p string) (image.Image, error) {
@@ -201,7 +205,7 @@ func ContactSheet(frames []Frame, out string, safe editspec.SafeArea, w, h int) 
 	}
 	tw := 400
 	cols := 3
-	if h > w {
+	if editspec.ShapeOf(w, h) == editspec.ShapeVertical {
 		tw, cols = 240, len(imgs)
 		if cols > 6 {
 			cols = 6

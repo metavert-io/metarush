@@ -161,14 +161,15 @@ type MotionFrame struct {
 	Label  string       `bson:"label" json:"label" jsonschema:"description=What the frame shows (start\\, middle\\, end\\, a moment meta marks)."`
 	At     float64      `bson:"at" json:"at" jsonschema:"description=Seconds from the graphic's start."`
 	Object MotionObject `bson:"object" json:"object"`
-	// Shape is the shape it was drawn in ("widescreen"; "" for a version
-	// checked in one shape before D164).
+	// Shape is the shape it was drawn in ("widescreen", "vertical 4:5"; ""
+	// for a version checked in one shape before D164); Object's width and
+	// height are its exact size, which is what tells shapes apart (D377).
 	Shape string `bson:"shape,omitempty" json:"shape,omitempty"`
 }
 
 // MotionShape is one video shape a graphic was checked in (D164).
 type MotionShape struct {
-	Label    string        `bson:"label" json:"label" jsonschema:"description=widescreen\\, vertical or square."`
+	Label    string        `bson:"label" json:"label" jsonschema:"description=widescreen\\, vertical or square\\, with the ratio when two shapes share a word (vertical 9:16\\, vertical 4:5). Shapes are told apart by width × height."`
 	Width    int           `bson:"width" json:"width"`
 	Height   int           `bson:"height" json:"height"`
 	Platform string        `bson:"platform,omitempty" json:"platform,omitempty"`

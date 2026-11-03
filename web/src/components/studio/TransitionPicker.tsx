@@ -6,6 +6,8 @@ import type { Clip, CutProblem, EditOp, RenderPlan, Spec } from '../../api/types
 import { Badge, Button, cx, Spinner } from '../../ui/primitives';
 import { sayDuration } from './TimelineEditor';
 import type { TimelineEditor } from './useTimelineEditor';
+import { outputShape } from '../../lib/shape';
+import { shapeRatio } from '../../ui/ShapeBox';
 
 const LoopPreview = lazy(() => import('../../player/LoopPreview'));
 
@@ -166,15 +168,18 @@ export function TransitionPicker({
   };
 
   if (!clip) return null;
-  const vertical = (spec.output.height ?? 1920) > (spec.output.width ?? 1080);
+  // The cut's own shape (D376): vertical, square or widescreen, at its ratio.
+  const shape = outputShape(spec.output);
+  const vertical = shape?.shape === 'vertical';
+  const square = shape?.shape === 'square';
   const range = info ? { min: Math.max(0.1, info.minDuration), max: Math.max(info.minDuration + 0.1, info.maxDuration) } : { min: 0, max: 0 };
   return (
     <div className="space-y-5" data-no-timeline-keys>
       <p className="text-[13px] leading-relaxed text-muted">
         How {prevName} turns into {nextName}. The preview plays that spot over and over with your choice.
       </p>
-      <div className={cx('grid gap-4', vertical ? 'sm:grid-cols-[200px_1fr]' : 'sm:grid-cols-[minmax(0,1.2fr)_1fr]')}>
-        <div className={cx('relative overflow-hidden rounded-[12px] bg-inset', vertical ? 'mx-auto aspect-[9/16] w-[180px] sm:w-full' : 'aspect-video w-full')}>
+      <div className={cx('grid gap-4', vertical ? 'sm:grid-cols-[200px_1fr]' : square ? 'sm:grid-cols-[260px_1fr]' : 'sm:grid-cols-[minmax(0,1.2fr)_1fr]')}>
+        <div className={cx('relative overflow-hidden rounded-[12px] bg-inset', vertical ? 'mx-auto w-[180px] sm:w-full' : square ? 'mx-auto w-[240px] sm:w-full' : 'w-full')} style={{ aspectRatio: shapeRatio(shape) }} data-shape={shape?.shape}>
           <Suspense
             fallback={
               <div className="grid h-full place-items-center">

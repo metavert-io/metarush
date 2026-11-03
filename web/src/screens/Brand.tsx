@@ -11,6 +11,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useDialog } from '../ui/Dialog';
 import { Badge, Button, cx, ErrorPanel, SectionTitle, Skeleton } from '../ui/primitives';
 import { useToast } from '../ui/Toast';
+import { shapeMaxWidth } from '../lib/shape';
+import { useServedShape } from '../lib/useShape';
+import { shapeRatio } from '../ui/ShapeBox';
 
 /*
  * The brand (D82, D165), a part of a project's Content Settings (D193): five
@@ -116,6 +119,8 @@ export function BrandEditor({ projectId }: { projectId: string }) {
   const data: BrandShowOut | undefined = q.data;
   const fontFamily = useFontFamily(data?.fontFile);
   const readOnly = !!data?.readOnly;
+  // The preview at the project's shape as the server says it (D378); widescreen when nothing loaded says.
+  const shape = useServedShape({ projectId });
 
   useEffect(() => setSiteId(''), [projectId]);
   // The offer shows where it is seen: bring it into view when a change makes one.
@@ -434,7 +439,12 @@ export function BrandEditor({ projectId }: { projectId: string }) {
         >
           Preview
         </SectionTitle>
-        <div className={cx('grid aspect-video w-full max-w-[640px] place-items-center overflow-hidden rounded-[18px] hairline')} style={{ background: b.background ?? '#0B0B0E' }} data-testid="brand-preview">
+        <div
+          className={cx('grid w-full place-items-center overflow-hidden rounded-[18px] hairline', shapeMaxWidth(shape, 'max-w-[640px]', 'max-w-[300px]', 'max-w-[420px]'))}
+          style={{ background: b.background ?? '#0B0B0E', aspectRatio: shapeRatio(shape) }}
+          data-testid="brand-preview"
+          data-shape={shape?.shape}
+        >
           <div className="flex flex-col items-center gap-3 px-6 text-center">
             {previewLogo ? <ResourcePicture r={previewLogo} className="h-16 w-48 !bg-none" /> : null}
             <div className="text-[34px] font-semibold leading-tight tracking-[-0.02em]" style={{ color: b.text, fontFamily: fontFamily ? `"${fontFamily}", system-ui` : undefined }}>

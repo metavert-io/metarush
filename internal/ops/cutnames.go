@@ -36,6 +36,8 @@ type CutView struct {
 	Suggestion     string `json:"suggestion,omitempty"`
 	HeadRevisionID string `json:"headRevisionId,omitempty"`
 	HeadNumber     int    `json:"headNumber,omitempty"`
+	// Shape is its latest version's shape (D376).
+	Shape *editspec.OutputShape `json:"shape,omitempty"`
 }
 
 var (
@@ -158,6 +160,9 @@ func cutView(p *models.Project, branch string, head *models.Revision) CutView {
 	v := CutView{Branch: branch, HeadRevisionID: h.Head}
 	if head != nil {
 		v.HeadNumber = head.Number
+		if s := head.Spec.Output.Shape(); s.Shape != "" {
+			v.Shape = &s
+		}
 	}
 	switch {
 	case strings.TrimSpace(h.Title) != "":

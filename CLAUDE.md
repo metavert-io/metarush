@@ -629,8 +629,10 @@ Read `docs/architecture.md` before structural changes.
   printed (`calls.NameTiles`) are covered by the vetted `name.bar` via `cut names`. Overlays take `span` and
   footage-anchored `changes` (`{footage, at, params}`) that Go resolves into frames and plan `segments` (omitempty, so
   D73 hashes hold; only `TemplateInfo.Persistent` templates and `meta.persistent` motion graphics outlast their
-  limit). Motion checks draw test frames in each shape of the cuts that use the graphic (`MotionComponent.Shapes`;
-  the brief's deliverables when none does). Inside nested cuts and conversations (D182, `callclips.go`): always get a
+  limit). Motion checks draw test frames in each shape of the cuts that use the graphic, by exact size (D377,
+  `MotionComponent.Shapes`, `motion.TidyShapes`; else the workspace's cuts that use it, else `ProjectShape`, else both
+  widescreen and vertical); `motion check --version name@v [--shape …]` draws a checked version again (approval kept);
+  a graphic never drawn in a cut's shape is `motion_shape_undrawn` / QA `motion_shape` (D379). Inside nested cuts and conversations (D182, `callclips.go`): always get a
   clip's switches with `clipFootage(s, i, wrapFacts(s, facts))` (a conversation's depend on the clip's shots; a nested
   cut's are on its timeline); the bar's changes are keyed by the clip's own key, a conversation's cover comes from the
   tile (`convShotCover`/`tileArea`), layout tiles cover their own printed names (`PlanTag.Cover`) when the cut has a bar.
@@ -1157,6 +1159,14 @@ Read `docs/architecture.md` before structural changes.
   `SeenWithin`) with no live lease and a person types its name; it reads a plain copy (`scanCopy`: session files, `conversations/<id>`, only folder fields of
   `config.yaml`) or a handover file. `clean` removes only after a confirmed receive (and the handover files made there,
   if unchanged). Tests: `go test ./internal/handover/`, browser run `scripts/handover-e2e.sh` (ports 5710–5719).
+- **One shape rule, one project shape** (D376, D378; `internal/editspec/shape.go`, `internal/ops/projectshape.go`,
+  `web/src/lib/shape.ts`): vertical | landscape | square only through `editspec.ShapeOf` / `Output.Shape()` (square
+  within 15%, whole numbers; `PresetFor`, `ParseShape`), twin-tested with `testdata/shapes.json`; a project's shape only
+  through `ops.ProjectShape` (main cut, any cut, deliverables, footage majority with rotation, else vertical
+  `known=false`). The server sends shapes (`RevisionSummary.shape`, `CutView.shape`, `ProjectShowOut.shape`,
+  `ProjectSummary.headShape`, card frames' sizes); the dashboard reads them (`useServedShape`, `ShapeSkeleton`) and
+  shows frames whole at their own ratio (`frameAspect`, object-contain). Starter outputs, `Normalize`, call cuts,
+  timeline imports, generated shots and other readers of a preset alone wait for stage 2.
 - **Testing and coverage** (D194, D195, docs/testing.md): five layers (static → Go tests on a real MongoDB → several
   machines in one process (`tests/e2e`) → browser runs with fakes → Mac-only and live services); `scripts/check.sh
   --quick|--full|--release` runs them; test databases are copies of a per-process template and stale ones are swept

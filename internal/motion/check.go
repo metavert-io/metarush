@@ -65,24 +65,63 @@ type CheckOptions struct {
 	Libraries map[string]string
 }
 
-// CheckShape is one shape of video a check draws a graphic in.
+// CheckShape is one shape of video a check draws a graphic in. Shapes are
+// told apart by their exact size (Key), never by their word: 1080×1920 and
+// 1080×1350 are both vertical and are drawn, kept and shown apart (D377).
 type CheckShape struct {
-	Label    string // widescreen, vertical, square
+	Label    string // widescreen, vertical, square; with its ratio when two share a word
 	Width    int
 	Height   int
 	Platform string
 	For      string // the cuts it is for, in words
 }
 
-// ShapeLabel names a frame size in words.
+// Key names the shape's exact size ("1080x1920").
+func (s CheckShape) Key() string { return editspec.ShapeOfSize(s.Width, s.Height).Key() }
+
+// ShapeLabel names a frame size in words, by the one shape rule (D376).
 func ShapeLabel(w, h int) string {
-	switch r := float64(w) / float64(max(1, h)); {
-	case r > 1.15:
-		return "widescreen"
-	case r < 0.87:
-		return "vertical"
+	return editspec.ShapeOf(w, h).Word()
+}
+
+// MaxShapes is how many shapes one check draws.
+const MaxShapes = 3
+
+// BothShapes are what a check draws when nothing says which shape the
+// graphic is for (D377): widescreen and vertical, never silently one.
+func BothShapes(platform string) []CheckShape {
+	return []CheckShape{{Width: 1920, Height: 1080, Platform: platform}, {Width: 1080, Height: 1920, Platform: platform}}
+}
+
+// TidyShapes keeps the first of each exact size, at most MaxShapes, and
+// names them: the shape's word, with its ratio where two share a word
+// ("vertical 9:16", "vertical 4:5").
+func TidyShapes(in []CheckShape) []CheckShape {
+	var out []CheckShape
+	seen := map[string]bool{}
+	for _, s := range in {
+		k := s.Key()
+		if k == "" || seen[k] || len(out) >= MaxShapes {
+			continue
+		}
+		seen[k] = true
+		out = append(out, s)
 	}
-	return "square"
+	words := map[string]int{}
+	for _, s := range out {
+		words[ShapeLabel(s.Width, s.Height)]++
+	}
+	for i := range out {
+		w := ShapeLabel(out[i].Width, out[i].Height)
+		out[i].Label = w
+		if words[w] > 1 {
+			out[i].Label = w + " " + editspec.ShapeOfSize(out[i].Width, out[i].Height).Ratio
+		}
+		if out[i].Platform == "" {
+			out[i].Platform = "generic"
+		}
+	}
+	return out
 }
 
 // CheckResult is what a check found.
@@ -99,7 +138,7 @@ type CheckResult struct {
 	Sheet    string // contact sheet (JPEG)
 	Preview  string // preview video (MP4), in the first shape
 	// Shapes are the shapes it was drawn in and Previews their preview videos
-	// (by shape label; the first shape's is Preview).
+	// (by the shape's Key; the first shape's is Preview).
 	Shapes    []CheckShape
 	Previews  map[string]string
 	Blocked   []string
@@ -240,22 +279,20 @@ func CheckDir(ctx context.Context, a *app.App, o CheckOptions, progress func(str
 	}
 	shapes := o.Shapes
 	if len(shapes) == 0 {
-		w, h := o.Width, o.Height
-		if w <= 0 || h <= 0 {
-			w, h = 1080, 1920
+		if o.Width > 0 && o.Height > 0 {
+			shapes = []CheckShape{{Width: o.Width, Height: o.Height, Platform: o.Platform}}
+		} else {
+			// Nothing says which shape it is for: both, never silently one (D377).
+			shapes = BothShapes(o.Platform)
 		}
-		shapes = []CheckShape{{Label: ShapeLabel(w, h), Width: w, Height: h, Platform: o.Platform}}
 	}
-	if len(shapes) > 3 {
-		shapes = shapes[:3]
+	shapes = TidyShapes(shapes)
+	if len(shapes) == 0 {
+		return nil, apperr.New(apperr.InvalidInput, "A shape to draw the graphic in has a width and a height.")
 	}
-	for i := range shapes {
-		if shapes[i].Platform == "" {
-			shapes[i].Platform = "generic"
-		}
-		if shapes[i].Label == "" {
-			shapes[i].Label = ShapeLabel(shapes[i].Width, shapes[i].Height)
-		}
+	labelOf := map[string]string{}
+	for _, sh := range shapes {
+		labelOf[sh.Key()] = sh.Label
 	}
 	res.Shapes, res.Previews = shapes, map[string]string{}
 	w, h, platform := shapes[0].Width, shapes[0].Height, shapes[0].Platform
@@ -271,7 +308,7 @@ func CheckDir(ctx context.Context, a *app.App, o CheckOptions, progress func(str
 	safe := editspec.SafeAreaFor(platform, w, h)
 	var drawIn []map[string]any
 	for _, sh := range shapes {
-		drawIn = append(drawIn, map[string]any{"width": sh.Width, "height": sh.Height, "label": sh.Label, "safeArea": editspec.SafeAreaFor(sh.Platform, sh.Width, sh.Height)})
+		drawIn = append(drawIn, map[string]any{"width": sh.Width, "height": sh.Height, "key": sh.Key(), "label": sh.Label, "safeArea": editspec.SafeAreaFor(sh.Platform, sh.Width, sh.Height)})
 	}
 	base := map[string]any{"width": w, "height": h, "fps": 30, "background": TestBackground, "brand": brand, "safeArea": safe, "shapes": drawIn}
 	bb, _ := json.Marshal(base)
@@ -335,15 +372,20 @@ func CheckDir(ctx context.Context, a *app.App, o CheckOptions, progress func(str
 			meta, schema = ev.Meta, ev.JSONSchema
 		case "frames":
 			fps = ev.FPS
+			// The renderer names the shape by its key (an older one by its label).
+			key := ev.Shape
+			if _, ok := labelOf[key]; !ok && ev.Width > 0 && ev.Height > 0 {
+				key = editspec.ShapeOfSize(ev.Width, ev.Height).Key()
+			}
 			for _, f := range ev.Frames {
-				res.Frames = append(res.Frames, Frame{Label: f.Label, At: f.At, Path: f.File, Ms: f.Ms, Shape: ev.Shape})
+				res.Frames = append(res.Frames, Frame{Label: f.Label, At: f.At, Path: f.File, Ms: f.Ms, Shape: labelOf[key], Key: key, Width: ev.Width, Height: ev.Height})
 			}
 			if ev.Again != "" {
 				again = ev.Again
 			}
 			progress("making a preview")
 		case "preview":
-			if ev.Shape == "" || ev.Shape == shapes[0].Label {
+			if ev.Shape == "" || ev.Shape == shapes[0].Key() {
 				res.Preview = ev.File
 			} else {
 				res.Previews[ev.Shape] = ev.File
@@ -397,7 +439,7 @@ func CheckDir(ctx context.Context, a *app.App, o CheckOptions, progress func(str
 	for i, shp := range shapes {
 		var fs []Frame
 		for _, f := range res.Frames {
-			if f.Shape == shp.Label || (f.Shape == "" && i == 0) {
+			if f.Key == shp.Key() || (f.Key == "" && i == 0) {
 				fs = append(fs, f)
 			}
 		}
@@ -475,29 +517,27 @@ func record(ctx context.Context, a *app.App, res *CheckResult, o CheckOptions, f
 		}
 		sheet.Width, sheet.Height = f.sheetW, f.sheetH
 	}
-	size := map[string][2]int{}
+	// Each frame keeps the exact size it was drawn at (D377): shapes are
+	// told apart by it, never by their word.
+	byKey := map[string]CheckShape{}
 	for _, shp := range res.Shapes {
-		size[shp.Label] = [2]int{shp.Width, shp.Height}
+		byKey[shp.Key()] = shp
 	}
-	multi := len(res.Shapes) > 1
 	var frames []models.MotionFrame
 	for _, fr := range res.Frames {
 		obj, err := put(fr.Path, "image/png")
 		if err != nil {
 			return nil, err
 		}
+		shp, ok := byKey[fr.Key]
+		if !ok && len(res.Shapes) > 0 {
+			shp = res.Shapes[0]
+		}
 		obj.Width, obj.Height = f.w, f.h
-		if wh, ok := size[fr.Shape]; ok {
-			obj.Width, obj.Height = wh[0], wh[1]
+		if shp.Width > 0 {
+			obj.Width, obj.Height = shp.Width, shp.Height
 		}
-		mf := models.MotionFrame{Label: fr.Label, At: fr.At, Object: *obj}
-		if multi || len(res.Shapes) == 1 {
-			mf.Shape = fr.Shape
-			if mf.Shape == "" && len(res.Shapes) > 0 {
-				mf.Shape = res.Shapes[0].Label
-			}
-		}
-		frames = append(frames, mf)
+		frames = append(frames, models.MotionFrame{Label: fr.Label, At: fr.At, Object: *obj, Shape: shp.Label})
 	}
 	var video *models.MotionObject
 	if res.Preview != "" {
@@ -511,7 +551,7 @@ func record(ctx context.Context, a *app.App, res *CheckResult, o CheckOptions, f
 		ms := models.MotionShape{Label: shp.Label, Width: shp.Width, Height: shp.Height, Platform: shp.Platform, For: shp.For}
 		if i == 0 {
 			ms.Video = video
-		} else if pv := res.Previews[shp.Label]; pv != "" {
+		} else if pv := res.Previews[shp.Key()]; pv != "" {
 			obj, err := put(pv, "video/mp4")
 			if err != nil {
 				return nil, err

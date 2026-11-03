@@ -781,6 +781,9 @@ type Issue struct {
 	Code     string `json:"code" bson:"code"`
 	Path     string `json:"path,omitempty" bson:"path,omitempty"`
 	Message  string `json:"message" bson:"message"`
+	// Command is what fixes it, when one command does (shown with details,
+	// never in the message).
+	Command string `json:"command,omitempty" bson:"command,omitempty"`
 }
 
 // AssetFacts is what validation needs to know about a referenced asset.

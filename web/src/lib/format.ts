@@ -183,12 +183,6 @@ export function platformLabel(os: string, arch: string): string {
   return chip ? `${system}, ${chip}` : system;
 }
 
-export function orientation(w?: number, h?: number): 'vertical' | 'landscape' | 'square' | undefined {
-  if (!w || !h) return undefined;
-  if (Math.abs(w - h) / Math.max(w, h) < 0.05) return 'square';
-  return h > w ? 'vertical' : 'landscape';
-}
-
 export function titleCase(s: string): string {
   return s.replace(/[_.-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }

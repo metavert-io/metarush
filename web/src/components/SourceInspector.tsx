@@ -27,6 +27,7 @@ import { markedRange, setMark, useMarks } from '../lib/marks';
 import { useMediaRecovery } from '../player/useMediaRecovery';
 import { TroubleLine } from '../player/Trouble';
 import { troubleLine } from '../player/recovery';
+import { frameAspect, shapeOf } from '../lib/shape';
 
 export interface SeekRequest {
   t: number;
@@ -182,7 +183,9 @@ export function SourceInspector({ asset, seek, onTime, range, compact, mini, hig
   useEffect(() => savePref('sourcePanel', panel), [panel]);
   useEffect(() => savePref('waveLayers', layers), [layers]);
 
-  const portrait = (asset.height ?? 0) > (asset.width ?? 0);
+  // The footage's own shape (D376) and ratio.
+  const portrait = shapeOf(asset.width, asset.height) === 'vertical';
+  const ratio = frameAspect(asset, null, portrait ? '9 / 16' : '16 / 9');
 
   return (
     <div className={cx('grid gap-5', compact ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,1fr)]')}>
@@ -190,8 +193,9 @@ export function SourceInspector({ asset, seek, onTime, range, compact, mini, hig
         <div
           className={cx(
             'relative overflow-hidden rounded-[14px] bg-inset',
-            isVideo ? (portrait ? (mini ? 'mx-auto aspect-[9/16] max-h-[260px]' : 'mx-auto aspect-[9/16] max-h-[min(62dvh,640px)]') : mini ? 'mx-auto aspect-video max-h-[240px]' : 'aspect-video') : 'h-[180px]',
+            isVideo ? (portrait ? (mini ? 'mx-auto max-h-[260px]' : 'mx-auto max-h-[min(62dvh,640px)]') : mini ? 'mx-auto max-h-[240px]' : '') : 'h-[180px]',
           )}
+          style={isVideo ? { aspectRatio: ratio } : undefined}
           data-player-surface
           onClick={() => activate()}
         >

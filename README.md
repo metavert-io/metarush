@@ -748,7 +748,13 @@ where the video goes. You hear a change in the preview before you save it ([docs
 - **Graphics that stay up**: a graphic can last the whole video or a section (`for the whole video`,
   `from hook to answer` in a cut sheet), follow those clips through every edit, and change what it says at moments in
   the footage while it stays on screen. Motion graphics are checked in the shapes of the cuts that use them (a short
-  and the main video: both), with test frames grouped by shape.
+  and the main video: both), told apart by exact size (9:16 and 4:5 are both vertical, and both are drawn), with test
+  frames grouped by shape and shown at their own shape. With no cut using a graphic yet, its frames follow cuts
+  elsewhere in the workspace that use it, else the project's shape; when nothing says, both widescreen and vertical.
+- **One shape rule, one project shape**: whether a video is vertical, widescreen or square is decided by one rule
+  everywhere (a frame within 15% of square is square), and a project's shape comes from its main cut, else any cut,
+  else the brief's deliverables, else the shape most of its footage is in. `metarush project show` says it and why;
+  the dashboard shows every cut, version and loading box at the shape the server says.
 
 ### Project motion graphics, approved by a person
 When no template fits (a route drawn on a map, a counter, a chart that builds), Claude Code can write a small Remotion
@@ -1588,6 +1594,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush footage captions <clip> [--language en] [--save file]` | the captions files kept with a clip (English captions an ability made), one language's words, or that file saved |
 | `metarush ability plan <name> --input words="…"` / `ability run … [--max-cost USD] [--wait]` / `ability runs [name] [--id run]` | what a run would do and cost (who decides); start it (a person for anything priced or that sends media away); past runs, one with its requests and what it printed |
 | `metarush motion check --version name@version [--library lib@version]` | check a motion graphic a recipe file brought in (test frames in the jailed browser; a person approves it after) |
+| `metarush motion check --version name@version --shape landscape\|vertical\|square\|1080x1350` | draw a version checked here again in a cut's shape (and the cuts' shapes): the same code, so its approval stands; only the test frames and previews are new |
 | `metarush catalogue list [--works-now] [--group fix] [--built-in\|--added]` / `catalogue show <id>` | the menu of abilities, built in and added, each saying whether it works on this computer or what it needs first / one with what it needs, costs and runs |
 
 ### Running MetaRush

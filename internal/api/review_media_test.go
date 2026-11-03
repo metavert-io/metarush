@@ -39,14 +39,14 @@ func TestMotionGraphicPicturesForReview(t *testing.T) {
 	for _, k := range []struct {
 		kind, mime string
 		size       int
-	}{{"sheet", "image/jpeg", len(sheet)}, {"preview", "video/mp4", len(video)}, {"preview-vertical", "video/mp4", len(video)}, {"frame-0", "image/png", len(frame)}} {
+	}{{"sheet", "image/jpeg", len(sheet)}, {"preview", "video/mp4", len(video)}, {"preview-vertical", "video/mp4", len(video)}, {"preview-1080x1920", "video/mp4", len(video)}, {"frame-0", "image/png", len(frame)}} {
 		code, h, b := d.send("GET", base+k.kind, nil, nil, false)
 		if code != 200 || h.Get("Content-Type") != k.mime || len(b) != k.size || !strings.Contains(h.Get("Content-Security-Policy"), "sandbox") {
 			t.Errorf("%s: %d %v %d bytes", k.kind, code, h, len(b))
 		}
 	}
 	for _, k := range []struct{ kind, says string }{
-		{"frame-3", "has no test frame like that"}, {"preview-square", "has no preview"}, {"poster", "has no picture like that"}, {"still-7", "has no test frame like that"},
+		{"frame-3", "has no test frame like that"}, {"preview-square", "has no preview"}, {"preview-1080x1350", "has no preview"}, {"poster", "has no picture like that"}, {"still-7", "has no test frame like that"},
 	} {
 		code, _, b := d.send("GET", base+k.kind, nil, nil, false)
 		if code != http.StatusNotFound || !strings.Contains(envOf(t, b).Error.Message, k.says) {

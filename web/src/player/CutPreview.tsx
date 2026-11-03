@@ -12,6 +12,8 @@ import { compensateMono } from './compensate';
 import { CaptionFix } from '../components/transcripts/CaptionFix';
 import { RecoveringVideo, TroubleLine, TroublePanel } from './Trouble';
 import { usePlayerRecovery } from './usePlayerRecovery';
+import { useServedShape } from '../lib/useShape';
+import { shapeAspect } from '../ui/ShapeBox';
 
 /*
  * The ONE place the dashboard touches the Remotion Player. It previews a revision
@@ -63,7 +65,10 @@ export const CutPreview = forwardRef<CutPreviewHandle, {
    * motion graphics moving. Same-origin, with the D180 recovery.
    */
   playRender?: Render;
-}>(function CutPreview({ revisionId, renders, onFrame, onPlan, className, maxHeight = 'min(70dvh, 720px)', plan: planOverride, playbackRate = 1, onPlayingChange, fixCaptions, playRender }, ref) {
+  /** The cut's shape as the server says it (RevisionSummary.shape, D376): the box's shape until the plan loads. Default: what this page loaded says. */
+  shape?: { width?: number; height?: number } | null;
+}>(function CutPreview({ revisionId, renders, onFrame, onPlan, className, maxHeight = 'min(70dvh, 720px)', plan: planOverride, playbackRate = 1, onPlayingChange, fixCaptions, playRender, shape }, ref) {
+  const served = useServedShape({ revisionId });
   // Keep playing the previous version's plan while a new version's loads (no flash).
   const fetched = useOp('revision.plan', planOverride ? null : { id: revisionId }, { staleTime: 60_000, placeholderData: keepPreviousData });
   const plan = planOverride ? { data: planOverride, isLoading: false, error: null as null | typeof fetched.error, refetch: fetched.refetch } : fetched;
@@ -210,7 +215,7 @@ export const CutPreview = forwardRef<CutPreviewHandle, {
     };
   }, [usePlayer, onFrame, fps, plan.data, recovery.mountKey, recovery.down]);
 
-  const aspect = chosen?.output ? chosen.output.width / chosen.output.height : meta ? meta.compositionWidth / meta.compositionHeight : fallback?.output ? fallback.output.width / fallback.output.height : 9 / 16;
+  const aspect = chosen?.output ? chosen.output.width / chosen.output.height : meta ? meta.compositionWidth / meta.compositionHeight : fallback?.output ? fallback.output.width / fallback.output.height : shapeAspect(shape ?? served);
 
   return (
     <div

@@ -526,21 +526,23 @@ func nestedIssues(s *Spec, facts Facts) []Issue {
 			cs := Clone(nc.src.Spec)
 			Normalize(cs)
 			if o := cs.Output; o.Width*s.Output.Height != o.Height*s.Output.Width {
-				out = append(out, warnI("nested_reframed", p, "%s was made %s; here it plays %s, so its shots are framed again to fit.", upperFirst(nc.name()), shapeWord(o), shapeWord(s.Output)))
+				was, here := shapeWord(o), shapeWord(s.Output)
+				if was == here { // the same shape, another ratio (4:3 in 16:9)
+					was, here = was+" ("+o.Shape().Ratio+")", here+" ("+s.Output.Shape().Ratio+")"
+				}
+				out = append(out, warnI("nested_reframed", p, "%s was made %s; here it plays %s, so its shots are framed again to fit.", upperFirst(nc.name()), was, here))
 			}
 		}
 	}
 	return out
 }
 
+// shapeWord says an output's shape by the one rule (D376).
 func shapeWord(o Output) string {
-	switch {
-	case o.Width > o.Height:
-		return "landscape"
-	case o.Width < o.Height:
-		return "vertical"
+	if s := o.Shape().Shape; s != "" {
+		return string(s)
 	}
-	return "square"
+	return string(ShapeSquare)
 }
 
 func firstNonEmptyStr(xs ...string) string {

@@ -14,6 +14,7 @@ import { etaLabel } from '../layout/ActivityBar';
 import { QAChip, useQAReportDialog } from './QAReport';
 import { RenderDownload } from './SignoffReminder';
 import { RecoveringVideo } from '../player/Trouble';
+import { shapeOf } from '../lib/shape';
 
 /**
  * "Go to …" for a job: where its result lives, with the object selected. The
@@ -107,7 +108,7 @@ function JobBody({ id, close }: { id: string; close: (how?: 'navigated') => void
   const elapsed = (now - new Date(startedAt).getTime()) / 1000;
   const eta = j.state === 'running' && j.progress.pct > 0.03 ? etaLabel((elapsed * (1 - j.progress.pct)) / j.progress.pct) : null;
   const render = r.render;
-  const vertical = render ? (render.height ?? 0) > (render.width ?? 0) : false;
+  const vertical = shapeOf(render?.width, render?.height) === 'vertical'; // the one shape rule (D376)
 
   return (
     <div>

@@ -15,6 +15,8 @@ import { Recorder } from './voiceover/Recorder';
 import { ScriptEditor } from './voiceover/ScriptEditor';
 import { FitReview, FitWaiting, useFitCard } from './voiceover/ScriptVersions';
 import { TakesDialog } from './voiceover/Takes';
+import { outputShape } from '../../lib/shape';
+import { useServedShape } from '../../lib/useShape';
 
 /*
  * The Voiceover tab: the preview with the narration strip under it, and the
@@ -56,6 +58,7 @@ export function VoiceoverTab({ data, revisionId, mode, clipId, fit, onSettled }:
   // A change makes a new version: keep showing this one until the new one is in (no flicker,
   // and the recorder stays open).
   const rev = useOp('revision.show', { id: revisionId }, { placeholderData: keepPreviousData });
+  const served = useServedShape({ revisionId });
   const show = useOp('voiceover.show', { revisionId }, { placeholderData: keepPreviousData });
   const providers = useOp('provider.list', {});
   const elReady = !!providers.data?.providers.find((p) => p.name === 'elevenlabs')?.configured;
@@ -148,7 +151,9 @@ export function VoiceoverTab({ data, revisionId, mode, clipId, fit, onSettled }:
   const takes = (l: NarrationLine) => void dialog.open(() => <TakesDialog projectId={data.project.id} lineId={l.id} />, { title: `Takes for line ${l.line}`, size: 'lg' });
 
   if (rev.error || show.error) return <ErrorPanel error={rev.error ?? show.error} onRetry={() => void (rev.refetch(), show.refetch())} />;
-  const vertical = spec ? (spec.output.height ?? 1920) > (spec.output.width ?? 1080) : true;
+  // The cut's shape: the spec's by the one rule, else what the server says (D376); never a guess.
+  const shape = outputShape(spec?.output) ?? served;
+  const vertical = shape?.shape === 'vertical';
   const lines = narration?.beats ?? [];
   const scopeLines = scope.clipId && plan ? lines.filter((l) => overClip(plan, l, scope.clipId!)) : undefined;
   const voiceList: VoiceView[] = voices.data?.voices ?? [];

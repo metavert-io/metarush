@@ -145,6 +145,9 @@ type Input struct {
 	// hold the pack ("" MetaRush's own).
 	PackDrifts []editspec.PackDrift
 	PackOf     string
+	// MotionShapes are the motion graphics the render shows in a shape they
+	// were never drawn in (D379: editspec.MotionShapeGaps at the render's size).
+	MotionShapes []editspec.MotionShapeGap
 }
 
 // ResourceCredit is what QA knows about a resource a cut shows.

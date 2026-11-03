@@ -47,6 +47,9 @@ type QAFinding struct {
 	OverlayIDs []string `bson:"overlayIds,omitempty" json:"overlayIds,omitempty"`
 	Fix        *QAFix   `bson:"fix,omitempty" json:"fix,omitempty"`
 	Frames     []string `bson:"frames,omitempty" json:"frames,omitempty"` // QAFrame IDs showing this finding
+	// Command fixes it when one command does and no change to the cut can
+	// (a motion graphic drawn in the cut's shape, D379): shown with details.
+	Command string `bson:"command,omitempty" json:"command,omitempty"`
 }
 
 // QACheck summarizes one check and the thresholds it used.

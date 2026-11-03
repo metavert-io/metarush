@@ -93,6 +93,7 @@ function RecipeCard({ r }: { r: RecipeRow }) {
           src={r.example?.thumbUrl}
           alt=""
           className="aspect-[16/9] w-full"
+          fit="contain"
           fallback={
             <span className="flex flex-col items-center gap-1.5 text-[12px] text-subtle">
               <CookingPot size={24} />

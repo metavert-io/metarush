@@ -130,6 +130,12 @@ type AssistantAction struct {
 type CardPicture struct {
 	URL   string `bson:"url" json:"url" jsonschema:"description=Same-origin media URL."`
 	Label string `bson:"label,omitempty" json:"label,omitempty"`
+	// Width and Height are the picture's size and Shape its shape in words
+	// (widescreen, vertical 4:5…): the panel shows each at its own ratio,
+	// grouped by size (D377). Absent on cards made before.
+	Width  int    `bson:"width,omitempty" json:"width,omitempty"`
+	Height int    `bson:"height,omitempty" json:"height,omitempty"`
+	Shape  string `bson:"shape,omitempty" json:"shape,omitempty"`
 }
 
 // ConversationActIn runs (or dismisses) one or several of a conversation's

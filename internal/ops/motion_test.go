@@ -3,6 +3,7 @@ package ops
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -124,6 +125,29 @@ func TestMotionCheckApproveRevoke(t *testing.T) {
 	show, err := CallTyped[MotionShowOut](ctx, a, "motion.show", MotionShowIn{Ref: ref}, Caller{})
 	if err != nil || len(show.Source) != 3 || len(show.Fields) != 3 || show.Fields[0].Name != "from" || show.SheetPath == "" || len(show.Component.Decisions) != 1 {
 		t.Fatalf("show: %v %+v", err, show)
+	}
+
+	// Drawn again in another shape (D377): the same code and version, so the
+	// approval stands; the frames are new and the vertical ones are kept. It
+	// works from the dashboard too (MetaRush's own copy of checked code).
+	before := len(show.Component.Frames)
+	again, err := CallTyped[MotionCheckOut](ctx, a, "motion.check", MotionCheckIn{Version: ref, Shape: "landscape", NoPreview: true}, Caller{Human: true, Remote: true})
+	if err != nil || !again.OK || !again.Redrawn || again.Hash != out.Hash || again.State != models.MotionApproved {
+		t.Fatalf("drawn again: %v %+v", err, again)
+	}
+	if !strings.Contains(again.Summary, "approval stands") || len(again.Shapes) != 2 || again.Shapes[0].Width != 1920 || again.Shapes[1].Height != 1920 {
+		t.Fatalf("drawn again, words and shapes: %q %+v", again.Summary, again.Shapes)
+	}
+	redrawn, err := CallTyped[MotionShowOut](ctx, a, "motion.show", MotionShowIn{Ref: ref}, Caller{})
+	if err != nil || redrawn.Component.State != models.MotionApproved || len(redrawn.Component.Decisions) != 1 || len(redrawn.Component.Frames) <= before {
+		t.Fatalf("after drawing again: %v %+v", err, redrawn.Component)
+	}
+	sizes := map[string]int{}
+	for _, f := range redrawn.Component.Frames {
+		sizes[fmt.Sprintf("%dx%d", f.Object.Width, f.Object.Height)]++
+	}
+	if sizes["1920x1080"] == 0 || sizes["1080x1920"] == 0 || len(sizes) != 2 {
+		t.Fatalf("frames by size: %v", sizes)
 	}
 
 	// Revoke works.

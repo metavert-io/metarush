@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/cutsheet"
@@ -29,13 +32,15 @@ import (
 type MotionCheckIn struct {
 	Dir       string  `json:"dir,omitempty" jsonschema:"description=The component's folder (the one with index.tsx). Leave it out and give name to use motion/<name> of the project folder you are in."`
 	Name      string  `json:"name,omitempty" jsonschema:"pattern=^[a-z][a-z0-9-]*$,maxLength=40"`
-	ProjectID string  `json:"projectId,omitempty" jsonschema:"description=Project (ID or name) whose shape\\, platform and brand the test frames use. Default: the project folder's."`
-	Shape     string  `json:"shape,omitempty" jsonschema:"enum=vertical,enum=landscape,enum=square,description=The frame the test frames use (default: the project's latest cut\\, else vertical)."`
+	ProjectID string  `json:"projectId,omitempty" jsonschema:"description=Project (ID or name) whose shape\\, platform and brand the test frames use. Default: the project folder's (a version drawn again: the one it was checked in)."`
+	Shape     string  `json:"shape,omitempty" jsonschema:"pattern=^(vertical|landscape|widescreen|square|[0-9]{2\\,4}x[0-9]{2\\,4})$,description=Draw it in this shape: vertical\\, landscape or square\\, or an exact size like 1080x1350 (default: the shapes of the cuts that use it\\, else the project's shape\\, else both widescreen and vertical). With version: drawn in this shape too."`
 	Duration  float64 `json:"duration,omitempty" jsonschema:"minimum=0,maximum=60,description=Seconds to run the graphic for in the test render (kept within its meta)."`
 	NoPreview bool    `json:"noPreview,omitempty" jsonschema:"description=Skip the short preview video (faster while iterating; a person reviewing it wants one)."`
 	// Version checks a version MetaRush keeps but hasn't checked in this
-	// workspace — one brought in with a file from another workspace (D219).
-	Version string `json:"version,omitempty" jsonschema:"description=A version MetaRush keeps but hasn't checked here (brought in with a file from another workspace): name@version\\, with the whole version."`
+	// workspace — one brought in with a file from another workspace (D219) —
+	// or draws a version already checked here again (D377): the same code and
+	// hash, in the cuts' shapes (and shape), its approval kept.
+	Version string `json:"version,omitempty" jsonschema:"description=name@version: a version checked here is drawn again in the shapes of the cuts that use it (and shape)\\, its code and approval unchanged; a version MetaRush keeps but hasn't checked here (brought in with a file from another workspace) is checked\\, with the whole version."`
 	// Libraries are the shared libraries to check it with: name → version
 	// (default: the newest approved one, else the newest checked).
 	Libraries map[string]string `json:"libraries,omitempty" jsonschema:"description=Shared libraries to check it with: name → version (default: the newest approved\\, else the newest checked)."`
@@ -46,8 +51,19 @@ type MotionFrameOut struct {
 	Label string  `json:"label"`
 	At    float64 `json:"at" jsonschema:"description=Seconds from the graphic's start."`
 	Path  string  `json:"path"`
-	// Shape is the shape of video it was drawn in (D164): widescreen, vertical, square.
-	Shape string `json:"shape,omitempty"`
+	// Shape is the shape of video it was drawn in (D164): widescreen, vertical,
+	// square (with the ratio when two share a word); Width and Height its size.
+	Shape  string `json:"shape,omitempty"`
+	Width  int    `json:"width,omitempty"`
+	Height int    `json:"height,omitempty"`
+}
+
+// MotionShapeOut is one shape a check drew a graphic in (D377).
+type MotionShapeOut struct {
+	Label  string `json:"label" jsonschema:"description=widescreen\\, vertical or square\\, with the ratio when two share a word."`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+	For    string `json:"for,omitempty" jsonschema:"description=The cuts or deliverable it is for\\, in words."`
 }
 
 // MotionCheckOut says what a check found.
@@ -69,6 +85,12 @@ type MotionCheckOut struct {
 	Ignored  []string               `json:"ignored,omitempty" jsonschema:"description=Hidden files left out of the component."`
 	URL      string                 `json:"url,omitempty" jsonschema:"description=Where a person reviews and approves it in the dashboard."`
 	Next     string                 `json:"next,omitempty"`
+	// Shapes are the shapes it was drawn in (D377) and ShapesFrom why.
+	Shapes     []MotionShapeOut `json:"shapes"`
+	ShapesFrom string           `json:"shapesFrom,omitempty" jsonschema:"enum=asked,enum=cuts,enum=workspace,enum=project,enum=nothing,description=asked: the shape given; cuts: the project's cuts that use it; workspace: other projects' cuts that use a graphic of that name; project: the project's shape; nothing: nothing says\\, so widescreen and vertical."`
+	// Redrawn: a version checked before, drawn again (D377): the same code,
+	// so its approval (or the wait for one) is unchanged.
+	Redrawn bool `json:"redrawn,omitempty"`
 }
 
 // MotionRow is one motion graphic version in a list.
@@ -255,10 +277,13 @@ func insideAssistant(a *app.App, dir string) bool {
 	return err == nil && !strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel) && strings.Contains(filepath.ToSlash(rel), "/proposals/")
 }
 
-// checkFrame decides the test frames' shape, platform and brand: the
-// project's latest cut when there is one.
-func checkFrame(ctx context.Context, a *app.App, in *MotionCheckIn, dir string) (motion.CheckOptions, error) {
-	o := motion.CheckOptions{Dir: dir, Duration: in.Duration, NoPreview: in.NoPreview, Width: 1080, Height: 1920, Platform: "generic"}
+// checkFrame decides the test frames' shapes, platform and brand (D377): the
+// project's — named, the folder's, or for a version drawn again the one it
+// was checked in — and the shapes motionShapes finds. again is a version
+// already checked here that is drawn again: the shapes it was drawn in are
+// kept after the new ones.
+func checkFrame(ctx context.Context, a *app.App, in *MotionCheckIn, dir string, again *models.MotionComponent) (motion.CheckOptions, motionShapeSet, error) {
+	o := motion.CheckOptions{Dir: dir, Duration: in.Duration, NoPreview: in.NoPreview, Platform: "generic"}
 	ref := in.ProjectID
 	if ref == "" {
 		for d := filepath.Dir(dir); ; d = filepath.Dir(d) {
@@ -271,17 +296,24 @@ func checkFrame(ctx context.Context, a *app.App, in *MotionCheckIn, dir string) 
 			}
 		}
 	}
+	fromVersion := false
+	if ref == "" && again != nil && again.ProjectID != "" {
+		ref, fromVersion = again.ProjectID, true
+	}
+	var p *models.Project
 	if ref != "" {
-		p, err := resolveProject(ctx, a, ref)
-		if err != nil {
-			return o, err
+		pp, err := resolveProject(ctx, a, ref)
+		switch {
+		case err == nil:
+			p = pp
+		case !fromVersion:
+			return o, motionShapeSet{}, err
 		}
+	}
+	if p != nil {
 		o.ProjectID = p.ID
 		if r, _, err := resolveRevision(ctx, a, p, "", "main"); err == nil && r != nil {
-			o.Width, o.Height, o.Platform, o.Brand = r.Spec.Output.Width, r.Spec.Output.Height, r.Spec.Output.Platform, r.Spec.Brand
-		}
-		if in.Shape == "" {
-			o.Shapes = checkShapes(ctx, a, p, filepath.Base(dir))
+			o.Platform, o.Brand = orDefault(r.Spec.Output.Platform, "generic"), r.Spec.Brand
 		}
 		if o.Brand == nil {
 			// No brand on the cut: the project's kit, else the workspace's (D164, D165).
@@ -290,81 +322,197 @@ func checkFrame(ctx context.Context, a *app.App, in *MotionCheckIn, dir string) 
 			}
 		}
 	}
-	switch in.Shape {
-	case "vertical":
-		o.Width, o.Height = 1080, 1920
-	case "landscape":
-		o.Width, o.Height = 1920, 1080
-	case "square":
-		o.Width, o.Height = 1080, 1080
+	var set motionShapeSet
+	if v := strings.TrimSpace(in.Shape); v != "" {
+		sh, ok := editspec.ParseShape(strings.ToLower(v))
+		if !ok {
+			return o, set, invalid("Draw it vertical, landscape or square, or at an exact size like 1080x1350.")
+		}
+		set = motionShapeSet{Shapes: []motion.CheckShape{{Width: sh.Width, Height: sh.Height, Platform: o.Platform}}, From: shapesAsked}
 	}
-	return o, nil
+	if set.From == "" || again != nil {
+		found := motionShapes(ctx, a, p, filepath.Base(dir), o.Platform)
+		if set.From == "" {
+			set.From = found.From
+		}
+		set.Shapes = append(set.Shapes, found.Shapes...)
+	}
+	if again != nil {
+		// Drawn again: the shapes it was drawn in stay, after the new ones.
+		for _, d := range drawnShapes(again) {
+			set.Shapes = append(set.Shapes, motion.CheckShape{Width: d.Width, Height: d.Height, Platform: d.Platform, For: d.For})
+		}
+	}
+	set.Shapes = motion.TidyShapes(set.Shapes)
+	o.Shapes = set.Shapes
+	if len(o.Shapes) > 0 {
+		o.Width, o.Height, o.Platform = o.Shapes[0].Width, o.Shapes[0].Height, o.Shapes[0].Platform
+	}
+	return o, set, nil
 }
 
-// checkShapes are the video shapes a motion graphic's test frames are drawn in
-// (D164): the shapes of the project's cuts (every branch's latest version)
-// that use a graphic of that name, else of all its cuts, else of the brief's
-// deliverables; at most three, the main cut's first.
+// Where a check's shapes come from (D377).
+const (
+	shapesAsked     = "asked"     // --shape
+	shapesCuts      = "cuts"      // the project's cuts that use the graphic
+	shapesWorkspace = "workspace" // other projects' cuts that use a graphic of that name
+	shapesProject   = "project"   // the project's shape (ProjectShape) with its other cuts or deliverables
+	shapesNothing   = "nothing"   // nothing says: widescreen and vertical
+)
+
+// motionShapeSet is the shapes a check draws and where they come from.
+type motionShapeSet struct {
+	Shapes []motion.CheckShape
+	From   string
+}
+
+// checkShapes are the shapes a motion graphic's test frames are drawn in
+// for a project (nil: none known), tidied (motionShapes).
 func checkShapes(ctx context.Context, a *app.App, p *models.Project, name string) []motion.CheckShape {
-	type cut struct {
-		branch string
-		out    editspec.Output
-		uses   bool
-		title  string
-	}
-	var cuts []cut
-	branches := make([]string, 0, len(p.Branches))
-	for b := range p.Branches {
-		branches = append(branches, b)
-	}
-	sort.Slice(branches, func(i, j int) bool {
-		if (branches[i] == "main") != (branches[j] == "main") {
-			return branches[i] == "main"
+	return motion.TidyShapes(motionShapes(ctx, a, p, name, "generic").Shapes)
+}
+
+// motionShapes are the video shapes a motion graphic's test frames are drawn
+// in (D164, D377), by exact size, at most three, from the first of: the
+// project's cuts whose latest versions use a graphic of that name (the main
+// cut's first); the workspace's cuts that do; the project's shape
+// (ProjectShape, D378) — with its other cuts' shapes when it comes from a
+// cut, every deliverable's when from the brief; else both widescreen and
+// vertical, never silently one.
+func motionShapes(ctx context.Context, a *app.App, p *models.Project, name, platform string) motionShapeSet {
+	var here, elsewhere []motion.CheckShape
+	for _, c := range cutsUsingMotion(ctx, a, name) {
+		sh := motion.CheckShape{Width: c.out.Width, Height: c.out.Height, Platform: c.out.Platform, For: c.what}
+		if p != nil && c.projectID == p.ID {
+			here = append(here, sh)
+		} else {
+			elsewhere = append(elsewhere, sh)
 		}
-		return branches[i] < branches[j]
-	})
-	for _, b := range branches {
-		var r models.Revision
-		if err := a.DB.GetByID(ctx, store.CRevisions, a.WorkspaceID(), p.Branches[b].Head, &r); err != nil {
+	}
+	switch {
+	case len(here) > 0:
+		return motionShapeSet{Shapes: here, From: shapesCuts}
+	case len(elsewhere) > 0:
+		return motionShapeSet{Shapes: elsewhere, From: shapesWorkspace}
+	}
+	if p != nil {
+		if ps := ProjectShape(ctx, a, p); ps.Known {
+			out := []motion.CheckShape{{Width: ps.Width, Height: ps.Height, Platform: platform, For: p.Name}}
+			switch ps.From {
+			case ShapeFromCut:
+				out[0].For = CutName(ctx, a, p, ps.Branch)
+				for _, c := range projectCutOutputs(ctx, a, p) {
+					out = append(out, motion.CheckShape{Width: c.out.Width, Height: c.out.Height, Platform: c.out.Platform, For: c.what})
+				}
+			case ShapeFromDeliverables:
+				out = nil
+				for _, d := range p.Brief.Deliverables {
+					if s := (editspec.Output{Preset: d.Preset}).Shape(); s.Shape != "" {
+						out = append(out, motion.CheckShape{Width: s.Width, Height: s.Height, Platform: d.Platform, For: d.Name})
+					}
+				}
+			}
+			return motionShapeSet{Shapes: out, From: shapesProject}
+		}
+	}
+	return motionShapeSet{Shapes: motion.BothShapes(platform), From: shapesNothing}
+}
+
+// cutUsing is the latest version of one cut, by what it is called.
+type cutUsing struct {
+	projectID, branch, what string
+	out                     editspec.Output
+}
+
+// cutsUsingMotion are the latest versions of the workspace's cuts (archived
+// projects aside) that use a motion graphic of that name, main cuts first.
+func cutsUsingMotion(ctx context.Context, a *app.App, name string) []cutUsing {
+	return latestCuts(ctx, a, bson.M{"archived": bson.M{"$ne": true}}, bson.M{"spec.overlays.motion.name": name})
+}
+
+// projectCutOutputs are a project's cuts' latest versions, main first.
+func projectCutOutputs(ctx context.Context, a *app.App, p *models.Project) []cutUsing {
+	return latestCuts(ctx, a, bson.M{"_id": p.ID}, nil)
+}
+
+func latestCuts(ctx context.Context, a *app.App, projects, revisions bson.M) []cutUsing {
+	var ps []models.Project
+	if a.DB.Find(ctx, store.CProjects, a.WorkspaceID(), projects, &ps, options.Find().SetProjection(bson.M{"name": 1, "branches": 1}).SetLimit(2000)) != nil {
+		return nil
+	}
+	type at struct {
+		p      *models.Project
+		branch string
+	}
+	where := map[string]at{}
+	var heads []string
+	for i := range ps {
+		for b, h := range ps[i].Branches {
+			if h.Head != "" {
+				where[h.Head] = at{&ps[i], b}
+				heads = append(heads, h.Head)
+			}
+		}
+	}
+	if len(heads) == 0 {
+		return nil
+	}
+	filter := bson.M{"_id": bson.M{"$in": heads}}
+	for k, v := range revisions {
+		filter[k] = v
+	}
+	var rs []models.Revision
+	if a.DB.Find(ctx, store.CRevisions, a.WorkspaceID(), filter, &rs, options.Find().SetProjection(bson.M{"spec.output": 1, "spec.title": 1})) != nil {
+		return nil
+	}
+	var out []cutUsing
+	for _, r := range rs {
+		w := where[r.ID]
+		o := r.Spec.Output
+		sh := o.Shape()
+		if sh.Shape == "" {
 			continue
 		}
-		s := editspec.Clone(&r.Spec)
-		editspec.Normalize(s)
-		c := cut{branch: b, out: s.Output, title: s.Title}
-		for _, ov := range s.Overlays {
-			if ov.Motion != nil && ov.Motion.Name == name {
-				c.uses = true
-			}
-		}
-		cuts = append(cuts, c)
+		o.Width, o.Height = sh.Width, sh.Height
+		out = append(out, cutUsing{projectID: w.p.ID, branch: w.branch, what: orDefault(r.Spec.Title, w.p.Name), out: o})
 	}
-	var out []motion.CheckShape
-	seen := map[[2]int]bool{}
-	add := func(w, h int, platform, forWhat string) {
-		if w <= 0 || h <= 0 || seen[[2]int{w, h}] || len(out) >= 3 {
-			return
+	sort.SliceStable(out, func(i, j int) bool {
+		if (out[i].branch == "main") != (out[j].branch == "main") {
+			return out[i].branch == "main"
 		}
-		seen[[2]int{w, h}] = true
-		out = append(out, motion.CheckShape{Label: motion.ShapeLabel(w, h), Width: w, Height: h, Platform: platform, For: forWhat})
-	}
-	for _, c := range cuts {
-		if c.uses {
-			add(c.out.Width, c.out.Height, c.out.Platform, orDefault(c.title, p.Name))
+		if out[i].what != out[j].what {
+			return out[i].what < out[j].what
 		}
-	}
-	if len(out) == 0 {
-		for _, c := range cuts {
-			add(c.out.Width, c.out.Height, c.out.Platform, orDefault(c.title, p.Name))
-		}
-	}
-	if len(out) == 0 {
-		for _, d := range p.Brief.Deliverables {
-			if wh, ok := editspec.Presets[d.Preset]; ok {
-				add(wh[0], wh[1], d.Platform, d.Name)
-			}
-		}
-	}
+		return out[i].branch < out[j].branch
+	})
 	return out
+}
+
+// drawnShapes are the shapes a checked version was drawn in: its recorded
+// shapes, else (checked before D164) the one its check used.
+func drawnShapes(c *models.MotionComponent) []models.MotionShape {
+	if len(c.Shapes) > 0 {
+		return c.Shapes
+	}
+	if c.Check.Width > 0 && c.Check.Height > 0 {
+		return []models.MotionShape{{Label: motion.ShapeLabel(c.Check.Width, c.Check.Height), Width: c.Check.Width, Height: c.Check.Height}}
+	}
+	return nil
+}
+
+// shapesWords says the shapes a check drew, and why when nothing said which.
+func shapesWords(set motionShapeSet) string {
+	var ws []string
+	for _, s := range set.Shapes {
+		ws = append(ws, s.Label)
+	}
+	if len(ws) == 0 {
+		return ""
+	}
+	if set.From == shapesNothing {
+		return "Nothing says which shape it is for yet, so its test frames are " + joinAnd(ws) + "."
+	}
+	return "Its test frames are " + joinAnd(ws) + "."
 }
 
 // kitForCheck is the brand kit a check draws with when the cut has no brand:
@@ -752,10 +900,26 @@ func init() {
 	})
 	Def("motion.check", "Check a project motion graphic: canonical archive and hash, import scan, type check, bundle, test frames and a preview in a network-jailed browser; a passing version is recorded for a person to approve", Flags{Mutating: true}, func(ctx context.Context, a *app.App, in *MotionCheckIn) (*MotionCheckOut, error) {
 		kept := ""
-		if strings.TrimSpace(in.Version) != "" {
-			// A version a file from another workspace brought (D219): unpacked from what MetaRush keeps.
-			name, hash, ok := strings.Cut(strings.TrimSpace(in.Version), "@")
-			if !ok || !motion.ValidHash(strings.ToLower(hash)) {
+		var again *models.MotionComponent
+		if v := strings.TrimSpace(in.Version); v != "" {
+			name, hash, ok := strings.Cut(v, "@")
+			hash = strings.ToLower(hash)
+			if !ok || !motion.ValidName(name) || hash == "" {
+				return nil, invalid("Say which version as name@version.")
+			}
+			// A version checked here is drawn again (D377): the same code and
+			// hash, so what people decided about it stays.
+			c, err := motion.Resolve(ctx, a.DB, a.WorkspaceID(), name+"@"+hash)
+			switch {
+			case err == nil:
+				again, hash = c, c.Hash
+				if c.Kind == models.MotionKindLibrary {
+					return nil, invalid("%s is a shared library: it draws nothing of its own. Draw the graphics that use it again.", c.Name+"@"+motion.Short(c.Hash))
+				}
+			case !apperr.Is(err, apperr.NotFound):
+				return nil, err
+			case !motion.ValidHash(hash):
+				// A version a file from another workspace brought (D219) is named whole.
 				return nil, invalid("Say which kept version to check as name@version, with the whole version.")
 			}
 			tmp, err := os.MkdirTemp(a.Cfg.Scratch.Dir, "motion-kept-")
@@ -763,10 +927,17 @@ func init() {
 				return nil, err
 			}
 			defer os.RemoveAll(tmp)
-			if kept, err = motion.Kept(ctx, a, name, strings.ToLower(hash), tmp); err != nil {
+			if kept, err = motion.Kept(ctx, a, name, hash, tmp); err != nil {
 				return nil, err
 			}
 			in.Dir, in.Name = kept, ""
+			if again != nil && len(in.Libraries) == 0 && len(again.CheckedWith) > 0 {
+				// Drawn with the libraries it was checked with: nothing about it changes.
+				in.Libraries = map[string]string{}
+				for _, l := range again.CheckedWith {
+					in.Libraries[l.Name] = l.Hash
+				}
+			}
 		}
 		for l, h := range in.Libraries {
 			if !motion.ValidName(l) || !motion.ValidHash(h) {
@@ -783,7 +954,7 @@ func init() {
 			return nil, apperr.New(apperr.Unauthorized, "From the dashboard, MetaRush only checks motion graphics Claude wrote in a conversation.").
 				WithHint("Check one in a project folder from a terminal instead.").WithDetails(map[string]any{"reason": "local_only"}).WithCommand("metarush motion check <folder>")
 		}
-		o, err := checkFrame(ctx, a, in, dir)
+		o, set, err := checkFrame(ctx, a, in, dir, again)
 		if err != nil {
 			return nil, err
 		}
@@ -794,19 +965,32 @@ func init() {
 		if err != nil {
 			return nil, err
 		}
-		if kept != "" && r.Archive != nil && !strings.HasSuffix(in.Version, r.Archive.Hash) {
+		if kept != "" && r.Archive != nil && !strings.HasSuffix(strings.ToLower(in.Version), r.Archive.Hash) && (again == nil || again.Hash != r.Archive.Hash) {
 			return nil, apperr.New(apperr.Integrity, "The kept version didn't read back as itself, so it wasn't checked.")
 		}
 		out := &MotionCheckOut{OK: r.OK, Name: r.Name, Hash: r.Archive.Hash, Version: r.Name + "@" + motion.Short(r.Archive.Hash), Stage: r.Stage,
-			Problems: r.Problems, Imports: r.Imports, Frames: []MotionFrameOut{}, Sheet: r.Sheet, Preview: r.Preview, Meta: r.Meta, Schema: r.Schema, Ignored: r.Archive.Ignored}
+			Problems: r.Problems, Imports: r.Imports, Frames: []MotionFrameOut{}, Sheet: r.Sheet, Preview: r.Preview, Meta: r.Meta, Schema: r.Schema, Ignored: r.Archive.Ignored,
+			Shapes: []MotionShapeOut{}, ShapesFrom: set.From, Redrawn: again != nil}
 		for _, f := range r.Frames {
-			out.Frames = append(out.Frames, MotionFrameOut{Label: f.Label, At: f.At, Path: f.Path, Shape: f.Shape})
+			out.Frames = append(out.Frames, MotionFrameOut{Label: f.Label, At: f.At, Path: f.Path, Shape: f.Shape, Width: f.Width, Height: f.Height})
+		}
+		drew := set
+		if len(r.Shapes) > 0 {
+			drew.Shapes = r.Shapes
+		}
+		for _, sh := range drew.Shapes {
+			out.Shapes = append(out.Shapes, MotionShapeOut{Label: sh.Label, Width: sh.Width, Height: sh.Height, For: sh.For})
 		}
 		if r.Component != nil {
 			out.State = r.Component.State
 			out.URL = dashboardURL(a, links.Motion(r.Archive.Hash))
 		}
 		out.Summary = checkSummary(r)
+		if r.OK && again != nil {
+			out.Summary = redrawSummary(r, drew)
+		} else if r.OK && r.Component != nil && r.Component.Kind != models.MotionKindLibrary {
+			out.Summary += " " + shapesWords(drew)
+		}
 		switch {
 		case !r.OK:
 			out.Next = "Fix the problems (file and line are given) and check it again."
@@ -854,11 +1038,59 @@ func init() {
 // (`metarush motion studio`, a local convenience with no op of its own: it
 // runs Remotion Studio in the person's browser until they stop it).
 func MotionStudioSetup(ctx context.Context, a *app.App, in *MotionCheckIn) (dir string, o motion.CheckOptions, err error) {
-	if dir, err = motionDir(in); err != nil {
-		return "", o, err
-	}
-	o, err = checkFrame(ctx, a, in, dir)
+	dir, o, _, err = MotionStudioShapes(ctx, a, in)
 	return dir, o, err
+}
+
+// MotionStudioShapes is MotionStudioSetup with the shapes the graphic is
+// drawn in (D377): Studio opens in the first — the asked shape, else the
+// project's (ProjectShape) — and offers the others the graphic is used in.
+func MotionStudioShapes(ctx context.Context, a *app.App, in *MotionCheckIn) (dir string, o motion.CheckOptions, others []MotionShapeOut, err error) {
+	if dir, err = motionDir(in); err != nil {
+		return "", o, nil, err
+	}
+	o, set, err := checkFrame(ctx, a, in, dir, nil)
+	if err != nil {
+		return dir, o, nil, err
+	}
+	first := o.Shapes
+	if in.Shape == "" && o.ProjectID != "" {
+		// Studio opens at the project's shape (D378); the cuts' shapes are offered.
+		if p, perr := resolveProject(ctx, a, o.ProjectID); perr == nil {
+			ps := ProjectShape(ctx, a, p)
+			first = motion.TidyShapes(append([]motion.CheckShape{{Width: ps.Width, Height: ps.Height, Platform: o.Platform, For: p.Name}}, set.Shapes...))
+		}
+	}
+	if len(first) > 0 {
+		o.Width, o.Height = first[0].Width, first[0].Height
+		for _, sh := range first[1:] {
+			others = append(others, MotionShapeOut{Label: sh.Label, Width: sh.Width, Height: sh.Height, For: sh.For})
+		}
+	}
+	return dir, o, others, nil
+}
+
+// redrawSummary says what drawing a checked version again did (D377): the
+// code and its version are the same, so its approval is too.
+func redrawSummary(r *motion.CheckResult, drew motionShapeSet) string {
+	var ws []string
+	for _, sh := range drew.Shapes {
+		ws = append(ws, sh.Label)
+	}
+	s := fmt.Sprintf("Drew %s again: %s.", r.Name+"@"+motion.Short(r.Archive.Hash), joinAnd(ws))
+	state := ""
+	if r.Component != nil {
+		state = r.Component.State
+	}
+	switch state {
+	case models.MotionApproved:
+		return s + " Its code is unchanged (approval is for this exact code), so its approval stands."
+	case models.MotionRejected:
+		return s + " Its code is unchanged, so a person's decision to turn it down stands."
+	case models.MotionRevoked:
+		return s + " Its code is unchanged, so its approval stays withdrawn."
+	}
+	return s + " Its code is unchanged; it still waits for a person's approval."
 }
 
 var _ = errors.New

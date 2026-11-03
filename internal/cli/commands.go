@@ -2386,6 +2386,10 @@ func printProjectShow(p *ops.ProjectShowOut, details bool) {
 		fmt.Printf(" MetaRush is still working on %s for it.", plural(p.OpenJobs, "thing"))
 	}
 	fmt.Println()
+	if p.Shape.Word != "" {
+		// What shape its videos are, and why (D378).
+		fmt.Printf("Shape: %s (%s). %s\n", p.Shape.Word, p.Shape.Ratio, p.Shape.Why)
+	}
 	fmt.Println(p.URL)
 	if details {
 		fmt.Printf("project: %s   latest version: %s\n", p.Project.ID, orNone(p.HeadRevisionID))

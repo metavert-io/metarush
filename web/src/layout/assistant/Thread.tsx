@@ -23,6 +23,7 @@ import type { StreamState } from '../../api/assistant';
 import type { AssistantAction, AssistantEvent, AssistantImage, AssistantToolCall, Conversation, ConversationTurn, TodoItem } from '../../api/types';
 import { absolute, duration, stamp, tokenWords } from '../../lib/format';
 import { useNow } from '../../lib/hooks';
+import { frameAspect } from '../../lib/shape';
 import { Lightbox, type LightboxItem } from '../../ui/Lightbox';
 import { cx, Spinner } from '../../ui/primitives';
 import { ActionCard } from './ActionCard';
@@ -545,7 +546,7 @@ function Thumbnails({ images }: { images: AssistantImage[] }) {
   const more = uniq.length - visible.length;
   return (
     <>
-      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4" role="list" aria-label="Pictures Claude looked at">
+      <div className="grid grid-cols-3 items-start gap-1.5 sm:grid-cols-4" role="list" aria-label="Pictures Claude looked at">
         {visible.map((img, i) => (
           <Thumb key={img.root + img.path} img={img} onOpen={() => setOpen(i)} more={i === visible.length - 1 && more > 0 ? more : 0} />
         ))}
@@ -557,13 +558,16 @@ function Thumbnails({ images }: { images: AssistantImage[] }) {
 
 function Thumb({ img, onOpen, more }: { img: AssistantImage; onOpen: () => void; more: number }) {
   const [state, setState] = useState<'loading' | 'ok' | 'gone'>('loading');
+  // Whole, at its own ratio once loaded (a vertical frame is never cropped to a strip, D377).
+  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
   return (
     <button
       type="button"
       role="listitem"
       onClick={onOpen}
       disabled={state === 'gone'}
-      className="group relative aspect-video overflow-hidden rounded-[8px] bg-inset hairline focus-visible:outline-2 focus-visible:outline-accent"
+      style={{ aspectRatio: frameAspect(null, natural) }}
+      className="group relative overflow-hidden rounded-[8px] bg-inset hairline focus-visible:outline-2 focus-visible:outline-accent"
       aria-label={more ? `Open the pictures Claude looked at (${more} more)` : 'Open the picture Claude looked at, large'}
       title={state === 'gone' ? 'This picture is on the machine that holds the conversation' : 'Open large'}
       data-thumb
@@ -573,9 +577,13 @@ function Thumb({ img, onOpen, more }: { img: AssistantImage; onOpen: () => void;
           src={imageUrl(img)}
           alt=""
           loading="lazy"
-          onLoad={() => setState('ok')}
+          onLoad={(e) => {
+            const i = e.currentTarget;
+            if (i.naturalWidth > 0) setNatural({ width: i.naturalWidth, height: i.naturalHeight });
+            setState('ok');
+          }}
           onError={() => setState('gone')}
-          className={cx('h-full w-full object-cover transition-[opacity,transform] duration-300 group-hover:scale-[1.03]', state === 'ok' ? 'opacity-100' : 'opacity-0')}
+          className={cx('h-full w-full object-contain transition-[opacity,transform] duration-300 group-hover:scale-[1.03]', state === 'ok' ? 'opacity-100' : 'opacity-0')}
         />
       ) : null}
       {state !== 'ok' ? (

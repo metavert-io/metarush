@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import type { ProjectShowOut } from '../../api/types';
 import { useInstallationNames } from '../../api/queries';
 import { Skeleton } from '../../ui/primitives';
+import { ShapeSkeleton } from '../../ui/ShapeBox';
 
 const CutEditor = lazy(() => import('../../components/studio/CutEditor').then((m) => ({ default: m.CutEditor })));
 
@@ -12,7 +13,7 @@ export function CutTab({ data, onOpenSource }: { data: ProjectShowOut; revisionI
     <Suspense
       fallback={
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,1fr)]">
-          <Skeleton className="aspect-video w-full rounded-[14px]" />
+          <ShapeSkeleton shape={data.revisions.find((r) => r.id === data.headRevisionId)?.shape ?? data.shape} tall="max-w-[380px]" square="max-w-[480px]" className="rounded-[14px]" />
           <Skeleton className="h-64 rounded-[14px]" />
           <Skeleton className="h-40 rounded-[14px] xl:col-span-2" />
         </div>

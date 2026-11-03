@@ -4,6 +4,7 @@ import { ArrowSquareOut, CaretDown, CaretRight, CheckCircle, CircleNotch, HandPa
 import { useAssistantOp } from '../../api/assistant';
 import type { AssistantAction, Conversation } from '../../api/types';
 import { absolute, duration, signedDuration, stamp } from '../../lib/format';
+import { frameAspect, shapeOf, shapeWord } from '../../lib/shape';
 import { useDialog } from '../../ui/Dialog';
 import { Lightbox, type LightboxItem } from '../../ui/Lightbox';
 import { Badge, Button, ErrorPanel, InlineCode, Theirs, cx } from '../../ui/primitives';
@@ -187,7 +188,7 @@ export function outcomeLine(a: AssistantAction): string {
 
 /** The pictures of a card to show large: test frames, then the preview. */
 export function cardPictures(a: AssistantAction): LightboxItem[] {
-  const items: LightboxItem[] = (a.frames ?? []).map((f) => ({ src: f.url, label: f.label }));
+  const items: LightboxItem[] = (a.frames ?? []).map((f) => ({ src: f.url, label: f.label, width: f.width, height: f.height, shape: f.shape }));
   if (!items.length && a.image) items.push({ src: a.image, label: 'Test frames' });
   if (a.preview) items.push({ src: a.preview, kind: 'video', label: 'Preview' });
   return items;
@@ -504,66 +505,111 @@ export function ActionCard({ action, conversation, raw, onNavigate }: { action: 
   );
 }
 
-/** A frame's shape when the graphic was drawn in several ("vertical · start", D164). */
+/** Cards made before D377 said a frame's shape in its label ("vertical · start", D164) and no size. */
 const SHAPE_LABEL = /^(widescreen|vertical|square) · (.*)$/;
-const SHAPE_RATIO: Record<string, string> = { widescreen: '16 / 9', vertical: '9 / 16', square: '1 / 1' };
-const SHAPE_MIN: Record<string, number> = { widescreen: 92, vertical: 52, square: 70 };
+const OLD_RATIO: Record<string, string> = { widescreen: '16 / 9', vertical: '9 / 16', square: '1 / 1' };
+const SHAPE_MIN: Record<string, number> = { landscape: 92, vertical: 52, square: 70 };
 
-/** The stills grouped by the shape they were drawn in, or undefined when they carry none. */
-function shapeGroups(stills: LightboxItem[]): { shape: string; items: { p: LightboxItem; i: number; label: string }[] }[] | undefined {
+type ShapeGroup = { key: string; shape: string; min: number; ratio?: string; items: { p: LightboxItem; i: number; label: string }[] };
+
+/**
+ * The stills grouped by the exact size they were drawn at (D377), each group
+ * named by its shape; cards from before name it only in the label. Undefined
+ * when they say neither (pictures of no particular shape).
+ */
+function shapeGroups(stills: LightboxItem[]): ShapeGroup[] | undefined {
+  if (!stills.length) return undefined;
+  const out: ShapeGroup[] = [];
+  if (stills.every((p) => p.width && p.height)) {
+    stills.forEach((p, i) => {
+      const key = `${p.width}x${p.height}`;
+      let g = out.find((x) => x.key === key);
+      if (!g) {
+        const shape = shapeOf(p.width, p.height);
+        out.push((g = { key, shape: p.shape || shapeWord(shape), min: SHAPE_MIN[shape ?? ''] ?? 80, items: [] }));
+      }
+      g.items.push({ p, i, label: p.label ?? '' });
+    });
+    return out;
+  }
   if (stills.length < 2 || !stills.every((p) => SHAPE_LABEL.test(p.label ?? ''))) return undefined;
-  const out: { shape: string; items: { p: LightboxItem; i: number; label: string }[] }[] = [];
   stills.forEach((p, i) => {
     const m = SHAPE_LABEL.exec(p.label ?? '')!;
-    let g = out.find((x) => x.shape === m[1]);
-    if (!g) out.push((g = { shape: m[1]!, items: [] }));
+    let g = out.find((x) => x.key === m[1]);
+    if (!g) out.push((g = { key: m[1]!, shape: m[1]!, min: SHAPE_MIN[m[1] === 'widescreen' ? 'landscape' : m[1]!] ?? 80, ratio: OLD_RATIO[m[1]!], items: [] }));
     g.items.push({ p, i, label: m[2]! });
   });
   return out;
 }
 
-/** A card's pictures: a strip of test frames (and the preview), each opening large. */
+/** One test frame, whole at its own ratio (its size, else the picture's once loaded); opens large. */
+function FrameButton({ p, label, fallback, onOpen, more, aria }: { p: LightboxItem; label: string; fallback?: string; onOpen: () => void; more?: number; aria: string }) {
+  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null);
+  return (
+    <button
+      type="button"
+      role="listitem"
+      onClick={onOpen}
+      className="group relative overflow-hidden rounded-[8px] bg-inset hairline focus-visible:outline-2 focus-visible:outline-accent"
+      style={{ aspectRatio: frameAspect(p, natural, fallback) }}
+      aria-label={aria}
+      title={label}
+      data-thumb
+      data-frame-ratio={frameAspect(p, natural, fallback)}
+    >
+      <img
+        src={p.src}
+        alt=""
+        loading="lazy"
+        onLoad={(e) => e.currentTarget.naturalWidth > 0 && setNatural({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })}
+        className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"
+      />
+      {more ? <span className="tc absolute inset-0 grid place-items-center bg-[rgb(0_0_0/0.5)] text-[13px] font-medium text-white">+{more}</span> : null}
+    </button>
+  );
+}
+
+/** A card's pictures: test frames (each at its own shape) and the preview, each opening large. */
 export function CardPictures({ action, pictures, onOpen }: { action: AssistantAction; pictures: LightboxItem[]; onOpen: (i: number) => void }) {
   const stills = pictures.filter((p) => p.kind !== 'video');
   const video = pictures.findIndex((p) => p.kind === 'video');
   const groups = shapeGroups(stills);
+  const previewButton =
+    video >= 0 ? (
+      <button
+        type="button"
+        onClick={() => onOpen(video)}
+        className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-inset px-3 text-[12px] font-medium text-[#efe8de] hairline hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+        aria-label="Play the preview, large"
+        data-thumb
+      >
+        <Play size={13} weight="fill" aria-hidden /> Preview
+      </button>
+    ) : null;
   if (groups) {
-    // Drawn in the shapes of the cuts it is for: a row per shape, each frame at its own shape.
+    // A row per size it was drawn at, each frame at its own shape; the shape is named when there are several.
+    const named = groups.length > 1;
     return (
       <div className="mt-2.5 space-y-2" aria-label="Test frames" data-card-shapes>
         {groups.map((g) => (
-          <div key={g.shape} data-card-shape={g.shape}>
-            <div className="mb-1 text-[11.5px] font-medium text-subtle">{g.shape.charAt(0).toUpperCase() + g.shape.slice(1)}</div>
-            <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${SHAPE_MIN[g.shape] ?? 80}px, 1fr))` }} role="list">
-              {g.items.slice(0, 8).map(({ p, i, label }) => (
-                <button
+          <div key={g.key} data-card-shape={g.shape} data-card-size={g.key}>
+            {named ? <div className="mb-1 text-[11.5px] font-medium text-subtle">{g.shape.charAt(0).toUpperCase() + g.shape.slice(1)}</div> : null}
+            <div className="grid items-start gap-1.5" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${g.min}px, 1fr))` }} role="list">
+              {g.items.slice(0, 8).map(({ p, i, label }, k) => (
+                <FrameButton
                   key={p.src}
-                  type="button"
-                  role="listitem"
-                  onClick={() => onOpen(i)}
-                  className="group relative overflow-hidden rounded-[8px] bg-inset hairline focus-visible:outline-2 focus-visible:outline-accent"
-                  style={{ aspectRatio: SHAPE_RATIO[g.shape] ?? '16 / 9' }}
-                  aria-label={`Open the ${g.shape} test frame ${label}, large`}
-                  title={label}
-                  data-thumb
-                >
-                  <img src={p.src} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-                </button>
+                  p={p}
+                  label={label}
+                  fallback={g.ratio}
+                  onOpen={() => onOpen(i)}
+                  more={!named && k === 7 && g.items.length > 8 ? g.items.length - 8 : 0}
+                  aria={named ? `Open the ${g.shape} test frame ${label}, large` : `Open ${label || 'this test frame'}, large`}
+                />
               ))}
             </div>
           </div>
         ))}
-        {video >= 0 ? (
-          <button
-            type="button"
-            onClick={() => onOpen(video)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-inset px-3 text-[12px] font-medium text-[#efe8de] hairline hover:bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-            aria-label="Play the preview, large"
-            data-thumb
-          >
-            <Play size={13} weight="fill" aria-hidden /> Preview
-          </button>
-        ) : null}
+        {previewButton}
       </div>
     );
   }
@@ -576,36 +622,13 @@ export function CardPictures({ action, pictures, onOpen }: { action: AssistantAc
     );
   }
   return (
-    <div className="mt-2.5 grid grid-cols-3 gap-1.5 sm:grid-cols-4" role="list" aria-label="Test frames">
-      {stills.slice(0, 7).map((p, i) => (
-        <button
-          key={p.src}
-          type="button"
-          role="listitem"
-          onClick={() => onOpen(i)}
-          className="group relative aspect-video overflow-hidden rounded-[8px] bg-inset hairline focus-visible:outline-2 focus-visible:outline-accent"
-          aria-label={`Open ${p.label ?? 'this test frame'}, large`}
-          title={p.label}
-          data-thumb
-        >
-          <img src={p.src} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-          {i === 6 && stills.length > 7 ? <span className="tc absolute inset-0 grid place-items-center bg-[rgb(0_0_0/0.5)] text-[13px] font-medium text-white">+{stills.length - 7}</span> : null}
-        </button>
-      ))}
-      {video >= 0 ? (
-        <button
-          type="button"
-          role="listitem"
-          onClick={() => onOpen(video)}
-          className="grid aspect-video place-items-center rounded-[8px] bg-inset text-[12px] font-medium text-fg hairline hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent"
-          aria-label="Play the preview, large"
-          data-thumb
-        >
-          <span className="flex items-center gap-1.5">
-            <Play size={14} weight="fill" aria-hidden /> Preview
-          </span>
-        </button>
-      ) : null}
+    <div className="mt-2.5 space-y-2">
+      <div className="grid grid-cols-3 items-start gap-1.5 sm:grid-cols-4" role="list" aria-label="Test frames">
+        {stills.slice(0, 7).map((p, i) => (
+          <FrameButton key={p.src} p={p} label={p.label ?? ''} onOpen={() => onOpen(i)} more={i === 6 && stills.length > 7 ? stills.length - 7 : 0} aria={`Open ${p.label ?? 'this test frame'}, large`} />
+        ))}
+      </div>
+      {previewButton}
     </div>
   );
 }

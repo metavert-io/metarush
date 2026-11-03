@@ -37,7 +37,7 @@ func lineByID(msg string, i int, b editspec.Beat) string {
 // on the right line of the sheet, in plain words for the common cases. spec is
 // the spec that was validated (after any rebase); items are found by ID.
 func Locate(is editspec.Issue, spec *editspec.Spec, sm *SourceMap, info Info, name func(string) string) Problem {
-	p := Problem{Severity: is.Severity, Code: is.Code, Message: is.Message, Path: is.Path}
+	p := Problem{Severity: is.Severity, Code: is.Code, Message: is.Message, Path: is.Path, Command: is.Command}
 	if name == nil {
 		// Without the sheet's names, footage is named by its title.
 		name = func(id string) string {

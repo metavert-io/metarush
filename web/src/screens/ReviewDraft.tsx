@@ -11,6 +11,8 @@ import { CostEstimate } from '../components/CostEstimate';
 import { useDialog } from '../ui/Dialog';
 import { useToast } from '../ui/Toast';
 import { Badge, Button, CopyButton, Details, ErrorPanel, Freshness, Skeleton, Theirs, cx } from '../ui/primitives';
+import { shapeMaxWidth } from '../lib/shape';
+import { shapeRatio } from '../ui/ShapeBox';
 
 /**
  * The review page of an AI app's draft, or of any version (D249, D250): what
@@ -166,13 +168,18 @@ function Lines({ items, tone, plain }: { items: string[]; tone?: 'danger'; plain
 /** The version's review copy (made by itself about a minute after the change, D187), or where it stands. */
 function ReviewCopy({ packet: p }: { packet: Packet }) {
   const rc = p.reviewCopy;
-  const vertical = (p.revision?.output.height ?? 0) > (p.revision?.output.width ?? 1);
+  // The version's shape as the server says it (D376).
+  const shape = p.revision?.shape;
+  const vertical = shape?.shape === 'vertical';
   return (
     <section aria-label="Review copy" data-review-copy={rc?.state ?? 'none'}>
       {rc?.state === 'available' ? (
         <RecoveringVideo src={media.render(rc.renderId)} controls playsInline className={cx('mx-auto rounded-[12px] bg-black', vertical ? 'max-h-[60dvh]' : 'w-full')} />
       ) : (
-        <div className="flex aspect-video items-center justify-center rounded-[12px] bg-raised px-6 text-center text-[13px] text-muted hairline">
+        <div
+          className={cx('mx-auto flex w-full items-center justify-center rounded-[12px] bg-raised px-6 text-center text-[13px] text-muted hairline', shapeMaxWidth(shape, '', 'max-w-[340px]', 'max-w-[520px]'))}
+          style={{ aspectRatio: shapeRatio(shape) }}
+        >
           {rc ? `Review copy: ${rc.said.charAt(0).toLowerCase()}${rc.said.slice(1)}.` : 'MetaRush makes a review copy of it by itself about a minute after it was saved.'}
         </div>
       )}

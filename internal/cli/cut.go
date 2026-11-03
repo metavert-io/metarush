@@ -126,6 +126,9 @@ func printProblems(file string, ps []cutsheet.Problem, details bool) {
 			if details && p.Code != "" {
 				fmt.Printf("    (%s)\n", p.Code)
 			}
+			if details && p.Command != "" {
+				fmt.Printf("    %s\n", p.Command)
+			}
 		}
 	}
 }

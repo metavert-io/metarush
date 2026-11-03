@@ -30,6 +30,8 @@ import { ARCHIVED_PROJECTS, ArchivedProject, useProjectActions } from '../compon
 import { MenuButton } from '../layout/assistant/Menu';
 import { MadeWith } from '../components/recipes/MadeWith';
 import { useSaveAsMenuItem } from '../components/recipes/SaveDialog';
+import { useServedShape } from '../lib/useShape';
+import { ShapeSkeleton } from '../ui/ShapeBox';
 
 export type StudioTab = 'cut' | 'conversation' | 'voiceover' | 'sound' | 'script' | 'sources' | 'resources' | 'renders' | 'history' | 'receipt' | 'settings';
 
@@ -91,7 +93,7 @@ export function ProjectStudio() {
 
   const openSource = useCallback((assetId: string, t: number) => setTab('sources', { asset: assetId, t: t.toFixed(3) }), [setTab]);
 
-  if (show.isLoading) return <StudioSkeleton />;
+  if (show.isLoading) return <StudioSkeleton projectId={projectId} />;
   if (show.error || !data)
     return (
       <div className="mx-auto max-w-[640px] py-10">
@@ -307,7 +309,9 @@ function NoCutYet({ data, onSources }: { data: ProjectShowOut; onSources: () => 
   );
 }
 
-function StudioSkeleton() {
+function StudioSkeleton({ projectId }: { projectId: string }) {
+  // The cut's box at the shape the project list said (D378), until the project loads.
+  const served = useServedShape({ projectId });
   return (
     <div aria-busy="true" aria-label="Loading project">
       <Skeleton className="h-4 w-40" />
@@ -315,7 +319,7 @@ function StudioSkeleton() {
       <Skeleton className="mt-3 h-4 w-[min(560px,90%)]" />
       <Skeleton className="mt-6 h-9 w-[360px] max-w-full" />
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[420px_1fr]">
-        <Skeleton className="aspect-[9/16] w-full max-w-[420px] rounded-[14px]" />
+        <ShapeSkeleton shape={served} tall="max-w-[420px]" square="max-w-[420px]" className="rounded-[14px]" />
         <div className="space-y-3">
           <Skeleton className="h-28 rounded-[14px]" />
           <Skeleton className="h-40 rounded-[14px]" />

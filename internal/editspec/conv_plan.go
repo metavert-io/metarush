@@ -185,7 +185,7 @@ func defaultShot(pin ConversationPin, out Output) Shot {
 		return Shot{Member: pics[0]}
 	case len(pics) > 3:
 		return Shot{Layout: LayoutGrid}
-	case out.Height > out.Width:
+	case out.Shape().Shape == ShapeVertical: // the one shape rule (D376)
 		return Shot{Layout: LayoutStacked}
 	}
 	return Shot{Layout: LayoutSideBySide}

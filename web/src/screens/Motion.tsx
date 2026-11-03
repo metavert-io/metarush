@@ -10,6 +10,7 @@ import { Lightbox, type LightboxItem } from '../ui/Lightbox';
 import { useToast } from '../ui/Toast';
 import { Badge, Button, cx, EmptyState, ErrorPanel, Freshness, SectionTitle, Skeleton, Theirs, type Tone } from '../ui/primitives';
 import { askInProject } from '../layout/assistant/store';
+import { shapeOf } from '../lib/shape';
 
 /*
  * Project motion graphics (D68): components a project carries as code. People
@@ -438,16 +439,18 @@ function ShapeFrames({ hash, name, component: c }: { hash: string; name: string;
   const groups = useMemo(() => {
     const frames = (c.frames ?? []).map((f, i) => ({ f, i }));
     const shapes = c.shapes ?? [];
+    // Frames belong to a shape by their exact size (D377: two vertical sizes never mix), else by its label.
+    const sized = (x: { f: MotionFrame }, s: MotionShape) =>
+      x.f.object?.width && x.f.object?.height ? x.f.object.width === s.width && x.f.object.height === s.height : x.f.shape === s.label;
     const out: ShapeGroup[] = shapes.map((s, si) => ({
-      key: s.label,
+      key: `${s.width}x${s.height}`,
       title: shapeTitle(s.label),
       shape: s,
-      frames: frames.filter((x) => x.f.shape === s.label),
+      frames: frames.filter((x) => sized(x, s)),
       // The first shape's preview is the graphic's preview; the others have their own.
-      preview: si === 0 ? (c.video ? media.motionPreview(hash) : undefined) : s.video ? media.motionShapePreview(hash, s.label) : undefined,
+      preview: si === 0 ? (c.video ? media.motionPreview(hash) : undefined) : s.video ? media.motionShapePreview(hash, `${s.width}x${s.height}`) : undefined,
     }));
-    const known = new Set(shapes.map((s) => s.label));
-    const rest = frames.filter((x) => !x.f.shape || !known.has(x.f.shape));
+    const rest = frames.filter((x) => !shapes.some((s) => sized(x, s)));
     if (rest.length) out.push({ key: 'other', title: 'Other test frames', frames: rest });
     return out.filter((g) => g.frames.length || g.preview);
   }, [c, hash]);
@@ -458,7 +461,7 @@ function ShapeFrames({ hash, name, component: c }: { hash: string; name: string;
         const w = g.shape?.width || c.check.width || 16;
         const h = g.shape?.height || c.check.height || 9;
         const ratio = `${w} / ${h}`;
-        const tall = h > w;
+        const tall = shapeOf(w, h) === 'vertical';
         const items: LightboxItem[] = [
           ...g.frames.map((x) => ({ src: media.motionFrame(hash, x.i), label: `${g.title}: ${frameLabel(x.f)}` })),
           ...(g.preview ? [{ src: g.preview, kind: 'video' as const, label: `${g.title}: preview` }] : []),
@@ -479,7 +482,7 @@ function ShapeFrames({ hash, name, component: c }: { hash: string; name: string;
                 </span>
               ) : null}
             </h3>
-            <ul className="grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${tall ? 92 : w === h ? 124 : 164}px, 1fr))` }}>
+            <ul className="grid items-start gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${tall ? 92 : shapeOf(w, h) === 'square' ? 124 : 164}px, 1fr))` }}>
               {g.frames.map((x, k) => (
                 <li key={x.i} className="min-w-0">
                   <button

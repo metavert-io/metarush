@@ -23,7 +23,7 @@ import (
 //
 //	/media/motion/{hash}/sheet      the contact sheet (JPEG)
 //	/media/motion/{hash}/preview    the preview video (MP4)
-//	/media/motion/{hash}/preview-{shape}  its preview in another shape it was checked in (D164)
+//	/media/motion/{hash}/preview-{shape}  its preview in another shape it was checked in (D164): its size (1080x1350, D377) or label
 //	/media/motion/{hash}/frame-{n}  test frame n (PNG, from 0)
 //	/media/motion/{hash}/still-{n}  test frame n without the check's backdrop: the live preview's still (D187)
 func (s *Server) motionMedia(w http.ResponseWriter, r *http.Request) {
@@ -46,10 +46,12 @@ func (s *Server) motionMedia(w http.ResponseWriter, r *http.Request) {
 	case kind == "preview":
 		obj, mime, name = c.Video, "video/mp4", c.Name+"-preview.mp4"
 	case strings.HasPrefix(kind, "preview-"):
-		// The preview in another shape it was checked in (D164).
+		// The preview in another shape it was checked in (D164), named by its exact size (D377) or, as before, its label.
+		want := strings.TrimPrefix(kind, "preview-")
 		for i := range c.Shapes {
-			if c.Shapes[i].Label == strings.TrimPrefix(kind, "preview-") && c.Shapes[i].Video != nil {
-				obj, mime, name = c.Shapes[i].Video, "video/mp4", c.Name+"-"+c.Shapes[i].Label+"-preview.mp4"
+			key := strconv.Itoa(c.Shapes[i].Width) + "x" + strconv.Itoa(c.Shapes[i].Height)
+			if (c.Shapes[i].Label == want || key == want) && c.Shapes[i].Video != nil {
+				obj, mime, name = c.Shapes[i].Video, "video/mp4", c.Name+"-"+key+"-preview.mp4"
 			}
 		}
 	case strings.HasPrefix(kind, "frame-"):

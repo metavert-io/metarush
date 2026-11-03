@@ -90,7 +90,13 @@ watch() {
       est=$(ss -tan state established "( sport = :$2 )" 2>/dev/null | wc -l)
       # Connection requests the kernel dropped because a listening socket was full (since boot).
       drops=$(awk "/^TcpExt:/ { if (!h) { for (i = 2; i <= NF; i++) n[\$i] = i; h = 1 } else print \$n[\"ListenOverflows\"] \"/\" \$n[\"ListenDrops\"] }" /proc/net/netstat)
-      echo "$(date -u +%FT%TZ) load $(cut -d" " -f1-3 /proc/loadavg), mongod cpu ${pct}% rss ${rss} MB, connections to it $est, time-wait $tcp, listen overflows/drops $drops, steal ${steal}%"
+      # A connection to MongoDB whose first packet got no answer yet (a test waiting on one means the
+      # packet was lost or held, below MongoDB), and the kernel counters that say why, since boot:
+      # first packets sent again, timestamp (PAWS) refusals, TIME_WAIT sockets reused, killed or over
+      # the limit, and challenge ACKs.
+      synsent=$(ss -Htan state syn-sent "( dport = :$2 )" 2>/dev/null | wc -l)
+      kern=$(awk "/^TcpExt:/ { if (!h) { for (i = 2; i <= NF; i++) n[\$i] = i; h = 1 } else printf \"synretrans %s paws %s/%s tw %s/%s/%s twoverflow %s challenge %s\", \$n[\"TCPSynRetrans\"], \$n[\"PAWSActive\"], \$n[\"PAWSEstab\"], \$n[\"TW\"], \$n[\"TWRecycled\"], \$n[\"TWKilled\"], \$n[\"TCPTimeWaitOverflow\"], \$n[\"TCPChallengeACK\"] }" /proc/net/netstat)
+      echo "$(date -u +%FT%TZ) load $(cut -d" " -f1-3 /proc/loadavg), mongod cpu ${pct}% rss ${rss} MB, connections to it $est, time-wait $tcp, listen overflows/drops $drops, steal ${steal}%, waiting for an answer $synsent, $kern"
     done' _ "$pid" "$PORT" >"$DIAG/host.log" 2>&1 &
   echo "watching MongoDB: $DIAG/watch.log, $DIAG/host.log"
 }
@@ -122,6 +128,9 @@ report() {
     grep -o 'listen overflows/drops [0-9/]*' "$DIAG/host.log" | sed -n '1p;$p'
     echo "== the computer when it was slowest (load, mongod's CPU and memory, connections)"
     sort -t' ' -k3,3 -rn "$DIAG/host.log" | head -n 5 || true
+    echo "== connections to MongoDB still waiting for an answer to their first packet, and the kernel's counters then"
+    grep -E 'waiting for an answer [1-9]' "$DIAG/host.log" | tail -n 20 || true
+    sed -n '1p;$p' "$DIAG/host.log" | grep -o 'synretrans .*' || true
   fi
   echo "== memory and disk"
   free -m || true

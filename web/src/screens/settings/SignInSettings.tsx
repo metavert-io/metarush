@@ -242,7 +242,9 @@ function SignInBody({ st }: { st: SSOStatusOut }) {
         ) : null}
       </div>
 
-      <OwnerOnly note>
+      {/* One owners line per page (Remote access below has it): here, the short form, as "How people sign in" says it. */}
+      <OwnerOnly>
+        {!own.owner ? <p className="mb-2 text-[12px] text-subtle">Only an owner can change it.</p> : null}
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant={setup ? 'secondary' : 'primary'} disabled={!canChange} onClick={openSetup} data-sso-setup-button>
             {setup ? 'Change…' : 'Set it up…'}

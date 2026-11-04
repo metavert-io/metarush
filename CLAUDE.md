@@ -1331,7 +1331,7 @@ any failure. What runs where and when (CI, nightly browser runs, Mac-only), cove
 ```bash
 scripts/check.sh --quick|--full|--release                 # the set below, with a sweep of leftovers before and after (--full)
 scripts/coverage.sh --test                                # the Go suite with coverage, per-package table, the ratchet (coverage-baseline.json)
-go build ./... && go vet ./... && go test -timeout 45m ./...   # tests need scripts/dev-mongo.sh start
+go build ./... && go vet ./... && go test -timeout 90m ./...   # tests need scripts/dev-mongo.sh start
 ./bin/metarush schema export --dir schema && npm run gen:types   # after changing editspec/ops/models/api types (also writes schema/templates.json)
 npm run typecheck && npm run build -w web
 npm run test:motion -w video                              # motion graphics: import scan, archive, types, bundler (no browser)
@@ -1389,8 +1389,10 @@ scripts/handover-e2e.sh                                   # two computers: the d
 - **Test databases** (D194): a test process migrates its first database and copies it as a template for every later
   one (`internal/testutil`; `METARUSH_TEST_DB_FRESH=1` migrates each); mongod-bound, so `t.Parallel()` doesn't help;
   share one app across subtests that only read status. Go's default 10-minute test timeout is too short for the
-  assistant and ops packages on a loaded machine — always pass `-timeout 45m` (ops came close to 30 minutes under
-  load before the template; 8.4 min at `-p 2` with coverage on a busy machine after). Every test process first drops the databases
+  assistant and ops packages on a loaded machine — always pass `-timeout 90m` (ops came close to 30 minutes under
+  load before the template; 8.4 min at `-p 2` with coverage on a busy machine after; about 40 alone on a machine
+  shared with other builds, Nov 2026, so `scripts/check.sh` and `scripts/coverage.sh` default to 90m,
+  `GO_TEST_TIMEOUT`). Every test process first drops the databases
   of runs that are gone (`internal/testutil/testdbs`); `go run ./scripts/sweeptestdbs [--drop]` is the same by hand
   (`--legacy` once for those made before run markers).
 - **Browser runs clean up after themselves** (D194, `scripts/lib/e2e.sh`): every `scripts/*-e2e.sh` and

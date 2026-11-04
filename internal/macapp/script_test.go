@@ -136,7 +136,7 @@ func TestBuildRefusesAPlainFeedAndAnotherKey(t *testing.T) {
 		{[]string{"--feed-url", "https://updates.example.invalid/appcast.xml", "--ed-public-key", "not-a-key"}, "isn't an EdDSA public key"},
 		{[]string{"--feed-url", "https://updates.example.invalid/appcast.xml", "--ed-public-key", base64.StdEncoding.EncodeToString(pub)}, "isn't the one in this Mac's keychain"},
 	} {
-		said, err := runScript(t, tools, nil, append([]string{"build", "--arch", "arm64", "--skip-web", "--no-dmg", "--out", out}, c.args...)...)
+		said, err := runScript(t, tools, nil, append([]string{"build", "--arch", "arm64", "--skip-web", "--no-dmg", "--out", out, "--bundle-id", "io.example.metarush-test"}, c.args...)...)
 		if err == nil || !strings.Contains(said, c.says) {
 			t.Errorf("build %v: %v\n%s", c.args, err, said)
 		}

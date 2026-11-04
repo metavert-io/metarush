@@ -39,7 +39,13 @@ import Testing
         #expect(!skills.there)
         #expect(try await canned("skills-dry-there.json").call(["skills"], as: SkillsInstall.self).there)
         let left = try await canned("renderer-left-out.json").call(["renderer", "install"])
-        #expect(left["says"]?.string == "You left the renderer out, so it isn't set up.")
+        #expect(left["setUp"]?.bool == false && left["says"]?.string?.contains("left out") == true)
+        let ready = try await canned("renderer-install.json").call(["renderer", "install"])
+        #expect(ready["ready"]?.bool == true && ready["says"] == nil)
+        let other = try await canned("service-status-other-newer.json").call(["service", "status"], as: ServiceStatus.self)
+        #expect(other.otherCopy == true && other.startsAnotherCopy && other.daemon?.sameCopy == false && other.daemon?.newer == true && other.daemon?.version == "0.3.0")
+        let worker = try await canned("setup-questions-other-worker.json").call(["setup", "questions"], as: SetupQuestions.self)
+        #expect(worker.service.otherCopy == true && worker.service.workerOnly == true && worker.service.otherVersion == "0.1.0" && !worker.service.suggested)
     }
 
     @Test func aFailureIsTheProgramsOwnWords() async throws {

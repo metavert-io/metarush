@@ -9,6 +9,8 @@ final class FinishingModel: ObservableObject {
     @Published var failure: FinishFailure?
     @Published var finished = false
     @Published var running = false
+    /// offered: the steps didn't finish at an earlier start; they wait for Try Again.
+    @Published var offered = false
 
     let metarush: MetaRush
     /// The version the app was updated to (what the steps finish).
@@ -23,14 +25,23 @@ final class FinishingModel: ObservableObject {
         self.showLogs = showLogs
     }
 
-    func run() {
+    /// offerAgain shows the steps waiting, with Try Again, without running them.
+    func offerAgain() {
+        states = Dictionary(uniqueKeysWithValues: FinishStep.allCases.map { ($0, StepState.waiting) })
+        offered = true
+    }
+
+    /// run runs the steps; `takingOver`: the person let this app's copy take
+    /// the place of another copy running here (D473).
+    func run(takingOver: Bool = false) {
         guard !running else { return }
         failure = nil
         finished = false
+        offered = false
         running = true
         states = Dictionary(uniqueKeysWithValues: FinishStep.allCases.map { ($0, StepState.waiting) })
         Task {
-            let result = await Finishing(metarush: metarush).run { step, state in
+            let result = await Finishing(metarush: metarush).run(takingOver: takingOver) { step, state in
                 await MainActor.run { self.states[step] = state }
             }
             running = false
@@ -44,17 +55,8 @@ final class FinishingModel: ObservableObject {
         }
     }
 
-    /// useThisCopy lets the app's copy run in the background, then finishes.
-    func useThisCopy() {
-        Task {
-            do {
-                try await metarush.call(["service", "install"])
-                run()
-            } catch {
-                failure = FinishFailure(step: nil, error: plainError(error))
-            }
-        }
-    }
+    /// useThisCopy: the person said yes to this app's copy taking the other's place.
+    func useThisCopy() { run(takingOver: true) }
 }
 
 struct FinishingView: View {
@@ -68,13 +70,21 @@ struct FinishingView: View {
             ForEach(FinishStep.allCases, id: \.self) { step in
                 row(step, model.states[step] ?? .waiting)
             }
-            if let f = model.failure {
+            if model.offered {
+                Plain(Words.notFinishedLastTime, secondary: true)
+                HStack {
+                    Button(Words.notNow, action: close)
+                    Spacer()
+                    Button(Words.tryAgain) { model.run() }.keyboardShortcut(.defaultAction)
+                }
+            } else if let f = model.failure {
                 ErrorBox(error: f.error)
                 if f.otherCopy {
+                    // Asked, never assumed: keeping the other copy is the default (D473).
                     HStack {
-                        Button(Words.notNow, action: close)
+                        Button(f.canTakeOver ? Words.keepTheOther : Words.close, action: close).keyboardShortcut(.defaultAction)
                         Spacer()
-                        Button(Words.useThisCopy) { model.useThisCopy() }.keyboardShortcut(.defaultAction)
+                        if f.canTakeOver { Button(Words.useThisCopy) { model.useThisCopy() } }
                     }
                 } else {
                     HStack {

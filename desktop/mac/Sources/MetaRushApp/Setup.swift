@@ -5,7 +5,9 @@ import SwiftUI
 /// SetupModel is the first run (D473): `setup questions` gives the panels their
 /// suggested answers, the person changes what they like, `setup` runs with
 /// every answer as a flag. Nothing secret is asked here: a cloud bucket or a
-/// database elsewhere sends the person to setup in Terminal.
+/// database elsewhere sends the person to setup in Terminal. Another copy's
+/// background service is a question of its own, its answer no; opening the
+/// app at login is the app's own (D470), suggested yes the first time.
 @MainActor
 final class SetupModel: ObservableObject {
     enum Page: Equatable {
@@ -23,17 +25,24 @@ final class SetupModel: ObservableObject {
     @Published var copied = false
     @Published var notYet = false
     @Published var linkNote: String?
+    @Published var linkEffect: CommandLink.Effect = .none
+    @Published var loginNote: String?
     @Published var portText = ""
 
     let metarush: MetaRush
     let commandLink: CommandLink
+    let loginItem: LoginItem
+    /// firstRun: nothing finished on this Mac yet (opening at login is then suggested).
+    let firstRun: Bool
     /// finished: setup is done (the build is marked, the menu looks again).
     let finished: () -> Void
     private var task: Task<Void, Never>?
 
-    init(metarush: MetaRush, commandLink: CommandLink, finished: @escaping () -> Void) {
+    init(metarush: MetaRush, commandLink: CommandLink, loginItem: LoginItem, firstRun: Bool, finished: @escaping () -> Void) {
         self.metarush = metarush
         self.commandLink = commandLink
+        self.loginItem = loginItem
+        self.firstRun = firstRun
         self.finished = finished
     }
 
@@ -43,11 +52,14 @@ final class SetupModel: ObservableObject {
             do {
                 let q = try await metarush.call(["setup", "questions"], as: SetupQuestions.self)
                 questions = q
-                answers = SetupAnswers(q)
+                var a = SetupAnswers(q)
+                a.openAtLogin = firstRun || loginItem.isOn
+                answers = a
                 portText = String(q.port)
                 linkState = commandLink.state()
+                linkEffect = q.setUp ? commandLink.effect(try? await metarush.call(["service", "status"], as: ServiceStatus.self)) : .none
                 // Another program there is replaced only when the person ticks it.
-                link = linkState == .missing
+                link = linkState == .missing && linkEffect == .none
                 page = .welcome
             } catch {
                 self.error = plainError(error)
@@ -99,11 +111,12 @@ final class SetupModel: ObservableObject {
             do {
                 let res = try await metarush.call(a.arguments(q), as: SetupResult.self)
                 result = res
-                if res.service.wanted && !res.service.installed {
+                if let retry = SetupAnswers.retryService(res) {
                     // One more try (it says why when it can't); the dashboard still starts MetaRush.
-                    _ = try? await metarush.call(["service", "install"])
+                    _ = try? await metarush.call(retry)
                 }
                 makeLink()
+                loginNote = Self.loginWords(a.applyOpenAtLogin(loginItem))
                 finished()
                 page = .done
                 openDashboard(welcome: res.fresh)
@@ -120,7 +133,17 @@ final class SetupModel: ObservableObject {
 
     func stop() { task?.cancel() }
 
+    private static func loginWords(_ r: SetupAnswers.OpenAtLogin) -> String? {
+        switch r {
+        case .on: return Words.openAtLoginOn
+        case .needsApproval: return Words.openAtLoginApproval
+        case .failed: return Words.openAtLoginFailed + " " + Words.openAtLoginFailedHint
+        case .off, .unchanged: return nil
+        }
+    }
+
     private func makeLink() {
+        if case .refused = linkEffect { return }
         guard link, linkState != .ours else { return }
         do {
             let aside = try commandLink.make(replacing: linkState != .missing)
@@ -273,16 +296,36 @@ struct SetupView: View {
         if let q = model.questions, model.answers != nil {
             VStack(alignment: .leading, spacing: 10) {
                 Text(Words.thisMac).font(.title3.bold())
-                Toggle(Words.serviceToggle, isOn: binding(\.service))
-                if q.service.otherCopy == true { Plain(Words.serviceOtherCopy, secondary: true) }
+                switch SetupAnswers.serviceQuestion(q) {
+                case .startAtLogin:
+                    Toggle(Words.serviceToggle, isOn: binding(\.service))
+                case .takeOver(let v):
+                    // Another copy's service: a question of its own, its answer no (D473).
+                    Plain(Words.serviceOtherCopy(v), secondary: true)
+                    Toggle(Words.takeOverToggle, isOn: binding(\.takeOver))
+                    if model.answers?.takeOver == true { Plain(Words.takeOverNote, secondary: true) }
+                case .otherIsNewer(let v):
+                    Plain(Words.serviceOtherNewer(v), secondary: true)
+                }
+                Toggle(Words.openAtLoginToggle, isOn: binding(\.openAtLogin))
+                Plain(Words.openAtLoginNote, secondary: true)
                 if q.skills.claudeInstalled {
                     Toggle(Words.skillsToggle, isOn: binding(\.skills))
                 } else {
                     Plain(q.skills.says, secondary: true)
                 }
                 if model.linkState != .ours {
-                    Toggle(Words.linkToggle, isOn: $model.link)
-                    if model.linkState != .missing { Plain(Words.linkToggleOther, secondary: true) }
+                    switch model.linkEffect {
+                    case .refused(let running):
+                        Plain(Words.linkRefused(running), secondary: true)
+                    case .serviceFollows(let running):
+                        Toggle(Words.linkToggle, isOn: $model.link)
+                        if model.linkState != .missing { Plain(Words.linkToggleOther, secondary: true) }
+                        Plain(Words.linkServiceFollows(running), secondary: true)
+                    case .none:
+                        Toggle(Words.linkToggle, isOn: $model.link)
+                        if model.linkState != .missing { Plain(Words.linkToggleOther, secondary: true) }
+                    }
                 }
                 DisclosureGroup(Words.moreSettings) {
                     HStack {
@@ -359,6 +402,7 @@ struct SetupView: View {
                     Label { Plain(line) } icon: { Image(systemName: "checkmark").foregroundStyle(.green) }
                 }
                 if let note = model.linkNote { Label { Plain(note) } icon: { Image(systemName: "terminal") } }
+                if let note = model.loginNote { Label { Plain(note) } icon: { Image(systemName: "power") } }
                 Text(Words.whatWorks).font(.headline).padding(.top, 4)
                 ForEach(r.whatWorks.noKeys) { w in
                     Label {

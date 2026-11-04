@@ -55,6 +55,73 @@ import Testing
         #expect(link.state() == .ours)
     }
 
+    func status(_ name: String) throws -> ServiceStatus {
+        try JSONDecoder().decode(DataOf<ServiceStatus>.self, from: try fixture(name)).data
+    }
+
+    /// The link and MetaRush in the background (D475): when the service starts
+    /// MetaRush from the link's own path, making the link changes what it runs
+    /// from its next start, which the panel says; it isn't made over a newer copy.
+    @Test func whatTheLinkMeansForTheService() throws {
+        let link = CommandLink(folder: URL(fileURLWithPath: "/Users/you/.local/bin"), target: URL(fileURLWithPath: "/Applications/MetaRush.app/Contents/Helpers/metarush"))
+        // The service starts another path (Homebrew's): the link changes nothing in the background.
+        #expect(link.effect(try status("service-status-other-copy.json")) == .none)
+        let none = try status("service-status-none.json")
+        #expect(link.effect(nil) == .none && link.effect(none) == .none)
+        // The service starts this very path.
+        var st = try status("service-status-other-copy.json")
+        st.binary = "/Users/you/.local/bin/metarush"
+        #expect(link.effect(st) == .serviceFollows(running: "0.1.0"))
+        st = try status("service-status-other-newer.json")
+        st.binary = "/Users/you/.local/bin/metarush"
+        #expect(link.effect(st) == .refused(running: "0.3.0"))
+        // Through the link, already this app's copy: nothing new to say about what runs.
+        #expect(link.effect(try status("service-status-via-link.json")) == .serviceFollows(running: nil))
+    }
+
+    @Test func theVersionOfTheProgramThere() async throws {
+        let (d, link) = try setUp()
+        _ = d
+        #expect(await link.versionThere() == nil) // nothing there
+        let other = try FakeMetaRush()
+        try FileManager.default.createDirectory(at: link.folder, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link.link, withDestinationURL: other.program)
+        // The stand-in answers from the folder it is called in: the link's.
+        try fixture("version-1.json").write(to: link.folder.appendingPathComponent("version.json"))
+        #expect(await link.versionThere() == "0.1.0")
+        // A program that doesn't answer is given a few seconds, then nothing is said.
+        try "sleep 5".write(to: link.folder.appendingPathComponent("version.sh"), atomically: true, encoding: .utf8)
+        let started = Date()
+        #expect(await link.versionThere(seconds: 0.5) == nil)
+        #expect(Date().timeIntervalSince(started) < 10)
+    }
+
+    /// Moving to Applications (D476): an older copy there goes to the Trash; a
+    /// newer one, or one that is open, is asked about first.
+    @Test func whatMovingDoesWithTheCopyThere() {
+        let this = AppVersion(build: "0.2.0", shown: "0.2.0")
+        let older = AppVersion(build: "0.1.0", shown: "0.1.0"), newer = AppVersion(build: "0.3.0", shown: "0.3.0")
+        let n = FinishingTests.newer
+        #expect(MovePlan.plan(this: this, there: nil, thereExists: false, thereOpen: false, newer: n) == .copy)
+        #expect(MovePlan.plan(this: this, there: older, thereExists: true, thereOpen: false, newer: n) == .replace(older))
+        #expect(MovePlan.plan(this: this, there: this, thereExists: true, thereOpen: false, newer: n) == .replace(this))
+        #expect(MovePlan.plan(this: this, there: newer, thereExists: true, thereOpen: false, newer: n) == .askNewer(newer))
+        #expect(MovePlan.plan(this: this, there: older, thereExists: true, thereOpen: true, newer: n) == .askOpen(older))
+        #expect(MovePlan.plan(this: this, there: newer, thereExists: true, thereOpen: true, newer: n) == .askOpen(newer))
+        // Something there that doesn't say its version: replaced (it goes to the Trash).
+        #expect(MovePlan.plan(this: this, there: nil, thereExists: true, thereOpen: false, newer: n) == .replace(AppVersion(build: "", shown: "")))
+    }
+
+    @Test func anAppsVersionFromItsInfoPlist() throws {
+        let d = try TempDir()
+        let app = d.url.appendingPathComponent("MetaRush.app")
+        try FileManager.default.createDirectory(at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        let plist: [String: Any] = ["CFBundleVersion": "0.16.0.3", "CFBundleShortVersionString": "0.16.0-dev.3"]
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: app.appendingPathComponent("Contents/Info.plist"))
+        #expect(AppVersion.of(app) == AppVersion(build: "0.16.0.3", shown: "0.16.0-dev.3"))
+        #expect(AppVersion.of(d.url.appendingPathComponent("Nothing.app")) == nil)
+    }
+
     @Test func placements() {
         let home = URL(fileURLWithPath: "/Users/you")
         #expect(Placement.of(URL(fileURLWithPath: "/Applications/MetaRush.app"), home: home) == .applications)

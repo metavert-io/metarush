@@ -15,7 +15,8 @@ public struct MenuStatus: Equatable, Sendable {
     public var version: String?
     /// The service is set up (MetaRush starts at login).
     public var serviceInstalled = false
-    /// The service runs another copy than this app's.
+    /// Another copy than this app's runs MetaRush here (its service, or one
+    /// opened by its dashboard): the menu says so.
     public var otherCopy = false
     /// Problems: doctor's, in plain words (what it means; what to do).
     public var problems: [Problem] = []
@@ -45,7 +46,10 @@ public struct MenuStatus: Equatable, Sendable {
             s.problems.append(Problem(says: e.message, todo: e.hint))
         case .success(let st):
             (s.serviceInstalled, s.log) = (st.installed, st.log)
-            s.otherCopy = st.installed && !st.sameBinary && !(st.binary ?? "").isEmpty
+            switch WhoRuns.of(st) {
+            case .otherService, .otherDaemon: s.otherCopy = true
+            default: break
+            }
             if let d = st.daemon, d.answering || d.mode == "worker-only" {
                 s.running = .running
                 s.headline = d.mode == "worker-only" ? Words.runningWorkOnly : Words.running

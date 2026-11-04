@@ -56,11 +56,77 @@ import Testing
         let q = try questions("setup-questions-set-up.json")
         var a = SetupAnswers(q)
         // Setup refuses to move storage or the database on a home set up: none of those flags.
-        #expect(a.arguments(q) == ["setup", "--yes", "--service=true", "--skills=true", "--components", "node,renderer"])
+        #expect(a.arguments(q) == ["setup", "--yes", "--service=false", "--skills=true", "--components", "node,renderer"])
         a.databaseElsewhere = true
         #expect(!a.inTerminal(q))
         a.port = 4852
         #expect(a.arguments(q).contains("--port") && a.arguments(q).contains("4852"))
+    }
+
+    /// Another copy's background service (D473): never suggested away; a
+    /// question of its own, its answer no; never offered over a newer copy.
+    @Test func anotherCopysServiceIsAQuestionOfItsOwn() throws {
+        let q = try questions("setup-questions-set-up.json")
+        var a = SetupAnswers(q)
+        #expect(SetupAnswers.serviceQuestion(q) == .takeOver(otherVersion: "0.1.0") && !a.service && !a.takeOver)
+        #expect(a.arguments(q).contains("--service=false") && !a.arguments(q).contains("--take-over-service"))
+        a.takeOver = true
+        #expect(a.arguments(q).contains("--service=true") && a.arguments(q).contains("--take-over-service"))
+        let newer = try questions("setup-questions-other-newer.json")
+        var b = SetupAnswers(newer)
+        b.takeOver = true // even if it were set
+        #expect(SetupAnswers.serviceQuestion(newer) == .otherIsNewer(otherVersion: "0.3.0"))
+        #expect(b.arguments(newer).contains("--service=false") && !b.arguments(newer).contains("--take-over-service"))
+        // Where nothing else runs it, the service is the plain question, suggested yes.
+        let fresh = try questions("setup-questions.json")
+        #expect(SetupAnswers.serviceQuestion(fresh) == .startAtLogin && SetupAnswers(fresh).service)
+    }
+
+    func result(_ edit: (inout SetupResult) -> Void) throws -> SetupResult {
+        var r = try JSONDecoder().decode(DataOf<SetupResult>.self, from: try fixture("setup.json")).data
+        edit(&r)
+        return r
+    }
+
+    /// One more try at the service after setup: never over another copy's,
+    /// never over a newer copy, a worker kept a worker (D473).
+    @Test func oneMoreTryAtTheService() throws {
+        #expect(SetupAnswers.retryService(try result { _ in }) == nil) // set up already
+        #expect(SetupAnswers.retryService(try result { $0.service.installed = false }) == ["service", "install", "--keep-newer"])
+        #expect(SetupAnswers.retryService(try result { $0.service.installed = false; $0.service.workerOnly = true }) == ["service", "install", "--keep-newer", "--worker-only"])
+        #expect(SetupAnswers.retryService(try result { $0.service.installed = false; $0.service.otherCopy = true }) == nil)
+        #expect(SetupAnswers.retryService(try result { $0.service.installed = false; $0.service.wanted = false }) == nil)
+    }
+
+    /// Opening the app at login (D470): suggested yes, applied through a
+    /// stand-in (nothing is registered on this Mac).
+    final class StandIn: LoginItem {
+        var isOn = false
+        var needsApproval = false
+        var fails = false
+        var turned: [Bool] = []
+        func turn(_ on: Bool) throws {
+            if fails { throw CocoaError(.featureUnsupported) }
+            turned.append(on)
+            isOn = on
+        }
+    }
+
+    @Test func openingAtLogin() throws {
+        let q = try questions("setup-questions.json")
+        var a = SetupAnswers(q)
+        let item = StandIn()
+        #expect(a.openAtLogin && a.applyOpenAtLogin(item) == .on && item.turned == [true])
+        #expect(a.applyOpenAtLogin(item) == .on && item.turned == [true]) // already on: nothing turned
+        a.openAtLogin = false
+        #expect(a.applyOpenAtLogin(item) == .off && item.turned == [true, false])
+        #expect(a.applyOpenAtLogin(item) == .unchanged)
+        a.openAtLogin = true
+        item.needsApproval = true
+        #expect(a.applyOpenAtLogin(item) == .needsApproval)
+        let failing = StandIn()
+        failing.fails = true
+        #expect(a.applyOpenAtLogin(failing) == .failed && !failing.isOn)
     }
 
     @Test func withoutClaudeCodeSetupDecidesTheSkills() throws {

@@ -3,14 +3,16 @@ import MetaRushCore
 import SwiftUI
 
 /// AppDelegate is the menu: what MetaRush on this Mac is doing (D474), Open
-/// MetaRush, Check for Updates…, Start/Stop, Show Logs, Quit. At start it moves
-/// itself to Applications when it must (D476), finishes an update when one was
-/// installed (D472), or opens setup the first time (D473).
+/// MetaRush, Check for Updates…, Start/Stop, Show Logs, Open at Login, Quit. At
+/// start it moves itself to Applications when it must (D476), finishes an
+/// update to a newer build once (D472), or opens setup the first time, only
+/// where MetaRush isn't set up (D473).
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private let updates = Updates()
+    private let loginItem = AppLoginItem()
     private var metarush: MetaRush!
     private var link: CommandLink!
     private var status = MenuStatus()
@@ -19,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var doctorAt: Date?
     private var statusAt: Date?
     private var refreshing = false
+    /// The last answer of `service status` (what the link would change).
+    private var lastService: ServiceStatus?
     /// The version whose update isn't finished (the steps failed or were closed).
     private var unfinished: String?
     private var busy: String?
@@ -31,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// This build (what the steps after an update finish); its version for people.
     private var build: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0" }
     private var shortVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? build }
+    /// What the last finished build was (Sparkle's order says which is newer).
+    private var marker: FinishMarker { FinishMarker(store: DefaultsStore(), newer: sparkleNewer) }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let bundle = Bundle.main.bundleURL
@@ -63,13 +69,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     private func firstLook() async {
-        let marker = FinishMarker()
-        if marker.needed(build: build) {
-            showFinishing()
-        } else if marker.last == nil {
-            showSetup()
+        switch marker.atStart(build: build) {
+        case .finish:
+            marker.trying(build: build)
+            showFinishing(run: true)
+            await refresh(doctorToo: true)
+        case .offerAgain:
+            // Tried at an earlier start and not finished: the menu offers it again;
+            // nothing restarts by itself.
+            unfinished = shortVersion
+            await refresh(doctorToo: true)
+        case .firstStart:
+            await refresh(doctorToo: true)
+            // Only where MetaRush isn't set up: on a Mac where another copy set it up,
+            // nothing changes until the person opens Set Up MetaRush….
+            if status.running == .notSetUp { showSetup() }
+        case .nothing:
+            await refresh(doctorToo: true)
         }
-        await refresh(doctorToo: true)
     }
 
     // MARK: Status
@@ -104,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             (doctor, doctorAt) = (nil, nil)
         }
+        if case .success(let st) = service { lastService = st } else { lastService = nil }
         status = MenuStatus.build(app: appVersion, service: service, doctor: doctor)
         statusAt = Date()
         rebuild()
@@ -122,6 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         info(busy ?? status.headline)
         if let v = status.version { info(v) }
+        if status.otherCopy { info(Words.runsAnotherCopy) }
         for p in status.problems {
             let item = info("⚠︎ " + p.says)
             item.toolTip = p.todo
@@ -140,6 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         add(Words.showLogs, #selector(showLogs))
         if link?.state() != .ours { add(Words.linkMenu, #selector(showLink)) }
+        add(Words.openAtLoginMenu, #selector(toggleOpenAtLogin)).state = loginItem.isOn ? .on : .off
         menu.addItem(.separator())
         add(Words.about, #selector(about))
         add(Words.quit, #selector(quit), key: "q").toolTip = Words.quitTip
@@ -235,13 +255,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func showLink() {
-        linkWindow.show(Words.linkTitle, LinkView(model: LinkModel(link: link), close: { [weak self] in
+        let model = LinkModel(link: link, metarush: metarush, service: lastService)
+        linkWindow.show(Words.linkTitle, LinkView(model: model, close: { [weak self] in
             self?.linkWindow.close()
             self?.rebuild()
         }))
+        model.load()
     }
 
-    @objc private func finishUpdate() { showFinishing() }
+    @objc private func toggleOpenAtLogin() {
+        do {
+            try loginItem.turn(!loginItem.isOn)
+            if loginItem.needsApproval { show(MetaRushError(code: "", message: Words.openAtLoginApproval)) }
+        } catch {
+            show(MetaRushError(code: "", message: Words.openAtLoginFailed, hint: Words.openAtLoginFailedHint, detail: "\(error)"))
+        }
+        rebuild()
+    }
+
+    /// From the menu: the steps are offered (Try Again), not started by themselves.
+    @objc private func finishUpdate() { showFinishing(run: false) }
 
     @objc private func about() {
         NSApp.activate(ignoringOtherApps: true)
@@ -259,9 +292,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func showSetup() {
         if setupWindow.visible { setupWindow.show(Words.setupTitle, SetupView(model: setupModel!, close: closeSetup)); return }
-        let model = SetupModel(metarush: metarush, commandLink: link) { [weak self] in
+        let model = SetupModel(metarush: metarush, commandLink: link, loginItem: loginItem, firstRun: marker.last == nil) { [weak self] in
             guard let self else { return }
-            FinishMarker().finished(build: self.build)
+            self.marker.finished(build: self.build)
             self.unfinished = nil
             Task { await self.refresh(doctorToo: true) }
         }
@@ -275,22 +308,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuild()
     }
 
-    private func showFinishing() {
+    /// The steps after an update: started (`run`, the start after an update) or
+    /// offered with Try Again (the menu, after they didn't finish).
+    private func showFinishing(run: Bool) {
         unfinished = shortVersion
-        // Steps still running (their window closed) are shown again, never started twice.
-        if let model = finishModel, finishWindow.visible || model.running {
+        // Steps still running, or a failure of this session, are shown again, never started twice.
+        if let model = finishModel, finishWindow.visible || model.running || model.failure != nil {
             finishWindow.show(Words.finishingTitle, FinishingView(model: model, close: closeFinishing))
             return
         }
         let model = FinishingModel(metarush: metarush, version: shortVersion, onFinished: { [weak self] in
             guard let self else { return }
-            FinishMarker().finished(build: self.build)
+            self.marker.finished(build: self.build)
             self.unfinished = nil
             Task { await self.refresh(doctorToo: true) }
         }, showLogs: { [weak self] in self?.showLogs() })
         finishModel = model
         finishWindow.show(Words.finishingTitle, FinishingView(model: model, close: closeFinishing))
-        model.run()
+        if run { model.run() } else { model.offerAgain() }
     }
 
     private func closeFinishing() {
@@ -298,21 +333,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuild()
     }
 
+    /// Moving to Applications (D476): a MetaRush there that is newer, or open,
+    /// is asked about before anything replaces it (MovePlan).
     private func showMove(_ placement: Placement) {
-        let model = MoveModel(placement: placement) { [weak self] in
-            let copy = try Moving.copy(Bundle.main.bundleURL, into: Moving.destinationFolder())
+        let bundle = Bundle.main.bundleURL
+        let folder = Moving.destinationFolder()
+        let there = folder.appendingPathComponent(bundle.lastPathComponent)
+        let plan = MovePlan.plan(this: AppVersion.of(bundle), there: AppVersion.of(there), thereExists: FileManager.default.fileExists(atPath: there.path),
+                                 thereOpen: runningCopy(at: there) != nil, newer: sparkleNewer)
+        let open: (URL) -> Void = { [weak self] app in
+            if let running = self?.runningCopy(at: app) {
+                running.activate()
+                NSApp.terminate(nil)
+                return
+            }
             let config = NSWorkspace.OpenConfiguration()
-            config.createsNewApplicationInstance = true
-            NSWorkspace.shared.openApplication(at: copy, configuration: config) { _, _ in
+            config.createsNewApplicationInstance = true // this one has the same identifier and quits next
+            NSWorkspace.shared.openApplication(at: app, configuration: config) { _, _ in
                 DispatchQueue.main.async { NSApp.terminate(nil) }
             }
-            self?.moveWindow.close()
         }
+        let model = MoveModel(placement: placement, plan: plan, thisVersion: shortVersion, move: { [weak self] in
+            let copy = try Moving.copy(bundle, into: folder)
+            self?.moveWindow.close()
+            open(copy)
+        }, useThere: { [weak self] in
+            self?.moveWindow.close()
+            open(there)
+        }, quitThere: { [weak self] in
+            guard let running = self?.runningCopy(at: there) else { return true }
+            running.terminate()
+            for _ in 0..<40 where !running.isTerminated {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+            return running.isTerminated
+        })
         moveWindow.show(Words.moveTitle, MoveView(model: model, keep: { [weak self] in
             self?.moveWindow.close()
         }, quit: {
             NSApp.terminate(nil)
         }))
+    }
+
+    /// The MetaRush open from a bundle, other than this one.
+    private func runningCopy(at bundle: URL) -> NSRunningApplication? {
+        let path = bundle.standardizedFileURL.resolvingSymlinksInPath().path
+        return NSWorkspace.shared.runningApplications.first {
+            $0 != NSRunningApplication.current && $0.bundleURL?.standardizedFileURL.resolvingSymlinksInPath().path == path
+        }
     }
 
     private func show(_ error: MetaRushError) {

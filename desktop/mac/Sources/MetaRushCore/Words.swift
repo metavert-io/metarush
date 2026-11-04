@@ -34,6 +34,10 @@ public enum Words {
     public static let showLogs = "Show Logs"
     public static let linkMenu = "Let Your Terminal Use MetaRush…"
     public static let finishUpdateMenu = "Finish the Update…"
+    public static let runsAnotherCopy = "MetaRush in the background is another copy, not this app's"
+    public static let openAtLoginMenu = "Open at Login"
+    public static let openAtLoginFailed = "MetaRush couldn't be set to open when you log in."
+    public static let openAtLoginFailedHint = "Turn it on in System Settings → General → Login Items."
     public static let about = "About MetaRush"
     public static let quit = "Quit"
     public static let quitTip = "MetaRush keeps running in the background."
@@ -79,8 +83,14 @@ public enum Words {
     public static func notAnswering(_ v: String) -> String { "MetaRush \(v) didn't answer after it restarted." }
     public static let restartHint = "Restart it from the menu; if this happens again, its log says why."
     public static let otherCopyRuns = "MetaRush in the background is another copy, not this app's, so the update doesn't reach it."
-    public static let otherCopyHint = "Let this app run MetaRush in the background, and it keeps it up to date from now on."
+    public static let otherCopyHint = "Let this app's copy run in the background instead: the other copy stops and stays on this Mac, and this app keeps MetaRush up to date from now on. Or keep the other one: nothing changes."
+    public static let otherCopyOpen = "MetaRush is open from another copy, not this app's, so the update doesn't reach it."
+    public static let otherCopyOpenHint = "Let this app restart MetaRush as its own copy: the other copy stops and stays on this Mac. Or keep the other one running: nothing changes."
+    public static let newerCopyRuns = "MetaRush runs a newer copy than this app, so this app leaves it as it is."
+    public static let newerCopyHint = "Update this app to use it with MetaRush, or keep using the newer copy."
     public static let useThisCopy = "Use This App's MetaRush"
+    public static let keepTheOther = "Keep the Other One"
+    public static let notFinishedLastTime = "It didn't finish the last time MetaRush opened, so nothing runs until you try again."
     public static func finished(_ v: String) -> String { "MetaRush \(v) is ready." }
     public static func updateNotFinished(_ v: String) -> String { "The update to \(v) isn't finished" }
 
@@ -118,7 +128,18 @@ public enum Words {
 
     public static let thisMac = "MetaRush on this Mac"
     public static let serviceToggle = "Start MetaRush when you log in, and keep it running"
-    public static let serviceOtherCopy = "MetaRush already starts from another copy; this app's copy takes its place."
+    public static func serviceOtherCopy(_ v: String?) -> String {
+        "MetaRush already starts when you log in, from another copy of MetaRush" + (v.map { " (version \($0))" } ?? "") + ". It stays as it is unless you choose this app's copy."
+    }
+    public static let takeOverToggle = "Start this app's copy instead"
+    public static let takeOverNote = "The other copy stops running in the background and this app's starts in its place; the other copy stays on this Mac."
+    public static func serviceOtherNewer(_ v: String?) -> String {
+        "MetaRush already starts when you log in, from another copy that is newer than this app" + (v.map { " (version \($0))" } ?? "") + ", so it stays as it is."
+    }
+    public static let openAtLoginToggle = "Open MetaRush when you log in"
+    public static let openAtLoginNote = "It checks for updates while it is open, so this keeps MetaRush up to date."
+    public static let openAtLoginOn = "MetaRush opens when you log in."
+    public static let openAtLoginApproval = "To open MetaRush when you log in, allow it in System Settings → General → Login Items."
     public static let skillsToggle = "Teach Claude Code MetaRush's video skills"
     public static let linkToggle = "Let your terminal and Claude Code find MetaRush"
     public static let linkToggleOther = "Another copy of MetaRush is already there. This app's copy takes its place, and the other one is kept beside it."
@@ -162,6 +183,19 @@ public enum Words {
         }
     }
     public static let moveButton = "Move to Applications"
+    public static func moveNewerText(there: String, this: String) -> String {
+        "A newer MetaRush (version \(there)) is already in your Applications folder; this one is version \(this)."
+    }
+    public static func moveOpenText(there: String?) -> String {
+        "MetaRush" + (there.map { " \($0)" } ?? "") + " is already open from your Applications folder."
+    }
+    public static func moveReplacesOlder(_ v: String) -> String { "The older MetaRush there (version \(v)) goes to the Trash." }
+    public static let openTheNewer = "Open the Newer One"
+    public static let replaceWithThis = "Replace It With This One"
+    public static let useThatOne = "Use That One"
+    public static let quitAndReplace = "Quit It and Replace It"
+    public static let didntQuit = "MetaRush in your Applications folder didn't quit."
+    public static let didntQuitHint = "Quit it from its menu, then try again."
     public static let moveFailed = "MetaRush couldn't move itself."
     public static let moveFailedHint = "Drag it into your Applications folder in Finder, then open it from there."
     public static let keepHere = "Keep It Here"
@@ -179,6 +213,16 @@ public enum Words {
     public static let useAppsCopy = "Use This App's Copy"
     public static let keepOther = "Keep the Other One"
     public static let linkFailed = "The link couldn't be made."
+    public static func linkVersions(other: String?, app: String?) -> String? {
+        guard let other, let app else { return nil }
+        return "That copy is version \(other); this app's is version \(app)."
+    }
+    public static func linkServiceFollows(_ running: String?) -> String {
+        "MetaRush in the background starts from there too, so from its next start it runs this app's copy" + (running.map { " instead of version \($0)" } ?? "") + "."
+    }
+    public static func linkRefused(_ running: String?) -> String {
+        "MetaRush in the background starts from there and runs a newer copy" + (running.map { " (version \($0))" } ?? "") + " than this app, so the link stays as it is."
+    }
 
     // MARK: About
 

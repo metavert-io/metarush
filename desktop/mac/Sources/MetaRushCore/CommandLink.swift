@@ -79,6 +79,47 @@ public struct CommandLink: Sendable {
         }
     }
 
+    /// What making the link means for MetaRush in the background (D475): a
+    /// background service another copy set up may start MetaRush by this very
+    /// path, and would then start this app's copy from its next start.
+    public enum Effect: Equatable, Sendable {
+        /// The background service doesn't start MetaRush from here.
+        case none
+        /// It does: from its next start it runs this app's copy instead of
+        /// the one it runs now (that one's version, when it says).
+        case serviceFollows(running: String?)
+        /// It does, and the copy it runs now is newer than this app's, so the
+        /// link isn't made.
+        case refused(running: String?)
+    }
+
+    public func effect(_ st: ServiceStatus?) -> Effect {
+        guard let st, st.installed, let bin = st.binary, !bin.isEmpty,
+              URL(fileURLWithPath: bin).standardizedFileURL.path == link.standardizedFileURL.path else { return .none }
+        let d = st.daemon
+        let other = d != nil && d?.sameCopy != true
+        if other && d?.newer == true { return .refused(running: d?.version) }
+        return .serviceFollows(running: other ? d?.version : nil)
+    }
+
+    /// The version the program there says it is (`version --json`, a few
+    /// seconds at most), so the person sees both before choosing; nil when
+    /// nothing answers.
+    public func versionThere(runner: CommandRunner = ProcessRunner(), seconds: Double = 5) async -> String? {
+        guard state() != .missing else { return nil }
+        let there = MetaRush(program: link, runner: runner)
+        return await withTaskGroup(of: String?.self) { group in
+            group.addTask { (try? await there.call(["version"], as: VersionInfo.self))?.version }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+    }
+
     private func isLink(_ u: URL) -> Bool {
         (try? FileManager.default.destinationOfSymbolicLink(atPath: u.path)) != nil
     }

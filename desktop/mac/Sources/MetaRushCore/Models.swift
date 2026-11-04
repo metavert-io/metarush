@@ -46,11 +46,17 @@ public struct SetupQuestions: Codable, Equatable, Sendable {
         public var says: String
     }
 
+    /// The background service. When another copy of MetaRush runs it
+    /// (otherCopy), this copy isn't suggested: taking its place is a question
+    /// of its own, its answer no, never asked when that copy is newer.
     public struct Service: Codable, Equatable, Sendable {
         public var suggested: Bool
         public var installed: Bool
         public var running: Bool
+        public var workerOnly: Bool?
         public var otherCopy: Bool?
+        public var otherVersion: String?
+        public var newer: Bool?
         public var says: String
     }
 
@@ -101,6 +107,9 @@ public struct SetupResult: Codable, Equatable, Sendable {
         public var wanted: Bool
         public var installed: Bool
         public var running: Bool
+        public var workerOnly: Bool?
+        /// otherCopy: another copy runs it, and setup left it so.
+        public var otherCopy: Bool?
         public var problem: String?
         public var says: String
     }
@@ -163,8 +172,12 @@ public struct ServiceStatus: Codable, Equatable, Sendable {
     public var loaded: Bool
     public var running: Bool
     public var workerOnly: Bool
+    /// The program the service starts, and whether it is this one (links followed).
     public var binary: String?
     public var sameBinary: Bool
+    /// otherCopy: the service starts another copy than this one, or this one
+    /// only through a link (which could lead elsewhere later).
+    public var otherCopy: Bool?
     public var log: String
     public var daemon: Daemon?
 
@@ -172,18 +185,32 @@ public struct ServiceStatus: Codable, Equatable, Sendable {
         public var pid: Int
         public var port: Int?
         public var mode: String?
+        /// The service manager that started it; nil when opening the dashboard did.
+        public var service: String?
         public var version: String?
         public var commit: String?
         public var answering: Bool
+        /// sameCopy: it runs this copy of MetaRush (nil: a build that didn't say).
+        public var sameCopy: Bool?
+        /// newer: it is a newer build than this one.
+        public var newer: Bool?
     }
 
-    public init(installed: Bool, loaded: Bool, running: Bool, workerOnly: Bool, binary: String?, sameBinary: Bool, log: String, daemon: Daemon?) {
+    /// startsAnotherCopy: the service is set up and starts another copy (an
+    /// older program that doesn't say otherCopy: another program file).
+    public var startsAnotherCopy: Bool {
+        installed && (otherCopy ?? (!sameBinary && !(binary ?? "").isEmpty))
+    }
+
+    public init(installed: Bool, loaded: Bool, running: Bool, workerOnly: Bool, binary: String?, sameBinary: Bool, otherCopy: Bool? = nil,
+                log: String, daemon: Daemon?) {
         self.installed = installed
         self.loaded = loaded
         self.running = running
         self.workerOnly = workerOnly
         self.binary = binary
         self.sameBinary = sameBinary
+        self.otherCopy = otherCopy
         self.log = log
         self.daemon = daemon
     }

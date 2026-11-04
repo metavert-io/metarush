@@ -61,6 +61,52 @@ public enum Quarantine {
     }
 }
 
+/// AppVersion is an app bundle's versions, from its Info.plist.
+public struct AppVersion: Equatable, Sendable {
+    /// CFBundleVersion: what Sparkle compares.
+    public var build: String
+    /// CFBundleShortVersionString: what people are shown.
+    public var shown: String
+
+    public init(build: String, shown: String) {
+        self.build = build
+        self.shown = shown
+    }
+
+    public static func of(_ bundle: URL) -> AppVersion? {
+        let url = bundle.appendingPathComponent("Contents/Info.plist")
+        guard let data = try? Data(contentsOf: url),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              let build = plist["CFBundleVersion"] as? String else { return nil }
+        return AppVersion(build: build, shown: plist["CFBundleShortVersionString"] as? String ?? build)
+    }
+}
+
+/// MovePlan is what moving the app to Applications does when a MetaRush is
+/// there already (D476): an older one, not open, goes to the Trash; a newer
+/// one, or one that is open, stays unless the person says to replace it.
+public enum MovePlan: Equatable, Sendable {
+    /// Nothing there: the copy goes in.
+    case copy
+    /// An older (or the same) version, not open: moved to the Trash, then the copy goes in.
+    case replace(AppVersion)
+    /// A newer version is there: asked (opening that one is suggested).
+    case askNewer(AppVersion)
+    /// The one there is open: asked (using that one is suggested).
+    case askOpen(AppVersion?)
+
+    /// plan decides from what is at the destination; `newer(a, b)` is
+    /// Sparkle's comparator in the app (a newer than b).
+    public static func plan(this: AppVersion?, there: AppVersion?, thereExists: Bool, thereOpen: Bool,
+                            newer: (String, String) -> Bool) -> MovePlan {
+        guard thereExists else { return .copy }
+        if thereOpen { return .askOpen(there) }
+        guard let there else { return .replace(AppVersion(build: "", shown: "")) } // not a MetaRush that says its version: replaced, kept in the Trash
+        if let this, newer(there.build, this.build) { return .askNewer(there) }
+        return .replace(there)
+    }
+}
+
 /// Moving is the app copying itself into Applications.
 public enum Moving {
     /// The folder the app goes to: /Applications when this person may write
@@ -71,10 +117,11 @@ public enum Moving {
         return home.appendingPathComponent("Applications")
     }
 
-    /// copy puts a copy of the bundle into the folder, replacing an older
-    /// MetaRush there (moved to the Trash, never deleted), and clears the
-    /// download flag on the copy (the person opened this one). It returns
-    /// where the copy is; the app then opens it and quits.
+    /// copy puts a copy of the bundle into the folder, replacing the MetaRush
+    /// there (moved to the Trash, never deleted: MovePlan decided, or the
+    /// person said so), and clears the download flag on the copy (the person
+    /// opened this one). It returns where the copy is; the app then opens it
+    /// and quits.
     public static func copy(_ bundle: URL, into folder: URL,
                             setAside: (URL) throws -> Void = { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }) throws -> URL {
         let fm = FileManager.default

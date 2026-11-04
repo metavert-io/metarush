@@ -36,6 +36,14 @@ import Testing
     @Test func otherCopyAndWorker() throws {
         let other = MenuStatus.build(app: app, service: .success(try data("service-status-other-copy.json", ServiceStatus.self)), doctor: nil)
         #expect(other.otherCopy)
+        // Opened by another copy's dashboard, or a build that didn't say which copy it is.
+        for name in ["service-status-dashboard-other.json", "service-status-dashboard-unknown.json"] {
+            #expect(MenuStatus.build(app: app, service: .success(try data(name, ServiceStatus.self)), doctor: nil).otherCopy)
+        }
+        // A service through a link that runs this copy now, this app's own dashboard: this copy.
+        for name in ["service-status-via-link.json", "service-status-dashboard-old.json", "service-status-new.json"] {
+            #expect(!MenuStatus.build(app: app, service: .success(try data(name, ServiceStatus.self)), doctor: nil).otherCopy)
+        }
         let worker = MenuStatus.build(app: app, service: .success(try data("service-status-worker-new.json", ServiceStatus.self)), doctor: nil)
         #expect(worker.running == .running && worker.headline == Words.runningWorkOnly)
     }

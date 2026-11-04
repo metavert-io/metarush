@@ -59,3 +59,9 @@ final class Updates: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate
         changed()
     }
 }
+
+/// sparkleNewer: build a is newer than build b by Sparkle's own comparator,
+/// so "newer" means what it means to updates (the marker, moving the app).
+func sparkleNewer(_ a: String, _ b: String) -> Bool {
+    SUStandardVersionComparator.default.compareVersion(a, toVersion: b) == .orderedDescending
+}

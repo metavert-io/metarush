@@ -14,9 +14,17 @@ public struct SetupAnswers: Equatable, Sendable {
     public var databaseElsewhere: Bool
     public var port: Int
     public var service: Bool
+    /// takeOver: when another copy of MetaRush runs the background service,
+    /// have it run this app's copy instead. A question of its own, its answer
+    /// no until a person says yes, and never offered when that copy is newer.
+    public var takeOver = false
     public var skills: Bool
     /// The optional components ticked (D324).
     public var components: Set<String>
+    /// openAtLogin: the app itself opens when the person logs in (it checks
+    /// for updates only while it runs). Not one of setup's flags: the app
+    /// sets it (LoginItem). Suggested yes.
+    public var openAtLogin = true
 
     public init(_ q: SetupQuestions) {
         folder = q.storage.folder ?? ""
@@ -26,6 +34,21 @@ public struct SetupAnswers: Equatable, Sendable {
         service = q.service.suggested
         skills = q.skills.suggested
         components = Set(q.components.filter { $0.ticked && !$0.ready }.map(\.name))
+    }
+
+    /// The service question this home gets: whether this copy starts at
+    /// login, or (another copy runs the service) whether it takes that
+    /// copy's place, or nothing to ask (that copy is newer).
+    public enum ServiceQuestion: Equatable, Sendable {
+        case startAtLogin
+        case takeOver(otherVersion: String?)
+        case otherIsNewer(otherVersion: String?)
+    }
+
+    public static func serviceQuestion(_ q: SetupQuestions) -> ServiceQuestion {
+        guard q.service.otherCopy == true else { return .startAtLogin }
+        if q.service.newer == true { return .otherIsNewer(otherVersion: q.service.otherVersion) }
+        return .takeOver(otherVersion: q.service.otherVersion)
     }
 
     /// inTerminal: the answers need something the app never asks for (a
@@ -61,7 +84,15 @@ public struct SetupAnswers: Equatable, Sendable {
         } else if port != q.port {
             a += ["--port", String(port)]
         }
-        a.append("--service=\(service)")
+        switch SetupAnswers.serviceQuestion(q) {
+        case .startAtLogin:
+            a.append("--service=\(service)")
+        case .takeOver:
+            // Another copy's service stays as it is unless the person said yes.
+            a += takeOver ? ["--service=true", "--take-over-service"] : ["--service=false"]
+        case .otherIsNewer:
+            a.append("--service=false")
+        }
         if q.skills.claudeInstalled {
             a.append("--skills=\(skills)")
         }
@@ -72,5 +103,16 @@ public struct SetupAnswers: Equatable, Sendable {
             a += ["--components", add.joined(separator: ",")]
         }
         return a
+    }
+}
+
+extension SetupAnswers {
+    /// The command for one more try at the background service when setup
+    /// couldn't set it up: never over another copy's (setup left that one as
+    /// it is), never over a newer copy (--keep-newer), and a worker stays a
+    /// worker. nil: nothing to try.
+    public static func retryService(_ r: SetupResult) -> [String]? {
+        guard r.service.wanted, !r.service.installed, r.service.otherCopy != true else { return nil }
+        return ["service", "install", "--keep-newer"] + (r.service.workerOnly == true ? ["--worker-only"] : [])
     }
 }

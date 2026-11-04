@@ -370,22 +370,8 @@ func renderHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 		types["r-"+sha] = f.MIME
 	}
 	// Clips' cut-outs (D510): their files, verified by hash, served the same way.
-	cutOuts, err := facts.extras.CutOuts(ctx, a, plan)
-	if err != nil {
+	if err := cutOutFiles(ctx, a, plan, facts.extras, local, types); err != nil {
 		return nil, err
-	}
-	for _, sha := range editspec.PlanCutOuts(plan) {
-		m := cutOuts[sha]
-		if m == nil || m.File == nil {
-			return nil, failed("A clip's cut-out that this version plays isn't in MetaRush any more, so its background can't be replaced. Make the cut-out again, or take the background out.",
-				permanent("cut-out %s not found", sha))
-		}
-		p, err := a.Cache.Ensure(ctx, a.Media, m.File.Key, m.File.SHA256, m.File.Size, nil)
-		if err != nil {
-			return nil, failed("MetaRush couldn't get a clip's cut-out onto this machine to render it. Check the internet connection and render again.", err)
-		}
-		local["c-"+sha] = p
-		types["c-"+sha] = "video/webm"
 	}
 	srv, base, err := serveFiles(local, types)
 	if err != nil {
@@ -616,6 +602,34 @@ func resolveForRender(ctx context.Context, a *app.App, rd *models.Render, rev *m
 		return nil, nil, nil, nil, err
 	}
 	return plan, spec, assets, facts, nil
+}
+
+// cutOutFiles gets the clips' cut-outs a plan plays (D510), nested cuts'
+// included, onto this computer, checked by hash, and lists them for the
+// render's loopback server (local and types, keyed "c-<sha256>").
+func cutOutFiles(ctx context.Context, a *app.App, plan *editspec.RenderPlan, extras *ops.RenderExtras, local, types map[string]string) error {
+	shas := editspec.PlanCutOuts(plan)
+	if len(shas) == 0 {
+		return nil
+	}
+	cutOuts, err := extras.CutOuts(ctx, a, plan)
+	if err != nil {
+		return err
+	}
+	for _, sha := range shas {
+		m := cutOuts[sha]
+		if m == nil || m.File == nil {
+			return failed("A clip's cut-out that this version plays isn't in MetaRush any more, so its background can't be replaced. Make the cut-out again, or take the background out.",
+				permanent("cut-out %s not found", sha))
+		}
+		p, err := a.Cache.Ensure(ctx, a.Media, m.File.Key, m.File.SHA256, m.File.Size, nil)
+		if err != nil {
+			return failed("MetaRush couldn't get a clip's cut-out onto this machine to render it. Check the internet connection and render again.", err)
+		}
+		local["c-"+sha] = p
+		types["c-"+sha] = "video/webm"
+	}
+	return nil
 }
 
 // makeDriftCopies makes the drift copies a plan plays (editspec.DriftCopies

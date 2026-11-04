@@ -263,7 +263,7 @@ export function BackgroundDialog({
           ) : null}
           <label className="block">
             <span className="text-muted">Soft edges</span>
-            <input type="range" min={0} max={12} step={0.5} value={edges} onChange={(e) => setEdges(Number(e.target.value))} className="w-full" aria-label="How soft the people's edges are" />
+            <input type="range" min={0.5} max={12} step={0.5} value={edges} onChange={(e) => setEdges(Number(e.target.value))} className="w-full" aria-label="How soft the people's edges are" />
           </label>
         </div>
       </div>

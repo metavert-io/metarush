@@ -218,15 +218,16 @@ const generateMedia = () => {
 // The mover's cut-out for the "background" variant (D510): the clip's own
 // picture from frame 15 (0.5 s) with a matte of its square — white where it
 // is, black elsewhere — as the alpha channel, through the same filters and
-// VP9 settings MetaRush uses (internal/mattes makeCutOut).
+// VP9 settings MetaRush uses (internal/matting CutOutArgs: both streams on the
+// clip's frame grid and timed by frame number, so frame n wears matte n).
 const CUTOUT_MATTE = "color=c=black:s=1280x720:rate=30[bg];color=c=white:s=120x120:rate=30[sq];[bg][sq]overlay=x='100+160*(t+0.5)':y=300,format=gray[out0]";
 const makeCutOut = () => {
   const file = path.join(MEDIA, 'mover-cutout.webm');
   const sig = `${file}.spec`;
   const args = ['-hide_banner', '-nostdin', '-y', '-loglevel', 'error', '-ss', ((15 - 0.5) / FPS).toFixed(6), '-i', path.join(MEDIA, 'mover.mp4'),
     '-f', 'lavfi', '-i', CUTOUT_MATTE, '-filter_complex',
-    '[0:v]setpts=PTS-STARTPTS,scale=1280:720:flags=lanczos,format=yuv420p[c];[1:v]setpts=PTS-STARTPTS,scale=1280:720:flags=bicubic,format=gray[m];[c][m]alphamerge,format=yuva420p[o]',
-    '-map', '[o]', '-frames:v', '165', '-an', '-sn', '-dn',
+    `[0:v]setpts=PTS-STARTPTS,fps=${FPS},settb=1/${FPS},setpts=N,scale=1280:720:flags=lanczos,format=yuv420p[c];[1:v]settb=1/${FPS},setpts=N,scale=1280:720:flags=bicubic,format=gray[m];[c][m]alphamerge,format=yuva420p[o]`,
+    '-map', '[o]', '-frames:v', '165', '-fps_mode', 'passthrough', '-an', '-sn', '-dn',
     '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', '22', '-deadline', 'good', '-cpu-used', '4', '-row-mt', '1',
     '-auto-alt-ref', '0', '-g', '30', '-keyint_min', '30', file];
   const want = JSON.stringify(args.slice(5));

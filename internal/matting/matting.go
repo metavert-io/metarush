@@ -219,8 +219,9 @@ func Run(ctx context.Context, j Job) (*Result, error) {
 	go func() {
 		defer wg.Done()
 		args := append([]string{"-hide_banner", "-nostdin", "-loglevel", "error"}, SeekArgs(v, first)...)
+		// On the clip's grid (OnGrid), as the cut-out's picture is: matte N is frame N's.
 		args = append(args, "-i", j.Src, "-map", "0:v:0", "-an", "-sn", "-dn", "-frames:v", strconv.Itoa(count),
-			"-vf", fmt.Sprintf("scale=%d:%d:flags=area,format=%s", mw, mh, format), "-f", "rawvideo", "pipe:1")
+			"-vf", fmt.Sprintf("%s,scale=%d:%d:flags=area,format=%s", v.OnGrid(), mw, mh, format), "-fps_mode", "passthrough", "-f", "rawvideo", "pipe:1")
 		_, decErr = j.Tools.Run(ctx, tools.Spec{Tool: tools.FFmpeg, Background: true, Stdout: decW, Args: args})
 		decW.CloseWithError(errOr(decErr, io.EOF))
 	}()

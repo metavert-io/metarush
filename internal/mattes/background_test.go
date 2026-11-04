@@ -171,3 +171,31 @@ func TestReferencesStayOutOfBackgrounds(t *testing.T) {
 		t.Fatalf("a reference behind the people: %v", err)
 	}
 }
+
+// Footage deleted for good takes its cut-outs with it: the records and the
+// files (D505).
+func TestDeletingFootageDeletesItsCutOuts(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	out, err := e.cutout(t, mattes.CutoutIn{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.run(t, out.JobID); err != nil {
+		t.Fatal(err)
+	}
+	m := e.matte(t, out.Matte.ID)
+	if m.File == nil {
+		t.Fatal("no file")
+	}
+	del, err := ops.CallTyped[ops.AssetDeleteOut](ctx, e.a, "asset.delete", ops.AssetDeleteIn{AssetID: e.clip.ID, ProjectID: e.project, Forever: true}, ops.Caller{Human: true})
+	if err != nil {
+		t.Fatalf("delete: %+v %v", del, err)
+	}
+	if n, _ := e.a.DB.C(store.CMattes).CountDocuments(ctx, bson.M{"workspaceId": e.a.WorkspaceID()}); n != 0 {
+		t.Fatalf("%d cut-outs left", n)
+	}
+	if _, err := e.a.Media.Stat(ctx, m.File.Key); err == nil {
+		t.Fatal("the cut-out's file is still in the media store")
+	}
+}

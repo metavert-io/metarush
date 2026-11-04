@@ -87,13 +87,15 @@ import sys
 path, helper = sys.argv[1:3]
 lines = open(path).read().splitlines()
 out, done = [], False
-for l in lines:
+for i, l in enumerate(lines):
     out.append(l)
     if l.rstrip() == "tools:" and not done:
-        out.append("  vision: " + helper)
+        nxt = lines[i + 1] if i + 1 < len(lines) else ""
+        pad = nxt[: len(nxt) - len(nxt.lstrip())] or "    "  # the file's own indentation
+        out.append(pad + "vision: " + helper)
         done = True
 if not done:
-    out += ["tools:", "  vision: " + helper]
+    out += ["tools:", "    vision: " + helper]
 open(path, "w").write("\n".join(out) + "\n")
 PY
 

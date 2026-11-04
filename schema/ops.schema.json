@@ -60217,8 +60217,14 @@
         "secret": {
           "$ref": "#/$defs/SSOSecretState"
         },
+        "nextSecret": {
+          "$ref": "#/$defs/SSOSecretState"
+        },
         "callbacks": {
           "$ref": "#/$defs/SSOCallbacksOut"
+        },
+        "earlier": {
+          "type": "integer"
         },
         "test": {
           "$ref": "#/$defs/SSOTestView"
@@ -60247,6 +60253,7 @@
         "inUse",
         "secret",
         "callbacks",
+        "earlier",
         "canSwitch",
         "owner",
         "here",
@@ -74550,6 +74557,23 @@
       ],
       "description": "Put sign-in back to a fresh install's: just the owner on this computer, everyone signed out, people kept with their history (on this computer)"
     },
+    "auth.sso.discard": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/EmptyIn"
+        },
+        "output": {
+          "$ref": "#/$defs/SSOStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Forget the new sign-in setup waiting for its test, and its new secret; the sign-in in use stays as it is (owners, on this computer)"
+    },
     "auth.sso.secret": {
       "properties": {
         "input": {
@@ -83255,6 +83279,7 @@
     "audit.list",
     "auth.method.set",
     "auth.reset",
+    "auth.sso.discard",
     "auth.sso.secret",
     "auth.sso.set",
     "auth.sso.status",

@@ -11,6 +11,7 @@ func init() {
 		"account.preferences": "read their preferences", "account.preferences.set": "change their preferences",
 		"auth.sso.status": "read how people sign in with their organization's account", "auth.sso.set": "set up signing in with an organization's account",
 		"auth.sso.secret": "change the sign-in app's secret on this computer", "auth.sso.test": "start a test sign-in with an organization's account",
+		"auth.sso.discard": "forget a new sign-in setup waiting for its test",
 	} {
 		opBase[k] = v
 	}
@@ -23,7 +24,7 @@ func init() {
 		"account.preferences": "changed whether costs are estimated before their edits", "workspace.estimates": "changed whether everyone sees estimates first",
 		"auth.sso.set": "set up signing in with an organization's account", "auth.sso.secret": "changed the sign-in app's secret on this computer",
 		"auth.sso.test": "started a test sign-in with an organization's account", "auth.sso.tested": "passed a test sign-in with an organization's account",
-		"auth.sso.joined": "joined with their organization's account",
+		"auth.sso.joined": "joined with their organization's account", "auth.sso.discard": "forgot a new sign-in setup waiting for its test",
 	} {
 		eventPhrases[k] = v
 	}

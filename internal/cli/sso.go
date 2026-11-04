@@ -1,31 +1,69 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/auth"
+	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/sso"
 )
 
-// Signing in with an organization's account (D425–D434, docs/accounts.md):
-// `metarush auth sso status|set|secret|test` and `metarush auth method sso`.
-// Changes are an owner's, at a person's terminal on this computer; the app's
-// client secret is read hidden (or from a pipe), never from a flag.
+// Signing in with an organization's account (D425–D434, D450–D454,
+// docs/accounts.md): `metarush auth sso status|set|secret|test|discard` and
+// `metarush auth method sso`. Changes are an owner's, at a person's terminal on
+// this computer (a terminal on standard input or standard error, so the app's
+// client secret can come through a pipe); the secret is read without echo
+// from a terminal, or from the pipe, never from a flag or an argument.
 
 func authSSOCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "sso", Short: "Signing in with your organization's account: Google, Microsoft or another OpenID Connect provider"}
-	cmd.AddCommand(ssoStatusCmd(), ssoSetCmd(), ssoSecretCmd(), ssoTestCmd())
+	cmd.AddCommand(ssoStatusCmd(), ssoSetCmd(), ssoSecretCmd(), ssoTestCmd(), ssoDiscardCmd())
 	return cmd
+}
+
+// ssoPerson: changing sign-in is a person's, at their own terminal (never an
+// AI app): standard input or standard error is a terminal, so the secret can
+// come through a pipe while the person watches (D450).
+func ssoPerson(c *cobra.Command) error {
+	if agentAtTheKeys(c) || !atTerminal() {
+		return failErr(c, apperr.New(apperr.HumanOnly, "Changing people and sign-in needs a person at this computer.").
+			WithHint("Run it in your own terminal, or use Settings → People in the dashboard."))
+	}
+	return nil
+}
+
+// stdinIsTerminal and readHidden are variables so tests can play a terminal.
+var stdinIsTerminal = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
+
+var readHidden = func(prompt string) (string, error) {
+	fmt.Fprintf(os.Stderr, "%s (input hidden): ", prompt)
+	b, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stderr)
+	return strings.TrimSpace(string(b)), err
+}
+
+// readSSOSecret reads the app's secret: typed at a terminal without echo, or
+// as it comes through a pipe (at most 8 KB).
+func readSSOSecret(in io.Reader, prompt string) (string, error) {
+	if stdinIsTerminal() {
+		return readHidden(prompt)
+	}
+	b, err := io.ReadAll(io.LimitReader(in, 8<<10))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(b)), nil
 }
 
 // ssoFlags are the setup's flags (auth sso set, auth method sso).
@@ -51,9 +89,19 @@ func (f *ssoFlags) add(cmd *cobra.Command) {
 	fl.BoolVar(&f.keepSecret, "keep-secret", false, "keep the client secret this computer has (don't ask for it)")
 }
 
-// read asks for what the flags didn't say, and the secret (hidden).
+// read asks for what the flags didn't say, and the secret (hidden). With the
+// secret coming through a pipe there is nobody to ask: the flags say it all.
 func (f *ssoFlags) read(c *cobra.Command, a *app.App) error {
 	f.in.AlsoPassword, f.in.AlsoTailscale = f.alsoPassword, f.alsoTS
+	if !stdinIsTerminal() {
+		missing := f.in.Provider == "" || f.in.ClientID == "" || (f.in.Provider == sso.Microsoft && f.in.Tenant == "") || (f.in.Provider == sso.OIDC && f.in.Issuer == "")
+		if missing {
+			return fail(c, apperr.InvalidInput, "Give --provider and --client-id (and --tenant for Microsoft, --issuer for another provider): MetaRush can't ask while the secret comes through a pipe.", "")
+		}
+		if !f.secretStdin && !f.keepSecret {
+			return fail(c, apperr.InvalidInput, "Send the app's client secret through the pipe with --secret-stdin, or keep this computer's with --keep-secret.", "")
+		}
+	}
 	if f.in.Provider == "" {
 		f.in.Provider = ask("Which provider: google, microsoft or oidc", "google")
 	}
@@ -66,25 +114,21 @@ func (f *ssoFlags) read(c *cobra.Command, a *app.App) error {
 	if f.in.ClientID == "" {
 		f.in.ClientID = ask("The app's client ID", "")
 	}
-	switch {
-	case f.secretStdin:
-		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil && line == "" {
-			return fail(c, apperr.InvalidInput, "Nothing came through the pipe: send the client secret on one line.", "")
-		}
-		f.in.ClientSecret = strings.TrimSpace(line)
-	case f.keepSecret:
-	default:
-		has := false
-		if s, _, err := auth.SSOSecret(a.Cfg); err == nil && s != "" {
-			has = true
-		}
-		q := "The app's client secret (as the provider's console shows it)"
-		if has {
-			q += "; press Enter to keep this computer's"
-		}
-		f.in.ClientSecret = askSecret(q)
+	if f.keepSecret {
+		return nil
 	}
+	q := "The app's client secret (as the provider's console shows it)"
+	if st, err := auth.CleanSSO(models.SSOSettings{Provider: f.in.Provider, Issuer: f.in.Issuer, Tenant: f.in.Tenant, ClientID: f.in.ClientID}); err == nil && auth.SSOSecretKept(a.Cfg, st) {
+		q += "; press Enter to keep the one this computer has for this app"
+	}
+	secret, err := readSSOSecret(c.InOrStdin(), q)
+	if err != nil {
+		return fail(c, apperr.InvalidInput, "MetaRush couldn't read the client secret.", "")
+	}
+	if f.secretStdin && secret == "" {
+		return fail(c, apperr.InvalidInput, "Nothing came through the pipe: send the client secret.", "")
+	}
+	f.in.ClientSecret = secret
 	return nil
 }
 
@@ -121,10 +165,21 @@ func printSSOStatus(st *auth.SSOStatusOut, details bool) {
 	} else {
 		fmt.Println("Only people you invite can sign in.")
 	}
-	if st.Secret.Set {
-		fmt.Printf("This computer's app secret: %s\n", st.Secret.Masked)
+	secret := st.Secret
+	if st.Next != nil && st.NextSecret != nil {
+		secret = *st.NextSecret // what the test signs in with
+	}
+	if secret.Set {
+		fmt.Printf("This computer's app secret: %s\n", secret.Masked)
 	} else {
 		fmt.Println("This computer doesn't have the app's client secret yet.")
+	}
+	if st.Next != nil && st.InUse && st.Live != nil {
+		fmt.Printf("Until you switch, sign-ins with %s keep using the secret they have", st.Live.Title)
+		if st.Secret.Set {
+			fmt.Printf(" (%s)", st.Secret.Masked)
+		}
+		fmt.Println(".")
 	}
 	fmt.Printf("Addresses to register with %s (the app's redirect addresses):\n", setup.Title)
 	fmt.Println("  " + st.Callbacks.Local)
@@ -152,12 +207,15 @@ func printSSOStatus(st *auth.SSOStatusOut, details bool) {
 	}
 	if details {
 		fmt.Println("  keep the app's secret here: metarush auth sso secret · test it: metarush auth sso test · switch: metarush auth method sso")
+		if st.Next != nil {
+			fmt.Println("  forget the new setup: metarush auth sso discard")
+		}
 		fmt.Printf("  provider: %s · issuer: %s · client ID: %s", setup.Provider, setup.Issuer, setup.ClientID)
 		if setup.Tenant != "" {
 			fmt.Printf(" · tenant: %s", setup.Tenant)
 		}
 		fmt.Println()
-		fmt.Printf("  the secret's variable: %s\n", st.Secret.EnvVar)
+		fmt.Printf("  the secret's variable: %s\n", secret.EnvVar)
 	}
 }
 
@@ -180,7 +238,7 @@ func ssoSetCmd() *cobra.Command {
 			"  metarush auth sso set --provider oidc --issuer https://login.example.com --client-id metarush --label \"Example sign-in\"",
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
-			if err := needAPerson(c); err != nil {
+			if err := ssoPerson(c); err != nil {
 				return err
 			}
 			a, err := openApp(c, "cli")
@@ -210,18 +268,19 @@ func ssoSecretCmd() *cobra.Command {
 	var fromStdin, remove bool
 	cmd := &cobra.Command{Use: "secret", Short: "Keep the sign-in app's client secret on this computer, or remove it (owners, people only)", Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
-			if err := needAPerson(c); err != nil {
+			if err := ssoPerson(c); err != nil {
 				return err
 			}
 			in := auth.SSOSecretIn{Remove: remove}
 			if !remove {
-				if fromStdin {
-					line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-					in.ClientSecret = strings.TrimSpace(line)
-				} else {
-					in.ClientSecret = askSecret("The app's client secret (as the provider's console shows it)")
+				if !fromStdin && !stdinIsTerminal() {
+					return fail(c, apperr.InvalidInput, "Send the app's client secret through the pipe with --stdin.", "")
 				}
-				if in.ClientSecret == "" {
+				secret, err := readSSOSecret(c.InOrStdin(), "The app's new client secret (as the provider's console shows it)")
+				if err != nil {
+					return fail(c, apperr.InvalidInput, "MetaRush couldn't read the client secret.", "")
+				}
+				if in.ClientSecret = secret; in.ClientSecret == "" {
 					return fail(c, apperr.Canceled, "Nothing changed.", "")
 				}
 			}
@@ -231,10 +290,11 @@ func ssoSecretCmd() *cobra.Command {
 			}
 			return emit(c, out, func() {
 				if remove {
-					fmt.Println("The app's client secret is removed from this computer.")
+					fmt.Println("That client secret is removed from this computer.")
 				} else {
-					fmt.Printf("The app's client secret is kept on this computer (%s).\n", out.Secret.Masked)
+					fmt.Println("The new client secret is kept on this computer and waits for a test sign-in: until you switch, sign-ins keep using the one they have.")
 				}
+				fmt.Println(out.Summary)
 			})
 		}}
 	cmd.Flags().BoolVar(&fromStdin, "stdin", false, "read the secret from a pipe instead of asking")
@@ -246,7 +306,7 @@ func ssoTestCmd() *cobra.Command {
 	var noOpen bool
 	cmd := &cobra.Command{Use: "test", Short: "A test sign-in with your organization's account in a browser on this computer, before switching to it (owners, people only)", Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
-			if err := needAPerson(c); err != nil {
+			if err := ssoPerson(c); err != nil {
 				return err
 			}
 			a, err := openApp(c, "cli")
@@ -338,7 +398,7 @@ func authMethodSSO(c *cobra.Command, a *app.App, f *ssoFlags) error {
 		if st.InUse && st.Next == nil {
 			return emit(c, st, func() { fmt.Println("The change applies now; no new test sign-in was needed.") })
 		}
-		if !askYes("Register the addresses above with the provider, then test the sign-in now?", true) {
+		if stdinIsTerminal() && !askYes("Register the addresses above with the provider, then test the sign-in now?", true) {
 			return failErr(c, apperr.New(apperr.Canceled, "The setup is kept; nothing else changed.").WithHint("Test the sign-in when you're ready.").WithCommand("metarush auth sso test"))
 		}
 		res, err := runSSOTest(c, a, false)
@@ -351,7 +411,7 @@ func authMethodSSO(c *cobra.Command, a *app.App, f *ssoFlags) error {
 		}
 		fmt.Fprintln(os.Stderr, res.Message)
 	}
-	if !askYes("Switch to signing in with your organization's account now?", true) {
+	if stdinIsTerminal() && !askYes("Switch to signing in with your organization's account now?", true) {
 		return fail(c, apperr.Canceled, "Nothing changed.", "")
 	}
 	out, err := ops.CallTyped[auth.AuthStatusOut](c.Context(), a, "auth.method.set", auth.AuthMethodIn{Method: "sso"}, ops.Caller{Human: true})
@@ -366,4 +426,21 @@ func authMethodSSO(c *cobra.Command, a *app.App, f *ssoFlags) error {
 			fmt.Println("  invite: metarush users invite <email> · open MetaRush here: metarush dashboard · back to just you: metarush auth reset")
 		}
 	})
+}
+
+func ssoDiscardCmd() *cobra.Command {
+	return forOps(&cobra.Command{Use: "discard", Short: "Forget the new sign-in setup waiting for its test, and its new secret; the sign-in in use stays as it is (owners, people only)", Args: cobra.NoArgs,
+		RunE: func(c *cobra.Command, _ []string) error {
+			if err := ssoPerson(c); err != nil {
+				return err
+			}
+			out, err := callAsPerson[auth.SSOStatusOut](c, "auth.sso.discard", ops.EmptyIn{})
+			if err != nil {
+				return err
+			}
+			return emit(c, out, func() {
+				fmt.Println("The new setup is forgotten; nothing about the sign-in in use changed.")
+				fmt.Println(out.Summary)
+			})
+		}}, "auth.sso.discard")
 }

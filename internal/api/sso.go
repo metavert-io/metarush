@@ -23,12 +23,14 @@ import (
 //   - POST /api/auth/sso/start (the sign-in or invite page; the dashboard's
 //     header, same-origin, the per-address limit, HTTPS on the public address)
 //     keeps a sign-in for this browser and answers with its begin address — on
-//     the origin the provider will send the browser back to (localhost on this
-//     computer, the public address elsewhere), so the cookie set there comes
-//     back with the answer.
+//     the origin the provider will send the browser back to (127.0.0.1 on this
+//     computer, never localhost, which may reach another program on [::1],
+//     D451; the public address elsewhere), so the cookie set there comes back
+//     with the answer.
 //   - GET /auth/sso/begin?t=<ticket> (the ticket works once, within two
-//     minutes) gives the browser the sign-in's state in an HttpOnly cookie
-//     (SameSite=Lax: it must ride along the provider's redirect back;
+//     minutes) adds the sign-in's state to an HttpOnly cookie holding this
+//     browser's sign-ins in progress (a few at once: two tabs can sign in,
+//     D454; SameSite=Lax: it must ride along the provider's redirect back;
 //     __Host- over HTTPS) and sends it to the provider with that state, a
 //     nonce and a PKCE challenge.
 //   - GET /auth/sso/callback?code&state — only in the browser whose cookie is
@@ -59,6 +61,53 @@ type SSOStartResult struct {
 }
 
 const ssoCookie = "mr_sso"
+
+// ssoPending is how many sign-ins in progress one browser keeps at once (the
+// oldest gives way).
+const ssoPending = 4
+
+// pendingStates reads the states of a browser's sign-ins in progress.
+func pendingStates(r *http.Request, acc access) []string {
+	c, err := r.Cookie(ssoCookieName(acc))
+	if err != nil || c.Value == "" {
+		return nil
+	}
+	var out []string
+	for _, st := range strings.Split(c.Value, ".") {
+		if st != "" && len(st) <= 100 {
+			out = append(out, st)
+		}
+	}
+	return out
+}
+
+// setPending writes them back (none: the cookie goes).
+func setPending(w http.ResponseWriter, acc access, states []string) {
+	if len(states) > ssoPending {
+		states = states[:ssoPending]
+	}
+	c := &http.Cookie{Name: ssoCookieName(acc), Value: strings.Join(states, "."), Path: "/", HttpOnly: true, Secure: acc.public && acc.secure,
+		SameSite: http.SameSiteLaxMode, MaxAge: int(sso.FlowLife / time.Second)}
+	if len(states) == 0 {
+		c.Value, c.MaxAge = "", -1
+	}
+	http.SetCookie(w, c)
+}
+
+// takePending reports whether state is one of the browser's sign-ins in
+// progress (compared in constant time) and the rest of them.
+func takePending(states []string, state string) (bool, []string) {
+	found := false
+	var rest []string
+	for _, st := range states {
+		if subtle.ConstantTimeCompare([]byte(st), []byte(state)) == 1 {
+			found = true
+			continue
+		}
+		rest = append(rest, st)
+	}
+	return found, rest
+}
 
 func ssoCookieName(acc access) string {
 	if acc.public && acc.secure {
@@ -108,7 +157,7 @@ func (s *Server) ssoStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	acc := accessOf(r)
-	f := sso.Flow{Purpose: sso.ForSignIn, Public: acc.public, Setup: auth.SSOFingerprint(s.App.Cfg, st.SSO), Next: nextPath(in.Next)}
+	f := sso.Flow{Purpose: sso.ForSignIn, Public: acc.public, Setup: auth.LiveUse(s.App.Cfg, st.SSO).Fingerprint(), Next: nextPath(in.Next)}
 	if in.Invite != "" {
 		s.App.Log.Secret(in.Invite)
 		rec, u, err := auth.LookupLink(ctx, s.App, in.Invite)
@@ -163,27 +212,21 @@ func (s *Server) ssoBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	setup := auth.SetupFor(ctx, s.App, f.Setup)
-	if setup == nil {
+	use := auth.SetupFor(ctx, s.App, f.Setup)
+	if use == nil {
 		s.ssoPage(w, http.StatusConflict, "The sign-in changed", "An owner changed how people sign in while you started. Start again.", "/signin")
 		return
 	}
-	client, err := auth.SSOClient(s.App.Cfg, setup)
-	if err != nil {
-		s.ssoPage(w, http.StatusServiceUnavailable, "MetaRush couldn't start the sign-in", apperr.From(err).Message, "")
-		return
-	}
 	domain := ""
-	if setup.Provider == sso.Google {
-		domain = setup.Domain
+	if use.Setup.Provider == sso.Google {
+		domain = use.Setup.Domain
 	}
-	authURL, err := client.AuthURL(ctx, sso.Request{Redirect: f.Redirect, State: state, Nonce: f.Nonce, Challenge: sso.Challenge(f.Verifier), Hint: f.Hint, Domain: domain})
+	authURL, err := use.Client().AuthURL(ctx, sso.Request{Redirect: f.Redirect, State: state, Nonce: f.Nonce, Challenge: sso.Challenge(f.Verifier), Hint: f.Hint, Domain: domain})
 	if err != nil {
 		s.ssoProblemPage(w, err)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: ssoCookieName(acc), Value: state, Path: "/", HttpOnly: true, Secure: acc.public && acc.secure,
-		SameSite: http.SameSiteLaxMode, MaxAge: int(sso.FlowLife / time.Second)})
+	setPending(w, acc, append([]string{state}, pendingStates(r, acc)...))
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, authURL, http.StatusFound)
 }
@@ -199,14 +242,14 @@ func (s *Server) ssoCallback(w http.ResponseWriter, r *http.Request) {
 	s.App.Log.Secret(state)
 	s.App.Log.Secret(code)
 	acc := accessOf(r)
-	c, cerr := r.Cookie(ssoCookieName(acc))
-	if state == "" || cerr != nil || subtle.ConstantTimeCompare([]byte(c.Value), []byte(state)) != 1 {
+	mine, rest := takePending(pendingStates(r, acc), state)
+	if state == "" || !mine {
 		// Not this browser's sign-in (someone else's answer, a link sent to
 		// you): nothing happens.
 		s.ssoPage(w, http.StatusForbidden, "This sign-in wasn't started in this browser", "MetaRush finishes a sign-in only in the browser that started it. Start signing in again here.", "/signin")
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: ssoCookieName(acc), Value: "", Path: "/", HttpOnly: true, Secure: acc.public && acc.secure, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	setPending(w, acc, rest)
 	store := sso.FlowsIn(s.App.Cfg.StateDir())
 	f, err := store.Finish(state, func(f *sso.Flow) error {
 		if acc.public != f.Public || !s.sameHost(r, f) {
@@ -238,16 +281,12 @@ func (s *Server) ssoCallback(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	setup := auth.SetupFor(ctx, s.App, f.Setup)
-	if setup == nil {
+	use := auth.SetupFor(ctx, s.App, f.Setup)
+	if use == nil {
 		fail("setup_changed", apperr.New(apperr.Conflict, "An owner changed how people sign in while you were at the provider. Sign in again."))
 		return
 	}
-	client, err := auth.SSOClient(s.App.Cfg, setup)
-	if err != nil {
-		fail("no_secret", err)
-		return
-	}
+	setup, client := use.Setup, use.Client()
 	if iss := q.Get("iss"); iss != "" {
 		// The provider names itself in its answer (RFC 9207): it must be the one asked.
 		d, derr := client.Discover(ctx)
@@ -274,7 +313,7 @@ func (s *Server) ssoCallback(w http.ResponseWriter, r *http.Request) {
 		s.ssoTested(w, r, f, setup, id)
 		return
 	}
-	if st := auth.Settings(ctx, s.App); st.Method != models.AuthSSO || st.SSO == nil || auth.SSOFingerprint(s.App.Cfg, st.SSO) != f.Setup {
+	if st := auth.Settings(ctx, s.App); st.Method != models.AuthSSO || st.SSO == nil || auth.LiveUse(s.App.Cfg, st.SSO).Fingerprint() != f.Setup {
 		fail("setup_changed", apperr.New(apperr.Conflict, "An owner changed how people sign in while you were at the provider. Sign in again."))
 		return
 	}

@@ -192,7 +192,12 @@ func authMethodCmd() *cobra.Command {
 			"  metarush auth method sso --provider google --client-id 1234.apps.googleusercontent.com   # sets it up, tests it in your browser, switches\n" +
 			"  metarush auth method sso                                                              # switches to the setup whose test just passed",
 		RunE: func(c *cobra.Command, args []string) error {
-			if err := needAPerson(c); err != nil {
+			if args[0] == "sso" {
+				// The secret may come through a pipe: a terminal on standard error is enough.
+				if err := ssoPerson(c); err != nil {
+					return err
+				}
+			} else if err := needAPerson(c); err != nil {
 				return err
 			}
 			a, err := openApp(c, "cli")

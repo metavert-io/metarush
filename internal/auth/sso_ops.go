@@ -6,12 +6,16 @@ import (
 	"strings"
 	"time"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/providers"
 	"github.com/metavert-io/metarush/internal/sso"
+	"github.com/metavert-io/metarush/internal/store"
 )
 
 // SSOSetup is an organization sign-in's setup as Settings → People shows it.
@@ -43,7 +47,7 @@ type SSOSecretState struct {
 
 // SSOCallbacksOut are the addresses to register with the provider.
 type SSOCallbacksOut struct {
-	// Local is this computer's own browser's (http://localhost:<port>/auth/sso/callback).
+	// Local is this computer's own browser's (http://127.0.0.1:<port>/auth/sso/callback).
 	Local string `json:"local"`
 	// Public is the address for other computers' (remote access on).
 	Public      string `json:"public,omitempty"`
@@ -69,12 +73,19 @@ type SSOStatusOut struct {
 	Method string `json:"method" jsonschema:"enum=single,enum=password,enum=tailscale,enum=sso"`
 	// Live is the setup in use (method sso) or last used; Next one waiting
 	// for its test sign-in before it can be switched to.
-	Live      *SSOSetup       `json:"live,omitempty"`
-	Next      *SSOSetup       `json:"next,omitempty"`
-	InUse     bool            `json:"inUse" jsonschema:"description=People sign in with their organization's account now."`
-	Secret    SSOSecretState  `json:"secret"`
-	Callbacks SSOCallbacksOut `json:"callbacks"`
-	Test      *SSOTestView    `json:"test,omitempty"`
+	Live  *SSOSetup `json:"live,omitempty"`
+	Next  *SSOSetup `json:"next,omitempty"`
+	InUse bool      `json:"inUse" jsonschema:"description=People sign in with their organization's account now."`
+	// Secret is this computer's secret of the app in use (or last used);
+	// NextSecret the one the setup waiting for its test signs in with.
+	Secret     SSOSecretState  `json:"secret"`
+	NextSecret *SSOSecretState `json:"nextSecret,omitempty"`
+	Callbacks  SSOCallbacksOut `json:"callbacks"`
+	// Earlier: people who signed in with an earlier provider, address or
+	// directory and not yet with this one (their next sign-in links them by an
+	// email this one vouches for, D453).
+	Earlier int          `json:"earlier"`
+	Test    *SSOTestView `json:"test,omitempty"`
 	// CanSwitch: the setup waiting (or the one last used) passed a test
 	// sign-in by the person asking, here, within 30 minutes.
 	CanSwitch bool   `json:"canSwitch"`
@@ -117,6 +128,7 @@ func init() {
 	ops.Def("auth.sso.set", "Set up signing in with your organization's account: the provider, the app, who may join by themselves and whether passwords or Tailscale still work (owners, on this computer)", ops.Flags{Mutating: true, HumanOnly: true, OwnerOnly: true}, ssoSetOp)
 	ops.Def("auth.sso.secret", "Keep or remove the sign-in app's client secret on this computer (owners, on this computer)", ops.Flags{Mutating: true, HumanOnly: true, OwnerOnly: true}, ssoSecretOp)
 	ops.Def("auth.sso.test", "Start a test sign-in with your organization's account in a browser on this computer, before switching to it (owners)", ops.Flags{Mutating: true, HumanOnly: true, OwnerOnly: true}, ssoTestOp)
+	ops.Def("auth.sso.discard", "Forget the new sign-in setup waiting for its test, and its new secret; the sign-in in use stays as it is (owners, on this computer)", ops.Flags{Mutating: true, HumanOnly: true, OwnerOnly: true}, ssoDiscardOp)
 }
 
 func viewOf(st *models.SSOSettings) *SSOSetup {
@@ -132,19 +144,22 @@ func SSOStatus(ctx context.Context, a *app.App) *SSOStatusOut {
 	cur := Settings(ctx, a)
 	out := &SSOStatusOut{Method: cur.Method, Live: viewOf(cur.SSO), Next: viewOf(cur.SSONext), InUse: cur.Method == models.AuthSSO,
 		Owner: ops.IsOwnerCaller(ctx), Here: !ops.CallerFrom(ctx).Elsewhere}
-	out.Secret.EnvVar = SSOSecretEnv()
-	if secret, src, err := SSOSecret(a.Cfg); err == nil && secret != "" {
-		out.Secret.Set, out.Secret.Masked, out.Secret.Source = true, providers.Mask(secret), src
+	out.Secret = secretState(a.Cfg, cur.SSO, false)
+	if cur.SSONext != nil {
+		ns := secretState(a.Cfg, cur.SSONext, true)
+		out.NextSecret = &ns
 	}
 	local, public := SSOCallbacks(a.Cfg)
 	out.Callbacks = SSOCallbacksOut{Local: local, Public: public, PublicHTTPS: strings.HasPrefix(public, "https://")}
-	tested := TestedSetup(cur)
+	live, test := LiveUse(a.Cfg, cur.SSO), TestUse(a.Cfg, cur)
 	if t := sso.FlowsIn(a.Cfg.StateDir()).LastTest(); t != nil {
 		v := &SSOTestView{OK: t.OK, At: t.At, Fresh: t.Fresh(), Mine: t.UserID == you(a), Reason: t.Reason, Message: t.Message, ForSetup: "other"}
-		switch t.Setup {
-		case SSOFingerprint(a.Cfg, cur.SSONext):
+		switch {
+		case cur.SSONext != nil && test != nil && t.Setup == test.Fingerprint():
 			v.ForSetup = "next"
-		case SSOFingerprint(a.Cfg, cur.SSO):
+		case live != nil && t.Setup == live.Fingerprint():
+			v.ForSetup = "live"
+		case cur.SSONext == nil && test != nil && t.Setup == test.Fingerprint():
 			v.ForSetup = "live"
 		}
 		if t.Identity != nil {
@@ -152,9 +167,67 @@ func SSOStatus(ctx context.Context, a *app.App) *SSOStatusOut {
 		}
 		out.Test = v
 	}
-	out.CanSwitch, out.SwitchWhy = canSwitch(ctx, a, cur, tested, out.Test)
+	out.CanSwitch, out.SwitchWhy = canSwitch(ctx, a, cur, TestedSetup(cur), out.Test)
+	if cur.Method == models.AuthSSO && cur.SSO != nil {
+		out.Earlier = earlierPeople(ctx, a, cur.SSO)
+	}
 	out.Summary = ssoSummary(cur, out)
 	return out
+}
+
+// secretState says whether this computer has an app's secret (next: the one
+// a test signs in with), never the secret.
+func secretState(cfg *config.Config, st *models.SSOSettings, next bool) SSOSecretState {
+	out := SSOSecretState{}
+	if st == nil {
+		return out
+	}
+	out.EnvVar = SSOSecretEnv(st)
+	secret, src, _ := SSOSecret(cfg, st)
+	if next {
+		if n, nsrc, _ := SSONextSecret(cfg, st); n != "" {
+			secret, src = n, nsrc
+		}
+	}
+	if secret != "" {
+		out.Set, out.Masked, out.Source = true, providers.Mask(secret), src
+	}
+	return out
+}
+
+// earlierPeople counts active people who signed in with an organization's
+// account of another issuer than the one in use, and not yet with it.
+func earlierPeople(ctx context.Context, a *app.App, live *models.SSOSettings) int {
+	var us []models.User
+	if err := a.DB.Find(ctx, store.CUsers, a.WorkspaceID(), bson.M{"state": models.UserActive, "sso.0": bson.M{"$exists": true}}, &us); err != nil {
+		return 0
+	}
+	n := 0
+	for _, u := range us {
+		current := false
+		for _, l := range u.SSO {
+			current = current || scopeOfSetup(live, l)
+		}
+		if !current {
+			n++
+		}
+	}
+	return n
+}
+
+// scopeOfSetup reports a link made with the setup's issuer.
+func scopeOfSetup(st *models.SSOSettings, l models.SSOLink) bool {
+	scope := linkScope(l)
+	switch st.Provider {
+	case sso.Google:
+		return scope == "google"
+	case sso.Microsoft:
+		if d := Directory(st); d != "" {
+			return scope == "microsoft:"+d
+		}
+		return strings.HasPrefix(scope, "microsoft:")
+	}
+	return scope == "oidc:"+st.Issuer || scope == "oidc:"+strings.TrimSuffix(st.Issuer, "/")
 }
 
 func canSwitch(ctx context.Context, a *app.App, cur models.AuthSettings, tested *models.SSOSettings, t *SSOTestView) (bool, string) {
@@ -189,7 +262,10 @@ func ssoSummary(cur models.AuthSettings, out *SSOStatusOut) string {
 			s += " Tailscale accounts still work too."
 		}
 		if out.Next != nil {
-			s += " A new setup (" + out.Next.Title + ") waits for its test sign-in."
+			s += " A new setup (" + out.Next.Title + ") waits for its test sign-in; until it is switched to, sign-ins keep using the one in use."
+		}
+		if out.Earlier > 0 {
+			s += fmt.Sprintf(" %d of the people signed in with an earlier provider; their next sign-in links them when %s vouches for their email, else they need an invite again.", out.Earlier, out.Live.Title)
 		}
 		return s
 	case out.Next != nil || out.Live != nil:
@@ -224,13 +300,20 @@ func ssoSetOp(ctx context.Context, a *app.App, in *SSOSetIn) (*SSOStatusOut, err
 	if _, err := (&sso.Client{Kind: st.Provider, Issuer: st.Issuer, ClientID: st.ClientID}).Discover(dctx); err != nil {
 		return nil, ssoProblem(err)
 	}
+	if in.ClientSecret == "" && st.Provider != sso.OIDC && testSecret(a.Cfg, st) == "" {
+		// Google and Microsoft need the app's secret; this computer has none for this app.
+		return nil, apperr.New(apperr.InvalidInput, "Give the app's client secret: this computer doesn't have one for this app yet.").
+			WithDetails(map[string]any{"reason": "no_secret"})
+	}
 	if in.ClientSecret != "" {
-		if _, err := SetSSOSecret(a.Cfg, in.ClientSecret); err != nil {
+		// Kept as this app's next secret: the sign-in in use keeps its own
+		// until a test passes and an owner switches (D450).
+		if err := setNextSecret(a.Cfg, st, in.ClientSecret); err != nil {
 			return nil, err
 		}
-		a.Audit(ctx, "auth.sso.secret", "installation", a.Cfg.Installation.ID, "", map[string]any{"set": true})
+		a.Audit(ctx, "auth.sso.secret", "installation", a.Cfg.Installation.ID, "", map[string]any{"set": true, "waits": true})
 	}
-	if _, err := SaveSSO(ctx, a, *st); err != nil {
+	if _, err := SaveSSO(ctx, a, *st, in.ClientSecret != ""); err != nil {
 		return nil, err
 	}
 	return SSOStatus(ctx, a), nil
@@ -252,20 +335,60 @@ func ssoSecretOp(ctx context.Context, a *app.App, in *SSOSecretIn) (*SSOStatusOu
 	if err := hereOnly(ctx, a); err != nil {
 		return nil, err
 	}
+	cur := Settings(ctx, a)
 	switch {
 	case in.Remove:
-		if _, err := RemoveSSOSecret(a.Cfg); err != nil {
-			return nil, err
+		switch {
+		case cur.SSONext != nil:
+			if err := dropSecret(a.Cfg, secretName(cur.SSONext, true)); err != nil {
+				return nil, err
+			}
+		case cur.SSO != nil && cur.Method != models.AuthSSO:
+			if err := dropSecret(a.Cfg, secretName(cur.SSO, false)); err != nil {
+				return nil, err
+			}
+		case cur.SSO != nil:
+			return nil, apperr.New(apperr.Conflict, "People sign in with this app's secret now, so MetaRush keeps it.").
+				WithHint("Give a new secret instead (it waits for a test), or choose another way to sign in first.").WithDetails(map[string]any{"reason": "in_use"})
+		default:
+			return nil, apperr.New(apperr.Conflict, "No sign-in with an organization's account is set up.").WithDetails(map[string]any{"reason": "no_setup"})
 		}
 	case in.ClientSecret != "":
 		a.Log.Secret(in.ClientSecret)
-		if _, err := SetSSOSecret(a.Cfg, in.ClientSecret); err != nil {
+		target := cur.SSONext
+		if target == nil {
+			target = cur.SSO
+		}
+		if target == nil {
+			return nil, apperr.New(apperr.Conflict, "Set up the sign-in with your organization's account first.").WithDetails(map[string]any{"reason": "no_setup"}).WithCommand("metarush auth sso set")
+		}
+		// A new secret waits for its test: the sign-in in use keeps the one it
+		// has until an owner switches after a passing test (D450).
+		if err := setNextSecret(a.Cfg, target, in.ClientSecret); err != nil {
 			return nil, err
+		}
+		if cur.SSONext == nil {
+			next := *cur.SSO
+			next.SetAt, next.SetBy = time.Now().UTC(), a.Actor
+			if _, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID()}, bson.M{"$set": bson.M{"auth.ssoNext": next}}); err != nil {
+				return nil, err
+			}
+			forgetSettings(a)
 		}
 	default:
 		return nil, apperr.New(apperr.InvalidInput, "Give the app's client secret, or remove it.")
 	}
-	a.Audit(ctx, "auth.sso.secret", "installation", a.Cfg.Installation.ID, "", map[string]any{"set": !in.Remove})
+	a.Audit(ctx, "auth.sso.secret", "installation", a.Cfg.Installation.ID, "", map[string]any{"set": !in.Remove, "waits": !in.Remove})
+	return SSOStatus(ctx, a), nil
+}
+
+func ssoDiscardOp(ctx context.Context, a *app.App, _ *ops.EmptyIn) (*SSOStatusOut, error) {
+	if err := hereOnly(ctx, a); err != nil {
+		return nil, err
+	}
+	if err := DiscardSSO(ctx, a); err != nil {
+		return nil, err
+	}
 	return SSOStatus(ctx, a), nil
 }
 
@@ -274,14 +397,11 @@ func ssoTestOp(ctx context.Context, a *app.App, _ *ops.EmptyIn) (*SSOTestOut, er
 		return nil, err
 	}
 	cur := Settings(ctx, a)
-	setup := TestedSetup(cur)
-	if setup == nil {
+	use := TestUse(a.Cfg, cur)
+	if use == nil {
 		return nil, apperr.New(apperr.Conflict, "Set up the sign-in with your organization's account first.").WithDetails(map[string]any{"reason": "no_setup"}).WithCommand("metarush auth sso set")
 	}
-	client, err := SSOClient(a.Cfg, setup)
-	if err != nil {
-		return nil, err
-	}
+	setup, client := use.Setup, use.Client()
 	if client.Secret == "" && setup.Provider != sso.OIDC {
 		return nil, apperr.New(apperr.Conflict, "This computer doesn't have the sign-in app's client secret yet.").
 			WithHint("Copy it from the provider's console into Settings → People, or a terminal.").WithDetails(map[string]any{"reason": "no_secret"}).WithCommand("metarush auth sso secret")
@@ -297,7 +417,7 @@ func ssoTestOp(ctx context.Context, a *app.App, _ *ops.EmptyIn) (*SSOTestOut, er
 		hint = u.Email
 	}
 	ticket, err := sso.FlowsIn(a.Cfg.StateDir()).NewTicket(sso.Flow{Purpose: sso.ForTest, Host: SSOLocalHost(a.Cfg), Redirect: local,
-		Setup: SSOFingerprint(a.Cfg, setup), UserID: you(a), Hint: hint})
+		Setup: use.Fingerprint(), UserID: you(a), Hint: hint})
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Internal, err, "MetaRush couldn't start the test sign-in.")
 	}

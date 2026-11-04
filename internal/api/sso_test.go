@@ -49,15 +49,21 @@ func newSSODash(t *testing.T) *ssoRig {
 	t.Cleanup(p.Close)
 	local, public := auth.SSOCallbacks(d.a.Cfg)
 	p.Redirects = []string{local, public}
-	if !strings.HasPrefix(local, "http://localhost:") || public != "https://"+publicHost+"/auth/sso/callback" {
+	if !strings.HasPrefix(local, "http://127.0.0.1:") || public != "https://"+publicHost+"/auth/sso/callback" {
 		t.Fatalf("callbacks: %s %s", local, public)
 	}
 	return &ssoRig{dash: d, p: p, secret: secret}
 }
 
-// here is a browser on this computer at localhost, where organization
-// sign-ins come back.
+// here is a browser on this computer at 127.0.0.1, where organization
+// sign-ins come back (never localhost, D451).
 func (d *dash) here() *browser {
+	u, _ := url.Parse(d.base)
+	return &browser{t: d.t, d: d, host: "127.0.0.1:" + u.Port(), hdr: map[string]string{}, cookies: map[string]string{}}
+}
+
+// atLocalhost is a browser on this computer at localhost.
+func (d *dash) atLocalhost() *browser {
 	u, _ := url.Parse(d.base)
 	return &browser{t: d.t, d: d, host: "localhost:" + u.Port(), hdr: map[string]string{}, cookies: map[string]string{}}
 }
@@ -131,6 +137,19 @@ func maya(verified bool) fakeoidc.Person {
 	return fakeoidc.Person{Sub: "sub-maya", Email: "maya@example.com", EmailVerified: fakeoidc.Verified(verified), Name: "Maya Lindqvist"}
 }
 
+// change saves a change to the setup without sending the secret again (the
+// same app keeps this computer's).
+func (r *ssoRig) change(extra map[string]any) auth.SSOStatusOut {
+	r.t.Helper()
+	in := map[string]any{"provider": "oidc", "issuer": r.p.Issuer, "clientId": "metarush-app", "label": "Test provider"}
+	for k, v := range extra {
+		in[k] = v
+	}
+	var st auth.SSOStatusOut
+	r.op("auth.sso.set", in, &st)
+	return st
+}
+
 func (r *ssoRig) setUp(extra map[string]any) auth.SSOStatusOut {
 	r.t.Helper()
 	in := map[string]any{"provider": "oidc", "issuer": r.p.Issuer, "clientId": "metarush-app", "clientSecret": r.secret, "label": "Test provider"}
@@ -178,10 +197,12 @@ func TestOrganizationSignInIsTestedBeforeTheSwitch(t *testing.T) {
 
 	// Members never set it up; another computer's owner neither (only here).
 	st := r.setUp(nil)
-	if st.Next == nil || st.InUse || st.CanSwitch || !st.Secret.Set || strings.Contains(ssoJSON(st), r.secret) || st.Secret.Masked != "••••"+r.secret[len(r.secret)-4:] {
+	// The secret waits with the setup for its test (each app has its own).
+	if st.Next == nil || st.InUse || st.CanSwitch || st.Secret.Set || st.NextSecret == nil || !st.NextSecret.Set || strings.Contains(ssoJSON(st), r.secret) ||
+		st.NextSecret.Masked != "••••"+r.secret[len(r.secret)-4:] {
 		t.Fatalf("after set: %+v", st)
 	}
-	if !strings.HasPrefix(st.Callbacks.Local, "http://localhost:") || st.Callbacks.Public == "" {
+	if !strings.HasPrefix(st.Callbacks.Local, "http://127.0.0.1:") || st.Callbacks.Public == "" {
 		t.Fatalf("callbacks: %+v", st.Callbacks)
 	}
 	// A bad provider address keeps nothing.
@@ -578,7 +599,7 @@ func TestOrganizationSignInFromAnotherComputer(t *testing.T) {
 		t.Fatalf("spoofed headers: %d", res.StatusCode)
 	}
 	// Tailscale accounts kept beside it: the listed account signs in by itself again.
-	r.setUp(map[string]any{"alsoTailscale": true})
+	r.change(map[string]any{"alsoTailscale": true})
 	waitSettings(ctx, r)
 	if s, code := sessionOf(t, r.tailnet("maya@example.com", "Maya")); code != 200 || s.Access.SignedInWith != "tailscale" {
 		t.Fatalf("Tailscale kept beside it: %d %+v", code, s)
@@ -629,7 +650,7 @@ func TestOrganizationSessionsAndTheOtherSignIns(t *testing.T) {
 		t.Fatal("password sign-in kept beside it")
 	}
 	// …and ends them when it doesn't (the same provider and app: no new test).
-	r.setUp(map[string]any{"alsoPassword": false})
+	r.change(map[string]any{"alsoPassword": false})
 	auth.ForgetSettings(r.a)
 	if _, code := sessionOf(t, pw); code != 401 {
 		t.Fatal("a password session outlived passwords")
@@ -690,10 +711,11 @@ func TestOrganizationSetupIsTheOwnersAtThisComputer(t *testing.T) {
 		t.Fatal("ops list")
 	}
 	for name, in := range map[string]any{
-		"auth.sso.set":    map[string]any{"provider": "oidc", "issuer": r.p.Issuer, "clientId": "x"},
-		"auth.sso.secret": map[string]any{"clientSecret": sso.Random(24)},
-		"auth.sso.test":   map[string]any{},
-		"auth.method.set": map[string]any{"method": "single"},
+		"auth.sso.set":     map[string]any{"provider": "oidc", "issuer": r.p.Issuer, "clientId": "x"},
+		"auth.sso.secret":  map[string]any{"clientSecret": sso.Random(24)},
+		"auth.sso.test":    map[string]any{},
+		"auth.sso.discard": map[string]any{},
+		"auth.method.set":  map[string]any{"method": "single"},
 	} {
 		if res, env, _ := mb.do("POST", "/api/ops/"+name, in, true, nil); res.StatusCode == 200 || env.Error.Details["reason"] != "owner_only" {
 			t.Errorf("a member's %s: %d %+v", name, res.StatusCode, env.Error)

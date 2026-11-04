@@ -57,6 +57,8 @@ type Server struct {
 	Issuer string
 	// ClientID and Secret are the registered app ("" secret: a public client).
 	ClientID, Secret string
+	// others are more apps registered with the provider (AddClient).
+	others map[string]string
 	// Redirects are the registered redirect addresses (empty: any).
 	Redirects []string
 	// Next is who signs in next at the authorization page (the browser run's
@@ -86,6 +88,7 @@ type Server struct {
 }
 
 type grant struct {
+	client            string
 	person            Person
 	redirect, nonce   string
 	challenge, method string
@@ -121,6 +124,39 @@ func NewAt(addr, clientID, secret string) (*Server, error) {
 	s.Server.Start()
 	s.Issuer = s.URL
 	return s, nil
+}
+
+// AddClient registers another app with the provider (or changes its secret):
+// two setups of one provider, each with its own secret.
+func (s *Server) AddClient(id, secret string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.others == nil {
+		s.others = map[string]string{}
+	}
+	s.others[id] = secret
+}
+
+// SetSecret changes an app's secret at the provider (a rotated secret).
+func (s *Server) SetSecret(id, secret string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if id == s.ClientID {
+		s.Secret = secret
+		return
+	}
+	if _, ok := s.others[id]; ok {
+		s.others[id] = secret
+	}
+}
+
+// secretOf is a registered app's secret (s.mu held).
+func (s *Server) secretOf(id string) (string, bool) {
+	if id != "" && id == s.ClientID {
+		return s.Secret, true
+	}
+	secret, ok := s.others[id]
+	return secret, ok
 }
 
 // NewKey makes a signing key (RS256 or ES256) at run time.
@@ -180,14 +216,15 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.Requests[r.URL.Path]++
 	s.mu.Unlock()
-	switch r.URL.Path {
-	case "/.well-known/openid-configuration":
+	switch {
+	case strings.HasSuffix(r.URL.Path, "/.well-known/openid-configuration"):
+		// At the issuer's own path too (a directory's address, as Microsoft's).
 		s.discovery(w)
-	case "/jwks":
+	case r.URL.Path == "/jwks":
 		s.jwks(w)
-	case "/authorize":
+	case r.URL.Path == "/authorize":
 		s.authorize(w, r)
-	case "/token":
+	case r.URL.Path == "/token":
 		s.token(w, r)
 	default:
 		http.NotFound(w, r)
@@ -281,7 +318,7 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	s.Seen = append(s.Seen, q)
-	clientOK := q.Get("client_id") == s.ClientID
+	_, clientOK := s.secretOf(q.Get("client_id"))
 	redirectOK := len(s.Redirects) == 0
 	for _, u := range s.Redirects {
 		redirectOK = redirectOK || u == q.Get("redirect_uri")
@@ -327,7 +364,7 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 	}
 	code := random(24)
 	s.mu.Lock()
-	s.codes[code] = &grant{person: p, redirect: redirect, nonce: q.Get("nonce"), challenge: q.Get("code_challenge"), method: q.Get("code_challenge_method"), issued: time.Now()}
+	s.codes[code] = &grant{client: q.Get("client_id"), person: p, redirect: redirect, nonce: q.Get("nonce"), challenge: q.Get("code_challenge"), method: q.Get("code_challenge_method"), issued: time.Now()}
 	s.mu.Unlock()
 	redirectWith(w, r, redirect, url.Values{"code": {code}, "state": {state}})
 }
@@ -367,7 +404,8 @@ func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if id != s.ClientID || (s.Secret != "" && subtle.ConstantTimeCompare([]byte(secret), []byte(s.Secret)) != 1) || (basic && s.PostOnly) {
+	want, known := s.secretOf(id)
+	if !known || (want != "" && subtle.ConstantTimeCompare([]byte(secret), []byte(want)) != 1) || (basic && s.PostOnly) {
 		writeJSON(w, 401, map[string]any{"error": "invalid_client"})
 		return
 	}
@@ -376,7 +414,7 @@ func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g := s.codes[r.PostForm.Get("code")]
-	if g == nil || g.used || time.Since(g.issued) > 5*time.Minute || g.redirect != r.PostForm.Get("redirect_uri") {
+	if g == nil || g.used || g.client != id || time.Since(g.issued) > 5*time.Minute || g.redirect != r.PostForm.Get("redirect_uri") {
 		if g != nil {
 			g.used = true // a code tried twice is spent (RFC 6749 4.1.2)
 		}
@@ -392,7 +430,7 @@ func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	now := time.Now()
-	claims := map[string]any{"iss": s.Issuer, "sub": g.person.Sub, "aud": s.ClientID, "iat": now.Unix(), "exp": now.Add(time.Hour).Unix(), "nonce": g.nonce}
+	claims := map[string]any{"iss": s.Issuer, "sub": g.person.Sub, "aud": g.client, "iat": now.Unix(), "exp": now.Add(time.Hour).Unix(), "nonce": g.nonce}
 	if g.person.Email != "" {
 		claims["email"] = g.person.Email
 	}

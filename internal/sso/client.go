@@ -78,6 +78,9 @@ type Client struct {
 	// Secret is the app's client secret ("" for an app registered without
 	// one, a public client).
 	Secret string
+	// Directory is the Microsoft directory (tenant ID) the setup is for:
+	// only that directory's own people's emails can count (D452).
+	Directory string
 	// Now is the time ID tokens are checked against (this computer's clock
 	// by default; tests move it).
 	Now func() time.Time

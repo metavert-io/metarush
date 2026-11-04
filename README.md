@@ -219,8 +219,8 @@ A new install is just you on this computer ([docs/accounts.md](docs/accounts.md)
   [docs/accounts.md](docs/accounts.md#signing-in-with-your-organizations-account)): register the app with the
   addresses Settings → People shows, give its ID and secret (kept on each computer, like a key), run a test sign-in on
   this computer, then switch. Only people you invite, or people of a domain you choose, get in; passwords and Tailscale
-  accounts can keep working beside it. `metarush dashboard` at this computer still opens MetaRush if the provider ever
-  stops working.
+  accounts can keep working beside it. A new app or secret waits for its own test while people keep signing in as
+  before. `metarush dashboard` at this computer still opens MetaRush if the provider ever stops working.
 - **Passwords** are stored with argon2id, checked against common passwords, and wrong guesses are slowed down and
   locked; owners make reset-password links (`metarush users reset-password <email>`).
 - **Only owners change this computer's settings** (enforced on the server, [the list](docs/accounts.md#what-only-owners-change)).
@@ -233,7 +233,7 @@ A new install is just you on this computer ([docs/accounts.md](docs/accounts.md)
   everyone's), and a turned-off account's browsers stop at once.
 - **Everyone's changes say who made them**, and each person can add a picture (`metarush account avatar <file>`).
 
-Commands: `metarush auth status|method|reset`, `metarush auth sso status|set|secret|test` (and `metarush auth method sso`),
+Commands: `metarush auth status|method|reset`, `metarush auth sso status|set|secret|test|discard` (and `metarush auth method sso`),
 `metarush users list|invite|reset-password|disable|enable|remove|role`, `metarush account …`.
 
 ### Use it from your other computers, over Tailscale

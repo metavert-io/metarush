@@ -5,10 +5,14 @@
 # app's secret made for this run; never a real provider). The browser run
 # (web/scripts/sso-e2e.mjs): the owner sets it up in Settings → People (the
 # provider, the app, its secret in the one-time form, an allowed domain), sees
-# the addresses to register, runs the test sign-in in a tab of its own, switches;
-# an invited person joins with the invite link; a person of the allowed domain
-# joins by themselves; a stranger is turned away in plain words; the owner signs
-# in again through the provider. Then the CLI shows what the browser did.
+# the addresses to register (this computer's at 127.0.0.1), runs the test
+# sign-in in a tab of its own, switches; sets up another app with its own
+# secret, which waits while people keep signing in with the one in use: an
+# invited person joins with the invite link, a person of the allowed domain
+# joins by themselves, a stranger is turned away in plain words; the owner
+# forgets the waiting app, signs in again through the provider, and two
+# sign-ins started in two tabs of one browser both finish. Then the CLI shows
+# what the browser did.
 # Screenshots go to SSO_SHOTS.
 #
 #   scripts/sso-e2e.sh                                  # needs scripts/dev-mongo.sh running
@@ -61,8 +65,10 @@ go build -o "$BASE/fakeoidc" ./internal/testutil/fakeoidc/cmd
 step "a stand-in sign-in provider on 127.0.0.1:$IDP (its app's secret made for this run)"
 # The secret is made here and handed over in the environment: never in a file or an argument.
 FAKEOIDC_SECRET="$(openssl rand -hex 20 2>/dev/null || python3 -I -c 'import secrets; print(secrets.token_hex(20))')"
-export FAKEOIDC_SECRET
-"$BASE/fakeoidc" -listen "127.0.0.1:$IDP" -client-id metarush-e2e -redirects "http://localhost:$PORT/auth/sso/callback" > "$BASE/fakeoidc.log" 2>&1 & FAKE=$!
+# The second app's secret (it only waits; the provider never sees it).
+SSO_SECRET_B="$(openssl rand -hex 20 2>/dev/null || python3 -I -c 'import secrets; print(secrets.token_hex(20))')"
+export FAKEOIDC_SECRET SSO_SECRET_B
+"$BASE/fakeoidc" -listen "127.0.0.1:$IDP" -client-id metarush-e2e -redirects "http://127.0.0.1:$PORT/auth/sso/callback" > "$BASE/fakeoidc.log" 2>&1 & FAKE=$!
 for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$IDP/.well-known/openid-configuration" >/dev/null && break; sleep 0.25; done
 curl -sf "http://127.0.0.1:$IDP/.well-known/openid-configuration" >/dev/null || { echo "the stand-in provider didn't start; see $BASE/fakeoidc.log" >&2; exit 1; }
 
@@ -78,7 +84,7 @@ METARUSH_DEV_ORIGINS="" "$BIN" --home "$H" serve > "$BASE/serve.log" 2>&1 & SRV=
 for _ in $(seq 1 120); do curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null && break; sleep 0.25; done
 curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null || { echo "the dashboard didn't start; see $BASE/serve.log" >&2; tail -20 "$BASE/serve.log" >&2; exit 1; }
 
-step "the browser run: set it up, test, switch, invite, join, refuse, sign in"
+step "the browser run: set it up, test, switch, another app waits, invite, join, refuse, forget, sign in, two tabs"
 METARUSH_DASHBOARD="http://127.0.0.1:$PORT" METARUSH_MINT="$BIN --home $H dashboard --print-link --no-open" \
 SSO_PROVIDER="http://127.0.0.1:$IDP" SSO_CLIENT_ID=metarush-e2e SSO_SHOTS="$SHOTS" node web/scripts/sso-e2e.mjs
 
@@ -87,5 +93,9 @@ MR auth sso status
 MR auth status
 MR users list
 # The client secret stayed on this computer's own secrets file, nowhere a person reads.
-if grep -rqs -- "$FAKEOIDC_SECRET" "$BASE/serve.log" "$H/config.yaml"; then echo "the app's secret was written where it shouldn't be" >&2; exit 1; fi
+for s in "$FAKEOIDC_SECRET" "$SSO_SECRET_B"; do
+  if grep -rqs -- "$s" "$BASE/serve.log" "$H/config.yaml"; then echo "an app's secret was written where it shouldn't be" >&2; exit 1; fi
+done
+# The forgotten app's secret went with it.
+if grep -qs -- "$SSO_SECRET_B" "$H/.env"; then echo "the forgotten app's secret stayed" >&2; exit 1; fi
 exit 0

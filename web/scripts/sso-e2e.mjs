@@ -10,13 +10,18 @@
 //      ID and secret in the one-time form, an allowed domain); the secret
 //      never comes back; the addresses to register are shown with Copy;
 //   3. the test sign-in opens in a tab of its own, goes to the provider and
-//      back, and says it worked; Settings sees it and offers the switch; the
-//      switch (a styled confirm) makes it how people sign in;
+//      back to 127.0.0.1 (never localhost), and says it worked; Settings sees
+//      it and offers the switch; the switch (a styled confirm) makes it how
+//      people sign in;
+//   3b. the owner sets up another app with its own secret: it waits for its
+//      test, and steps 4–6 sign people in with the one in use meanwhile;
 //   4. an invited person follows the invite link, joins with the provider and
 //      lands signed in as themselves; the link doesn't work twice;
 //   5. a person of the allowed domain joins by themselves, as a member;
 //   6. a stranger is turned away with the email they used, in plain words;
+//   6b. the owner forgets the waiting app (a styled confirm);
 //   7. the owner signs out and signs in again through the provider;
+//   7b. two sign-ins started in two tabs of one browser both finish;
 //   8. the pages read plainly; no native dialogs, page errors or horizontal
 //      overflow; screenshots of the sign-in page, the Settings part and the
 //      refusal, dark and light, desktop and phone.
@@ -31,7 +36,7 @@ import { THEIRS_CLOSE, THEIRS_OPEN, checkShown } from './plainwords.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..');
 const base = (process.env.METARUSH_DASHBOARD ?? '').replace(/\/$/, '');
-const need = ['METARUSH_DASHBOARD', 'METARUSH_MINT', 'SSO_PROVIDER', 'SSO_CLIENT_ID', 'FAKEOIDC_SECRET', 'SSO_SHOTS'];
+const need = ['METARUSH_DASHBOARD', 'METARUSH_MINT', 'SSO_PROVIDER', 'SSO_CLIENT_ID', 'FAKEOIDC_SECRET', 'SSO_SECRET_B', 'SSO_SHOTS'];
 for (const k of need) {
   if (!process.env[k]) {
     console.error(`set ${need.join(', ')} (scripts/sso-e2e.sh does)`);
@@ -40,10 +45,11 @@ for (const k of need) {
 }
 const provider = process.env.SSO_PROVIDER.replace(/\/$/, '');
 const secret = process.env.FAKEOIDC_SECRET;
+const secretB = process.env.SSO_SECRET_B;
 const shotsDir = process.env.SSO_SHOTS;
 mkdirSync(shotsDir, { recursive: true });
 const port = new URL(base).port;
-const localBase = `http://localhost:${port}`; // where sign-ins come back (the provider's registered address)
+const localBase = `http://127.0.0.1:${port}`; // where sign-ins on this computer come back (the provider's registered address; never localhost)
 
 // Made-up people (example domains only).
 const OWNER = 'sam@example.com';
@@ -208,7 +214,7 @@ async function main() {
   check('the setup is kept and waits for its test', /Set up, not in use/.test(partText) && /Test provider/.test(partText), partText.slice(0, 160));
   check('the app secret never comes back to the browser', !(await page.content()).includes(secret));
   const callbacks = await page.locator('[data-sso-callback]').evaluateAll((els) => els.map((e) => e.value));
-  check('the address to register is shown', callbacks.includes(`${localBase}/auth/sso/callback`), callbacks.join(', '));
+  check('the address to register is shown, at 127.0.0.1', callbacks.includes(`${localBase}/auth/sso/callback`) && !callbacks.some((c) => c.includes('localhost')), callbacks.join(', '));
   await plain(page, '[data-sso-section]', 'the organization sign-in part');
   await shot(page, 'people-sign-in-part-desktop-dark');
 
@@ -231,6 +237,28 @@ async function main() {
   const inUse = await waitFor(async () => /In use/.test(await part.innerText()), 15_000);
   check('switched: people sign in with the provider', !!inUse);
   await shot(page, 'people-sign-in-in-use-desktop-dark');
+
+  // 3b. Another app with its own secret: it waits; the one in use goes on.
+  await page.locator('[data-sso-setup-button]').click();
+  const change = page.locator('[data-sso-form]');
+  await change.waitFor({ timeout: 10_000 });
+  const keepHelp = await change.innerText();
+  check('the form offers to keep this app’s secret', /has this app’s secret/.test(keepHelp), keepHelp.slice(0, 300));
+  await change.locator('[data-sso-client-id]').fill(`${process.env.SSO_CLIENT_ID}-b`);
+  const newHelp = await change.innerText();
+  check('another app asks for its own secret', !/has this app’s secret/.test(newHelp) && /This app’s secret/.test(newHelp));
+  await change.locator('[data-sso-secret]').fill(secretB);
+  await change.locator('[data-sso-save]').click();
+  await waitFor(async () => (await page.locator('[role="dialog"]').count()) === 0, 15_000);
+  const waiting = await waitFor(async () => {
+    const t = await part.innerText();
+    return /waits for its test/.test(t) && /keep using the one they have/.test(t) ? t : undefined;
+  }, 15_000);
+  check('the new app waits; sign-ins keep the secret in use', !!waiting, (waiting ?? (await part.innerText())).slice(0, 300));
+  check('the second secret never comes back to the browser', !(await page.content()).includes(secretB));
+  check('the waiting app can be forgotten', (await page.locator('[data-sso-discard]').count()) === 1);
+  await plain(page, '[data-sso-section]', 'the part with an app waiting');
+  await shot(page, 'people-sign-in-another-app-waiting-desktop-dark');
 
   // 4. An invited person joins with the invite link.
   await page.locator('[data-invite-button]').click();
@@ -286,6 +314,15 @@ async function main() {
     await bob.ctx.close();
   }
 
+  // 6b. The owner forgets the waiting app.
+  await page.locator('[data-sso-discard]').click();
+  const forget = page.getByRole('dialog').filter({ hasText: 'Forget the new setup' });
+  await forget.waitFor({ timeout: 10_000 });
+  await plain(page, '[role="dialog"]', 'the forget dialog');
+  await forget.getByRole('button', { name: 'Forget it' }).click();
+  const forgotten = await waitFor(async () => (await page.locator('[data-sso-discard]').count()) === 0 && !/waits for its test/.test(await part.innerText()), 15_000);
+  check('the waiting app is forgotten; the one in use stays', !!forgotten && /In use/.test(await part.innerText()));
+
   // 7. The owner signs out and back in through the provider.
   const back = await newPage(browser, { theme: 'light' });
   await back.page.goto(`${base}/signin`);
@@ -295,6 +332,29 @@ async function main() {
   await signInThroughPage(back.page, OWNER);
   const os = await waitFor(() => session(back.page), 10_000);
   check('the owner signs in again through the provider', os?.user?.email === OWNER && os?.owner === true && os?.access?.provider === 'Test provider', JSON.stringify(os ?? null));
+  // 7b. Two sign-ins started in two tabs of one browser: the first tab's
+  // answer comes back first and still finishes.
+  const tabs = await newPage(browser);
+  const tab2 = await tabs.ctx.newPage();
+  watch(tab2);
+  for (const p of [tabs.page, tab2]) {
+    await p.goto(`${base}/signin`);
+    await p.locator('[data-sso-signin]').waitFor({ timeout: 15_000 });
+    await p.locator('[data-sso-signin]').click();
+    await p.waitForURL((u) => u.toString().startsWith(provider), { timeout: 20_000 });
+  }
+  await atProvider(tabs.page, INVITED);
+  await tabs.page.waitForURL((u) => !u.toString().startsWith(provider), { timeout: 20_000 });
+  await tabs.page.waitForLoadState('networkidle').catch(() => undefined);
+  const firstTab = await tabs.page.locator('body').innerText();
+  const ts = await waitFor(() => session(tabs.page), 10_000);
+  check('the first of two tabs finishes its sign-in', ts?.user?.email === INVITED && !/wasn.t started in this browser/.test(firstTab), firstTab.slice(0, 200));
+  await atProvider(tab2, INVITED);
+  await tab2.waitForURL((u) => !u.toString().startsWith(provider), { timeout: 20_000 });
+  const secondTab = await tab2.locator('body').innerText();
+  check('…and so does the second', !/wasn.t started in this browser/.test(secondTab) && !tab2.url().includes('/signin'), `${tab2.url()} ${secondTab.slice(0, 160)}`);
+  await tabs.ctx.close();
+
   const phone = await newPage(browser, { mobile: true });
   await phone.page.goto(`${base}/signin`);
   await phone.page.locator('[data-sso-signin]').waitFor({ timeout: 15_000 });

@@ -83,6 +83,7 @@
     "audit.list": {"command":"metarush audit","usage":"metarush audit","help":"Read the audit trail: who did what, from which machine and channel"},
     "auth.method.set": {"command":"metarush auth method","usage":"metarush auth method single|password|tailscale|sso","help":"Choose how people sign in, giving your own sign-in at the same step (people only, on this computer)"},
     "auth.reset": {"command":"metarush auth reset","usage":"metarush auth reset","help":"Put sign-in back to a fresh install's: just you on this computer, everyone signed out, people kept with their history (people only)"},
+    "auth.sso.discard": {"command":"metarush auth sso discard","usage":"metarush auth sso discard","help":"Forget the new sign-in setup waiting for its test, and its new secret; the sign-in in use stays as it is (owners, people only)"},
     "auth.sso.secret": {"command":"metarush auth sso secret","usage":"metarush auth sso secret","help":"Keep the sign-in app's client secret on this computer, or remove it (owners, people only)"},
     "auth.sso.set": {"command":"metarush auth sso set","usage":"metarush auth sso set","help":"Set up signing in with your organization's account: the provider, the app, who may join and the other sign-ins (owners, people only, on this computer)"},
     "auth.sso.status": {"command":"metarush auth sso status","usage":"metarush auth sso status","help":"The organization sign-in: the setup, this computer's app secret, the addresses to register and the last test sign-in"},

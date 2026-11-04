@@ -43,6 +43,9 @@ func TestSetupsAreCheckedBeforeTheyAreKept(t *testing.T) {
 		{Provider: "microsoft", ClientID: "x", Tenant: "not a tenant!"},
 		{Provider: "microsoft", ClientID: "x", Tenant: dir, Domain: "example.com"},                          // a directory joins, not a domain
 		{Provider: "microsoft", ClientID: "x", Tenant: dir, Domain: "99999999-2222-3333-4444-555555555555"}, // another directory can't sign in at all
+		{Provider: "microsoft", ClientID: "x", Tenant: "common"},                                            // personal accounts too (D452)
+		{Provider: "microsoft", ClientID: "x", Tenant: "Consumers"},                                         // personal accounts only
+		{Provider: "microsoft", ClientID: "x", Tenant: sso.MicrosoftPersonal},                               // the personal accounts' directory
 		{Provider: "oidc", ClientID: "x", Issuer: "http://login.example.com"},                               // http off this computer
 		{Provider: "oidc", ClientID: "x", Issuer: "https://login.example.com"},                              // a real provider under go test
 		{Provider: "oidc", ClientID: "x"},

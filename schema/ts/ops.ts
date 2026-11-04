@@ -594,6 +594,13 @@ input: EmptyIn
 output: AuthResetOut
 }
 /**
+ * Forget the new sign-in setup waiting for its test, and its new secret; the sign-in in use stays as it is (owners, on this computer)
+ */
+"auth.sso.discard": {
+input: EmptyIn
+output: SSOStatusOut
+}
+/**
  * Keep or remove the sign-in app's client secret on this computer (owners, on this computer)
  */
 "auth.sso.secret": {
@@ -11605,14 +11612,6 @@ summary: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "SSOSecretIn".
- */
-export interface SSOSecretIn {
-clientSecret?: string
-remove?: boolean
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "SSOStatusOut".
  */
 export interface SSOStatusOut {
@@ -11624,7 +11623,9 @@ next?: SSOSetup
  */
 inUse: boolean
 secret: SSOSecretState
+nextSecret?: SSOSecretState
 callbacks: SSOCallbacksOut
+earlier: number
 test?: SSOTestView
 canSwitch: boolean
 /**
@@ -11701,6 +11702,14 @@ name?: string
 provider?: string
 reason?: string
 message: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOSecretIn".
+ */
+export interface SSOSecretIn {
+clientSecret?: string
+remove?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

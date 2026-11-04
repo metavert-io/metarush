@@ -22,7 +22,7 @@ import (
 // provider (internal/testutil/fakeoidc): keys made at run time, never a real
 // provider (D432).
 
-const redirect = "http://localhost:5799/auth/sso/callback"
+const redirect = "http://127.0.0.1:5799/auth/sso/callback"
 
 type rig struct {
 	t  *testing.T
@@ -343,12 +343,12 @@ func TestProvidersSayWhoseEmailCounts(t *testing.T) {
 			t.Errorf("google %+v → %+v", tc.cl, id)
 		}
 	}
-	m := &Client{Kind: Microsoft, ClientID: "a"}
 	tid := "11111111-2222-3333-4444-555555555555"
+	m := &Client{Kind: Microsoft, ClientID: "a", Directory: tid}
 	if id := m.identity(&Claims{Email: "maya@example.com", TID: tid, OID: "o1", Subject: "s1"}); id.EmailTrusted || id.Domain != tid || id.Why == "" {
 		t.Errorf("microsoft without xms_edov: %+v", id)
 	}
-	if id := m.identity(&Claims{Email: "maya@example.com", TID: tid, OID: "o1", Subject: "s1", EmailDomainVerified: true}); !id.EmailTrusted {
+	if id := m.identity(&Claims{Email: "maya@example.com", TID: tid, OID: "o1", Subject: "s1", EmailDomainVerified: true}); !id.EmailTrusted || id.Guest || id.Scope != "microsoft:"+tid {
 		t.Errorf("microsoft with xms_edov: %+v", id)
 	}
 	// The same person in another app is the same key (oid), and in another directory isn't.
@@ -370,6 +370,68 @@ func TestProvidersSayWhoseEmailCounts(t *testing.T) {
 	}
 	if id := o.identity(&Claims{Email: "two@@example.com", EmailVerified: yes}); id.Email != "" || id.EmailTrusted {
 		t.Errorf("oidc odd email: %+v", id)
+	}
+}
+
+// The reviewer's case (D452): Microsoft says xms_edov for an address it took
+// from a personal account, a Google account or a one-time code, so an email
+// counts only for a member of the directory the sign-in is for.
+func TestMicrosoftVouchesOnlyForItsDirectorysOwnMembers(t *testing.T) {
+	dir := "11111111-2222-3333-4444-555555555555"
+	other := "99999999-8888-7777-6666-555555555555"
+	iss := microsoftPrefix + dir + "/v2.0"
+	m := &Client{Kind: Microsoft, ClientID: "a", Directory: dir}
+	member := func(mod func(*Claims)) *Claims {
+		cl := &Claims{Issuer: iss, Email: "maya@example.com", TID: dir, OID: "o1", Subject: "s1", EmailDomainVerified: true}
+		if mod != nil {
+			mod(cl)
+		}
+		return cl
+	}
+	for _, tc := range []struct {
+		name    string
+		c       *Client
+		cl      *Claims
+		trusted bool
+		guest   bool
+	}{
+		{"a member of the directory", m, member(nil), true, false},
+		{"a member, acct 0", m, member(func(c *Claims) { c.Acct = json.RawMessage("0") }), true, false},
+		{"a member whose idp is the issuer", m, member(func(c *Claims) { c.IDP = iss }), true, false},
+		{"a member whose idp is the directory's older address", m, member(func(c *Claims) { c.IDP = "https://sts.windows.net/" + dir + "/" }), true, false},
+		{"directory IDs in capitals", &Client{Kind: Microsoft, ClientID: "a", Directory: strings.ToUpper(dir)}, member(func(c *Claims) { c.TID = strings.ToUpper(dir) }), true, false},
+		{"a guest (acct 1)", m, member(func(c *Claims) { c.Acct = json.RawMessage("1") }), false, true},
+		{"a guest (acct \"1\")", m, member(func(c *Claims) { c.Acct = json.RawMessage(`"1"`) }), false, true},
+		{"a guest from another directory (idp)", m, member(func(c *Claims) { c.IDP = "https://sts.windows.net/" + other + "/" }), false, true},
+		{"a personal account invited as a guest (live.com)", m, member(func(c *Claims) { c.IDP = "live.com" }), false, true},
+		{"a personal account invited as a guest (its directory's address)", m, member(func(c *Claims) { c.IDP = "https://sts.windows.net/" + MicrosoftPersonal + "/" }), false, true},
+		{"a Google account invited as a guest", m, member(func(c *Claims) { c.IDP = "google.com" }), false, true},
+		{"a one-time code guest", m, member(func(c *Claims) { c.IDP = "mail" }), false, true},
+		{"a personal account", m, member(func(c *Claims) { c.TID, c.Issuer = MicrosoftPersonal, microsoftPrefix+MicrosoftPersonal+"/v2.0" }), false, true},
+		{"another directory's member (organizations)", m, member(func(c *Claims) { c.TID, c.Issuer = other, microsoftPrefix+other+"/v2.0" }), false, false},
+		{"no directory set up (organizations, nobody joins by themselves)", &Client{Kind: Microsoft, ClientID: "a"}, member(nil), false, false},
+		{"no xms_edov", m, member(func(c *Claims) { c.EmailDomainVerified = false }), false, false},
+	} {
+		id := tc.c.identity(tc.cl)
+		if id.EmailTrusted != tc.trusted || id.Guest != tc.guest || (!tc.trusted && id.Why == "") {
+			t.Errorf("%s: trusted %v guest %v (%s)", tc.name, id.EmailTrusted, id.Guest, id.Why)
+		}
+	}
+	// A directory named by its domain: its document names its ID, and that
+	// directory's members count.
+	named := &Client{Kind: Microsoft, ClientID: "a"}
+	d := &Discovery{Issuer: iss}
+	if got := named.directory(d); got != dir {
+		t.Fatalf("the directory a domain named: %q", got)
+	}
+	if id := named.identityIn(member(nil), named.directory(d)); !id.EmailTrusted {
+		t.Fatalf("a member of a directory named by its domain: %+v", id)
+	}
+	if got := named.directory(&Discovery{Issuer: microsoftPrefix + "{tenantid}/v2.0", tenantTemplate: true}); got != "" {
+		t.Fatalf("organizations named a directory: %q", got)
+	}
+	if got := (&Client{Kind: OIDC}).directory(d); got != "" {
+		t.Fatal("another provider has a Microsoft directory")
 	}
 }
 

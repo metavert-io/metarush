@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -40,93 +43,284 @@ import (
  * the provider (D434).
  */
 
-// ssoSecretName is the app's client secret among this computer's keys.
-const ssoSecretName = "sso-client"
+/*
+ * The app's client secret is each computer's, one per app (D450): an app is
+ * the provider, its address (and Microsoft's directory) and the client ID, so
+ * setting up another app never touches the secret the sign-in in use reads.
+ * Each app has the secret in use and, while a new one waits for its test, a
+ * next one; switching after a passing test makes the next one the one in use
+ * (the old one stays until then, and an earlier app's stays for switching
+ * back). The names are kept in <home>/state/sso/secrets.json (names only), so
+ * the activity log knows every secret to hide.
+ */
+
+// AppID names an app's secrets: a hash of the provider, its address, the
+// directory and the client ID (never the secret).
+func AppID(st *models.SSOSettings) string {
+	if st == nil {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(strings.Join([]string{st.Provider, st.Issuer, st.Tenant, st.ClientID}, "\x00")))
+	return hex.EncodeToString(sum[:6])
+}
+
+// secretName is the key an app's secret is kept under (next: the one waiting
+// for its test).
+func secretName(st *models.SSOSettings, next bool) string {
+	n := "sso-" + AppID(st)
+	if next {
+		n += "-next"
+	}
+	return n
+}
+
+func secretIndex(cfg *config.Config) string {
+	return filepath.Join(cfg.StateDir(), "sso", "secrets.json")
+}
+
+var secretIndexMu sync.Mutex
+
+// rememberSecretName adds (or with gone, drops) a key name from the index.
+func rememberSecretName(cfg *config.Config, name string, gone bool) {
+	secretIndexMu.Lock()
+	defer secretIndexMu.Unlock()
+	names := secretNames(cfg)
+	keep := names[:0]
+	for _, n := range names {
+		if n != name {
+			keep = append(keep, n)
+		}
+	}
+	if !gone {
+		keep = append(keep, name)
+	}
+	_ = os.MkdirAll(filepath.Dir(secretIndex(cfg)), 0o700)
+	b, _ := json.Marshal(keep)
+	tmp := secretIndex(cfg) + ".tmp"
+	if os.WriteFile(tmp, b, 0o600) == nil {
+		_ = os.Rename(tmp, secretIndex(cfg))
+	}
+}
+
+func secretNames(cfg *config.Config) []string {
+	var names []string
+	if b, err := os.ReadFile(secretIndex(cfg)); err == nil {
+		_ = json.Unmarshal(b, &names)
+	}
+	return names
+}
 
 func init() {
-	// The activity log hides the client secret wherever it would appear.
+	// The activity log hides every app's client secret wherever it would appear.
 	logbook.AddSecretSource(func(cfg *config.Config) []string {
-		if k, _, err := providers.Key(cfg, ssoSecretName); err == nil && k != "" {
-			return []string{k}
+		var out []string
+		for _, n := range secretNames(cfg) {
+			if k, _, err := providers.Key(cfg, n); err == nil && k != "" {
+				out = append(out, k)
+			}
 		}
-		return nil
+		return out
 	})
 }
 
-// SSOSecretEnv is the environment variable that gives (and overrides) this
-// computer's client secret.
-func SSOSecretEnv() string { return providers.EnvVar(ssoSecretName) }
+// SSOSecretEnv is the environment variable that gives (and overrides) an
+// app's secret in use.
+func SSOSecretEnv(st *models.SSOSettings) string { return providers.EnvVar(secretName(st, false)) }
 
-// SSOSecret is this computer's client secret for the app ("" none) and where
-// it is kept.
-func SSOSecret(cfg *config.Config) (secret, source string, err error) {
-	secret, source, err = providers.Key(cfg, ssoSecretName)
+func readSecret(cfg *config.Config, name string) (string, string, error) {
+	secret, source, err := providers.Key(cfg, name)
 	if err != nil {
 		return "", "", apperr.Wrap(apperr.NotConfigured, err, "MetaRush couldn't read the sign-in app's secret on this computer.").
 			WithHint("Check that this computer's keychain is unlocked.")
 	}
+	if source == providers.SourceEnvironment && config.FromDotEnv(providers.EnvVar(name)) {
+		// This process read it from the home's secrets file when it started,
+		// and the file no longer has it: another process removed or moved it.
+		return "", "", nil
+	}
+	if secret != "" {
+		logbook.RememberSecret(secret) // hidden wherever it would appear, wherever it came from
+	}
 	return secret, source, nil
 }
 
-// SetSSOSecret keeps this computer's client secret (never in the database,
-// config.yaml, a log or an answer).
-func SetSSOSecret(cfg *config.Config, secret string) (string, error) {
+// SSOSecret is the secret an app's sign-ins use ("" none) and where it is kept.
+func SSOSecret(cfg *config.Config, st *models.SSOSettings) (secret, source string, err error) {
+	if st == nil {
+		return "", "", nil
+	}
+	return readSecret(cfg, secretName(st, false))
+}
+
+// SSONextSecret is the secret waiting for a test of an app ("" none).
+func SSONextSecret(cfg *config.Config, st *models.SSOSettings) (secret, source string, err error) {
+	if st == nil {
+		return "", "", nil
+	}
+	return readSecret(cfg, secretName(st, true))
+}
+
+// testSecret is what a test of a setup signs in with: its next secret, else
+// the one in use.
+func testSecret(cfg *config.Config, st *models.SSOSettings) string {
+	if s, _, _ := SSONextSecret(cfg, st); s != "" {
+		return s
+	}
+	s, _, _ := SSOSecret(cfg, st)
+	return s
+}
+
+// SSOSecretKept reports that this computer has a secret for an app (in use
+// or waiting for its test): a setup of that app may leave it out.
+func SSOSecretKept(cfg *config.Config, st *models.SSOSettings) bool { return testSecret(cfg, st) != "" }
+
+// setNextSecret keeps an app's new secret, waiting for its test (never in the
+// database, config.yaml, a log or an answer; the one in use is untouched).
+func setNextSecret(cfg *config.Config, st *models.SSOSettings, secret string) error {
 	secret = strings.TrimSpace(secret)
 	if err := providers.ValidateKeyShape(secret); err != nil {
-		return "", apperr.New(apperr.InvalidInput, "That doesn't look like a client secret: it is 16 to 512 characters with no spaces, as the provider shows it.")
+		return apperr.New(apperr.InvalidInput, "That doesn't look like a client secret: it is 16 to 512 characters with no spaces, as the provider shows it.")
 	}
 	logbook.RememberSecret(secret)
-	if os.Getenv(SSOSecretEnv()) != "" {
-		return "", apperr.New(apperr.Conflict, "This computer's settings already give MetaRush the sign-in app's secret, and it would override a saved one.").
-			WithHint("Change it where it is set instead.").WithDetails(map[string]any{"envVar": SSOSecretEnv()})
+	name := secretName(st, true)
+	for _, n := range []string{name, secretName(st, false)} {
+		// A variable set outside MetaRush (not its own secrets file) would
+		// win over the one kept here, now or after the switch.
+		if _, src, _ := readSecret(cfg, n); src == providers.SourceEnvironment {
+			return apperr.New(apperr.Conflict, "This computer's settings already give MetaRush this app's secret, and it would override a saved one.").
+				WithHint("Change it where it is set instead.").WithDetails(map[string]any{"envVar": providers.EnvVar(n)})
+		}
 	}
-	src, err := providers.StoreKey(cfg, ssoSecretName, secret, false)
-	if err != nil {
-		return "", apperr.Wrap(apperr.NotConfigured, err, "MetaRush couldn't keep the sign-in app's secret on this computer.").WithHint("Check that this computer's keychain is unlocked.")
+	if _, err := providers.StoreKey(cfg, name, secret, false); err != nil {
+		return apperr.Wrap(apperr.NotConfigured, err, "MetaRush couldn't keep the sign-in app's secret on this computer.").WithHint("Check that this computer's keychain is unlocked.")
 	}
-	return src, nil
+	rememberSecretName(cfg, name, false)
+	return nil
 }
 
-// RemoveSSOSecret forgets this computer's client secret.
-func RemoveSSOSecret(cfg *config.Config) (bool, error) {
-	ok, err := providers.RemoveKey(cfg, ssoSecretName)
-	if err != nil {
-		return false, apperr.Wrap(apperr.Conflict, err, "MetaRush couldn't remove the sign-in app's secret on this computer.")
+// promoteSecret makes an app's next secret the one in use (after a passing
+// test, at the switch); the earlier one is replaced only then. The next one
+// stays until finish (the switch is kept), and undo puts the earlier one
+// back (it wasn't).
+func promoteSecret(cfg *config.Config, st *models.SSOSettings) (undo, finish func(), err error) {
+	noop := func() {}
+	next, _, err := SSONextSecret(cfg, st)
+	if err != nil || next == "" {
+		return noop, noop, err
 	}
-	return ok, nil
+	cur := secretName(st, false)
+	prev, _, _ := SSOSecret(cfg, st)
+	if _, err := providers.StoreKey(cfg, cur, next, false); err != nil {
+		return noop, noop, apperr.Wrap(apperr.NotConfigured, err, "MetaRush couldn't keep the sign-in app's secret on this computer.").WithHint("Check that this computer's keychain is unlocked.")
+	}
+	rememberSecretName(cfg, cur, false)
+	undo = func() {
+		if prev != "" {
+			_, _ = providers.StoreKey(cfg, cur, prev, false)
+		} else {
+			_ = dropSecret(cfg, cur)
+		}
+	}
+	finish = func() { _ = dropSecret(cfg, secretName(st, true)) }
+	return undo, finish, nil
 }
 
-// SSOClient is the client for a setup, with this computer's secret.
-func SSOClient(cfg *config.Config, st *models.SSOSettings) (*sso.Client, error) {
-	secret, _, err := SSOSecret(cfg)
-	if err != nil {
-		return nil, err
+// pruneSecrets forgets every app's secret on this computer but the ones of
+// keep's setups (the one in use, and the one used before it, for switching
+// back): after a switch, earlier apps' secrets don't linger.
+func pruneSecrets(cfg *config.Config, keep ...*models.SSOSettings) {
+	want := map[string]bool{}
+	for _, st := range keep {
+		if st != nil {
+			want[secretName(st, false)] = true
+		}
 	}
-	return &sso.Client{Kind: st.Provider, Issuer: st.Issuer, ClientID: st.ClientID, Secret: secret}, nil
+	for _, n := range secretNames(cfg) {
+		if !want[n] {
+			_ = dropSecret(cfg, n)
+		}
+	}
 }
 
-// SSOFingerprint names a setup as sign-ins use it on this computer: the
-// provider, its address, the app and this computer's secret (a test of one
-// says nothing about another, D430).
-func SSOFingerprint(cfg *config.Config, st *models.SSOSettings) string {
+// dropSecret forgets one of an app's secrets.
+func dropSecret(cfg *config.Config, name string) error {
+	if _, err := providers.RemoveKey(cfg, name); err != nil {
+		return apperr.Wrap(apperr.Conflict, err, "MetaRush couldn't remove the sign-in app's secret on this computer.")
+	}
+	rememberSecretName(cfg, name, true)
+	return nil
+}
+
+// SSOUse is a setup with the secret a sign-in uses with it.
+type SSOUse struct {
+	Setup  *models.SSOSettings
+	Secret string
+	// Next: the setup waiting for its test (signed in with its next secret).
+	Next bool
+}
+
+// Client is the provider's client for it.
+func (u *SSOUse) Client() *sso.Client {
+	return &sso.Client{Kind: u.Setup.Provider, Issuer: u.Setup.Issuer, ClientID: u.Setup.ClientID, Secret: u.Secret, Directory: Directory(u.Setup)}
+}
+
+// Fingerprint names it as sign-ins use it on this computer: the app and the
+// secret (a test of one says nothing about another, D430).
+func (u *SSOUse) Fingerprint() string { return fingerprint(u.Setup, u.Secret) }
+
+func fingerprint(st *models.SSOSettings, secret string) string {
 	if st == nil {
 		return ""
 	}
-	secret, _, _ := SSOSecret(cfg)
 	s := sha256.Sum256([]byte(secret))
 	sum := sha256.Sum256([]byte(strings.Join([]string{st.Provider, st.Issuer, st.Tenant, st.ClientID, hex.EncodeToString(s[:])}, "\x00")))
 	return hex.EncodeToString(sum[:16])
 }
 
-// SSOLocalOrigin is where this computer's own browser signs in: localhost,
-// which Google and Microsoft both take as an http address (Microsoft's
-// portal doesn't take 127.0.0.1 over http, D428).
+// LiveUse is the setup people sign in with, and its secret in use.
+func LiveUse(cfg *config.Config, st *models.SSOSettings) *SSOUse {
+	if st == nil {
+		return nil
+	}
+	s, _, _ := SSOSecret(cfg, st)
+	return &SSOUse{Setup: st, Secret: s}
+}
+
+// TestUse is what a test signs in with: the setup waiting (its next secret,
+// else the one in use), else the one in use or last used.
+func TestUse(cfg *config.Config, cur models.AuthSettings) *SSOUse {
+	st := TestedSetup(cur)
+	if st == nil {
+		return nil
+	}
+	return &SSOUse{Setup: st, Secret: testSecret(cfg, st), Next: cur.SSONext != nil}
+}
+
+// Directory is the Microsoft directory a setup is for: its tenant when that
+// is a directory ID, else the directory people join from ("" for any).
+func Directory(st *models.SSOSettings) string {
+	if st == nil || st.Provider != sso.Microsoft {
+		return ""
+	}
+	if sso.IsDirectoryID(st.Tenant) {
+		return strings.ToLower(st.Tenant)
+	}
+	if sso.IsDirectoryID(st.Domain) {
+		return strings.ToLower(st.Domain)
+	}
+	return ""
+}
+
+// SSOLocalOrigin is where this computer's own browser signs in: 127.0.0.1,
+// which the dashboard holds (D451; localhost may reach whatever listens on
+// [::1] first). Google and other providers take it as it is; Microsoft
+// through the app's manifest.
 func SSOLocalOrigin(cfg *config.Config) string {
-	return fmt.Sprintf("http://localhost:%d", cfg.Dashboard.Port)
+	return fmt.Sprintf("http://127.0.0.1:%d", cfg.Dashboard.Port)
 }
 
 // SSOLocalHost is the Host this computer's browser signs in at.
-func SSOLocalHost(cfg *config.Config) string { return fmt.Sprintf("localhost:%d", cfg.Dashboard.Port) }
+func SSOLocalHost(cfg *config.Config) string { return fmt.Sprintf("127.0.0.1:%d", cfg.Dashboard.Port) }
 
 // SSOCallbacks are the addresses an owner registers with the provider: this
 // computer's, and with remote access on, the address for other computers.
@@ -163,7 +357,12 @@ func CleanSSO(in models.SSOSettings) (*models.SSOSettings, error) {
 		switch {
 		case st.Tenant == "":
 			return nil, apperr.New(apperr.InvalidInput, "Give your organization's directory (tenant) ID, from the app's Overview page in Microsoft Entra.").WithDetails(map[string]any{"reason": "tenant"})
-		case sso.IsDirectoryID(st.Tenant), st.Tenant == "organizations", st.Tenant == "common", st.Tenant == "consumers", domainRe.MatchString(st.Tenant):
+		case st.Tenant == "common" || st.Tenant == "consumers" || st.Tenant == sso.MicrosoftPersonal:
+			// Personal Microsoft accounts: their email is an outside address
+			// Microsoft once checked (D452).
+			return nil, apperr.New(apperr.InvalidInput, "Personal Microsoft accounts can't sign in here: give your organization's directory (tenant) ID, or organizations for any organization's work or school accounts.").
+				WithDetails(map[string]any{"reason": "tenant"})
+		case sso.IsDirectoryID(st.Tenant), st.Tenant == "organizations", domainRe.MatchString(st.Tenant):
 		default:
 			return nil, apperr.New(apperr.InvalidInput, "That isn't a Microsoft directory: give its ID (from the app's Overview page), or organizations.").WithDetails(map[string]any{"reason": "tenant"})
 		}
@@ -205,30 +404,64 @@ func sameSignIn(a, b *models.SSOSettings) bool {
 }
 
 // SaveSSO keeps a setup. Changes to who may join or to the other sign-ins of
-// the setup in use apply at once; a new provider or app waits for its test
-// sign-in (D430). It says whether the change applied.
-func SaveSSO(ctx context.Context, a *app.App, in models.SSOSettings) (applied bool, err error) {
+// the setup in use apply at once; a new provider, app or secret waits for its
+// test sign-in (D430, D450). It says whether the change applied.
+func SaveSSO(ctx context.Context, a *app.App, in models.SSOSettings, newSecret bool) (applied bool, err error) {
 	st, err := CleanSSO(in)
 	if err != nil {
 		return false, err
 	}
 	st.SetAt, st.SetBy = time.Now().UTC(), a.Actor
 	cur := Settings(ctx, a)
-	field := "auth.ssoNext"
+	set := bson.M{}
 	if sameSignIn(cur.SSO, st) {
-		field, applied = "auth.sso", true
+		// The app in use: who may join, its name and the other sign-ins apply
+		// at once; a new secret waits for its test (D450).
+		set["auth.sso"] = st
+		applied = !newSecret
+		switch {
+		case newSecret:
+			set["auth.ssoNext"] = st
+		case sameSignIn(cur.SSONext, st):
+			// A new secret for the same app waits: it keeps the change too.
+			next := *cur.SSONext
+			next.Domain, next.Label, next.AlsoPassword, next.AlsoTailscale = st.Domain, st.Label, st.AlsoPassword, st.AlsoTailscale
+			set["auth.ssoNext"] = next
+		}
+	} else {
+		set["auth.ssoNext"] = st
 	}
-	update := bson.M{"$set": bson.M{field: st}, "$setOnInsert": bson.M{"workspaceId": a.WorkspaceID(), "name": a.Cfg.Workspace.Name, "createdAt": time.Now().UTC()}}
-	if applied {
-		update["$unset"] = bson.M{"auth.ssoNext": ""}
-	}
+	update := bson.M{"$set": set, "$setOnInsert": bson.M{"workspaceId": a.WorkspaceID(), "name": a.Cfg.Workspace.Name, "createdAt": time.Now().UTC()}}
 	if _, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID()}, update, options.UpdateOne().SetUpsert(true)); err != nil {
 		return false, err
 	}
 	forgetSettings(a)
+	if !applied && cur.SSONext != nil && !sameSignIn(cur.SSONext, st) {
+		// Another app waited before this one: its new secret goes with it.
+		_ = dropSecret(a.Cfg, secretName(cur.SSONext, true))
+	}
 	a.Audit(ctx, "auth.sso.set", "workspace", a.WorkspaceID(), "", map[string]any{"provider": st.Provider, "applied": applied, "joinDomain": st.Domain != "",
-		"alsoPassword": st.AlsoPassword, "alsoTailscale": st.AlsoTailscale})
+		"alsoPassword": st.AlsoPassword, "alsoTailscale": st.AlsoTailscale, "newSecret": newSecret})
 	return applied, nil
+}
+
+// DiscardSSO forgets the setup waiting for its test, and its new secret; the
+// sign-in in use is untouched (D450).
+func DiscardSSO(ctx context.Context, a *app.App) error {
+	cur := Settings(ctx, a)
+	if cur.SSONext == nil {
+		return apperr.New(apperr.Conflict, "No new setup is waiting.").WithDetails(map[string]any{"reason": "nothing_waiting"})
+	}
+	if _, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID()}, bson.M{"$unset": bson.M{"auth.ssoNext": ""}}); err != nil {
+		return err
+	}
+	forgetSettings(a)
+	if err := dropSecret(a.Cfg, secretName(cur.SSONext, true)); err != nil {
+		return err
+	}
+	sso.FlowsIn(a.Cfg.StateDir()).ClearTest()
+	a.Audit(ctx, "auth.sso.discard", "workspace", a.WorkspaceID(), "", map[string]any{"provider": cur.SSONext.Provider})
+	return nil
 }
 
 // TestedSetup is the setup a test sign-in tries: the one waiting, else the
@@ -240,13 +473,14 @@ func TestedSetup(st models.AuthSettings) *models.SSOSettings {
 	return st.SSO
 }
 
-// SetupFor finds the setup a sign-in began with by its fingerprint (the
-// setup may have changed while the person was at the provider).
-func SetupFor(ctx context.Context, a *app.App, fingerprint string) *models.SSOSettings {
+// SetupFor finds the setup (and the secret) a sign-in began with by its
+// fingerprint: the one in use, or the one being tested (the setup may have
+// changed while the person was at the provider: nil then).
+func SetupFor(ctx context.Context, a *app.App, fingerprint string) *SSOUse {
 	st := Settings(ctx, a)
-	for _, s := range []*models.SSOSettings{st.SSO, st.SSONext} {
-		if s != nil && SSOFingerprint(a.Cfg, s) == fingerprint {
-			return s
+	for _, u := range []*SSOUse{LiveUse(a.Cfg, st.SSO), TestUse(a.Cfg, st)} {
+		if u != nil && u.Fingerprint() == fingerprint {
+			return u
 		}
 	}
 	return nil
@@ -262,6 +496,7 @@ const (
 	SSOLinkedElsewhere = "linked_elsewhere" // the email's person signs in with another account at the provider
 	SSOInviteEmail     = "invite_email"     // an invite link followed with another email
 	SSOInviteGone      = "invite_gone"      // the invite link was used, ran out or was taken back
+	SSOGuest           = "guest"            // a Microsoft guest or personal account (D452)
 )
 
 func ssoRefusal(reason, msg, hint string, id *sso.Identity) error {
@@ -304,7 +539,7 @@ func byEmailKey(ctx context.Context, a *app.App, email string) (*models.User, er
 }
 
 func linkOf(id *sso.Identity) models.SSOLink {
-	l := models.SSOLink{Key: id.Key, Provider: id.Provider, Issuer: id.Issuer, Subject: id.Subject, LinkedAt: time.Now().UTC()}
+	l := models.SSOLink{Key: id.Key, Provider: id.Provider, Issuer: id.Issuer, Scope: id.Scope, Subject: id.Subject, LinkedAt: time.Now().UTC()}
 	if id.EmailTrusted {
 		l.Email = id.Email
 	}
@@ -312,15 +547,36 @@ func linkOf(id *sso.Identity) models.SSOLink {
 }
 
 // otherLink reports a person already signing in with another account of the
-// same provider: a different account showing the same email (another
-// directory's, a recreated one) doesn't take theirs over (D429).
+// same issuer (Google, one Microsoft directory, one provider's address): a
+// different account there showing the same email (a recreated one, a
+// look-alike) doesn't take theirs over (D429). An account of another issuer
+// doesn't stand in the way: after an owner moves to another provider, address
+// or directory, a person's next sign-in links their new account by the email
+// the new one vouches for (D453).
 func otherLink(u *models.User, id *sso.Identity) bool {
 	for _, l := range u.SSO {
-		if l.Provider == id.Provider && l.Key != id.Key {
+		if l.Key != id.Key && linkScope(l) == id.Scope {
 			return true
 		}
 	}
 	return false
+}
+
+// linkScope is the issuer a link belongs to (links made before scopes were
+// kept say it through their provider and issuer).
+func linkScope(l models.SSOLink) string {
+	if l.Scope != "" {
+		return l.Scope
+	}
+	switch l.Provider {
+	case sso.Google:
+		return "google"
+	case sso.Microsoft:
+		if i := strings.Index(l.Issuer, ".com/"); i > 0 {
+			return "microsoft:" + strings.ToLower(strings.TrimSuffix(l.Issuer[i+5:], "/v2.0"))
+		}
+	}
+	return "oidc:" + l.Issuer
 }
 
 // link adds a provider account to a person (once; the unique index refuses
@@ -407,6 +663,10 @@ func PersonForSSO(ctx context.Context, a *app.App, st *models.SSOSettings, id *s
 			return u, joined, err
 		}
 	}
+	if id.Guest {
+		return nil, false, ssoRefusal(SSOGuest, "Guests and personal Microsoft accounts can't sign in with this sign-in.",
+			"Sign in with an account of the organization itself, or ask an owner to let you sign in with a password.", id)
+	}
 	if st.Domain == "" || id.Domain == "" || !strings.EqualFold(st.Domain, id.Domain) {
 		return nil, false, notMember(a, st, id)
 	}
@@ -449,6 +709,12 @@ func joinByInvite(ctx context.Context, a *app.App, id *sso.Identity, invite *Lin
 	v, err := GetUser(ctx, a, invite.UserID)
 	if err != nil || invite.Kind != LinkInvite {
 		return nil, false, ssoRefusal(SSOInviteGone, "This invite doesn't work any more.", "Ask an owner of this MetaRush for a new one.", id)
+	}
+	if id.Guest {
+		// Microsoft took a guest's or a personal account's email on someone's
+		// word: not even an invite stands on it (D452).
+		return nil, false, ssoRefusal(SSOGuest, "Guests and personal Microsoft accounts can't join with this sign-in, even with an invite.",
+			"Sign in with an account of the organization itself, or ask an owner to let you sign in with a password.", id)
 	}
 	if id.Email == "" || id.EmailRefuted || EmailKey(id.Email) != EmailKey(v.Email) {
 		return nil, false, ssoRefusal(SSOInviteEmail, fmt.Sprintf("This invite is for %s, so sign in with that account.", v.Email),
@@ -518,13 +784,14 @@ func errNoTest(msg string) error {
 // them so they keep getting in.
 func SetUpSSO(ctx context.Context, a *app.App, ownerID string, test *sso.TestResult) (*models.User, *models.SSOSettings, error) {
 	cur := Settings(ctx, a)
-	setup := TestedSetup(cur)
-	if setup == nil {
+	use := TestUse(a.Cfg, cur)
+	if use == nil {
 		return nil, nil, apperr.New(apperr.Conflict, "Set up the sign-in with your organization's account first.").
 			WithDetails(map[string]any{"reason": "no_setup"}).WithCommand("metarush auth sso set")
 	}
+	setup := use.Setup
 	switch {
-	case test == nil || test.Setup != SSOFingerprint(a.Cfg, setup):
+	case test == nil || test.Setup != use.Fingerprint():
 		return nil, nil, errNoTest("This setup hasn't had a test sign-in on this computer yet.")
 	case !test.OK:
 		return nil, nil, errNoTest("The last test sign-in didn't work, so MetaRush won't switch to it.")
@@ -555,12 +822,27 @@ func SetUpSSO(ctx context.Context, a *app.App, ownerID string, test *sso.TestRes
 			set["email"], set["emailKey"] = test.Identity.Email, EmailKey(test.Identity.Email)
 		}
 	}
-	// One account per provider: an earlier link of the owner's to the same
-	// provider gives way to the tested one.
-	if _, err := a.DB.C(store.CUsers).UpdateOne(ctx, bson.M{"_id": ownerID}, bson.M{"$pull": bson.M{"sso": bson.M{"provider": test.Identity.Provider, "key": bson.M{"$ne": test.Identity.Key}}}}); err != nil {
-		return nil, nil, err
+	// One account per issuer: an earlier link of the owner's to the same
+	// issuer gives way to the tested one.
+	keep := []models.SSOLink{}
+	for _, l := range owner.SSO {
+		if l.Key == test.Identity.Key || linkScope(l) != test.Identity.Scope {
+			keep = append(keep, l)
+		}
+	}
+	if len(keep) != len(owner.SSO) {
+		if _, err := a.DB.C(store.CUsers).UpdateOne(ctx, bson.M{"_id": ownerID}, bson.M{"$set": bson.M{"sso": keep}}); err != nil {
+			return nil, nil, err
+		}
 	}
 	if err := link(ctx, a, ownerID, test.Identity, set); err != nil {
+		return nil, nil, err
+	}
+	// The tested secret becomes the one in use only now (the earlier one
+	// served every sign-in until this moment, and comes back if the switch
+	// isn't kept, D450).
+	undo, finish, err := promoteSecret(a.Cfg, setup)
+	if err != nil {
 		return nil, nil, err
 	}
 	live := *setup
@@ -569,9 +851,14 @@ func SetUpSSO(ctx context.Context, a *app.App, ownerID string, test *sso.TestRes
 		"$set":         bson.M{"auth.method": models.AuthSSO, "auth.setAt": now, "auth.setBy": a.Actor, "auth.sso": live},
 		"$unset":       bson.M{"auth.ssoNext": ""},
 		"$setOnInsert": bson.M{"workspaceId": a.WorkspaceID(), "name": a.Cfg.Workspace.Name, "createdAt": now}}, options.UpdateOne().SetUpsert(true)); err != nil {
+		undo()
 		return nil, nil, err
 	}
+	finish()
 	forgetSettings(a)
+	// This app's secret and the one used before it stay (switching back needs
+	// no secret the provider showed only once); older ones go.
+	pruneSecrets(a.Cfg, &live, cur.SSO)
 	forget(ownerID)
 	a.Audit(ctx, "auth.method", "workspace", a.WorkspaceID(), "", map[string]any{"method": models.AuthSSO, "provider": live.Provider})
 	u, err := GetUser(ctx, a, ownerID)

@@ -46,9 +46,13 @@ type Claims struct {
 	Preferred     string      `json:"preferred_username"`
 	// Google: the account's Google Workspace domain (absent for personal accounts).
 	HD string `json:"hd"`
-	// Microsoft: the directory (tenant) and the person's ID in it.
-	TID string `json:"tid"`
-	OID string `json:"oid"`
+	// Microsoft: the directory (tenant) and the person's ID in it; acct 1
+	// marks a guest (an optional claim), and idp another identity provider
+	// than the directory's (a guest, a personal account).
+	TID  string          `json:"tid"`
+	OID  string          `json:"oid"`
+	Acct json.RawMessage `json:"acct"`
+	IDP  string          `json:"idp"`
 	// Microsoft: the email's domain is one its directory has verified it owns
 	// (an optional claim the app asks for).
 	EmailDomainVerified flexBool `json:"xms_edov"`
@@ -126,6 +130,13 @@ type Identity struct {
 	// Domain is what an allowed domain is checked against: Google's hd,
 	// Microsoft's tid, or the verified email's domain.
 	Domain string `json:"domain,omitempty"`
+	// Scope is the issuer an account belongs to — google, microsoft:<tid>,
+	// oidc:<issuer> —: two accounts of one scope with one email are two
+	// people's (D453).
+	Scope string `json:"scope,omitempty"`
+	// Guest: Microsoft says the person is a guest in the directory, or signs
+	// in with a personal Microsoft account; they join only with an invite.
+	Guest bool `json:"guest,omitempty"`
 	// Why says, when the email doesn't count, why not.
 	Why string `json:"why,omitempty"`
 }
@@ -173,7 +184,24 @@ func (c *Client) Verify(ctx context.Context, d *Discovery, raw, nonce string) (*
 		// Microsoft's shared key sets say which issuer each key signs for.
 		return nil, badToken("bad_issuer", "a key published for another issuer")
 	}
-	return c.identity(&cl), nil
+	return c.identityIn(&cl, c.directory(d)), nil
+}
+
+// directory is the Microsoft directory whose own people's emails can count:
+// the setup's, or the one a directory named by its domain answered for.
+func (c *Client) directory(d *Discovery) string {
+	if c.Kind != Microsoft {
+		return ""
+	}
+	if c.Directory != "" {
+		return strings.ToLower(c.Directory)
+	}
+	if d != nil && !d.tenantTemplate {
+		if t := strings.TrimSuffix(strings.TrimPrefix(d.Issuer, microsoftPrefix), "/v2.0"); t != d.Issuer && isGUID(t) {
+			return strings.ToLower(t)
+		}
+	}
+	return ""
 }
 
 // checkClaims is OpenID Connect Core 3.1.3.7 for an already signed token.
@@ -242,7 +270,10 @@ func (c *Client) issuerOK(d *Discovery, cl *Claims) bool {
 }
 
 // identity says who the token is, and whether its email counts (D429).
-func (c *Client) identity(cl *Claims) *Identity {
+func (c *Client) identity(cl *Claims) *Identity { return c.identityIn(cl, c.Directory) }
+
+// identityIn is identity for a Microsoft sign-in to the directory dir (D452).
+func (c *Client) identityIn(cl *Claims, dir string) *Identity {
 	id := &Identity{Provider: c.Kind, Issuer: cl.Issuer, Subject: cl.Subject, Name: strings.TrimSpace(cl.Name)}
 	email := strings.TrimSpace(cl.Email)
 	if !plausibleEmail(email) {
@@ -251,7 +282,7 @@ func (c *Client) identity(cl *Claims) *Identity {
 	id.Email = email
 	switch c.Kind {
 	case Google:
-		id.Key = keyOf("google", cl.Subject)
+		id.Key, id.Scope = keyOf("google", cl.Subject), "google"
 		id.Domain = strings.ToLower(strings.TrimSpace(cl.HD))
 		id.EmailRefuted = email != "" && !said(cl.EmailVerified)
 		// Google answers for an address only when it is a Gmail address or the
@@ -271,20 +302,33 @@ func (c *Client) identity(cl *Claims) *Identity {
 		if cl.OID != "" {
 			subject = cl.OID // the same person whichever app they sign in to
 		}
-		id.Key = keyOf("microsoft", strings.ToLower(cl.TID), subject)
-		id.Domain = strings.ToLower(cl.TID)
-		// Microsoft's email claim is checked by nobody unless its domain's
-		// owner is verified (the optional claim xms_edov): only then is it
-		// the person's (its docs: never authorize by email alone).
-		id.EmailTrusted = email != "" && bool(cl.EmailDomainVerified)
+		tid := strings.ToLower(cl.TID)
+		dir = strings.ToLower(dir)
+		id.Key = keyOf("microsoft", tid, subject)
+		id.Domain, id.Scope = tid, "microsoft:"+tid
+		// A personal account, a guest (acct 1) or someone another identity
+		// provider signed in (idp names another issuer than the directory's
+		// own): their email is an address Microsoft took on someone's word or
+		// only once checked (D452).
+		otherIDP := cl.IDP != "" && cl.IDP != cl.Issuer && !strings.Contains(strings.ToLower(cl.IDP), tid)
+		id.Guest = tid == MicrosoftPersonal || strings.Trim(string(cl.Acct), `" `) == "1" || otherIDP
+		// Microsoft's email claim counts only when its domain's owner is
+		// verified (the optional claim xms_edov), the person belongs to the
+		// directory the setup is for, and isn't a guest there (its docs:
+		// never authorize by email alone).
+		id.EmailTrusted = email != "" && bool(cl.EmailDomainVerified) && dir != "" && tid == dir && !id.Guest
 		switch {
 		case email == "":
 			id.Why = "Microsoft didn't give the account's email (the app's optional claims)"
+		case id.Guest:
+			id.Why = "the account is a guest or a personal Microsoft account, whose email Microsoft only once checked"
+		case dir == "" || tid != dir:
+			id.Why = "the account belongs to another directory than the one this sign-in is for"
 		case !id.EmailTrusted:
 			id.Why = "Microsoft doesn't say the email's domain is verified (the optional claim xms_edov)"
 		}
 	default:
-		id.Key = keyOf("oidc", cl.Issuer, cl.Subject)
+		id.Key, id.Scope = keyOf("oidc", cl.Issuer, cl.Subject), "oidc:"+cl.Issuer
 		id.EmailRefuted = email != "" && denied(cl.EmailVerified)
 		id.EmailTrusted = email != "" && said(cl.EmailVerified)
 		if id.EmailTrusted {

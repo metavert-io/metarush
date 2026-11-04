@@ -56,6 +56,8 @@ export function ssoProblem(reason: string | null, email: string | null, provider
       return `This invite is for another email than the one you signed in with${as}. Choose the right account at ${provider}, or ask the owner to invite the email you use.`;
     case 'invite_gone':
       return "This invite doesn't work any more. Ask an owner of this MetaRush for a new one.";
+    case 'guest':
+      return `You signed in with ${provider}${as} as a guest or a personal account, which can't sign in here. Sign in with an account of the organization itself, or ask an owner to let you sign in with a password.`;
     case 'cancelled':
       return `You didn't finish signing in at ${provider}, so nothing changed.`;
     case 'setup_changed':

@@ -245,9 +245,12 @@ type Avatar struct {
 // and person ID, or another provider's issuer and subject — unique in the
 // workspace, migration 66) and what it said when it was linked.
 type SSOLink struct {
-	Key      string    `bson:"key" json:"-"`
-	Provider string    `bson:"provider"`
-	Issuer   string    `bson:"issuer"`
+	Key      string `bson:"key" json:"-"`
+	Provider string `bson:"provider"`
+	Issuer   string `bson:"issuer"`
+	// Scope is the issuer the account belongs to: google, microsoft:<tid>,
+	// oidc:<issuer> (D453).
+	Scope    string    `bson:"scope,omitempty"`
 	Subject  string    `bson:"subject"`
 	Email    string    `bson:"email,omitempty"`
 	LinkedAt time.Time `bson:"linkedAt"`

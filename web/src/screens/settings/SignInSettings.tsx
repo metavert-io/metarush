@@ -14,13 +14,16 @@ import { useToast } from '../../ui/Toast';
 
 /*
  * Settings → People → Sign-in with your organization's account (D425–D434,
- * docs/accounts.md): which provider and app people sign in with, who may join
- * by themselves, whether passwords and Tailscale accounts still work, this
- * computer's app secret (sent once, never shown again), the addresses to
- * register with the provider, the last test sign-in, and the switch, which
- * only follows a test sign-in that passed here. Everyone signed in reads it;
- * owners change it, at this computer only. Every step is an op the CLI has
- * too (`metarush auth sso status|set|secret|test`, `metarush auth method sso`).
+ * D450–D454, docs/accounts.md): which provider and app people sign in with,
+ * who may join by themselves, whether passwords and Tailscale accounts still
+ * work, this computer's app secret (sent once, never shown again; each app
+ * has its own, and a new one waits for its test while sign-ins keep the one
+ * in use), the addresses to register with the provider (this computer's at
+ * 127.0.0.1), the last test sign-in, the switch, which only follows a test
+ * sign-in that passed here, and forgetting a new setup that waits. Everyone
+ * signed in reads it; owners change it, at this computer only. Every step is
+ * an op the CLI has too (`metarush auth sso status|set|secret|test|discard`,
+ * `metarush auth method sso`).
  */
 
 type Provider = 'google' | 'microsoft' | 'oidc';
@@ -34,9 +37,17 @@ const PROVIDERS: { value: Provider; label: string }[] = [
 /** Where each provider keeps the addresses to register. */
 const WHERE_TO_REGISTER: Record<Provider, string> = {
   google: 'In Google Cloud: APIs & Services → Credentials → your OAuth client (a web application) → Authorized redirect URIs.',
-  microsoft: 'In Microsoft Entra: App registrations → your app → Authentication → Web → Redirect URIs.',
+  microsoft: 'In Microsoft Entra: App registrations → your app → Manifest for this computer’s address (see below), and Authentication → Web → Redirect URIs for the address for other computers.',
   oidc: "In your provider's console: the app's allowed redirect (callback) addresses.",
 };
+
+/** The same app: provider, address, directory and client ID (each app has its own secret on this computer). */
+function sameApp(s: SSOSetup | undefined, provider: Provider, issuer: string, tenant: string, clientId: string): boolean {
+  if (!s || s.provider !== provider || s.clientId !== clientId.trim()) return false;
+  if (provider === 'oidc') return s.issuer === issuer.trim();
+  if (provider === 'microsoft') return (s.tenant ?? '') === tenant.trim().toLowerCase();
+  return true;
+}
 
 function errorWords(e: unknown): string {
   const err = toApiError(e);
@@ -150,6 +161,31 @@ function SignInBody({ st }: { st: SSOStatusOut }) {
     }
   };
 
+  const discard = async () => {
+    if (!st.next) return;
+    const ok = await dialog.confirm({
+      title: 'Forget the new setup?',
+      body: [
+        `MetaRush forgets the setup with ${st.next.title} that waits for its test, and the new client secret this computer kept for it.`,
+        st.inUse && st.live ? `People keep signing in with ${st.live.title} as they do now.` : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      confirmLabel: 'Forget it',
+    });
+    if (!ok) return;
+    setBusy('discard');
+    try {
+      const out = await call('auth.sso.discard', {});
+      toast({ tone: 'success', title: 'The new setup is forgotten', body: out.summary });
+      refresh();
+    } catch (err) {
+      toast({ tone: 'error', title: "Couldn't forget the new setup", body: errorWords(err) });
+    } finally {
+      setBusy('');
+    }
+  };
+
   const switchTo = async () => {
     if (!setup) return;
     const ok = await dialog.confirm({
@@ -194,7 +230,7 @@ function SignInBody({ st }: { st: SSOStatusOut }) {
           <Row label="Passwords">{setup.alsoPassword ? 'Still work beside it' : 'Off while it is in use'}</Row>
           <Row label="Tailscale accounts">{setup.alsoTailscale ? 'Still sign people in beside it' : 'Off while it is in use'}</Row>
           <Row label="This computer’s app secret">
-            {st.secret.set ? <span className="tc">{st.secret.masked}</span> : <span className="text-accent-text">Not on this computer yet</span>}
+            <SecretWords st={st} />
           </Row>
           <Row label="Last test sign-in here">
             {t ? (
@@ -231,16 +267,9 @@ function SignInBody({ st }: { st: SSOStatusOut }) {
             ? 'The first is for this computer’s own browser, the second for other computers (remote access).'
             : 'For this computer’s own browser. With remote access on, the address for other computers shows here too.'}
         </p>
-        {provider === 'microsoft' ? (
-          <Details label="For Microsoft: finding invited people by their email" className="mt-2">
-            <p className="text-[12.5px] leading-relaxed text-muted">
-              Microsoft vouches for a person&rsquo;s email only when its domain belongs to their directory. In the app&rsquo;s Token configuration, add the optional
-              claims <span className="tc">email</span> and <span className="tc">xms_edov</span> to the ID token: then invited people are found by their email
-              when they first sign in. Without them, people join through the invite link you send, or by being in the directory you let join.
-            </p>
-          </Details>
-        ) : null}
       </div>
+
+      {provider === 'microsoft' ? <MicrosoftNotes local={st.callbacks.local} /> : null}
 
       {/* One owners line per page (Remote access below has it): here, the short form, as "How people sign in" says it. */}
       <OwnerOnly>
@@ -257,6 +286,11 @@ function SignInBody({ st }: { st: SSOStatusOut }) {
           {setup && (st.canSwitch || (!st.inUse && st.next === undefined && st.live)) ? (
             <Button size="sm" variant="primary" disabled={!canChange || !st.canSwitch} loading={busy === 'switch'} onClick={() => void switchTo()} data-sso-switch>
               Switch to {setup.title}
+            </Button>
+          ) : null}
+          {st.next ? (
+            <Button size="sm" variant="ghost" disabled={!canChange} loading={busy === 'discard'} onClick={() => void discard()} data-sso-discard>
+              Forget the new setup…
             </Button>
           ) : null}
         </div>
@@ -279,6 +313,63 @@ function SignInBody({ st }: { st: SSOStatusOut }) {
           On {host.machine}, <span className="tc">metarush dashboard</span> always opens MetaRush as the owner with a one-time link, whatever the sign-in method and
           whether the provider answers. <span className="tc">metarush auth reset</span> there goes back to just you on that computer; everyone&rsquo;s work and
           accounts stay.
+        </p>
+      </Details>
+    </div>
+  );
+}
+
+/** This computer's app secret for the setup shown: the one waiting for its test, and the one sign-ins use until the switch. */
+function SecretWords({ st }: { st: SSOStatusOut }) {
+  if (st.next) {
+    const n = st.nextSecret;
+    return (
+      <span className="inline-flex flex-wrap items-center gap-x-1.5" data-sso-secret-state={n?.set ? 'set' : 'missing'}>
+        {n?.set ? <span className="tc">{n.masked}</span> : <span className="text-accent-text">Not on this computer yet</span>}
+        {st.inUse && st.live ? (
+          <span className="block w-full text-[12.5px] text-muted">
+            Until you switch, sign-ins with {st.live.title} keep using the one they have{st.secret.set ? <> (<span className="tc">{st.secret.masked}</span>)</> : null}.
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+  return st.secret.set ? (
+    <span className="tc" data-sso-secret-state="set">
+      {st.secret.masked}
+    </span>
+  ) : (
+    <span className="text-accent-text" data-sso-secret-state="missing">
+      Not on this computer yet
+    </span>
+  );
+}
+
+/** Microsoft: this computer's address goes in through the app's manifest, and which emails count. */
+function MicrosoftNotes({ local }: { local: string }) {
+  return (
+    <div className="space-y-2">
+      <Details label="For Microsoft: registering this computer’s address">
+        <div className="space-y-2 text-[12.5px] leading-relaxed text-muted">
+          <p>
+            This computer&rsquo;s browser comes back to an address at 127.0.0.1, which only MetaRush answers on. Microsoft&rsquo;s Redirect URIs box doesn&rsquo;t take
+            an http address there, so add it in the app&rsquo;s manifest: App registrations → your app → Manifest, then in <span className="tc">web</span> add it to{' '}
+            <span className="tc">redirectUris</span> and save. (In the older manifest format it is <span className="tc">replyUrlsWithType</span>, with the type{' '}
+            <span className="tc">Web</span>.) The address for other computers goes in the Redirect URIs box as usual.
+          </p>
+          <pre className="tc overflow-x-auto whitespace-pre rounded-[10px] bg-panel p-2 text-[12px] text-fg hairline" data-sso-manifest>{`"web": {
+  "redirectUris": [
+    "${local}"
+  ]
+}`}</pre>
+        </div>
+      </Details>
+      <Details label="For Microsoft: whose email counts">
+        <p className="text-[12.5px] leading-relaxed text-muted">
+          MetaRush finds an invited person or a member by their email only when Microsoft vouches for it: the email&rsquo;s domain is verified by the person&rsquo;s own
+          directory, the person belongs to the directory this sign-in is for, and isn&rsquo;t a guest there. In the app&rsquo;s Token configuration, add the optional
+          claims <span className="tc">email</span>, <span className="tc">xms_edov</span> and <span className="tc">acct</span> to the ID token. Guests and personal
+          Microsoft accounts can&rsquo;t sign in with Microsoft here, even with an invite: invite them with a password instead.
         </p>
       </Details>
     </div>
@@ -311,13 +402,15 @@ function SetupForm({ st, close, onSaved }: { st: SSOStatusOut; close: (v?: boole
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const directoryID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenant.trim());
-  const needSecret = provider !== 'oidc' && !st.secret.set;
-  const ready = clientId.trim() !== '' && (provider !== 'oidc' || issuer.trim() !== '') && (provider !== 'microsoft' || tenant.trim() !== '') && (!needSecret || secret.trim() !== '');
+  // Each app has its own secret on this computer: one this computer has
+  // already is kept when the field stays empty; a new app needs its own.
+  const kept = sameApp(st.next, provider, issuer, tenant, clientId) ? st.nextSecret : sameApp(st.live, provider, issuer, tenant, clientId) ? st.secret : undefined;
+  const ready = clientId.trim() !== '' && (provider !== 'oidc' || issuer.trim() !== '') && (provider !== 'microsoft' || tenant.trim() !== '');
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!ready) {
-      setError(needSecret && !secret.trim() ? 'Give the app’s client secret: this computer doesn’t have it yet.' : 'Fill in what the provider gave you.');
+      setError('Fill in what the provider gave you.');
       return;
     }
     const input: SSOSetIn = {
@@ -394,7 +487,11 @@ function SetupForm({ st, close, onSaved }: { st: SSOStatusOut; close: (v?: boole
         autoComplete="new-password"
         value={secret}
         onChange={setSecret}
-        help={st.secret.set ? `This computer has one (${st.secret.masked}). Leave this empty to keep it.` : 'Kept on this computer only, never shown again. Each computer that runs MetaRush needs its own copy.'}
+        help={
+          kept?.set
+            ? `This computer has this app’s secret (${kept.masked}). Leave this empty to keep it; a new one waits for a test sign-in before anyone signs in with it.`
+            : 'This app’s secret, kept on this computer only and never shown again. Each computer that runs MetaRush needs its own copy.'
+        }
         data-sso-secret
       />
       {provider === 'microsoft' ? (
@@ -424,7 +521,8 @@ function SetupForm({ st, close, onSaved }: { st: SSOStatusOut; close: (v?: boole
         </Check>
       </div>
       <p className={cx('text-[12px] leading-relaxed', 'text-subtle')}>
-        A new provider or app waits for a test sign-in on this computer before anyone uses it. Changes to who may join and to the other sign-ins apply at once.
+        A new provider, app or client secret waits for a test sign-in on this computer before anyone uses it; until you switch, people keep signing in as they
+        do now. Changes to who may join and to the other sign-ins apply at once.
       </p>
       {error ? (
         <p role="alert" className="rounded-[10px] bg-danger-soft px-3 py-2 text-[12.5px] leading-relaxed text-danger" data-form-error>

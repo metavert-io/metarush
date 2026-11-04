@@ -46,7 +46,8 @@ fixed ports), a sweep again, and with `COVERAGE=1` the merged coverage report. E
 in a folder it prints (`.agent-home/check/<time>-<mode>/`), and a table at the end says what passed, what failed and
 how long each took; the exit status is 1 when anything failed. `--stop` stops at the first failure;
 `ONLY_E2E="about storage"` and `SKIP_E2E="remote"` choose browser runs; `GO_TEST_P` sets how many packages test at
-once (default 2: three other builds may share the machine and the test mongod).
+once (default 2: three other builds may share the machine and the test mongod) and `GO_TEST_TIMEOUT` how long one
+package may take (default 90m).
 
 ### Browser runs on Linux and on a Mac
 
@@ -92,7 +93,7 @@ and leaves `browser.yml`'s matrix.
 scripts/dev-mongo.sh start                       # the test MongoDB: 127.0.0.1:27018, replica set rs0
 scripts/check.sh --quick                         # before a commit
 scripts/check.sh --full                          # before a merge or a release (an hour or more)
-go test -p 2 -timeout 45m ./internal/ops/        # one package (always -timeout 45m: ops and assistant need it under load)
+go test -p 2 -timeout 90m ./internal/ops/        # one package (always -timeout 90m: ops and assistant need it under load)
 scripts/coverage.sh --test                       # the Go suite with coverage, the per-package table and the ratchet
 scripts/about-e2e.sh                             # one browser run (each script's head says its ports and options)
 COVERAGE=1 scripts/about-e2e.sh                  # … as a coverage build (Go and the dashboard's pages)

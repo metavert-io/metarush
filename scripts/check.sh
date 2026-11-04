@@ -14,9 +14,10 @@
 #                                scripts/release.sh --snapshot
 #
 # Options: --keep-going (default) runs every step even after a failure; --stop stops at the first.
-# Environment: GO_TEST_P (default 2) for the Go tests; COVERAGE=1 also measures the browser runs and
-# acceptance (coverage builds, D195); ONLY_E2E="about storage" runs only those browser runs (--full);
-# SKIP_E2E="remote sound" leaves those out. Needs scripts/dev-mongo.sh (started when not running).
+# Environment: GO_TEST_P (default 2) and GO_TEST_TIMEOUT (default 90m, per package) for the Go tests;
+# COVERAGE=1 also measures the browser runs and acceptance (coverage builds, D195); ONLY_E2E="about
+# storage" runs only those browser runs (--full); SKIP_E2E="remote sound" leaves those out. Needs
+# scripts/dev-mongo.sh (started when not running).
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
 export PATH="${METARUSH_TOOLCHAIN_PATH:+$METARUSH_TOOLCHAIN_PATH:}$PATH:/opt/homebrew/bin:/usr/local/bin"   # Go and Node: PATH, else Homebrew
@@ -27,11 +28,11 @@ for a in "$@"; do
     --quick | --full | --release) MODE="${a#--}" ;;
     --stop) STOP=1 ;;
     --keep-going) STOP="" ;;
-    -h | --help) sed -n '2,19p' "$0"; exit 0 ;;
+    -h | --help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "unknown option $a (see --help)" >&2; exit 2 ;;
   esac
 done
-[ -n "$MODE" ] || { sed -n '2,19p' "$0"; exit 2; }
+[ -n "$MODE" ] || { sed -n '2,20p' "$0"; exit 2; }
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 LOGS="${METARUSH_CHECK_LOGS:-$ROOT/.agent-home/check}/$STAMP-$MODE"
@@ -138,9 +139,10 @@ go_changed() {
     return 0
   fi
   echo "changed packages:"; printf '  %s\n' $pkgs
-  # 45 minutes: under load internal/ops has come close to 30 (Oct 2026).
+  # 90 minutes: on a machine shared with other builds internal/ops alone has taken about 40, and 45 cut
+  # it off (Nov 2026).
   # shellcheck disable=SC2086
-  nice -n 10 go test -p "${GO_TEST_P:-2}" -timeout 45m $pkgs
+  nice -n 10 go test -p "${GO_TEST_P:-2}" -timeout "${GO_TEST_TIMEOUT:-90m}" $pkgs
 }
 
 build_binary() {

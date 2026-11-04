@@ -36,7 +36,8 @@ bold() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 ok() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
 die() { printf '  \033[31m✗\033[0m %s\n' "$*" >&2; exit 1; }
-usage() { sed -n '2,24p' "$0"; exit 2; }
+help_text() { awk 'NR > 1 && /^#/ { print; next } NR > 1 { exit }' "$0"; } # the comment block above
+usage() { help_text; exit 2; }
 
 [ "$(uname -s)" = Darwin ] || die "MetaRush.app is built on a Mac"
 WORK=""
@@ -320,7 +321,7 @@ sign-update) shift; cmd_sign_update "$@" ;;
 appcast) shift; cmd_appcast "$@" ;;
 test) shift; cmd_test "$@" ;;
 tools) sparkle_tools ;;
--h | --help) sed -n '2,24p' "$0"; exit 0 ;;
+-h | --help) help_text; exit 0 ;;
 *) usage ;;
 esac
 exit 0

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle, Globe, Key, Play, Prohibit, PuzzlePiece, ShieldCheck, WarningCircle, Wrench, XCircle } from '@phosphor-icons/react';
+import { ArrowLeft, Books, CheckCircle, Globe, Key, Play, Prohibit, PuzzlePiece, ShieldCheck, WarningCircle, Wrench, XCircle } from '@phosphor-icons/react';
 import { call } from '../api/client';
 import { useOp, useOpMutation } from '../api/queries';
 import type { AbilityFileLook, AbilityInput, HereLocal, AbilityPlanOut, AbilityRow, AbilityRunOut, AbilityShowOut, AbilityVersion, CatalogueShowOut, MenuItem } from '../api/types';
 import { CostEstimate } from '../components/CostEstimate';
 import { ExportAbilityButton, ImportAbilityButton, ImportedSection } from '../components/abilities/Files';
+import { BrowseCatalogues, browseLink } from '../components/abilities/Catalogues';
 import { OwnerOnly, OwnersNote, useOwnership } from '../components/OwnerOnly';
 import { bytes, plural, relative } from '../lib/format';
 import { money } from '../lib/costs';
@@ -51,9 +52,11 @@ function StateBadge({ state, label }: { state: string; label: string }) {
   );
 }
 
-/** Library → Abilities: the menu, one built-in ability (?builtin=), one added ability (?ability=), one run (&run=). */
+/** Library → Abilities: the menu, one built-in ability (?builtin=), one added ability (?ability=), one run (&run=), the community catalogues (?browse=, D484). */
 export function AbilitiesPage() {
   const [params] = useSearchParams();
+  const browse = params.get('browse');
+  if (browse) return <BrowseCatalogues catalogue={browse === '1' ? undefined : browse} listing={params.get('listing') ?? undefined} />;
   const builtin = params.get('builtin');
   if (builtin) return <BuiltInPage id={builtin} />;
   const name = params.get('ability');
@@ -109,6 +112,14 @@ function AbilityList() {
             {k === 'waiting' && list.data?.waiting ? <span className="tc text-[11px] text-subtle">{list.data.waiting}</span> : null}
           </button>
         ))}
+        <Link
+          to={browseLink()}
+          className="ml-auto inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] px-2.5 text-[12.5px] text-fg transition-colors hairline hover:bg-hover"
+          data-browse-catalogues-link
+          title="What the community catalogues this workspace trusts list"
+        >
+          <Books size={13} aria-hidden /> Browse catalogues
+        </Link>
         <ImportAbilityButton />
       </div>
       {menu.data ? (
@@ -597,7 +608,11 @@ function Decide({ d }: { d: AbilityShowOut }) {
     return <p className="text-[12.5px] text-muted">Its check didn't pass, so nobody can approve this version.</p>;
   }
   if (v.state === 'imported') {
-    return <p className="text-[12.5px] text-muted">It came from another workspace: it is checked on this computer first, then an owner here can approve it.</p>;
+    return (
+      <p className="text-[12.5px] text-muted">
+        It was brought in {v.imported?.catalogue ? 'from a catalogue' : 'from another workspace'}: it is checked on this computer first, then an owner here can approve it.
+      </p>
+    );
   }
   return (
     <OwnerOnly note>

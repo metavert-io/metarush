@@ -38,6 +38,7 @@ import { RemoteAccessSettings } from './settings/RemoteAccess';
 import { UsersSettings } from './settings/Users';
 import { AboutMetaRush } from './settings/About';
 import { IntegrationsPage } from './settings/Integrations';
+import { AbilityCataloguesSettings } from '../components/abilities/Catalogues';
 import { ComponentsSection } from '../components/Components';
 import { isSettingsSection, movedPart, settingsRedirect, settingsSection, SETTINGS_SECTIONS, StorageDot, useStorageBadge, type SettingsSectionId } from './settings/sections';
 import { OwnerOnly } from '../components/OwnerOnly';
@@ -50,7 +51,7 @@ import { useToast } from '../ui/Toast';
 /*
  * Settings (D184): one page per section at /settings/<section> — General,
  * People, Preferences (each person's own, D208), Claude Code, Footage, Browser
- * extension, Storage, Components (D324), Integrations, Log and Command line (the brand and
+ * extension, Storage, Components (D324), Integrations, Abilities (D481), Log and Command line (the brand and
  * spelling lists are in each project's Settings tab, D193) — with a side menu (a dropdown on a
  * phone). /settings opens General; older addresses with an #anchor open the
  * section the anchor lives in now. Everyone sees this computer's settings;
@@ -305,6 +306,9 @@ function SectionBody({ id }: { id: SettingsSectionId }) {
           <LooksPage />
         </div>
       );
+    case 'abilities':
+      // Everyone sees the trusted catalogues; owners add and remove them (D481).
+      return <AbilityCataloguesSettings />;
     case 'log':
       return (
         <div className="space-y-10">

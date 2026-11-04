@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useOp } from '../../api/queries';
 import { cx } from '../../ui/primitives';
-import { ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Package, PlugsConnected, PuzzlePiece, SlidersHorizontal, TerminalWindow, UsersThree, Robot } from '@phosphor-icons/react';
+import { Books, ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Package, PlugsConnected, PuzzlePiece, SlidersHorizontal, TerminalWindow, UsersThree, Robot } from '@phosphor-icons/react';
 
 /*
  * Settings in sections (D184): each section is a page of its own at
@@ -12,10 +12,11 @@ import { ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Package, PlugsCo
  * Settings tab: /settings/brand and /settings/content open the default's.
  * Preferences (D208) are each person's own: estimates of what outside AI
  * services cost, Ask first or Auto, light or dark (which moved there from
- * General: /settings/general#appearance redirects).
+ * General: /settings/general#appearance redirects). Abilities holds the
+ * community catalogues an owner trusts (D481).
  */
 
-export type SettingsSectionId = 'general' | 'people' | 'preferences' | 'claude' | 'footage' | 'extension' | 'storage' | 'components' | 'integrations' | 'log' | 'cli';
+export type SettingsSectionId = 'general' | 'people' | 'preferences' | 'claude' | 'footage' | 'extension' | 'storage' | 'components' | 'integrations' | 'abilities' | 'log' | 'cli';
 
 export interface SettingsSection {
   id: SettingsSectionId;
@@ -90,6 +91,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     line: 'AI voices, generated video, looks',
     intro: 'Outside services MetaRush can use for your videos, and the looks of people and characters in generated video.',
     icon: (s) => <PlugsConnected size={s} />,
+  },
+  {
+    id: 'abilities',
+    label: 'Abilities',
+    line: 'Community catalogues of abilities',
+    intro: 'The community catalogues of abilities this workspace trusts: owners add and remove them, and anyone browses what they list under Library → Abilities. What a catalogue says is its own word: each ability brought in from one is checked here and approved by an owner before anyone runs it.',
+    icon: (s) => <Books size={s} />,
   },
   {
     id: 'log',

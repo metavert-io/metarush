@@ -251,6 +251,16 @@ export type AbilityRunRow = ops.AbilityRunRow;
 export type AbilityRunsOut = ops.AbilityRunsOut;
 export type AbilityRequest = ops.AbilityRequest;
 export type AbilityImportOut = ops.AbilityImportOut;
+/* Community catalogues of abilities (D481–D486): the trusted ones, what they list, where a version came from. */
+export type CatalogueRow = ops.CatalogueRow;
+export type SuggestedCatalogue = ops.SuggestedCatalogue;
+export type AbilityCataloguesOut = ops.AbilityCataloguesOut;
+export type AbilityCatalogueAddOut = ops.AbilityCatalogueAddOut;
+export type AbilityBrowseOut = ops.AbilityBrowseOut;
+export type ListedAbility = ops.ListedAbility;
+export type ListedHere = ops.ListedHere;
+export type CatalogueEntry = ops.CatalogueEntry;
+export type AbilityFromCatalogue = ops.AbilityFromCatalogue;
 /* What may leave (D288–D291): a client's rules, and what of a project left. */
 export type LeaveOut = ops.LeaveOut;
 export type LeavePlaceOut = ops.LeavePlaceOut;

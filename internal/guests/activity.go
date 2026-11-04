@@ -97,10 +97,13 @@ func countHit(guestID string) bool {
 
 // Record writes one guest request (never failing the request).
 func Record(ctx context.Context, a *app.App, h Hit) {
-	if h.Media != "" && quietFor("media:"+h.Session+":"+h.Media) {
+	// Keyed by workspace too: what one workspace's guests ask never quiets
+	// another's records (a process serves one, tests many).
+	ws := a.WorkspaceID()
+	if h.Media != "" && quietFor("media:"+ws+":"+h.Session+":"+h.Media) {
 		return
 	}
-	if h.Guest == nil && quietFor("anon:"+h.From+":"+h.What+":"+h.Reason) {
+	if h.Guest == nil && quietFor("anon:"+ws+":"+h.From+":"+h.What+":"+h.Reason) {
 		return
 	}
 	ctx = context.WithoutCancel(ctx)

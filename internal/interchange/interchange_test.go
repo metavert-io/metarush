@@ -638,3 +638,46 @@ func TestTimeFormats(t *testing.T) {
 		t.Fatal(Timecode(3725*30+7, 30))
 	}
 }
+
+// A clip whose people have their background replaced (D510) goes out as
+// recorded — no editor plays MetaRush's cut-out — with a marker over it
+// saying what goes behind them and one note for the whole timeline.
+func TestReplacedBackgroundsAreMarked(t *testing.T) {
+	plan := editspec.Resolve(fixtureSpec(), fixtureFacts(), "rev_test", "prj_test", "hash")
+	plain, _ := fixtureTimeline(t)
+	plan.Clips[0].Background = &editspec.PlanBackground{With: editspec.BackgroundColour, Colour: "#00b140", CutOut: "x"}
+	plan.Clips[1].Background = &editspec.PlanBackground{With: editspec.BackgroundFootage, Footage: &editspec.PlanBackgroundFootage{AssetID: astC}, CutOut: "y"}
+	plan.Clips[3].Background = &editspec.PlanBackground{With: editspec.BackgroundBlur, Blur: 28, CutOut: "z"}
+	media := fixtureMedia()
+	tl, err := Build(plan, BuildOptions{Name: "Shop story (version 3)", Names: map[string]string{"answer": "Sam's answer", astC: "Workshop"},
+		Media: func(id string) *Media { return media[id] }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[int]string{plan.Clips[0].From: "Behind the people: the colour #00B140", plan.Clips[1].From: "Behind the people: “Workshop”",
+		plan.Clips[3].From: "Behind the people: a blur of the clip"}
+	for _, m := range tl.Markers {
+		if strings.HasPrefix(m.Name, "Behind the people") {
+			if want[m.Start] != m.Name {
+				t.Errorf("marker at %d: %q, want %q", m.Start, m.Name, want[m.Start])
+			}
+			delete(want, m.Start)
+		}
+	}
+	if len(want) > 0 {
+		t.Errorf("markers missing: %v", want)
+	}
+	notes := 0
+	for _, n := range tl.Notes {
+		if strings.Contains(n, "Backgrounds replaced behind people") {
+			notes++
+		}
+	}
+	if notes != 1 {
+		t.Errorf("one note for the timeline: %q", tl.Notes)
+	}
+	if len(tl.Video) != len(plain.Video) || len(tl.Video[0].Items) != len(plain.Video[0].Items) || len(tl.Media) != len(plain.Media) {
+		t.Errorf("the clips go out as recorded: %d tracks, %d items, %d files", len(tl.Video), len(tl.Video[0].Items), len(tl.Media))
+	}
+	writeNamed(t, tl, "backgrounds")
+}

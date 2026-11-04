@@ -553,3 +553,24 @@ func TestARecipeFileLeavesReferencesOut(t *testing.T) {
 		t.Fatalf("brought in: %+v, references there: %d", in, refs)
 	}
 }
+
+// A clip's background replaced behind its people (D510) never comes along in
+// a recipe file: its cut-out is made from the footage, so it is made again
+// here. The clip comes in as itself, without it, and a note says so.
+func TestAnImportedClipComesWithoutItsBackground(t *testing.T) {
+	const here = "ast_01hhhhhhhhhhhhhhhhhhhhhhhh"
+	d := doc()
+	d.Sections[0].Clips[0].Background = &editspec.ClipBackground{With: editspec.BackgroundColour, Colour: "#00b140", Matte: strings.Repeat("c", 64)}
+	m := &importMaps{assets: map[string]string{astA: here}}
+	notes := rewriteDoc(d, &RecipeFile{}, m, "prj_01hhhhhhhhhhhhhhhhhhhhhhhh")
+	if c := d.Sections[0].Clips[0]; c.AssetID != here || c.Background != nil {
+		t.Fatalf("the clip came in without its background: %+v", c)
+	}
+	said := false
+	for _, n := range notes {
+		said = said || strings.Contains(n, "The background behind the people in the clip “intro” of the section “intro” didn't come along")
+	}
+	if !said {
+		t.Fatalf("a note says so: %q", notes)
+	}
+}

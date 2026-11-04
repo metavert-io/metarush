@@ -897,11 +897,17 @@ func rewriteDoc(d *models.RecipeDoc, f *RecipeFile, m *importMaps, home string) 
 			}
 		}
 	}
-	// Clips, sounds and narration: the ones that came in.
+	// Clips, sounds and narration: the ones that came in. A clip's background
+	// replaced behind its people never comes along: its cut-out is made from
+	// the footage here, again (D509).
 	for si := range d.Sections {
 		s := &d.Sections[si]
 		var keep []editspec.Clip
 		for _, c := range s.Clips {
+			if c.Background != nil {
+				c.Background = nil
+				notes = append(notes, fmt.Sprintf("The background behind the people in the clip “%s” of the section “%s” didn't come along: replace it again once the clip is here.", c.ID, s.Name))
+			}
 			if id, ok := m.assets[c.AssetID]; ok {
 				c.AssetID = id
 				keep = append(keep, c)

@@ -132,20 +132,48 @@ func usesInCuts(ctx context.Context, a *app.App, filter bson.M, match func(s *ed
 
 // clipsText says how a cut uses something, in plain words (the cut's own
 // clip and graphic names stay in UseRow.ClipIDs): ", twice", ", in 3 graphics",
-// ", in the narration", ", as the brand font"; "" for a single use.
+// ", in the narration", ", behind the people in a clip", ", as a cutaway",
+// ", in a conversation", ", in the sound", ", as the brand font"; "" for a
+// single use.
 func clipsText(ids []string, what string) string {
 	var parts []string
-	n := 0
+	n, behind, cutaways, conversations := 0, 0, 0, 0
 	for _, id := range ids {
 		switch {
 		case what == "clip" && id == "narration":
 			parts = append(parts, "in the narration")
+		case what == "clip" && id == "sound":
+			parts = append(parts, "in the sound")
+		case what == "clip" && strings.HasPrefix(id, "behind:"):
+			behind++
+		case what == "clip" && strings.HasPrefix(id, "cutaway:"):
+			cutaways++
+		case what == "clip" && strings.HasPrefix(id, "conversation:"):
+			conversations++
 		case what == "graphic" && id == "brand font":
 			parts = append(parts, "as the brand font")
 		case what == "graphic" && id == "pinned":
 		default:
 			n++
 		}
+	}
+	switch {
+	case behind == 1:
+		parts = append(parts, "behind the people in a clip")
+	case behind > 1:
+		parts = append(parts, fmt.Sprintf("behind the people in %d clips", behind))
+	}
+	switch {
+	case cutaways == 1:
+		parts = append(parts, "as a cutaway")
+	case cutaways > 1:
+		parts = append(parts, fmt.Sprintf("as %d cutaways", cutaways))
+	}
+	switch {
+	case conversations == 1:
+		parts = append(parts, "in a conversation")
+	case conversations > 1:
+		parts = append(parts, fmt.Sprintf("in %d conversations", conversations))
 	}
 	switch {
 	case n > 1 && what == "clip":
@@ -189,7 +217,7 @@ func olderText(ns []int) string {
 
 // assetUses lists where footage is: its projects, its collections, the
 // Archive or the Trash, projects that see it through links, and every cut
-// version that plays it (clips, sounds, narration takes).
+// version that plays it (wherever editspec.AssetIDs reads: playsFootage).
 func assetUses(ctx context.Context, a *app.App, as *models.Asset) ([]UseRow, error) {
 	var out []UseRow
 	var ps []models.Project
@@ -243,29 +271,78 @@ func assetUses(ctx context.Context, a *app.App, as *models.Asset) ([]UseRow, err
 				Link: fmt.Sprintf("/p/%s?tab=sources&asset=%s", p.ID, as.ID)})
 		}
 	}
-	filter := bson.M{"$or": bson.A{bson.M{"spec.clips.assetId": as.ID}, bson.M{"spec.audio.assetId": as.ID}, bson.M{"spec.voiceover.beats.take.assetId": as.ID},
-		bson.M{"spec.voiceover.beats.take.processed.assetId": as.ID}, bson.M{"spec.voiceover.continuous.assetId": as.ID}, bson.M{"spec.voiceover.continuous.processed.assetId": as.ID}}}
-	cuts, err := usesInCuts(ctx, a, filter, func(s *editspec.Spec) []string {
-		var ids []string
-		for _, c := range s.Clips {
-			if c.AssetID == as.ID {
-				ids = append(ids, c.ID)
-			}
-		}
-		for _, t := range s.Audio {
-			if t.AssetID == as.ID {
-				ids = append(ids, t.ID)
-			}
-		}
-		if len(ids) == 0 && slices.Contains(editspec.AssetIDs(s), as.ID) {
-			ids = append(ids, "narration")
-		}
-		return ids
-	}, "clip")
+	cuts, err := usesInCuts(ctx, a, bson.M{"$or": playsFootage(as.ID)}, func(s *editspec.Spec) []string { return footageUses(s, as.ID) }, "clip")
 	if err != nil {
 		return nil, err
 	}
 	return append(out, cuts...), nil
+}
+
+// footageUses says where a version plays a clip: the IDs of its clips and
+// sounds that play it, and for the rest a word clipsText says — "behind:"
+// and "cutaway:" with the clip's ID, "conversation:" with its name,
+// "narration", and "sound" for a copy the mix plays (a clearer voice, changed
+// words).
+func footageUses(s *editspec.Spec, id string) []string {
+	var ids []string
+	for _, c := range s.Clips {
+		if c.AssetID == id {
+			ids = append(ids, c.ID)
+		}
+		for _, sh := range c.Shots {
+			if sh.BRoll != nil && sh.BRoll.AssetID == id {
+				ids = append(ids, "cutaway:"+c.ID)
+			}
+		}
+		if b := c.Background; b != nil && b.With == editspec.BackgroundFootage && b.Footage != nil && b.Footage.AssetID == id {
+			ids = append(ids, "behind:"+c.ID)
+		}
+	}
+	for _, t := range s.Audio {
+		if t.AssetID == id {
+			ids = append(ids, t.ID)
+		}
+	}
+	names := make([]string, 0, len(s.Conversations))
+	for name := range s.Conversations {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		for _, m := range s.Conversations[name].Members {
+			if m.AssetID == id {
+				ids = append(ids, "conversation:"+name)
+				break
+			}
+		}
+	}
+	if v := s.Voiceover; v != nil {
+		said := false
+		for _, b := range v.Beats {
+			if t := b.Take; t != nil && (t.AssetID == id || (t.Processed != nil && t.Processed.AssetID == id)) {
+				said = true
+			}
+		}
+		if c := v.Continuous; c != nil && (c.AssetID == id || (c.Processed != nil && c.Processed.AssetID == id)) {
+			said = true
+		}
+		if said {
+			ids = append(ids, "narration")
+		}
+	}
+	if m := s.Mix; m != nil {
+		copied := false
+		for _, e := range m.Enhanced {
+			copied = copied || e.Variant == id
+		}
+		for _, c := range m.Said {
+			copied = copied || c.Sound == id || c.Picture == id
+		}
+		if copied {
+			ids = append(ids, "sound")
+		}
+	}
+	return ids
 }
 
 // resourceUses lists where a resource is used: cut versions that pin it, and

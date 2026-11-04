@@ -203,3 +203,45 @@ func TestRebindKeepsWhatPeopleDid(t *testing.T) {
 		t.Fatalf("stand-ins between the fixed sections: %v / %+v", ids, findOverlay(as.Spec, "title").Span)
 	}
 }
+
+// A clip's background replaced behind its people (D510) stays while a run's
+// clip plays the footage it was made for, with the fixed copy of the clip
+// shown behind them still pinned; when a run binds other footage to the clip
+// the background goes, with a note: its cut-out is the old footage's.
+func TestABackgroundStaysWithItsFootage(t *testing.T) {
+	const behind = "ast_01dddddddddddddddddddddddd"
+	d := doc()
+	d.Inputs = append(d.Inputs, models.RecipeInput{Name: "opening", Kind: models.RecipeFootage, Default: models.RecipeValue{Items: []string{astA}}})
+	d.Bindings = append(d.Bindings, models.RecipeBinding{Input: "opening", To: "clip:intro"})
+	d.Sections[0].Clips[0].Background = &editspec.ClipBackground{With: editspec.BackgroundFootage, Footage: &editspec.BackgroundClip{AssetID: behind, In: 1},
+		Matte: strings.Repeat("c", 64)}
+	d.Cut.Fixed = map[string]editspec.FixedPin{behind: {SHA256: strings.Repeat("d", 64)}}
+	run := func(opening string, changed bool) *assembly {
+		vals := values(map[string]bool{"opening": changed}, nil, nil)
+		vals["opening"] = &models.RecipeRunInput{Name: "opening", Kind: models.RecipeFootage, Changed: changed, Items: []models.RecipeRunItem{{ID: opening, Duration: 12}}}
+		return build(assemblyIn{Doc: d, Values: vals, Changed: map[string]bool{"opening": changed}, Run: "run"})
+	}
+	same := run(astA, false)
+	if b := same.Spec.Clips[0].Background; b == nil || b.Footage.AssetID != behind || b.Matte != strings.Repeat("c", 64) {
+		t.Fatalf("the same footage keeps its background: %+v", b)
+	}
+	if same.Spec.Fixed[behind].SHA256 != strings.Repeat("d", 64) {
+		t.Fatalf("the fixed copy of the clip behind the people stays pinned: %+v", same.Spec.Fixed)
+	}
+	if len(same.Notes) != 0 {
+		t.Fatalf("nothing to say: %q", same.Notes)
+	}
+	other := run(astB, true)
+	if c := other.Spec.Clips[0]; c.AssetID != astB || c.Background != nil {
+		t.Fatalf("other footage plays without the old footage's cut-out: %+v", c)
+	}
+	if len(other.Notes) != 1 || !strings.Contains(other.Notes[0], "“intro” plays other footage now") {
+		t.Fatalf("a note says so: %q", other.Notes)
+	}
+	if _, ok := other.Spec.Fixed[behind]; ok {
+		t.Fatalf("nothing plays the clip behind the people any more: %+v", other.Spec.Fixed)
+	}
+	if d.Sections[0].Clips[0].Background == nil {
+		t.Fatal("the recipe itself keeps it")
+	}
+}

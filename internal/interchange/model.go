@@ -203,7 +203,9 @@ type BuildOptions struct {
 	Media func(assetID string) *Media
 	// Spec is the cut the plan was resolved from (names of clips and sounds).
 	Spec *editspec.Spec
-	// Names are readable names of clips and sounds by their spec IDs ("Sam's answer").
+	// Names are readable names of clips and sounds by their spec IDs ("Sam's
+	// answer"), and of footage the timeline names without carrying it (a clip
+	// shown behind people) by its asset ID.
 	Names map[string]string
 }
 
@@ -235,6 +237,7 @@ func Build(plan *editspec.RenderPlan, o BuildOptions) (*Timeline, error) {
 	// Picture.
 	pic := &Track{Name: "Picture", Kind: KindVideo, Role: RolePicture}
 	missing := map[string]bool{}
+	behindNoted := false
 	for i, pc := range plan.Clips {
 		if pc.Conversation != nil {
 			// A conversation (D99): one picture item per shot from the recording
@@ -275,6 +278,15 @@ func Build(plan *editspec.RenderPlan, o BuildOptions) (*Timeline, error) {
 		pic.Cuts = append(pic.Cuts, cut)
 		if pc.FadeOutFrames > 0 {
 			it.FadeOut = pc.FadeOutFrames
+		}
+		if b := pc.Background; b != nil {
+			// A background replaced behind the people (D510) is MetaRush's
+			// own: the clip as recorded, with a marker saying what goes behind.
+			tl.Markers = append(tl.Markers, Marker{Start: pc.From, Duration: max(1, pc.DurationInFrames), Kind: "graphic", Name: "Behind the people: " + behindWords(b, o)})
+			if !behindNoted {
+				tl.Notes = append(tl.Notes, "Backgrounds replaced behind people are MetaRush's own: the timeline shows those clips as recorded, with a marker saying what goes behind the people.")
+				behindNoted = true
+			}
 		}
 	}
 	// A dip's first half is the outgoing clip's fade-out (Timeline sets it):
@@ -388,6 +400,30 @@ func Build(plan *editspec.RenderPlan, o BuildOptions) (*Timeline, error) {
 		return nil, fmt.Errorf("the cut has no footage to export")
 	}
 	return tl, nil
+}
+
+// behindWords says what a clip shows behind its people: a colour, a blur of
+// the clip, a picture, or another clip (by its name when the export knows it).
+func behindWords(b *editspec.PlanBackground, o BuildOptions) string {
+	switch b.With {
+	case editspec.BackgroundColour:
+		return "the colour " + strings.ToUpper(b.Colour)
+	case editspec.BackgroundBlur:
+		return "a blur of the clip"
+	case editspec.BackgroundPicture:
+		return "a picture"
+	case editspec.BackgroundFootage:
+		if b.Footage != nil {
+			if n := o.Names[b.Footage.AssetID]; n != "" {
+				return "“" + n + "”"
+			}
+			if m := o.Media(b.Footage.AssetID); m != nil {
+				return "“" + mediaTitle(m) + "”"
+			}
+		}
+		return "another clip"
+	}
+	return "something else"
 }
 
 // conversationPicture lays a conversation clip's shots on the picture track:

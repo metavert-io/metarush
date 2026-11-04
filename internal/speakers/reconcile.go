@@ -3,6 +3,7 @@ package speakers
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -367,6 +368,15 @@ func Summary(assetName string, voices []models.AssetSpeaker) string {
 // MetaRush gave them automatically and suggestions go (the transcript and what
 // the video does stop naming someone's people), and their fingerprints aren't
 // kept, so they never match or teach anyone's voice. Names a person gave stay.
+//
+// What the clip taught before it was marked is taken back too (D455): every
+// person whose voice profile holds a fingerprint from it is rebuilt from the
+// voices a person confirmed in their own footage only (someone confirmed only
+// here has no voice profile left), and every automatic label and suggestion in
+// the library is scored again, so names and "Is this …?" questions that came
+// from this clip's voices go where they no longer hold. Answers a person gave
+// in their own clips are never touched. The check is by the profiles' own
+// sources, so a run that stopped half-way is finished by the next one.
 func forgetVoices(ctx context.Context, a *app.App, as *models.Asset) error {
 	ws := a.WorkspaceID()
 	var autos []models.AssetSpeaker
@@ -380,6 +390,18 @@ func forgetVoices(ctx context.Context, a *app.App, as *models.Asset) error {
 		}
 		people[v.PersonID] = true
 	}
+	// The people this clip taught: a profile with a fingerprint from it.
+	var taught []models.Person
+	if err := a.DB.Find(ctx, store.CPeople, ws, bson.M{"exemplars.source": bson.M{"$regex": "^" + regexp.QuoteMeta(as.ID+"/")}}, &taught,
+		options.Find().SetProjection(bson.M{"_id": 1})); err != nil {
+		return err
+	}
+	// The people a person named here: where they appear is counted again.
+	var namedHere []models.AssetSpeaker
+	if err := a.DB.Find(ctx, store.CSpeakers, ws, bson.M{"assetId": as.ID, "source": models.SpeakerByPerson, "personId": bson.M{"$nin": bson.A{nil, ""}}}, &namedHere,
+		options.Find().SetProjection(bson.M{"personId": 1})); err != nil {
+		return err
+	}
 	now := time.Now().UTC()
 	named, err := a.DB.C(store.CSpeakers).UpdateMany(ctx, bson.M{"workspaceId": ws, "assetId": as.ID, "source": models.SpeakerByAuto},
 		bson.M{"$set": bson.M{"name": "", "personId": "", "source": "", "score": 0.0, "updatedAt": now}})
@@ -392,19 +414,30 @@ func forgetVoices(ctx context.Context, a *app.App, as *models.Asset) error {
 	if err != nil {
 		return err
 	}
-	if named.ModifiedCount+prints.ModifiedCount == 0 {
+	if named.ModifiedCount+prints.ModifiedCount == 0 && len(taught) == 0 {
 		return nil
 	}
 	if err := SyncNames(ctx, a, as.ID); err != nil {
 		return err
 	}
 	_ = refreshStatus(ctx, a, as.ID)
+	for _, v := range namedHere {
+		people[v.PersonID] = true
+	}
 	for id := range people {
 		if id != "" {
 			_ = refreshTotals(ctx, a, id)
 		}
 	}
-	return nil
+	if len(taught) == 0 {
+		return nil
+	}
+	ch := newChanges()
+	for _, p := range taught {
+		ch.Person(p.ID)
+	}
+	_, err = ch.Apply(ctx, a) // rebuilt without this clip, then the library scored again
+	return err
 }
 
 // referenceIDs are the workspace's references (D398): their voices never

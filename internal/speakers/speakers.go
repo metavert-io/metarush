@@ -298,6 +298,14 @@ func StoreWith(ctx context.Context, a *app.App, as *models.Asset, d *Detection, 
 	if err := a.DB.Update(ctx, store.CAssets, ws, as.ID, bson.M{"$set": bson.M{"speakers": st, "transcript.speakers": len(d.Result.Clusters), "updatedAt": now}}); err != nil {
 		return nil, err
 	}
+	// A question a person dismissed stays dismissed for the voice heard again (D458).
+	for _, sp := range docs {
+		if k := carried[sp.Label]; k.dismissed != nil && sp.Name == "" {
+			if err := keepDismissed(ctx, a, sp, k.dismissed); err != nil {
+				return nil, err
+			}
+		}
+	}
 	// Lines a person fixed keep their speaker, even if detection heard them differently now.
 	if err := reapplyConfirmed(ctx, a, as, d.Previous, carried, ch); err != nil {
 		return nil, err

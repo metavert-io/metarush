@@ -321,8 +321,10 @@ func candidatesWith(ctx context.Context, a *app.App, assetID string, rec *recogn
 	// A reference is someone else's video, kept to learn from (D398, D443):
 	// nobody in it is asked about or recognized, and its faces keep no
 	// fingerprints (they never match or teach anyone's face).
+	taught := false
 	if as.IsReference() {
-		if err := forgetFaces(ctx, a, assetID); err != nil {
+		var err error
+		if taught, err = forgetFaces(ctx, a, assetID); err != nil {
 			return 0, nil, err
 		}
 	}
@@ -330,8 +332,19 @@ func candidatesWith(ctx context.Context, a *app.App, assetID string, rec *recogn
 		if _, err := closeOldQuestions(ctx, a, assetID, nil); err != nil {
 			return 0, nil, err
 		}
-		_, err := todos.CloseStale(ctx, a, GroupKeyPrefix(assetID), nil)
-		return 0, nil, err
+		if _, err := todos.CloseStale(ctx, a, GroupKeyPrefix(assetID), nil); err != nil {
+			return 0, nil, err
+		}
+		if taught {
+			// What its faces taught is taken back (D455): every face in the
+			// library is scored again without them, so names given by looks
+			// and "Is this …?" that came from them go where they no longer
+			// hold. Faces a person named in their own clips stay as they are.
+			if _, err := Refresh(ctx, a, ""); err != nil {
+				return 0, nil, err
+			}
+		}
+		return 0, nil, nil
 	}
 	tracks, err := Load(ctx, a, assetID)
 	if err != nil {
@@ -1106,11 +1119,33 @@ func aboutDuration(s float64) string {
 // forgetFaces takes a reference's faces out of recognition (D443): their
 // fingerprints, the names MetaRush gave them by their looks and who they might
 // be go. Names a person gave stay; with no fingerprint they teach nothing.
-func forgetFaces(ctx context.Context, a *app.App, assetID string) error {
-	_, err := a.DB.C(store.CFaces).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "assetId": assetID, "$or": bson.A{
-		bson.M{"prints": bson.M{"$exists": true}}, bson.M{"recognized": bson.M{"$exists": true}}, bson.M{"candidate": bson.M{"$exists": true}}}},
-		bson.M{"$unset": bson.M{"prints": "", "printModel": "", "recognized": "", "candidate": ""}})
-	return err
+// taught says a face a person named here had a fingerprint, so the clip had
+// taught what someone looks like (the caller scores the library again).
+func forgetFaces(ctx context.Context, a *app.App, assetID string) (taught bool, err error) {
+	n, err := a.DB.C(store.CFaces).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "assetId": assetID, "personId": bson.M{"$nin": bson.A{nil, ""}},
+		"confirmedBy": bson.M{"$ne": nil}, "printModel": bson.M{"$exists": true}})
+	if err != nil {
+		return false, err
+	}
+	if _, err := a.DB.C(store.CFaces).UpdateMany(ctx, bson.M{"workspaceId": a.WorkspaceID(), "assetId": assetID, "$or": bson.A{
+		bson.M{"prints": bson.M{"$exists": true}}, bson.M{"printModel": bson.M{"$exists": true}}, bson.M{"recognized": bson.M{"$exists": true}},
+		bson.M{"candidate": bson.M{"$exists": true}}}},
+		bson.M{"$unset": bson.M{"prints": "", "printModel": "", "recognized": "", "candidate": ""}}); err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// referenceIDs are the workspace's references (D398): their faces never
+// teach or are recognized.
+func referenceIDs(ctx context.Context, a *app.App) []string {
+	var as []models.Asset
+	_ = a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), bson.M{"reference": bson.M{"$exists": true}}, &as, options.Find().SetProjection(bson.M{"_id": 1}))
+	out := []string{}
+	for _, x := range as {
+		out = append(out, x.ID)
+	}
+	return out
 }
 
 // notInReference refuses naming the faces in a reference — someone else's

@@ -64,7 +64,10 @@ does the same later. If your terminal still can't find it, add `~/.local/bin` to
 - **Set Up MetaRush…**, **Check for Updates…**, **Start MetaRush** / **Stop MetaRush**, **Show Logs** (the background
   log in Console), **About MetaRush** (with the third-party notice), **Quit**.
 
-The app looks again every minute and when you open the menu; the checkup runs every half hour.
+The app looks again every minute and when you open the menu; the checkup runs every half hour while MetaRush runs
+(it would start the database on this computer, which Stop MetaRush leaves stopped). It uses MetaRush's
+own home (`METARUSH_HOME`, else `~/.metarush`); a Mac can point it at another one with `defaults write <the app's
+bundle identifier> MetaRushHome <folder>`.
 
 ## Updates
 

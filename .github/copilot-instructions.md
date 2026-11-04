@@ -69,6 +69,14 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
 - Everything a person reads is plain words for a video maker: no IDs, codes, flags or JSON outside Details,
   `--details` or `--json` (`internal/plainwords` enforces it). The word "recipe" belongs to the Recipes feature only.
 
+## MetaRush.app (desktop/mac)
+- The Mac app adds no behaviour of its own: it runs the `metarush` it carries with `--json` and shows the answers.
+  Decisions live in `MetaRushCore` (tested headlessly); the app target stays thin; the app never asks for or keeps a
+  password or key. Text it shows goes in `Words.swift` (checked by `TestAppSpeaksPlainly`).
+- Its updates are EdDSA-signed (Sparkle): no private key and no real public key in the repository; the test key is
+  made at run time. A change to an answer the app reads regenerates its fixtures (`TestMacAppFixtures`). Tests never
+  run the built app or its program against a real home, service or `~/.local/bin`.
+
 ## Repository hygiene
 No real people, organisations, hostnames, tokens or deployment identifiers in code, tests, fixtures or docs; tests use
 invented examples (example.com). `scripts/publish-check.sh` must find nothing. Design-log labels ("D123") appear only

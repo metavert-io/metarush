@@ -46,6 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let placement = Placement.of(bundle)
         if placement.mustMove {
+            status.headline = Words.moveTitle
+            rebuild()
             showMove(placement)
             return
         }
@@ -91,10 +93,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } catch {
             service = .failure(plainError(error))
         }
-        // doctor looks at much (the database, the tools, Claude Code): every half hour, or when asked.
-        if case .success = service, doctorToo || doctorAt == nil || Date().timeIntervalSince(doctorAt!) > 1800 {
-            doctor = try? await metarush.call(["doctor"], as: DoctorReport.self)
-            doctorAt = Date()
+        // doctor looks at much (the database, the tools, Claude Code): every half hour, or when asked,
+        // and only while MetaRush runs — doctor starts the database on this computer, which a person
+        // who stopped MetaRush wants left stopped.
+        if case .success(let st) = service, st.daemon != nil {
+            if doctorToo || doctorAt == nil || Date().timeIntervalSince(doctorAt!) > 1800 {
+                doctor = try? await metarush.call(["doctor"], as: DoctorReport.self)
+                doctorAt = Date()
+            }
+        } else {
+            (doctor, doctorAt) = (nil, nil)
         }
         status = MenuStatus.build(app: appVersion, service: service, doctor: doctor)
         statusAt = Date()
@@ -269,7 +277,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func showFinishing() {
         unfinished = shortVersion
-        if let model = finishModel, finishWindow.visible {
+        // Steps still running (their window closed) are shown again, never started twice.
+        if let model = finishModel, finishWindow.visible || model.running {
             finishWindow.show(Words.finishingTitle, FinishingView(model: model, close: closeFinishing))
             return
         }

@@ -1,0 +1,39 @@
+{
+  "data": {
+    "checks": [
+      {
+        "area": "system",
+        "name": "metarush",
+        "status": "info",
+        "detail": "0.2.0 darwin/arm64",
+        "say": "MetaRush 0.2.0"
+      },
+      {
+        "area": "database",
+        "name": "migrations",
+        "status": "warn",
+        "detail": "1 update(s) waiting",
+        "fix": "run `metarush migrate`",
+        "say": "The database needs 1 update for this version of MetaRush",
+        "do": "Update the database."
+      },
+      {
+        "area": "storage",
+        "name": "media",
+        "status": "fail",
+        "detail": "/Volumes/Footage not found",
+        "say": "The storage folder isn't there",
+        "do": "Connect the drive that holds it."
+      },
+      {
+        "area": "tools",
+        "name": "ffmpeg",
+        "status": "ok",
+        "detail": "9.0"
+      }
+    ],
+    "ok": false,
+    "version": "0.2.0"
+  },
+  "ok": true
+}

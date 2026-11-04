@@ -1,0 +1,11 @@
+{
+  "data": {
+    "command": "metarush renderer install --force",
+    "says": "You left the renderer out, so it isn't set up.",
+    "setUp": false,
+    "status": {
+      "state": "removed"
+    }
+  },
+  "ok": true
+}

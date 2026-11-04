@@ -745,6 +745,8 @@ func readyWhere(kind string) string {
 		return "It's with the narration voices; everything said with it is marked as an AI voice."
 	case aiservices.KindPresenterMake:
 		return "Make a test clip of it, watch it, then approve it."
+	case aiservices.KindVideoBackground:
+		return "It's kept with the clip; cuts that replace the clip's background play it."
 	}
 	return "It's in Sources, marked as AI-generated."
 }

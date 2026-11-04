@@ -35,13 +35,19 @@ type Matte struct {
 	// ("" for the original), what a cut checks it against.
 	Media string `bson:"media" json:"media"`
 	Fixed string `bson:"fixed,omitempty" json:"fixed,omitempty"`
+	// MediaKey and MediaSize locate the media in the media store.
+	MediaKey  string `bson:"mediaKey" json:"-"`
+	MediaSize int64  `bson:"mediaSize" json:"-"`
 	// From and To are the stretch of the clip it covers, in seconds of the
-	// clip; Rate is the clip's frame rate (a fraction: 30000/1001) and Frames
-	// how many frames it holds.
+	// clip, from the frame showing at From to the one showing just before
+	// To; First is that first frame's number (0 the clip's first) and Frames
+	// how many it holds; Rate is the clip's frame rate (a fraction:
+	// 30000/1001).
 	From   float64 `bson:"from" json:"from"`
 	To     float64 `bson:"to" json:"to"`
-	Rate   string  `bson:"rate" json:"rate"`
+	First  int     `bson:"first" json:"first"`
 	Frames int     `bson:"frames,omitempty" json:"frames,omitempty"`
+	Rate   string  `bson:"rate" json:"rate"`
 	// Width and Height are the cut-out's size.
 	Width  int `bson:"width,omitempty" json:"width,omitempty"`
 	Height int `bson:"height,omitempty" json:"height,omitempty"`

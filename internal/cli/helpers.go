@@ -713,7 +713,7 @@ var jobReadyWords = map[string]string{
 	jobs.TypeWaveform: "waveform ready", jobs.TypeMezzanine: "steady copy ready", jobs.TypeEvidence: "scenes and pauses found",
 	jobs.TypeTranscribe: "transcript ready", jobs.TypeDiarize: "speakers found", jobs.TypeVisual: "looked at what's on screen",
 	jobs.TypeDescribe: "scenes described", jobs.TypeInspect: "measured for its fixes", jobs.TypePrepare: "fixed copy ready",
-	jobs.TypeSwitches: "picture changes found",
+	jobs.TypeSwitches: "picture changes found", jobs.TypeMatte: "cut-out ready",
 }
 
 // progress is the line a person reads about a job while a command waits for

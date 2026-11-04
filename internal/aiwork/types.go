@@ -66,6 +66,17 @@ type MakeIn struct {
 	// as a feature's (Origin, which it may carry, never reaches a keeper).
 	Feature string `json:"-"`
 	ID      string `json:"-"`
+	// Footage is the part of a clip a cut-out sends (background removal for
+	// video, D505): the picture only, already cut to the frame by
+	// internal/mattes and kept by its content. Only Go callers set it.
+	Footage *FootagePart `json:"-"`
+}
+
+// FootagePart is a part of a clip kept by its content, to be sent as it is.
+type FootagePart struct {
+	Key, SHA256, MIME string
+	Size              int64
+	Seconds           float64
 }
 
 // CopyIn makes a copy of a person's voice, with their consent (D227).

@@ -188,6 +188,8 @@ func whereItLands(kind string) string {
 		return "When it's made, test it, then approve it."
 	case aiservices.KindPresenter:
 		return "It lands in Sources, marked as AI-generated, with MetaRush's own sound under it."
+	case aiservices.KindVideoBackground:
+		return "It's kept with the clip; cuts that replace the clip's background play it."
 	}
 	return "It lands in Sources, marked as AI-generated."
 }
@@ -197,6 +199,13 @@ func materialize(ctx context.Context, a *app.App, p *plan) ([]models.GenReferenc
 	var out []models.GenReference
 	for _, in := range p.inputs {
 		switch {
+		case in.role == aiservices.RoleClip:
+			// The picture of a part of a clip, cut and kept already (D505).
+			if in.part == nil || in.part.SHA256 == "" {
+				return nil, apperr.New(apperr.Internal, "MetaRush didn't say which part of “%s” to send.", in.title)
+			}
+			out = append(out, models.GenReference{Role: in.role, Ref: fmt.Sprintf("%s@%.2f-%.2f", in.assetID, in.from, in.to), SHA256: in.part.SHA256,
+				MIME: firstNonEmpty(in.part.MIME, "video/mp4"), Size: in.part.Size, StorageKey: in.part.Key, AssetID: in.assetID, From: in.from, To: in.to})
 		case in.picture != "":
 			keep := generate.Picture
 			if in.asIs {

@@ -157,7 +157,10 @@ type Job struct {
 
 // Result is how making a matte went.
 type Result struct {
-	Video  *Video
+	Video *Video
+	// First is the clip's frame the matte starts at (0 the first); Frames
+	// how many it holds, one per frame from there.
+	First  int
 	Frames int
 	// MatteWidth and MatteHeight are the matte video's size (the model's).
 	MatteWidth, MatteHeight int
@@ -184,18 +187,15 @@ func Run(ctx context.Context, j Job) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	from, to := math.Max(0, j.From), j.To
-	if to <= 0 || (v.Duration > 0 && to > v.Duration) {
-		to = v.Duration
-	}
-	if to <= from {
-		return nil, errors.New("the stretch of the clip is empty")
+	first, count, err := Frames(v, j.From, j.To)
+	if err != nil {
+		return nil, err
 	}
 	mw, mh := j.Model.Size(v.Width, v.Height)
 	mw, mh = Even(mw), Even(mh)
 	format := j.Model.Format()
 	px := Bytes(format)
-	total := max(1, int(math.Round((to-from)*v.FPS)))
+	total := count
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -218,9 +218,10 @@ func Run(ctx context.Context, j Job) (*Result, error) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		_, decErr = j.Tools.Run(ctx, tools.Spec{Tool: tools.FFmpeg, Background: true, Stdout: decW, Args: []string{"-hide_banner", "-nostdin", "-loglevel", "error",
-			"-ss", seconds(from), "-i", j.Src, "-t", seconds(to - from), "-map", "0:v:0", "-an", "-sn", "-dn",
-			"-vf", fmt.Sprintf("scale=%d:%d:flags=area,format=%s", mw, mh, format), "-f", "rawvideo", "pipe:1"}})
+		args := append([]string{"-hide_banner", "-nostdin", "-loglevel", "error"}, SeekArgs(v, first)...)
+		args = append(args, "-i", j.Src, "-map", "0:v:0", "-an", "-sn", "-dn", "-frames:v", strconv.Itoa(count),
+			"-vf", fmt.Sprintf("scale=%d:%d:flags=area,format=%s", mw, mh, format), "-f", "rawvideo", "pipe:1")
+		_, decErr = j.Tools.Run(ctx, tools.Spec{Tool: tools.FFmpeg, Background: true, Stdout: decW, Args: args})
 		decW.CloseWithError(errOr(decErr, io.EOF))
 	}()
 	go func() {
@@ -233,7 +234,7 @@ func Run(ctx context.Context, j Job) (*Result, error) {
 
 	frame := make([]byte, mw*mh*px)
 	sm := newSmoother(mw, mh)
-	res := &Result{Video: v, MatteWidth: mw, MatteHeight: mh}
+	res := &Result{Video: v, First: first, MatteWidth: mw, MatteHeight: mh}
 	var modelTime time.Duration
 	people := 0
 	var loopErr error
@@ -302,14 +303,41 @@ func Run(ctx context.Context, j Job) (*Result, error) {
 	return res, nil
 }
 
+// Frames is the stretch [from, to) of a clip in its own frames: the first
+// frame it holds and how many (to 0: to the end). A stretch starts at the
+// frame showing at from and ends with the one showing just before to.
+func Frames(v *Video, from, to float64) (first, count int, err error) {
+	if to <= 0 || (v.Duration > 0 && to > v.Duration) {
+		to = v.Duration
+	}
+	from = math.Max(0, from)
+	first = int(math.Floor(from*v.FPS + 1e-6))
+	last := int(math.Ceil(to*v.FPS - 1e-6))
+	if last <= first {
+		return 0, 0, errors.New("the stretch of the clip is empty")
+	}
+	return first, last - first, nil
+}
+
+// SeekArgs are ffmpeg's input options that start a clip at one of its
+// frames: half a frame before it, so the frame itself is the first kept
+// whatever the rounding (nothing for the first frame).
+func SeekArgs(v *Video, first int) []string {
+	if first <= 0 {
+		return nil
+	}
+	return []string{"-ss", strconv.FormatFloat((float64(first)-0.5)/v.FPS, 'f', 6, 64)}
+}
+
+// FrameTime is when a frame of the clip shows, in seconds.
+func (v *Video) FrameTime(frame int) float64 { return float64(frame) / v.FPS }
+
 func errOr(err, def error) error {
 	if err != nil {
 		return err
 	}
 	return def
 }
-
-func seconds(v float64) string { return strconv.FormatFloat(math.Max(0, v), 'f', 3, 64) }
 
 // someoneShare: a frame has someone in it when at least this share of it is
 // mostly a person (a stray soft speck isn't anyone).

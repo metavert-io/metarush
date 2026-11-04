@@ -203,3 +203,6 @@ const AutoSpending = "/settings/preferences#auto-spending"
 
 // Receipt is a project's receipt (D240).
 func Receipt(projectID string) string { return "/p/" + projectID + "?" + q("tab", "receipt") }
+
+// Credentials is Settings → Delivery → Content Credentials (D424).
+func Credentials() string { return "/settings/delivery#content-credentials" }

@@ -15,6 +15,7 @@ inputs:
   podcast: {kind: words, max: 20, says: Your podcast's number at Buzzsprout}
   publish: {kind: choice, options: [draft, now], default: draft, says: Publish it now or keep it as a draft there}
 outputs: [document]
+ai: {document: none}
 cost: free
 keys: [{name: buzzsprout, env: BUZZSPROUT_TOKEN, hosts: [www.buzzsprout.com]}]
 hosts: [www.buzzsprout.com]

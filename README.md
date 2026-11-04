@@ -50,7 +50,8 @@ And what sets MetaRush apart:
   surprise bills.
 - **Nothing behind your back.** Paid work shows its price first, every project has a receipt, a face or voice is used
   only with that person's recorded consent, AI-made media is marked everywhere, and a version with problems or a
-  missing sign-off waits until it's fixed or a person sends it with a note.
+  missing sign-off waits until it's fixed or a person sends it with a note. Delivered videos can carry signed Content
+  Credentials that say how they were made and which parts AI made.
 - **Your footage stays on your drives.** With the suggested setup your footage and projects stay on this computer,
   and transcription, clearer voices, offline voices and picture clean-up run on models on this computer, free; the
   cloud is a choice you make.
@@ -214,17 +215,23 @@ older links redirect:
 - **General**: which version you have and what's new in it;
 - **People**: your account, users, remote access;
 - **Preferences**: yours (estimates, Ask first or Auto, light or dark);
-- **Claude Code**, **Footage**, **Browser extension**, **Storage**, **Integrations** (keys and looks), **Log** and
-  **Command line**.
+- **Claude Code**, **Footage**, **Browser extension**, **Storage**, **Delivery** (Content Credentials),
+  **Integrations** (keys and looks), **Log** and **Command line**.
 
 A project's brand, spelling list and house rules are in that project's own **Settings** tab
 ([Content Settings](#content-settings-shared-by-a-clients-projects)).
 
 ### Accounts and sign-in
 A new install is just you on this computer ([docs/accounts.md](docs/accounts.md)).
-- **Choose how people sign in** in **Settings → People**: email and password, or Tailscale accounts, giving your own
-  sign-in at the same step. Then invite people with a one-time link you send them (it continues the history of
-  anyone who used MetaRush before).
+- **Choose how people sign in** in **Settings → People**: email and password, Tailscale accounts, or their
+  organization's account, giving your own sign-in at the same step. Then invite people with a one-time link you send
+  them (it continues the history of anyone who used MetaRush before).
+- **Sign in with Google, Microsoft or your organization's own provider** (OpenID Connect,
+  [docs/accounts.md](docs/accounts.md#signing-in-with-your-organizations-account)): register the app with the
+  addresses Settings → People shows, give its ID and secret (kept on each computer, like a key), run a test sign-in on
+  this computer, then switch. Only people you invite, or people of a domain you choose, get in; passwords and Tailscale
+  accounts can keep working beside it. A new app or secret waits for its own test while people keep signing in as
+  before. `metarush dashboard` at this computer still opens MetaRush if the provider ever stops working.
 - **Passwords** are stored with argon2id, checked against common passwords, and wrong guesses are slowed down and
   locked; owners make reset-password links (`metarush users reset-password <email>`).
 - **Only owners change this computer's settings** (enforced on the server, [the list](docs/accounts.md#what-only-owners-change)).
@@ -237,8 +244,8 @@ A new install is just you on this computer ([docs/accounts.md](docs/accounts.md)
   everyone's), and a turned-off account's browsers stop at once.
 - **Everyone's changes say who made them**, and each person can add a picture (`metarush account avatar <file>`).
 
-Commands: `metarush auth status|method|reset`, `metarush users list|invite|reset-password|disable|enable|remove|role`,
-`metarush account …`.
+Commands: `metarush auth status|method|reset`, `metarush auth sso status|set|secret|test|discard` (and `metarush auth method sso`),
+`metarush users list|invite|reset-password|disable|enable|remove|role`, `metarush account …`.
 
 ### Use it from your other computers, over Tailscale
 `metarush remote enable --allow <their Tailscale account> --apply` gives the dashboard an HTTPS address on your
@@ -246,7 +253,8 @@ tailnet (`https://<computer>.<tailnet>.ts.net`, served by `tailscale serve`); Me
 computer only, and any other HTTPS proxy works too, with `--url` (a worked example:
 [an always-on Mac mini](#example-an-always-on-mac-mini-for-your-team)).
 - **Who gets in** is the sign-in method you choose in **Settings → People**: people sign in with their email and
-  password (invite them; links you copy and send) or, as an option, with their Tailscale account, each as
+  password (invite them; links you copy and send), with their organization's account (Google, Microsoft or another
+  provider; register the tailnet address Settings shows too) or, as an option, with their Tailscale account, each as
   themselves in the audit trail, the activity log and "Approved by". One-time links (`metarush dashboard`) sign in
   only you, on this computer.
 - **It works like being there**: the microphone works over that HTTPS address, actions that happen on the other
@@ -1081,6 +1089,21 @@ also writes a `.notes.md` file (the version's titles, chapters and show notes, c
 and the note of a version sent out anyway) and a captions file where the place it goes takes one (not TikTok or
 Reels); the record carries the receipt, and sidecars credit footage imported from links and mark AI narration.
 
+The version page's **Deliver…** does the same from the dashboard, into a new folder MetaRush chooses in MetaRush
+exports (in Movies on a Mac, Videos elsewhere; from another computer, download it).
+
+### Content Credentials
+With them on (Settings → Delivery, or `metarush credentials on`; per client in Content Settings), every final video
+MetaRush delivers carries Content Credentials: a signed C2PA record that it was made with MetaRush, which footage,
+sound and pictures it uses (by fingerprint, never by name) and which parts AI made or changed, signed with the
+certificate of the computer that delivers it. A test certificate made on this computer, or your organisation's own
+(its key kept in this computer's keychain, never in the database, a log or a command line, and never handed to
+c2patool: c2patool asks MetaRush to sign, over a connection only that signing has, one signature per video, and the
+copy must carry exactly that signature). Each copy is read back and checked before it goes out; the record, the notes
+file and the receipt say so. "Required" makes the ship gate hold a version this computer can't sign, or whose last
+signing here failed (Try it on a sample), with the gate off too; a person can still send it out without them, with a
+note ([Content Credentials](docs/content-credentials.md)).
+
 ### Titles, descriptions, chapters and show notes
 Claude Code writes a version's delivery notes on your own Claude plan (**Ask Claude to write them** on the version's
 page, or `metarush deliver notes set` from a terminal), or you write them yourself; chapters are checked against the
@@ -1134,14 +1157,14 @@ person each time.
   whatever it was where it came from; a person checks it there (`ability check --version`), then an owner approves
   it.
 
-### A starter pack of seven abilities
+### A starter pack of six abilities
 ([abilities/](abilities/README.md)) Stock videos and photos from Pexels, public-domain and openly licensed media from
 Wikimedia Commons and the Internet Archive, sound effects from Freesound, English captions by whisper.cpp kept with
 the clip (`metarush footage captions <clip> --language en`), and pictures from ComfyUI on this computer: the one local
 service an owner can allow, plain HTTP through MetaRush.
 - Each file brought in keeps its licence and credit (a clip's rights; the delivery's `.notes.md`, ready to paste).
-- Content Credentials with c2patool and DaVinci Resolve through its MCP server are written in the shape they need,
-  marked not yet runnable, with what MetaRush still has to do.
+- DaVinci Resolve through its MCP server is written in the shape it needs, marked not yet runnable, with what MetaRush
+  still has to do. (Content Credentials, once planned here, are built into delivery instead.)
 
 ### A menu of what MetaRush does, and what works on this computer
 About fifty first-party abilities, in groups: understand footage, fix sources, make media (each kind of AI work),
@@ -1573,7 +1596,9 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush deliver ready <project> [--version rN] [--json]` | Ready to deliver, or what holds the version (the quality check, promises, sign-offs) and the step that clears each |
 | `metarush deliver override <project> --version rN --note "…"` | send a held version out anyway (a person in their own terminal); the note is kept and shows on the receipt |
 | `metarush deliver gate [on\|off]` / `metarush content gate <on\|off\|workspace> [--project <p>]` | whether versions wait for the quality check and sign-offs (owners; off is a person's) |
-| `metarush deliver --revision <id> --out ~/Deliveries/<project>` | approved finals + JSON sidecars to a folder |
+| `metarush deliver --revision <id> --out ~/Deliveries/<project>` | approved finals + JSON sidecars to a folder (with Content Credentials where they are on) |
+| `metarush credentials [status]` / `credentials setup --test\|--cert <chain.pem> --key <key.pem>` / `credentials test` / `credentials check <video>` / `credentials remove` | Content Credentials: whether they are on and whether this computer can sign; set up its certificate (an owner at their own terminal); try it on a sample; read a video's; remove it |
+| `metarush credentials on\|required\|off [--timestamp-url <url>]` / `metarush content credentials <on\|required\|off\|workspace> [--project <p>]` | whether delivered videos carry Content Credentials (owners; asking less is a person's), for the workspace or a client |
 | `metarush deliver notes show <project> [--version rN]` / `deliver notes set <project> --from notes.md [--by claude]` (or `--title … --chapter "0:00 Intro"…`, `--clear`) | a version's title, other titles, description, chapters and show notes; delivery writes them next to the video |
 | `metarush captions check <project> [--version rN]` / `captions file <project> [--format srt\|vtt] [--version-words] [--language es] --out <file>` / `deliver captions <folder>` | words to look at before a video goes out; a captions file with every fix (no new render), or in another language; update delivered captions files |
 | `metarush captions languages <project>` / `captions lines <project> --to es [--missing]` / `captions translate <project> --to es --from es.json [--human]` / `captions remove-language <project> --to es` | captions in other languages: what is translated, the lines to translate with the glossary, keep a translation (marked machine-translated unless a person did it), take a language off |
@@ -1730,7 +1755,7 @@ support `${VAR}` / `${VAR:default}`.
 [cut sheets](docs/cut-sheet.md) · [security](docs/security.md) ·
 [render QA](docs/qa.md) · [outside reviewers](docs/outside-reviewers.md) · [exporting and restoring a workspace](docs/workspace-export.md) · [moving the database](docs/database-move.md) ·
 [speakers, people and to-dos](docs/speakers.md) · [motion graphics as code](docs/motion-graphics-as-code.md) ·
-[browser extension](docs/browser-extension.md) · [what MetaRush sees](docs/visual-index.md) · [resources, project links and nested cuts](docs/resources.md) · [timeline export](docs/timeline-export.md) · [timelines from other editors](docs/timeline-import.md) · [posting to video platforms](docs/publishing.md) · [Google Drive and Dropbox folders](docs/cloud-folders.md) · [the plugin](docs/plugin.md) · [MCP](docs/mcp.md) · [the catalogue](docs/catalogue.md) · [Remotion sources](docs/remotion-sources.md) · [recipes](docs/recipes.md) · [abilities](docs/abilities.md) · [testing](docs/testing.md) · [the review desk](docs/review-desk.md)
+[browser extension](docs/browser-extension.md) · [what MetaRush sees](docs/visual-index.md) · [resources, project links and nested cuts](docs/resources.md) · [timeline export](docs/timeline-export.md) · [timelines from other editors](docs/timeline-import.md) · [posting to video platforms](docs/publishing.md) · [Google Drive and Dropbox folders](docs/cloud-folders.md) · [the plugin](docs/plugin.md) · [MCP](docs/mcp.md) · [the catalogue](docs/catalogue.md) · [Remotion sources](docs/remotion-sources.md) · [recipes](docs/recipes.md) · [abilities](docs/abilities.md) · [testing](docs/testing.md) · [the review desk](docs/review-desk.md) · [Content Credentials](docs/content-credentials.md)
 
 ## Development
 `./start.sh` runs a local MongoDB replica set, the daemon on :4841 and the Vite dashboard on :4840 against the dev
@@ -1807,6 +1832,13 @@ checks below in order, log each step and end with a table; [testing](docs/testin
   version's page says Held by …, a sign-off is ticked in one click and the version goes out anyway with a note in a
   styled dialog, then delivery writes who and why next to the video and on the receipt, desktop and 390 px phone in
   both themes.
+- `scripts/content-credentials-e2e.sh` runs `web/scripts/content-credentials-e2e.mjs` (ports 5780–5789; ffmpeg and a
+  renderer on this computer; the c2patool stand-in, or `C2PATOOL=<the real one>`): Content Credentials made required
+  in Settings → Delivery hold the version (Set them up), with the gate off too, where Deliver anyway… with a note sends
+  it out without them; a test certificate made in a styled dialog and tried on a sample, Deliver… from the version page
+  signs the video; with the stand-in a signing that fails writes nothing and holds the version until Try it on a sample
+  works; then the records, notes and credentials are read back, the manifest names nothing of the project and the key
+  is nowhere but the keychain or secrets file, desktop and 390 px phone in both themes.
 - `node web/scripts/cutsheet-e2e.mjs` drives the studio's Script tab (Formatted, Markdown and Edit: live check, save,
   older versions, compare, a clip that plays the cut from there; desktop and phone, both themes).
 - `node web/scripts/motion-e2e.mjs` drives the Motion graphics page (review, approve, withdraw; desktop and phone, both

@@ -244,6 +244,7 @@ metarush components --json             # the same for scripts (ComponentsOut)
 | `studio-voice` | Studio voices | 1.8 GB | no | MetaRush (Python environment and model) |
 | `stabilizer` | The better steadying of shaky footage | 25 MB | no | MetaRush's download (Mac; also set up the first time footage is steadied) |
 | `ai-models` | Free AI voices and picture upscaling on this computer | 410 MB | no | MetaRush's downloads |
+| `content-credentials` | Content Credentials on delivered videos ([content-credentials.md](content-credentials.md)) | 23 MB | no | MetaRush's download (c2patool 0.28.3 from its GitHub releases, checked by SHA-256; MIT or Apache-2.0), else build it with `cargo install c2patool --version 0.28.3` |
 | `google-drive` | Google Drive folders without syncing them | 25 MB | no | Homebrew (`rclone`), then `rclone config` |
 | `github` | GitHub repositories for code slides; sending Remotion changes back | 15 MB | no | Homebrew (`gh`) |
 | `diagrams` | D2 diagrams | 30 MB | no | Homebrew (`d2`) |

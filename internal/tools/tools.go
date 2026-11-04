@@ -157,12 +157,19 @@ const (
 	// an owner let an ability reach (D284): one fixed read-only query
 	// (-nP -iTCP:<port> -sTCP:LISTEN -Fp), found only in the system's folders.
 	Lsof = "lsof"
+	// C2PATool is c2patool, the C2PA project's own tool (D421): it puts
+	// Content Credentials into a delivered video and reads them back
+	// (internal/c2pa). It gets the video, a manifest MetaRush wrote, a
+	// settings file MetaRush wrote and MetaRush itself as its signer, with a
+	// clean environment; it never sees the private key. The real one is
+	// refused under go test unless config names it (a stand-in).
+	C2PATool = "c2patool"
 )
 
 var allowed = map[string]bool{FFmpeg: true, FFprobe: true, Node: true, Whisper: true, WhisperServer: true, Sherpa: true, SherpaDiar: true, Atlas: true, Claude: true,
 	OSAScript: true, Open: true, XDGOpen: true, Say: true, EspeakNG: true, YtDlp: true, Deno: true, Brew: true, Pdftoppm: true, Pdfinfo: true, Sips: true,
 	Vision: true, Swiftc: true, Launchctl: true, Systemctl: true, Loginctl: true, Git: true, GH: true, D2: true, DeepFilter: true, StudioPython: true, NvidiaSMI: true,
-	Self: true, Tailscale: true, Stabilizer: true, SandboxExec: true, Bwrap: true, Rclone: true, Mongod: true, Lsof: true, SherpaTTS: true}
+	Self: true, Tailscale: true, Stabilizer: true, SandboxExec: true, Bwrap: true, Rclone: true, Mongod: true, Lsof: true, SherpaTTS: true, C2PATool: true}
 
 // Allowed says whether name is one of the programs MetaRush may run.
 func Allowed(name string) bool { return allowed[name] }
@@ -364,7 +371,7 @@ func New(cfg config.Tools) *Set {
 	s := &Set{paths: map[string]string{}, cfg: cfg, vers: map[string]string{}}
 	explicit := map[string]string{FFmpeg: cfg.FFmpeg, FFprobe: cfg.FFprobe, Node: cfg.Node, Whisper: cfg.WhisperCLI, WhisperServer: cfg.WhisperServer, Claude: cfg.Claude,
 		YtDlp: cfg.YtDlp, Deno: cfg.Deno, Brew: cfg.Brew, Vision: cfg.Vision, Launchctl: cfg.Launchctl, Systemctl: cfg.Systemctl, Git: cfg.Git, GH: cfg.GH, D2: cfg.D2,
-		Tailscale: cfg.Tailscale, Rclone: cfg.Rclone}
+		Tailscale: cfg.Tailscale, Rclone: cfg.Rclone, C2PATool: cfg.C2PATool}
 	if cfg.SherpaDir != "" {
 		explicit[Sherpa] = filepath.Join(cfg.SherpaDir, "bin", Sherpa)
 		explicit[SherpaDiar] = filepath.Join(cfg.SherpaDir, "bin", SherpaDiar)
@@ -533,6 +540,8 @@ func (s *Set) explicitIn(name string) bool {
 		return c.SherpaDir != ""
 	case Rclone:
 		return c.Rclone != ""
+	case C2PATool:
+		return c.C2PATool != ""
 	case D2:
 		return c.D2 != ""
 	case GH:
@@ -598,6 +607,8 @@ func (s *Set) Explicit(name string) bool {
 		return s.cfg.Rclone != ""
 	case Brew:
 		return s.cfg.Brew != ""
+	case C2PATool:
+		return s.cfg.C2PATool != ""
 	}
 	return false
 }
@@ -673,8 +684,9 @@ var missingFor = map[string]string{
 	Loginctl: "to run in the background", Git: "to bring in GitHub repositories", GH: "to read GitHub repository details", D2: "to draw D2 diagrams",
 	DeepFilter: "to clean up voices", StudioPython: "for studio voice clean-up", NvidiaSMI: "to read the NVIDIA graphics card",
 	Tailscale: "for opening MetaRush from your other computers", Stabilizer: "to steady shaky footage",
-	Rclone: "to read Google Drive folders without syncing them",
-	Mongod: "for the database on this computer",
+	Rclone:   "to read Google Drive folders without syncing them",
+	Mongod:   "for the database on this computer",
+	C2PATool: "to put Content Credentials into delivered videos",
 }
 
 // Result is a finished command.
@@ -705,6 +717,10 @@ type Spec struct {
 	// OnStart is called with the child's PID once it is running (the assistant
 	// uses it to signal a long-lived Claude Code process).
 	OnStart func(pid int)
+	// ExtraFiles are open files the program inherits as descriptors 3, 4, …
+	// (c2patool's signer reaches MetaRush through one, D436): nothing else is
+	// passed on, as always.
+	ExtraFiles []*os.File
 	// SameGroup keeps the program in this process's group instead of a group
 	// of its own, so whatever stops this process's group stops it too (the
 	// transcription model server's whisper-server: it must never outlive the
@@ -749,6 +765,7 @@ func (s *Set) Run(ctx context.Context, spec Spec) (res *Result, err error) {
 		cmd.Env = append(secretpath.Inheritable(os.Environ()), spec.Env...)
 	}
 	cmd.Stdin = spec.Stdin
+	cmd.ExtraFiles = spec.ExtraFiles
 	if spec.Contained {
 		return s.runContained(ctx, spec, cmd)
 	}
@@ -1086,12 +1103,17 @@ func (s *Set) Version(ctx context.Context, name string) string {
 	}
 	arg := "-version"
 	switch name {
-	case Node, Whisper, YtDlp, Deno, Brew, Vision, Swiftc, DeepFilter, StudioPython, Mongod:
+	case Node, Whisper, YtDlp, Deno, Brew, Vision, Swiftc, DeepFilter, StudioPython, Mongod, C2PATool:
 		arg = "--version"
 	case Sherpa, SherpaDiar:
 		arg = "--help"
 	}
-	res, _ := s.Run(Quiet(ctx), Spec{Tool: name, Args: []string{arg}})
+	spec := Spec{Tool: name, Args: []string{arg}}
+	if name == C2PATool {
+		// c2patool never gets the person's environment, not even to say its version (D436).
+		spec.CleanEnv, spec.Env = true, []string{"PATH=/usr/bin:/bin", "LANG=C"}
+	}
+	res, _ := s.Run(Quiet(ctx), spec)
 	v := "installed"
 	if res != nil {
 		out := string(res.Stdout) + string(res.Stderr)
@@ -1117,6 +1139,11 @@ func (s *Set) Version(ctx context.Context, name string) string {
 		case Mongod:
 			// "db version v8.0.34"
 			if m := regexp.MustCompile(`db version v(\d+\.\d+\.\d+)`).FindStringSubmatch(out); m != nil {
+				v = m[1]
+			}
+		case C2PATool:
+			// "c2patool 0.28.3"
+			if m := regexp.MustCompile(`c2patool (\d+\.\d+\.\d+)`).FindStringSubmatch(out); m != nil {
 				v = m[1]
 			}
 		case YtDlp:

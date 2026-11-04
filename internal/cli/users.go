@@ -21,8 +21,8 @@ import (
 // Passwords are read hidden from the terminal, never from a flag.
 
 func authCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "auth", Short: "How people sign in to this MetaRush: just you on this computer, email and password, or Tailscale accounts"}
-	cmd.AddCommand(authStatusCmd(), authMethodCmd(), authResetCmd())
+	cmd := &cobra.Command{Use: "auth", Short: "How people sign in to this MetaRush: just you on this computer, email and password, Tailscale accounts, or your organization's account"}
+	cmd.AddCommand(authStatusCmd(), authMethodCmd(), authResetCmd(), authSSOCmd())
 	return cmd
 }
 
@@ -186,9 +186,18 @@ func authStatusCmd() *cobra.Command {
 
 func authMethodCmd() *cobra.Command {
 	var email, login string
-	cmd := &cobra.Command{Use: "method single|password|tailscale", Short: "Choose how people sign in, giving your own sign-in at the same step (people only, on this computer)", Args: cobra.ExactArgs(1),
+	var sf ssoFlags
+	cmd := &cobra.Command{Use: "method single|password|tailscale|sso", Short: "Choose how people sign in, giving your own sign-in at the same step (people only, on this computer)", Args: cobra.ExactArgs(1),
+		Example: "  metarush auth method password --email you@example.com\n" +
+			"  metarush auth method sso --provider google --client-id 1234.apps.googleusercontent.com   # sets it up, tests it in your browser, switches\n" +
+			"  metarush auth method sso                                                              # switches to the setup whose test just passed",
 		RunE: func(c *cobra.Command, args []string) error {
-			if err := needAPerson(c); err != nil {
+			if args[0] == "sso" {
+				// The secret may come through a pipe: a terminal on standard error is enough.
+				if err := ssoPerson(c); err != nil {
+					return err
+				}
+			} else if err := needAPerson(c); err != nil {
 				return err
 			}
 			a, err := openApp(c, "cli")
@@ -196,6 +205,9 @@ func authMethodCmd() *cobra.Command {
 				return err
 			}
 			defer a.Close()
+			if args[0] == "sso" {
+				return authMethodSSO(c, a, &sf)
+			}
 			in := auth.AuthMethodIn{Method: args[0]}
 			switch args[0] {
 			case "password":
@@ -222,7 +234,7 @@ func authMethodCmd() *cobra.Command {
 					return fail(c, apperr.Canceled, "Nothing changed.", "")
 				}
 			default:
-				return fail(c, apperr.InvalidInput, "Choose single, password or tailscale.", "")
+				return fail(c, apperr.InvalidInput, "Choose single, password, tailscale or sso.", "")
 			}
 			out, err := ops.CallTyped[auth.AuthStatusOut](c.Context(), a, "auth.method.set", in, ops.Caller{Human: true})
 			if err != nil {
@@ -237,7 +249,8 @@ func authMethodCmd() *cobra.Command {
 		}}
 	cmd.Flags().StringVar(&email, "email", "", "password: your email")
 	cmd.Flags().StringVar(&login, "login", "", "tailscale: your Tailscale login")
-	return forOps(cmd, "auth.method.set")
+	sf.add(cmd)
+	return forOps(cmd, "auth.method.set", "auth.sso.set", "auth.sso.test")
 }
 
 func authResetCmd() *cobra.Command {

@@ -64,14 +64,14 @@ export function senderIdOf(m: Pick<ConversationTurn | AssistantEvent, 'user' | '
 
 /**
  * People's pictures by id (D184), shown next to their messages while people
- * sign in (email and password, or Tailscale): from the workspace's people
+ * sign in (email and password, Tailscale, or their organization's account): from the workspace's people
  * list, cached; the viewer's own from the session. `on` is false with "just
  * me on this computer" (no pictures beside messages then).
  */
 export function usePictures(): { on: boolean; of: (id: string) => string | undefined } {
   const state = useAuthState();
   const session = useSession();
-  const on = state.data?.method === 'password' || state.data?.method === 'tailscale';
+  const on = state.data?.method === 'password' || state.data?.method === 'tailscale' || state.data?.method === 'sso';
   const list = useOp('users.list', {}, { staleTime: 5 * 60_000, enabled: on });
   return useMemo(() => {
     const m = new Map<string, string>();

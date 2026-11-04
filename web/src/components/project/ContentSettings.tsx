@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowSquareOut, HandPalm, Layout, ListChecks, Microphone, PaintBrush, Palette, Plus, Seal, SealCheck, ShieldCheck, Sliders, Sparkle, TextAa, X } from '@phosphor-icons/react';
+import { ArrowSquareOut, Certificate, HandPalm, Layout, ListChecks, Microphone, PaintBrush, Palette, Plus, Seal, SealCheck, ShieldCheck, Sliders, Sparkle, TextAa, X } from '@phosphor-icons/react';
 import { call, toApiError } from '../../api/client';
 import { useOp, useOpMutation } from '../../api/queries';
 import type { ContentShowOut, ProjectRule, RemoteOp } from '../../api/types';
@@ -17,6 +17,7 @@ import { AIServicesPart } from './AIServicesPart';
 import { LeavePart } from './LeavePart';
 import { LayoutPackPart } from './LayoutPackPart';
 import { GatePart } from './GatePart';
+import { CredentialsPart } from './CredentialsPart';
 import { measureWords } from './ProjectMemory';
 
 /*
@@ -102,6 +103,9 @@ export function ContentSettings({ projectId, part }: { projectId: string; part?:
         </Part>
         <Part id="gate" icon={<HandPalm size={16} />} title="Before it goes out" summary={summaryOf(data, 'gate')} readOnly={ro} from={data.from?.name}>
           <GatePart projectId={projectId} readOnly={ro} />
+        </Part>
+        <Part id="credentials" icon={<Certificate size={16} />} title="Content Credentials" summary={summaryOf(data, 'credentials')} readOnly={ro} from={data.from?.name}>
+          <CredentialsPart projectId={projectId} readOnly={ro} />
         </Part>
         <Part id="aiServices" icon={<Sparkle size={16} />} title="AI services" summary={summaryOf(data, 'aiServices')} readOnly={ro} from={data.from?.name}>
           <AIServicesPart projectId={projectId} readOnly={ro} />

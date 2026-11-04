@@ -176,6 +176,8 @@ func toolSetting(t config.Tools, key string) string {
 		return t.YtDlp
 	case "sherpaDir":
 		return t.SherpaDir
+	case "c2patool":
+		return t.C2PATool
 	}
 	return ""
 }

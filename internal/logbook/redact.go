@@ -197,6 +197,11 @@ var patterns = []pattern{
 	// The dashboard's session cookie and one-time sign-in links.
 	{regexp.MustCompile(`\bmr_session=[^\s;"']+`), "mr_session=" + Redacted},
 	{regexp.MustCompile(`(/auth\?t=)[^\s&"']+`), "${1}" + Redacted},
+	// Organization sign-ins (D428): a begin address's ticket, the provider's
+	// answer (code, state) and what MetaRush sends it (nonce, PKCE).
+	{regexp.MustCompile(`(/auth/sso/begin\?t=)[^\s&"']+`), "${1}" + Redacted},
+	{regexp.MustCompile(`(/auth/sso/callback\?)[^\s"'<>]+`), "${1}" + Redacted},
+	{regexp.MustCompile(`(\b(?:nonce|code_verifier|code_challenge|id_token)=)[^&\s"'#]+`), "${1}" + Redacted},
 	// Signed object-store URLs.
 	{regexp.MustCompile(`(?i)([?&](?:X-Amz-Signature|X-Amz-Credential|X-Amz-Security-Token|X-Goog-Signature|X-Goog-Credential|Signature|sig)=)[^&\s"']+`), "${1}" + Redacted},
 }

@@ -403,6 +403,14 @@ type ResourceMadeWith struct {
 	// anything new (its background taken away), so it isn't marked as
 	// AI-generated (D279).
 	Edit bool `bson:"edit,omitempty" json:"edit,omitempty"`
+	// AIKind is the kind of AI work that made it (picture, background-removal,
+	// upscale; D435): what AI did to it follows from it (AIWorkOf). Pictures
+	// kept before it was recorded say it through their generation record.
+	AIKind string `bson:"aiKind,omitempty" json:"aiKind,omitempty"`
+	// AIWork is what AI did to it when the one that did the work said so: an
+	// ability providing AI work declares it in its manifest (D460); "" the
+	// kind decides (AIWorkOfMadeWith).
+	AIWork string `bson:"aiWork,omitempty" json:"aiWork,omitempty" jsonschema:"enum=made,enum=edited,enum=enhanced,enum="`
 	// Ability is set when an ability made it (kind ability, D234).
 	Ability *AbilityMadeWith `bson:"ability,omitempty" json:"ability,omitempty"`
 	// RepoID and RepoSHA are the repository version it was made from.

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/metavert-io/metarush/internal/c2pa"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/faceid"
 	"github.com/metavert-io/metarush/internal/fixes"
@@ -329,6 +330,29 @@ var registry = []*Component{
 		remove: removeFile(func(e *Env) string { return filepath.Join(e.Home(), "components", "local-models") }),
 	},
 	{
+		Name: "content-credentials", Title: "Content Credentials (c2patool)", Thing: "c2patool", Feature: "Signing delivered videos with Content Credentials",
+		Unlocks:    "Puts Content Credentials into the videos you deliver: signed with your certificate, they say the video was made with MetaRush and which parts AI made or changed.",
+		Features:   []string{"Content Credentials"},
+		Licence:    "c2patool is the C2PA project's own tool, under the MIT or Apache-2.0 licence (your choice); MetaRush downloads it from the project's releases and never bundles it.",
+		DownloadMB: 23, DiskMB: 64, Minutes: 1, Tools: []string{tools.C2PATool},
+		detect: func(ctx context.Context, e *Env) Found {
+			if !e.Tools.Has(tools.C2PATool) {
+				return Found{}
+			}
+			f := Found{Ready: true, Version: e.Tools.Version(ctx, tools.C2PATool), Path: e.Tools.Path(tools.C2PATool)}
+			if why := (c2pa.Tool{Tools: e.Tools}).Ready(ctx); why != "" {
+				f.Ready, f.Partly = false, sentence(why)
+			}
+			return f
+		},
+		ways: []Way{
+			{Pins: []string{"c2patool"}},
+			{Says: "Build c2patool 0.28.3 from its source with Rust's cargo, and put it on the PATH; then add this again.", Command: "cargo install c2patool --version 0.28.3"},
+		},
+		remove:     removePins("c2patool"),
+		removeSays: "It didn't come from MetaRush; remove it where it came from if nothing else uses it.",
+	},
+	{
 		Name: "google-drive", Title: "Google Drive folders (rclone)", Thing: "rclone", Feature: "Reading Google Drive folders",
 		Unlocks:    "Reads Google Drive folders without syncing them, through your own rclone and its Google sign-in.",
 		Features:   []string{"Google Drive folders"},
@@ -401,6 +425,19 @@ var registry = []*Component{
 		ways:       []Way{{Says: "Install Tailscale from tailscale.com and sign in; then Settings → People turns remote access on.", Command: "https://tailscale.com/download"}},
 		removeSays: "Remove it the way it was installed.",
 	},
+}
+
+// sentence starts words with a capital and ends them with a full stop.
+func sentence(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+	s = strings.ToUpper(s[:1]) + s[1:]
+	if !strings.HasSuffix(s, ".") {
+		s += "."
+	}
+	return s
 }
 
 // major is a version string's major number ("v22.14.0" → 22).

@@ -656,12 +656,12 @@ func main() {
 
 func TestProxyRefusesLocalAddresses(t *testing.T) {
 	for _, ip := range []string{"127.0.0.1", "10.1.2.3", "192.168.1.4", "172.16.0.1", "169.254.169.254", "::1", "fd00::1", "fe80::1", "0.0.0.0", "100.64.0.1", "64:ff9b::7f00:1"} {
-		if publicIP(net.ParseIP(ip)) {
+		if PublicIP(net.ParseIP(ip)) {
 			t.Errorf("%s should count as local", ip)
 		}
 	}
 	for _, ip := range []string{"93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946", "8.8.8.8"} {
-		if !publicIP(net.ParseIP(ip)) {
+		if !PublicIP(net.ParseIP(ip)) {
 			t.Errorf("%s should count as public", ip)
 		}
 	}

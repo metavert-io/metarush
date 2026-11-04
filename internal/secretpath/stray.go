@@ -38,12 +38,17 @@ func IsSecretEnvName(name string) bool {
 // file keeps video platforms' clients and people's sign-ins (D305).
 const PublishEnvPrefix = "PUBLISH_"
 
+// SigningKeyEnv is where an installation that keeps its secrets in its
+// secrets file keeps the private key that signs Content Credentials (D417).
+const SigningKeyEnv = "METARUSH_CONTENT_CREDENTIALS_SECRET"
+
 // NeverInherited reports variables no program MetaRush starts may get, and
 // that MetaRush never puts into its own environment from a .env file: video
-// platforms' clients and people's sign-ins (D305) and the database
-// administrator's address (D254). They are read from the file where needed.
+// platforms' clients and people's sign-ins (D305), the database
+// administrator's address (D254) and the key that signs Content Credentials
+// (D417). They are read from the file where needed.
 func NeverInherited(name string) bool {
-	return strings.HasPrefix(name, "METARUSH_"+PublishEnvPrefix) || name == "METARUSH_MONGODB_ADMIN_URI"
+	return strings.HasPrefix(name, "METARUSH_"+PublishEnvPrefix) || name == "METARUSH_MONGODB_ADMIN_URI" || name == SigningKeyEnv
 }
 
 // Inheritable is an environment (KEY=value lines) without the variables no

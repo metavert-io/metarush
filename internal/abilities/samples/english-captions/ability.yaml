@@ -6,6 +6,7 @@ runs: whisper-cli
 inputs:
   clip: {kind: footage, says: The clip, optional: true}
 outputs: [document]
+ai: {document: made}
 cost: free
 needs: {programs: [whisper-cli]}
 licence: MIT

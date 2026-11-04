@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle, HandPalm, Seal, ShieldWarning, Wrench } from '@phosphor-icons/react';
+import { CheckCircle, HandPalm, PaperPlaneTilt, Seal, ShieldWarning, Wrench } from '@phosphor-icons/react';
 import type { ops } from '@metarush/schema';
 import { call, toApiError } from '../api/client';
 import { useOp } from '../api/queries';
 import { askInProject } from '../layout/assistant/store';
+import { useDeliver } from './DeliverDialog';
 import { absolute, stamp } from '../lib/format';
 import { useDialog } from '../ui/Dialog';
 import { Badge, Button, ErrorPanel, Skeleton, Theirs, cx } from '../ui/primitives';
@@ -35,6 +36,7 @@ export function ShipGate({ projectId, revisionId, className }: { projectId: stri
   const dialog = useDialog();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
+  const deliver = useDeliver();
   const refresh = () => {
     for (const k of QUERIES) void qc.invalidateQueries({ queryKey: [k] });
   };
@@ -43,7 +45,8 @@ export function ShipGate({ projectId, revisionId, className }: { projectId: stri
   if (gate.error || !gate.data) return <ErrorPanel error={gate.error} compact onRetry={() => void gate.refetch()} />;
   const g: Gate = gate.data;
   const open = g.holds.filter((h) => !h.covered);
-  const overridable = open.filter((h) => h.overridable);
+  // With the gate off only what holds anyway keeps it back (Content Credentials the settings require).
+  const overridable = open.filter((h) => h.overridable && (g.on || h.anyway));
   const held = g.state === 'held';
   const tone = held ? 'danger' : g.state === 'sent-anyway' || g.state === 'reminders' ? 'info' : 'ok';
 
@@ -124,11 +127,16 @@ export function ShipGate({ projectId, revisionId, className }: { projectId: stri
         <h2 className="text-[14px] font-semibold" data-ship-headline>
           {g.headline}
         </h2>
-        {!g.on ? <Badge tone="neutral">Reminders only</Badge> : null}
+        {!g.on && !held ? <Badge tone="neutral">Reminders only</Badge> : null}
         <div className="ml-auto flex flex-wrap gap-1.5">
           {held && overridable.length > 0 ? (
             <Button size="sm" variant="secondary" icon={<ShieldWarning size={13} />} onClick={() => void anyway()} disabled={busy !== null} data-ship-anyway>
               Deliver anyway…
+            </Button>
+          ) : null}
+          {g.ready && g.renders.length > 0 ? (
+            <Button size="sm" variant="primary" icon={<PaperPlaneTilt size={13} />} onClick={() => void deliver(revisionId, `version ${g.number}`)} disabled={busy !== null} data-ship-deliver>
+              Deliver…
             </Button>
           ) : null}
         </div>
@@ -138,7 +146,7 @@ export function ShipGate({ projectId, revisionId, className }: { projectId: stri
           {open.map((h) => (
             <li key={h.key} data-hold={h.kind}>
               <div className="flex flex-wrap items-center gap-2">
-                <span className={cx(!g.on && 'text-muted')}>{h.says}</span>
+                <span className={cx(!g.on && !h.anyway && 'text-muted')}>{h.says}</span>
                 {h.paths.map((p) =>
                   p.op ? (
                     <Button key={p.label} size="sm" variant="ghost" onClick={() => takePath(h, p)} disabled={busy !== null} data-hold-path={p.op}>

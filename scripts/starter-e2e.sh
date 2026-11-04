@@ -2,8 +2,8 @@
 # starter-e2e.sh — the starter pack of abilities (D283–D287) in a real browser, on a
 # throwaway installation that talks to nothing outside this computer. Each starter
 # ability is checked from its folder in abilities/ (its test runs once in the sandbox with
-# the network off); the two not yet runnable are refused by the check, as their notes
-# say. The ComfyUI ability is checked as a version whose one local service is a fake
+# the network off); DaVinci Resolve, not yet runnable, is refused by the check, as its
+# notes say. The ComfyUI ability is checked as a version whose one local service is a fake
 # ComfyUI this run serves on this computer (web/scripts/starter-e2e.mjs starts it); the
 # browser run approves it with that service, sets it up, runs it — in the sandbox,
 # through its run's proxy, to that port — and follows the run to the picture; then
@@ -70,7 +70,7 @@ cp -R abilities/comfyui-local "$BASE/abilities/"
 sed "s/^  port: 8188$/  port: $COMFY/" abilities/comfyui-local/ability.yaml > "$BASE/abilities/comfyui-local/ability.yaml"
 grep -q "^  port: $COMFY\$" "$BASE/abilities/comfyui-local/ability.yaml" || { echo "the ComfyUI manifest's port wasn't changed" >&2; exit 1; }
 MR ability check "$BASE/abilities/comfyui-local" --json | J '"comfyui-local: %s" % d["data"]["message"]'
-for a in content-credentials davinci-resolve; do
+for a in davinci-resolve; do # (the content-credentials ability was retired: Content Credentials are MetaRush's own, D415)
   MR ability check "abilities/$a" --json | J '"%s: %s (%s)" % ("'"$a"'", d["data"]["message"], d["data"]["problems"][0]["text"]) if not d["data"]["ok"] else sys.exit("'"$a"' passed its check, but it is marked not yet runnable")'
 done
 

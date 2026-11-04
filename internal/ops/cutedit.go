@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
@@ -428,6 +429,15 @@ func lowerFirst(s string) string {
 		return s
 	}
 	r := []rune(s)
+	// A name keeps its capital (MetaRush, YouTube, AI): a capital later in its first word.
+	for _, c := range r[1:] {
+		if !unicode.IsLetter(c) {
+			break
+		}
+		if unicode.IsUpper(c) {
+			return s
+		}
+	}
 	return strings.ToLower(string(r[:1])) + string(r[1:])
 }
 

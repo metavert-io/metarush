@@ -23,17 +23,21 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/assistant"
 	"github.com/metavert-io/metarush/internal/assistant/fakeclaude"
+	"github.com/metavert-io/metarush/internal/c2pa"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/testutil"
+	"github.com/metavert-io/metarush/internal/testutil/fakec2patool"
 	"github.com/metavert-io/metarush/internal/tools"
 )
 
 func TestMain(m *testing.M) {
-	fakeclaude.MaybeRun() // this binary doubles as the fake `claude`
+	c2pa.MaybeSigner()      // c2patool's signer is this binary (D416)
+	fakec2patool.MaybeRun() // … and so is the stand-in c2patool
+	fakeclaude.MaybeRun()   // this binary doubles as the fake `claude`
 	os.Exit(m.Run())
 }
 

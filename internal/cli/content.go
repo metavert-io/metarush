@@ -83,7 +83,7 @@ without it for the default's.
 		},
 	}
 	def.Flags().StringVar(&defIn.ProjectID, "project", "", "the project whose settings new projects use")
-	cmd.AddCommand(show, follow, own, def, houseRulesCmd(), contentLogoCmd(), contentStyleCmd(), houseSignoffsCmd(), contentPackCmd(), contentLeaveCmd(), contentGateCmd())
+	cmd.AddCommand(show, follow, own, def, houseRulesCmd(), contentLogoCmd(), contentStyleCmd(), houseSignoffsCmd(), contentPackCmd(), contentLeaveCmd(), contentGateCmd(), contentCredentialsCmd())
 	return cmd
 }
 

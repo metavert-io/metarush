@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useOp } from '../../api/queries';
 import { cx } from '../../ui/primitives';
-import { ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Package, PlugsConnected, PuzzlePiece, SlidersHorizontal, TerminalWindow, UsersThree, Robot } from '@phosphor-icons/react';
+import { Certificate, ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Package, PlugsConnected, PuzzlePiece, SlidersHorizontal, TerminalWindow, UsersThree, Robot } from '@phosphor-icons/react';
 
 /*
  * Settings in sections (D184): each section is a page of its own at
@@ -15,7 +15,7 @@ import { ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Package, PlugsCo
  * General: /settings/general#appearance redirects).
  */
 
-export type SettingsSectionId = 'general' | 'people' | 'preferences' | 'claude' | 'footage' | 'extension' | 'storage' | 'components' | 'integrations' | 'log' | 'cli';
+export type SettingsSectionId = 'general' | 'people' | 'preferences' | 'claude' | 'footage' | 'extension' | 'storage' | 'delivery' | 'components' | 'integrations' | 'log' | 'cli';
 
 export interface SettingsSection {
   id: SettingsSectionId;
@@ -39,7 +39,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     id: 'people',
     label: 'People',
     line: 'Your account and who signs in',
-    intro: 'Who can open this MetaRush and how they sign in, your own account and picture, and opening it from other computers.',
+    intro: 'Who can open this MetaRush and how they sign in (with their organization’s account too), your own account and picture, and opening it from other computers.',
     icon: (s) => <UsersThree size={s} />,
   },
   {
@@ -76,6 +76,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     line: 'Where footage and the database are kept, handing over, exports, review links, Trash',
     intro: 'Where your footage and renders are kept and moving them, moving the database, handing this computer’s role to another computer, exporting the whole workspace, this computer and its battery, review links for people outside the workspace, and the Trash.',
     icon: (s) => <HardDrives size={s} />,
+  },
+  {
+    id: 'delivery',
+    label: 'Delivery',
+    line: 'Content Credentials on delivered videos',
+    intro: 'What goes out with the videos you deliver: Content Credentials, a signed record of how each video was made, and the certificate this computer signs them with.',
+    icon: (s) => <Certificate size={s} />,
   },
   {
     id: 'components',
@@ -120,6 +127,7 @@ const OLD_ANCHORS: Record<string, string> = {
   users: '/settings/people#users',
   'your-account': '/settings/people#your-account',
   'remote-access': '/settings/people#remote-access',
+  'sign-in': '/settings/people#sign-in',
   'claude-code': '/settings/claude#claude-code',
   'claude-usage': '/settings/claude#claude-usage',
   'watched-folder': '/settings/footage#watched-folder',
@@ -133,6 +141,7 @@ const OLD_ANCHORS: Record<string, string> = {
   trash: '/settings/storage#trash',
   export: '/settings/storage#export',
   'review-links': '/settings/storage#review-links',
+  'content-credentials': '/settings/delivery#content-credentials',
   log: '/settings/log',
   about: '/settings/general',
   preferences: '/settings/preferences',

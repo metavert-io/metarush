@@ -37,7 +37,7 @@ export function AccountMenu() {
   const id = useId();
   const method = state.data?.method;
   // Until the sign-in method is known, a quiet placeholder of the same size (no jump from ☰ to a picture).
-  const signedIn = method === 'password' || method === 'tailscale';
+  const signedIn = method === 'password' || method === 'tailscale' || method === 'sso';
   // Your account as the workspace has it (the name and email you set there; the session's may be older).
   const you = useOp('auth.status', {}, { staleTime: 60_000, enabled: signedIn }).data?.you;
 

@@ -17,6 +17,48 @@
   `metarush service status --json` adds the MetaRush running for the home and the version and commit it answers with
   (`daemon`); `metarush doctor --json` carries each check's plain words (`say`, `do`). The background service is never
   set to run from the temporary copy macOS makes of an app opened where it was downloaded.
+- **Delivered videos can carry Content Credentials**. Turn them on in Settings → Delivery (or `metarush credentials
+  on`; a client's Content Settings can say on, required or off for their projects) and every final video MetaRush
+  delivers carries a signed record, in the open C2PA format, that it was made with MetaRush, which footage, sound and
+  pictures it uses (by their fingerprints, never their names) and which parts AI made or changed — no names of
+  people, projects or clients, no prompts, no thumbnail. Each computer that delivers signs with its own certificate:
+  a test certificate made there (verifiers show its signer as unknown), or your organisation's own, set up by an
+  owner in Settings → Delivery or with `metarush credentials setup`; its key stays in that computer's keychain and is
+  never handed to the signing tool, which gets one signature per video and must put exactly that one in the file.
+  Each signed copy is read back and checked before it goes out; the video's record, its notes file ("This video
+  carries Content Credentials…") and the receipt say so, and a video that can't be signed goes out without them and
+  says why. "Required" holds a version until this computer can sign it — its key readable (a locked keychain holds it),
+  its timestamp service one MetaRush asks, and after a signing here failed, until Try it on a sample works — with the
+  ship gate off too; a person can still send it out without them, with a note. The
+  signing tool, c2patool, is a new optional component (Settings → Components). `metarush credentials check <video>`
+  reads any video's.
+- **Abilities say what AI does to what they make**. An ability's manifest now says, for each kind of output, whether
+  a generative AI model made it, changed it, only improved it, or no AI took part (`ai: {picture: made}`), and what an
+  ability brings in carries that word. Content Credentials, the delivery's record, the quality check and the receipt
+  read it the way they read AI services' work, so a picture the ComfyUI ability made from words is disclosed as
+  AI-generated and a stock photo isn't. An output whose manifest says nothing counts as made with AI, and `ability
+  check` asks the author to say; the starter abilities say.
+- **Remotion refreshes can't see other programs' temporary files**. A source's own refresh steps can no longer read,
+  write or connect to anything inside the temporary folders other programs use (the system's temporary folders and, on
+  a Mac, the other folders of yours beside them), apart from their own copy and cache.
+- **Deliver from the version page**. Ready to deliver now has **Deliver…**: the final video goes to a new folder in
+  MetaRush exports (in Movies on a Mac, Videos elsewhere), checked against the render, with its record, notes and captions — the same delivery as
+  `metarush deliver` — and you can show it in Finder or, from another computer, download it.
+- **Sign in with Google, Microsoft or your organization's own provider**. A new way to sign in, in Settings → People:
+  people use the account they already have (OpenID Connect, with PKCE and every check on the provider's signed
+  answer). Only people you invite, or people of a Google Workspace domain, Microsoft directory or email domain you
+  choose, get in — never anyone just because they have an account there (Microsoft's guests and personal accounts
+  don't sign in). You register the app with the addresses MetaRush shows (this computer's at 127.0.0.1, which only
+  MetaRush answers on), keep its secret on each computer like a key, and test the sign-in on this computer before
+  switching, so you keep getting in; passwords and Tailscale accounts can keep working beside it. Setting up another
+  app or a new secret later never interrupts the sign-in in use: it waits for its own test, and you can forget it.
+  Moving to another provider keeps everyone: each person's first sign-in there links their account by the email it
+  vouches for. Invite links work with it, two sign-ins in two tabs both finish, and `metarush dashboard` at this
+  computer still opens MetaRush if the provider ever stops working. In a terminal: `metarush auth sso
+  status|set|secret|test|discard` and `metarush auth method sso` (the secret through a pipe, or typed without echo).
+- **Changing your password keeps this browser signed in on a busy computer**. A new password signs you out
+  everywhere else and this browser carries on, but on a computer working hard MetaRush could misjudge the time by a
+  second or two and sign this browser out as well. It now asks the database for the time when they disagree.
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says

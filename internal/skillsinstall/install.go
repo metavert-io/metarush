@@ -357,6 +357,9 @@ var ReadOnlyCommands = []string{
 	"metarush captions looks",
 	// The menu of abilities (D272): what works on this computer and what each needs; reading only.
 	"metarush catalogue list", "metarush catalogue show",
+	// Content Credentials (D424): whether they are on and this computer can sign, and what a video's say; reading only
+	// (setting up a certificate, removing it and choosing on or off are owners').
+	"metarush credentials status", "metarush credentials check",
 }
 
 // Permissions returns the allowlist entries.

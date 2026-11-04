@@ -12,6 +12,8 @@ import (
 
 	sjs "github.com/santhosh-tekuri/jsonschema/v6"
 	"gopkg.in/yaml.v3"
+
+	"github.com/metavert-io/metarush/internal/models"
 )
 
 const exampleManifest = `ability: 1
@@ -91,6 +93,10 @@ func TestManifestProblems(t *testing.T) {
 		{"no test", "test: {inputs: {words: ocean waves, count: 1}}", "", "give the inputs"},
 		{"a test with an unknown input", "test: {inputs: {words: ocean waves, count: 1}}", "test: {inputs: {colour: red}}", "no input called"},
 		{"bad output", "outputs: [footage, picture]", "outputs: [footage, website]", "isn't something MetaRush takes in"},
+		// What AI does to each kind of output (D460).
+		{"ai for an output it doesn't make", "outputs: [footage, picture]", "outputs: [footage, picture]\nai: {sound: none}", "ai.sound: it lists no sound output"},
+		{"ai that isn't one of the four", "outputs: [footage, picture]", "outputs: [footage, picture]\nai: {picture: maybe}", `ai.picture: say made, edited, enhanced or none, not "maybe"`},
+		{"ai in one word for every output", "outputs: [footage, picture]", "outputs: [footage, picture]\nai: made", "isn't a manifest MetaRush can read"},
 		{"yes or no", "likeness: no", "likeness: maybe", "say yes or no"},
 		{"footage leaves without saying", "  count: {kind: number, min: 1, max: 6, default: 3}", "  count: {kind: number, min: 1, max: 6, default: 3}\n  clip: {kind: footage, optional: true}", "sends must say"},
 	}
@@ -277,6 +283,43 @@ func TestManifestSchema(t *testing.T) {
 	}
 	if err := sch.Validate(asJSON(exampleManifest + "magic: 1\n")); err == nil {
 		t.Error("the schema refuses unknown fields")
+	}
+	// What AI does to each kind of output (D460): one of four words, for kinds of output.
+	if err := sch.Validate(asJSON(exampleManifest + "ai: {footage: none, picture: made}\n")); err != nil {
+		t.Errorf("a manifest saying what AI does passes the schema: %v", err)
+	}
+	for _, bad := range []string{"ai: {picture: maybe}\n", "ai: {website: none}\n", "ai: made\n"} {
+		if err := sch.Validate(asJSON(exampleManifest + bad)); err == nil {
+			t.Errorf("the schema takes %q", bad)
+		}
+	}
+}
+
+// An ability's manifest says what AI does to each kind of output it makes
+// (D460): what it doesn't say counts as made, and the check asks for it.
+func TestManifestSaysWhatAIDoesToEachOutput(t *testing.T) {
+	m, err := ParseManifest([]byte(exampleManifest))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := m.AIUndeclared(); strings.Join(got, ",") != "footage,picture" || m.AIOf(OutPicture) != "" {
+		t.Fatalf("nothing said: %v", got)
+	}
+	if models.AIWorkDeclared(m.AIOf(OutPicture)) != models.AIWorkMade {
+		t.Fatal("an output its manifest says nothing about counts as made")
+	}
+	m, err = ParseManifest([]byte(exampleManifest + "ai: {footage: none, picture: made}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ps := m.Validate(map[string]bool{"run.py": false, ManifestFile: false}); len(ps) != 0 {
+		t.Fatalf("a manifest that says: %v", ps)
+	}
+	if len(m.AIUndeclared()) != 0 || models.AIWorkDeclared(m.AIOf(OutFootage)) != "" || models.AIWorkDeclared(m.AIOf(OutPicture)) != models.AIWorkMade {
+		t.Fatalf("what it says: %v", m.AI)
+	}
+	if f := factsOf(m); f.AI[OutFootage] != models.AIWorkNone || f.AI[OutPicture] != models.AIWorkMade {
+		t.Fatalf("the version's facts: %v", f.AI)
 	}
 }
 

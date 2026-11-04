@@ -23,12 +23,17 @@ import (
 // AuthState is GET /api/auth/state: how this MetaRush signs people in and
 // whether this browser is signed in (the dashboard picks its first screen).
 type AuthState struct {
-	Method   string `json:"method" jsonschema:"enum=single,enum=password,enum=tailscale"`
+	Method   string `json:"method" jsonschema:"enum=single,enum=password,enum=tailscale,enum=sso"`
 	SignedIn bool   `json:"signedIn"`
 	Name     string `json:"name,omitempty"`
 	Here     bool   `json:"here" jsonschema:"description=This browser is on the computer MetaRush runs on."`
 	Secure   bool   `json:"secure" jsonschema:"description=The connection is private enough to type a password (this computer, or HTTPS)."`
 	Machine  string `json:"machine"`
+	// SSO is the organization's sign-in people use (method sso, D425).
+	SSO *SSOButton `json:"sso,omitempty"`
+	// Password: email and password sign people in (the method, or kept
+	// beside the organization's sign-in).
+	Password bool `json:"password"`
 }
 
 // SignInRequest is POST /api/auth/login.
@@ -50,6 +55,10 @@ type LinkInfo struct {
 	Name      string    `json:"name,omitempty"`
 	ExpiresAt time.Time `json:"expiresAt"`
 	Machine   string    `json:"machine"`
+	// SSO: an invite is followed by signing in with the organization's
+	// account (D429); Password: by choosing a password.
+	SSO      *SSOButton `json:"sso,omitempty"`
+	Password bool       `json:"password"`
 }
 
 // LinkAccept is POST /api/auth/link/{token}.
@@ -64,12 +73,18 @@ func (s *Server) signInRoutes(r *mux.Router) {
 	r.HandleFunc("/api/auth/logout", s.authLogout).Methods("POST")
 	r.HandleFunc("/api/auth/link/{token}", s.authLinkInfo).Methods("GET")
 	r.HandleFunc("/api/auth/link/{token}", s.authLinkAccept).Methods("POST")
+	// Signing in with an organization's account (D425, sso.go).
+	r.HandleFunc("/api/auth/sso/start", s.ssoStart).Methods("POST")
+	r.HandleFunc("/auth/sso/begin", s.ssoBegin).Methods("GET")
+	r.HandleFunc("/auth/sso/callback", s.ssoCallback).Methods("GET")
 }
 
 func (s *Server) authState(w http.ResponseWriter, r *http.Request) {
 	acc := accessOf(r)
 	p, ok, _ := s.signedIn(w, r)
-	writeOK(w, AuthState{Method: auth.Method(r.Context(), s.App), SignedIn: ok, Name: p.UserName, Here: !acc.public, Secure: !acc.public || acc.secure, Machine: s.App.Cfg.MachineName()})
+	st := auth.Settings(r.Context(), s.App)
+	writeOK(w, AuthState{Method: st.Method, SignedIn: ok, Name: p.UserName, Here: !acc.public, Secure: !acc.public || acc.secure, Machine: s.App.Cfg.MachineName(),
+		SSO: ssoButton(st), Password: auth.PasswordOn(r.Context(), s.App)})
 }
 
 // signInGuard is what every sign-in request passes: the dashboard's own
@@ -119,7 +134,7 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	if !s.signInGuard(w, r) {
 		return
 	}
-	if auth.Method(r.Context(), s.App) != models.AuthPassword {
+	if !auth.PasswordOn(r.Context(), s.App) {
 		writeErr(w, apperr.New(apperr.Conflict, "People don't sign in with a password here.").WithDetails(map[string]any{"reason": "no_passwords"}))
 		return
 	}
@@ -134,13 +149,14 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	s.startSession(w, r, u)
+	s.startSession(w, r, u, models.AuthPassword, "")
 	writeOK(w, SignInResult{UserID: u.ID, Name: u.Name})
 }
 
 // startSession signs a browser in as a person with a new session (any session
-// it had ends: no fixation) and records it.
-func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *models.User) {
+// it had ends: no fixation) and records it: method password or sso (with the
+// provider it came through).
+func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *models.User, method, provider string) {
 	acc := accessOf(r)
 	st := sessions.For(s.App.Cfg.StateDir())
 	if c, err := r.Cookie(sessionCookie(acc)); err == nil && c.Value != "" {
@@ -149,7 +165,7 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *models.
 	// Made at the database server's time, which "sign out everywhere" on any
 	// computer is compared with (D360); it ends and goes idle by this
 	// computer's clock, which only this computer reads.
-	val, err := st.New(sessions.Session{UserID: u.ID, UserName: u.Name, Public: acc.public, From: acc.from, Method: models.AuthPassword,
+	val, err := st.New(sessions.Session{UserID: u.ID, UserName: u.Name, Public: acc.public, From: acc.from, Method: method, Provider: provider,
 		CreatedAt: auth.SessionStart(r.Context(), s.App, u), ExpiresAt: time.Now().Add(auth.SessionMax).UTC()}, time.Now())
 	if err != nil {
 		writeErr(w, apperr.Wrap(apperr.Internal, err, "MetaRush couldn't sign you in. Try again."))
@@ -158,7 +174,11 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *models.
 	s.App.Log.Secret(val)
 	s.setSession(w, acc, val)
 	a := s.appAs(person{UserID: u.ID, UserName: u.Name}, "dashboard")
-	a.Audit(r.Context(), "auth.signin", "user", u.ID, "", map[string]any{"remote": acc.public, "from": acc.from})
+	details := map[string]any{"remote": acc.public, "from": acc.from, "method": method}
+	if provider != "" {
+		details["provider"] = provider
+	}
+	a.Audit(r.Context(), "auth.signin", "user", u.ID, "", details)
 }
 
 func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +202,9 @@ func (s *Server) authLinkInfo(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	writeOK(w, LinkInfo{Kind: rec.Kind, Email: u.Email, Name: u.Name, ExpiresAt: rec.ExpiresAt, Machine: s.App.Cfg.MachineName()})
+	st := auth.Settings(r.Context(), s.App)
+	writeOK(w, LinkInfo{Kind: rec.Kind, Email: u.Email, Name: u.Name, ExpiresAt: rec.ExpiresAt, Machine: s.App.Cfg.MachineName(),
+		SSO: ssoButton(st), Password: auth.PasswordOn(r.Context(), s.App)})
 }
 
 func (s *Server) authLinkAccept(w http.ResponseWriter, r *http.Request) {
@@ -197,12 +219,17 @@ func (s *Server) authLinkAccept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.App.Log.Secret(in.Password)
+	if !auth.PasswordOn(r.Context(), s.App) {
+		// An invite here is followed by signing in with the organization's account.
+		writeErr(w, apperr.New(apperr.Conflict, "People don't choose a password here: they sign in with their organization's account.").WithDetails(map[string]any{"reason": "no_passwords"}))
+		return
+	}
 	u, err := auth.UseLink(r.Context(), s.App, token, in.Name, in.Password)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	s.startSession(w, r, u)
+	s.startSession(w, r, u, models.AuthPassword, "")
 	writeOK(w, SignInResult{UserID: u.ID, Name: u.Name})
 }
 

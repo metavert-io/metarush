@@ -108,6 +108,10 @@ func TestAFrameTakenFromAReferenceIsTreatedLikeIt(t *testing.T) {
 	head(plain.ID)
 	do[ops.FootageReferenceOut](t, a, "footage.reference", ops.FootageReferenceIn{AssetID: clipID})
 
+	// Frames taken now say what they are.
+	if fr2 := do[ops.FramesOut](t, a, "footage.frames", ops.FramesIn{AssetID: clipID, At: []float64{0.5}, OutDir: t.TempDir()}); !strings.Contains(fr2.Note, "“"+title+"” is a reference: someone else's video") {
+		t.Fatalf("frames of a reference: %q", fr2.Note)
+	}
 	// The picture says so in the library, and adding the frame again says so too.
 	show = do[ops.ResourceShowOut](t, a, "resources.show", ops.ResourceRefIn{Ref: "hook-still", ProjectID: p.ID})
 	if !strings.Contains(show.Row.Reference, "Taken from “"+title+"”, a reference: someone else's video") {

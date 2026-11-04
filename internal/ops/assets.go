@@ -386,6 +386,9 @@ func init() {
 		}
 		d := &derive.Deriver{T: a.Tools}
 		out := &FramesOut{Frames: []FrameFile{}, Source: srcName, Note: "Times are seconds in the original clip. Frames from the preview copy are 720p; use source=original for detail checks."}
+		if as.IsReference() { // D457
+			out.Note += " " + as.ReferenceWords() + ". These frames are for looking at; added to Resources, a picture taken from it counts as the video itself."
+		}
 		for _, t := range in.At {
 			if t < 0 || t > as.Media.Duration {
 				return nil, invalid("There's no frame at %.1f s: “%s” is %.1f s long.", t, as.DisplayTitle(), as.Media.Duration)

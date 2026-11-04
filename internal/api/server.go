@@ -30,6 +30,7 @@ import (
 	"github.com/metavert-io/metarush/internal/assistant"
 	"github.com/metavert-io/metarush/internal/auth"
 	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/guests"
 	"github.com/metavert-io/metarush/internal/ingest"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/notify"
@@ -124,6 +125,9 @@ type Server struct {
 	// dashboard answers only this computer's own browser, whatever
 	// config.yaml says of remote access (RemoteOff).
 	remoteOff atomic.Bool
+	// guestRun is the guest listener this server runs (D491): started,
+	// moved or stopped by ApplyGuests.
+	guestRun guestListener
 }
 
 // RemoteOff keeps remote access off for this server: a computer that handed
@@ -209,6 +213,13 @@ func (s *Server) Listen(ctx context.Context) error {
 		go recorder.Sweep(ctx, s.App, asPerson) // pieces of recordings nobody finished don't stay forever
 	}
 	defer s.uploads.st.Flush()
+	if !s.held {
+		// The guest listener (D491): as this computer's settings say, and
+		// again whenever an owner changes them here.
+		_ = s.ApplyGuests(ctx)
+		guests.OnListenerChanged = func(config.Guests) { _ = s.ApplyGuests(ctx) }
+		defer guests.SayStopped(s.App.Cfg)
+	}
 	go func() {
 		<-ctx.Done()
 		c, cancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -167,6 +167,21 @@ const (
 	// database after the move (lwr_…): new, changed or gone there, the old
 	// database's version, and whether a person carried it over or left it.
 	CLateWrites = "late_writes"
+	// CGuests holds people outside the workspace an owner shared a project or
+	// some of its versions with (gst_…, D490): who they are, never an account.
+	CGuests = "guests"
+	// CGuestGrants holds what each guest may see and do (ggr_…, D490): a
+	// project's versions, a role, until when.
+	CGuestGrants = "guest_grants"
+	// CGuestLinks holds the one-time sign-in links owners send guests, by
+	// their token's SHA-256 (D495).
+	CGuestLinks = "guest_links"
+	// CGuestSessions holds guests' signed-in browsers, by their cookie's
+	// SHA-256 (D494).
+	CGuestSessions = "guest_sessions"
+	// CGuestActivity holds every guest request (gac_…, D497): who, from where,
+	// what, when.
+	CGuestActivity = "guest_activity"
 )
 
 // ErrNotFound is returned when a document does not exist in the workspace.

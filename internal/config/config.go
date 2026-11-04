@@ -64,6 +64,9 @@ type Config struct {
 	Recordings Recordings `yaml:"recordings,omitempty"`
 	// ScreenIndex chooses how this computer looks at what's on screen (D408).
 	ScreenIndex ScreenIndex `yaml:"screenIndex,omitempty"`
+	// Guests is this computer's guest listener (D491): off unless a person
+	// turns guests on here; 127.0.0.1 only. Read it with GuestListener.
+	Guests Guests `yaml:"guests,omitempty"`
 
 	home       string        `yaml:"-"`
 	secretMode string        `yaml:"-"` // inferred from the raw file when Secrets is empty
@@ -243,6 +246,7 @@ type liveSettings struct {
 	threshold   atomic.Int32
 	remote      atomic.Pointer[Remote]
 	screenIndex atomic.Pointer[string]
+	guests      atomic.Pointer[Guests]
 }
 
 // ScreenIndex chooses how this computer looks at what's on screen (D408):

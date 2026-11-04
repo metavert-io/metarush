@@ -240,6 +240,8 @@ func (l *Logger) channelFor(via string) string {
 		return ChannelMCP
 	case models.ViaRecipe:
 		return ChannelRecipe
+	case models.ViaGuest:
+		return ChannelGuest
 	case "", "cli":
 		if l.procChannel != "" {
 			return l.procChannel

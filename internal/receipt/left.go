@@ -48,7 +48,7 @@ type ReceiptLeft struct {
 
 // ReceiptLeftPlace is one receiver things of the project went to.
 type ReceiptLeftPlace struct {
-	Place string `json:"place" jsonschema:"enum=ai,enum=abilities,enum=claude,enum=storage,enum=delivery,enum=reviewers"`
+	Place string `json:"place" jsonschema:"enum=ai,enum=abilities,enum=claude,enum=storage,enum=delivery,enum=reviewers,enum=guests"`
 	// To is who received them, in words.
 	To string `json:"to"`
 	// Kinds are what went (footage, voices, faces, words, pictures).
@@ -100,7 +100,7 @@ func init() {
 }
 
 // placeOrder is the order places are listed in.
-var placeOrder = map[string]int{models.PlaceAI: 0, models.PlaceClaude: 1, models.PlaceAbilities: 2, models.PlaceDelivery: 3, models.PlaceReviewers: 4, models.PlaceStorage: 5}
+var placeOrder = map[string]int{models.PlaceAI: 0, models.PlaceClaude: 1, models.PlaceAbilities: 2, models.PlaceDelivery: 3, models.PlaceReviewers: 4, models.PlaceGuests: 5, models.PlaceStorage: 6}
 
 // receiptLeft gathers what left, from the receipt's requests and Claude's
 // conversations and from the records of runs, deliveries and refusals.
@@ -151,6 +151,7 @@ func receiptLeft(ctx context.Context, a *app.App, p *models.Project, out *Projec
 	remotionLeft(ctx, a, p.ID, add)
 	// People outside the workspace: review links (D314, D317).
 	reviewLinksLeft(ctx, a, p.ID, add)
+	guestsLeft(ctx, a, p.ID, add)
 	for _, x := range byKey {
 		x.Kinds = ordered(x.Kinds)
 		l.Places = append(l.Places, *x)
@@ -538,6 +539,39 @@ func remotionLeft(ctx context.Context, a *app.App, projectID string, add func(pl
 	_ = a.DB.Find(ctx, store.CRemotionRefreshes, a.WorkspaceID(), bson.M{"projectId": projectID, "ran": true}, &refreshes, options.Find().SetLimit(500))
 	for _, r := range refreshes {
 		add(models.PlaceAbilities, "the places a Remotion refresh reached", leave.RemotionKinds, r.CreatedAt, fmt.Sprintf("refresh %d", r.Number))
+	}
+}
+
+// guestsLeft lists what was shared with guests that showed the project's
+// things (D498): to whom, what, and until when (its own project's grants, and
+// grants whose versions played its things when they were made).
+func guestsLeft(ctx context.Context, a *app.App, projectID string, add func(place, to string, kinds []string, at time.Time, what string)) {
+	var gs []models.GuestGrant
+	if err := a.DB.Find(ctx, store.CGuestGrants, a.WorkspaceID(), bson.M{"$or": bson.A{bson.M{"projectId": projectID}, bson.M{"projects": projectID}}}, &gs,
+		options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}).SetLimit(500)); err != nil || len(gs) == 0 {
+		return
+	}
+	emails := map[string]string{}
+	var guestIDs []string
+	for _, g := range gs {
+		guestIDs = append(guestIDs, g.GuestID)
+	}
+	var guests []models.Guest
+	_ = a.DB.Find(ctx, store.CGuests, a.WorkspaceID(), bson.M{"_id": bson.M{"$in": guestIDs}}, &guests, options.Find().SetProjection(bson.M{"email": 1}))
+	for _, g := range guests {
+		emails[g.ID] = g.Email
+	}
+	for _, g := range gs {
+		to := "a guest"
+		if e := emails[g.GuestID]; e != "" {
+			to = e + " (a guest)"
+		}
+		until := g.EndsAt
+		if g.RevokedAt != nil && g.RevokedAt.Before(until) {
+			until = *g.RevokedAt
+		}
+		what := fmt.Sprintf("%s (until %s)", andList(g.Exposes), until.Local().Format("2 Jan 2006"))
+		add(models.PlaceGuests, to, g.Kinds, g.CreatedAt, what)
 	}
 }
 

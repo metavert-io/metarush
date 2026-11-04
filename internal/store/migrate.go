@@ -222,6 +222,50 @@ var Migrations = []Migration{
 			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "sso.key", Value: 1}},
 				options.Index().SetName("sso_account").SetUnique(true).SetPartialFilterExpression(bson.M{"sso.key": bson.M{"$exists": true}})))
 	}},
+	// v67 belongs to a build merged in parallel.
+	{Version: 68, Name: "guests: people outside the workspace an owner shares with, what they may see, their sign-in links and browsers", Up: migrateGuests},
+	{Version: 69, Name: "guests' requests, and the comments they leave", Up: migrateGuestActivity},
+}
+
+// migrateGuests indexes guests (D490: one per email in a workspace), their
+// grants (by guest, and by project: a project cleared out ends its grants),
+// one-time links and signed-in browsers (by guest: taking a guest back ends
+// them all at once).
+func migrateGuests(ctx context.Context, d *DB) error {
+	if err := createIndexes(ctx, d, CGuests,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "emailKey", Value: 1}}, options.Index().SetName("guest_email").SetUnique(true)),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "account.key", Value: 1}}, options.Index().SetSparse(true))); err != nil {
+		return fmt.Errorf("%s indexes: %w", CGuests, err)
+	}
+	if err := createIndexes(ctx, d, CGuestGrants,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "guestId", Value: 1}, {Key: "createdAt", Value: -1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "projectId", Value: 1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "projects", Value: 1}})); err != nil {
+		return fmt.Errorf("%s indexes: %w", CGuestGrants, err)
+	}
+	if err := createIndexes(ctx, d, CGuestLinks,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "guestId", Value: 1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "expiresAt", Value: 1}})); err != nil {
+		return fmt.Errorf("%s indexes: %w", CGuestLinks, err)
+	}
+	return createIndexes(ctx, d, CGuestSessions,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "guestId", Value: 1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "expiresAt", Value: 1}}))
+}
+
+// migrateGuestActivity indexes guests' requests (D497) newest first, per
+// guest (the owners' list, the hour's count for unusual volume) and by time
+// (old ones go after a while), and comments by the guest who left them.
+func migrateGuestActivity(ctx context.Context, d *DB) error {
+	if err := createIndexes(ctx, d, CGuestActivity,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "at", Value: -1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "guestId", Value: 1}, {Key: "at", Value: -1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "projectId", Value: 1}, {Key: "at", Value: -1}})); err != nil {
+		return fmt.Errorf("%s indexes: %w", CGuestActivity, err)
+	}
+	return createIndexes(ctx, d, CComments,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "guest.id", Value: 1}, {Key: "revisionId", Value: 1}, {Key: "createdAt", Value: 1}},
+			options.Index().SetPartialFilterExpression(bson.M{"guest.id": bson.M{"$exists": true}})))
 }
 
 // migratePresenters indexes people's own presenters (D273: one per short

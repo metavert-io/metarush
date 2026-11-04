@@ -32,9 +32,14 @@ type Op struct {
 	// whose account is an owner, on this computer's address or another's;
 	// this computer's own CLI counts as the owner (owner.go).
 	OwnerOnly bool
-	InType    reflect.Type
-	OutType   reflect.Type
-	run       func(ctx context.Context, a *app.App, in any) (any, error)
+	// Guest: an operation of the guest API (D492), which answers for the
+	// guest whose sign-in the guest listener checked. Only the guest listener
+	// calls it as a guest; elsewhere an owner may only look at what a guest
+	// sees, never act as one.
+	Guest   bool
+	InType  reflect.Type
+	OutType reflect.Type
+	run     func(ctx context.Context, a *app.App, in any) (any, error)
 }
 
 var registry = map[string]*Op{}
@@ -45,7 +50,7 @@ func Def[I any, O any](name, summary string, flags Flags, fn func(ctx context.Co
 		panic("duplicate op " + name)
 	}
 	registry[name] = &Op{
-		Name: name, Summary: summary, Mutating: flags.Mutating, HumanOnly: flags.HumanOnly, LocalOnly: flags.LocalOnly, MaxInput: flags.MaxInput, OwnerOnly: flags.OwnerOnly,
+		Name: name, Summary: summary, Mutating: flags.Mutating, HumanOnly: flags.HumanOnly, LocalOnly: flags.LocalOnly, MaxInput: flags.MaxInput, OwnerOnly: flags.OwnerOnly, Guest: flags.Guest,
 		InType: reflect.TypeOf((*I)(nil)).Elem(), OutType: reflect.TypeOf((*O)(nil)).Elem(),
 		run: func(ctx context.Context, a *app.App, in any) (any, error) { return fn(ctx, a, in.(*I)) },
 	}
@@ -62,6 +67,8 @@ type Flags struct {
 	// OwnerOnly: people, sign-in, remote access, storage and keys (D183), and
 	// every setting of this computer or of the workspace's limits (D191).
 	OwnerOnly bool
+	// Guest: an operation of the guest API (D492): see Op.Guest.
+	Guest bool
 }
 
 // DefaultMaxInput is the largest request an op takes over HTTP.
@@ -88,6 +95,9 @@ type Caller struct {
 	// Owner: the caller is known to be an owner (D183). Over HTTP the
 	// signed-in person decides (OverHTTP, owner.go), so it stays false there.
 	Owner bool
+	// Guest: a guest, through the guest listener (D492): only guest
+	// operations answer it, for the guest whose sign-in the listener checked.
+	Guest bool
 }
 
 type callerKey struct{}
@@ -131,6 +141,20 @@ func dispatch(ctx context.Context, a *app.App, name string, op *Op, ok bool, raw
 		return nil, apperr.New(apperr.NotFound, "This version of MetaRush can't do that.").
 			WithHint("MetaRush on this machine may be older than what asked for it; update it, then try again.").
 			WithDetails(map[string]any{"op": name}).WithCommand("metarush ops list")
+	}
+	// Guests and the guest API keep to each other (D492): a guest reaches
+	// nothing else, and nobody else acts as a guest.
+	if c.Guest && !op.Guest {
+		return nil, apperr.New(apperr.Unauthorized, "Guests can't do that here.").WithDetails(map[string]any{"reason": "guests_only", "op": name})
+	}
+	if op.Guest && !c.Guest {
+		if op.Mutating {
+			return nil, apperr.New(apperr.Unauthorized, "Only the guest does that, on their own guest page.").WithDetails(map[string]any{"reason": "guest_only", "op": name})
+		}
+		if !c.ownerOK(ctx) {
+			// What a guest sees is shown to owners only.
+			return nil, ownerOnly(ctx, a, name)
+		}
 	}
 	if op.OwnerOnly && !c.ownerOK(ctx) {
 		// Before anything else about the call: a member hears that owners

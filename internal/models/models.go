@@ -77,6 +77,9 @@ type Workspace struct {
 	// ContentCredentials is whether delivered videos carry Content
 	// Credentials (D418; owners): nil means off.
 	ContentCredentials *ContentCredentialsSettings `bson:"contentCredentials,omitempty" json:"contentCredentials,omitempty"`
+	// Guests is whether people outside the workspace an owner shares with
+	// are let in through the guest listener (D501; owners): nil means off.
+	Guests *GuestSettings `bson:"guests,omitempty" json:"guests,omitempty"`
 	// DeletionsPaused is set on a restored copy (D333): nothing deletes by
 	// itself there — the Trash on its schedule, review links ending and their
 	// pages going, old activity cleared out — while the original may still use
@@ -1181,8 +1184,12 @@ type Comment struct {
 	// Outside: someone outside the workspace left it through a review link
 	// (D315); Author.UserName is "<their name> (outside)".
 	Outside *CommentOutside `bson:"outside,omitempty" json:"outside,omitempty"`
-	// Quoted is set when an AI reads an outside reviewer's comment: Body is
-	// their words in quotes, and this says how to read them. Never stored.
+	// Guest: a guest left it through the guest page (D492); Author.UserName
+	// is "<their name> (guest)".
+	Guest *CommentGuest `bson:"guest,omitempty" json:"guest,omitempty"`
+	// Quoted is set when an AI reads an outside reviewer's or a guest's
+	// comment: Body is their words in quotes, and this says how to read them.
+	// Never stored.
 	Quoted string `bson:"-" json:"quoted,omitempty"`
 }
 

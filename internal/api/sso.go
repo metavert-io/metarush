@@ -203,7 +203,8 @@ func (s *Server) ssoBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.App.Log.Secret(state)
-	if acc.public != f.Public || !s.sameHost(r, f) {
+	if f.Purpose == sso.ForGuest || acc.public != f.Public || !s.sameHost(r, f) {
+		// A guest's sign-in finishes only on the guest listener (D496).
 		s.ssoPage(w, http.StatusForbidden, "Open this link where you started", "This sign-in began at another address of MetaRush. Start again there.", "")
 		return
 	}
@@ -252,7 +253,8 @@ func (s *Server) ssoCallback(w http.ResponseWriter, r *http.Request) {
 	setPending(w, acc, rest)
 	store := sso.FlowsIn(s.App.Cfg.StateDir())
 	f, err := store.Finish(state, func(f *sso.Flow) error {
-		if acc.public != f.Public || !s.sameHost(r, f) {
+		if f.Purpose == sso.ForGuest || acc.public != f.Public || !s.sameHost(r, f) {
+			// A guest's sign-in never finishes here, as a member (D496).
 			return errElsewhere
 		}
 		return nil

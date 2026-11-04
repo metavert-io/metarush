@@ -52,10 +52,14 @@ const (
 	// link to (D317): the version's review copy, and its words when the link
 	// shows them.
 	PlaceReviewers = "reviewers"
+	// PlaceGuests: guests an owner shares a project or some of its versions
+	// with (D498): the versions' review copies, watched on MetaRush's guest
+	// page.
+	PlaceGuests = "guests"
 )
 
 // LeavePlaces lists the places in the order people see them.
-var LeavePlaces = []string{PlaceAI, PlaceAbilities, PlaceClaude, PlaceStorage, PlaceDelivery, PlaceReviewers}
+var LeavePlaces = []string{PlaceAI, PlaceAbilities, PlaceClaude, PlaceStorage, PlaceDelivery, PlaceReviewers, PlaceGuests}
 
 // LeaveRules are what may leave this computer for every project using a
 // project's Content Settings (D288). Empty rules change nothing.
@@ -64,7 +68,7 @@ type LeaveRules struct {
 	// would go.
 	Nothing bool `bson:"nothing,omitempty" json:"nothing,omitempty"`
 	// Places say, per place (ai, abilities, claude, storage, delivery,
-	// reviewers), what
+	// reviewers, guests), what
 	// stays on this computer and who may receive the rest.
 	Places map[string]LeavePlace `bson:"places,omitempty" json:"places,omitempty"`
 	// Note says why, in the person's own words ("the client's contract").

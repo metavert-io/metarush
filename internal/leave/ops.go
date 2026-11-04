@@ -181,7 +181,7 @@ type LeaveSetIn struct {
 
 // LeavePlaceOut is one place as the dashboard and the CLI show it.
 type LeavePlaceOut struct {
-	Place string `json:"place" jsonschema:"enum=ai,enum=abilities,enum=claude,enum=storage,enum=delivery"`
+	Place string `json:"place" jsonschema:"enum=ai,enum=abilities,enum=claude,enum=storage,enum=delivery,enum=reviewers,enum=guests"`
 	Title string `json:"title"`
 	// Says what goes there, in plain words.
 	Says string `json:"says"`

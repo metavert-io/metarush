@@ -135,7 +135,7 @@ func Record(ctx context.Context, a *app.App, h Hit) {
 func tellUnusual(ctx context.Context, a *app.App, g *models.Guest) {
 	n, err := a.DB.C(store.CGuestActivity).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "guestId": g.ID,
 		"$expr": bson.M{"$gt": bson.A{"$at", bson.M{"$subtract": bson.A{"$$NOW", time.Hour.Milliseconds()}}}}})
-	if err != nil || n <= VolumePerHour {
+	if err != nil || n <= int64(VolumePerHour) {
 		return
 	}
 	day := a.DB.NowOrLocal(ctx).Format("2006-01-02")

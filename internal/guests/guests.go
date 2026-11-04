@@ -48,9 +48,6 @@ const (
 	// MediaLife is how long a signed link to a review copy in the bucket
 	// works: the page asks for a new one when it ends.
 	MediaLife = 10 * time.Minute
-	// VolumePerHour is how many requests by one guest in an hour count as
-	// unusual: owners are told (once a day per guest).
-	VolumePerHour = 600
 	// KeepActivity is how long guests' requests are kept.
 	KeepActivity = 90 * 24 * time.Hour
 	// MaxComment, MaxName and MaxMessage are lengths in characters;
@@ -64,6 +61,10 @@ const (
 	// tokenBytes is a link's and a cookie's randomness: 256 bits.
 	tokenBytes = 32
 )
+
+// VolumePerHour is how many requests by one guest in an hour count as
+// unusual: owners are told (once a day per guest). A variable for tests.
+var VolumePerHour = 600
 
 // Signed is a guest's request whose sign-in the guest listener checked: the
 // browser's session, the guest, and their grants that work now.

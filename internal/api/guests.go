@@ -63,10 +63,11 @@ const (
 	// guestURLLimit bounds an address (the provider's answer carries a code
 	// and a state).
 	guestURLLimit = 8 << 10
-	// guestRecheck is how often a video being sent checks that its guest is
-	// still signed in.
-	guestRecheck = 5 * time.Second
 )
+
+// guestRecheck is how often a video being sent checks that its guest is still
+// signed in (a variable for tests).
+var guestRecheck = 5 * time.Second
 
 // Per-address limits on the guest listener (a minute's tries).
 var (

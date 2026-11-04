@@ -29,3 +29,26 @@ func TestWorksHereInPart(t *testing.T) {
 		t.Fatalf("faces on Linux: %+v", e)
 	}
 }
+
+// The words for the systems and keys an ability needs read as people say them,
+// whichever computer the test runs on.
+func TestNeedsWordsReadPlainly(t *testing.T) {
+	for _, c := range []struct {
+		os   []string
+		want string
+	}{
+		{[]string{"mac"}, "a Mac"},
+		{[]string{"linux"}, "Linux"},
+		{[]string{"mac", "linux"}, "a Mac or Linux"},
+	} {
+		if got := osWords(c.os); got != c.want {
+			t.Errorf("osWords(%v) = %q, want %q", c.os, got, c.want)
+		}
+	}
+	if got := keyWords(nil); got != "" {
+		t.Errorf("no keys: %q", got)
+	}
+	if got := keyTitle("no-such-service"); got != "no-such-service" {
+		t.Errorf("a key no service has: %q", got)
+	}
+}

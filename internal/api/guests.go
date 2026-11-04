@@ -43,10 +43,10 @@ import (
 //     rebinding, and anything sent to it under another name, is refused).
 //   - Untrusted requests: Tailscale's identity headers and every forwarded
 //     header are taken off before anything reads them, so none is believed;
-//     the visitor's address is the connection's (visitor: the one place the
-//     relay of a later release changes, to believe its header only from its
-//     own port, D499); every input is typed and bounded (bodies of a few KB,
-//     no query on the API, IDs by their shape).
+//     the visitor's address is the connection's (relayed is the one seam
+//     where a relay of a later release is believed: its own header, only on
+//     its own port, D499); every input is typed and bounded (bodies of a few
+//     KB, no query on the API, IDs by their shape).
 //   - Its own cookie on the guest address only (mr_guest; __Host-mr_guest and
 //     Secure when served over HTTPS), HttpOnly and SameSite=Strict, and the
 //     guest page's own header (X-MetaRush-Guest) on every change, same-origin.
@@ -82,10 +82,14 @@ type guestGate struct {
 	port int
 	// limit counts every request per address; signIn the sign-in steps.
 	limit, signIn *rateLimit
-	// believeForwarded says whether a request's forwarded address may be
-	// believed: nowhere in this release (D499). The relay of a later release
-	// sets it to "only from its own port".
-	believeForwarded func(*http.Request) bool
+	// relayed is the one place something in front of the listener is
+	// believed (D499). Given a request as it arrived, it says what a relay
+	// vouches for — the visitor's address and whether the visitor came over
+	// HTTPS — read from the relay's own header, and only for a request that
+	// came in on the relay's own port (ok is false for every other). It runs
+	// before the headers it could read are taken off. Nil in this release:
+	// nothing forwarded is believed, and the visitor is the connection.
+	relayed func(r *http.Request) (from string, https, ok bool)
 	// bucket is the media store's address for signed links (the page's
 	// policy lets video and stills come from there); "" for media kept here.
 	bucketOnce sync.Once
@@ -150,14 +154,23 @@ func untrusted(name string) bool {
 	return false
 }
 
-// visitor is the address a request came from: the connection's. A forwarded
-// address is believed only where believeForwarded says so — nowhere yet.
-func (g *guestGate) visitor(r *http.Request, forwarded string) string {
-	if g.believeForwarded != nil && forwarded != "" && g.believeForwarded(r) {
-		if a, err := netip.ParseAddr(strings.TrimSpace(strings.Split(forwarded, ",")[0])); err == nil {
-			return a.Unmap().String()
+// visitor is who a request came from: an address, and whether it came over
+// HTTPS. That is the connection's (HTTPS only on a TLS connection), unless
+// relayed vouches for the request with exactly one well-formed address —
+// nowhere yet: the guest address is this computer's own, http.
+func (g *guestGate) visitor(r *http.Request) (from string, https bool) {
+	if g.relayed != nil {
+		if f, h, ok := g.relayed(r); ok {
+			if a, err := netip.ParseAddr(strings.TrimSpace(f)); err == nil {
+				return a.Unmap().String(), h || r.TLS != nil
+			}
 		}
 	}
+	return connAddr(r), r.TLS != nil
+}
+
+// connAddr is the address of the connection a request came on.
+func connAddr(r *http.Request) string {
 	if ap, err := netip.ParseAddrPort(r.RemoteAddr); err == nil {
 		return ap.Addr().Unmap().String()
 	}
@@ -166,17 +179,6 @@ func (g *guestGate) visitor(r *http.Request, forwarded string) string {
 		return r.RemoteAddr
 	}
 	return host
-}
-
-// secure reports a request that came over HTTPS: a TLS connection, or a
-// forwarded "https" where believeForwarded says it may be believed (nowhere
-// yet: the guest address is this computer's own, http).
-func (g *guestGate) secure(r *http.Request, forwardedProto string) bool {
-	if r.TLS != nil {
-		return true
-	}
-	proto := strings.TrimSpace(strings.Split(forwardedProto, ",")[0])
-	return g.believeForwarded != nil && strings.EqualFold(proto, "https") && g.believeForwarded(r)
 }
 
 type guestCtxKey struct{}
@@ -226,15 +228,16 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 // own header on changes; then the request is recorded.
 func (g *guestGate) guard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// What something in front says about the visitor is read here, once,
-		// and judged by believeForwarded (D499); then it is gone.
-		forwarded, proto := r.Header.Get("X-Forwarded-For"), r.Header.Get("X-Forwarded-Proto")
+		// Who the visitor is gets decided here, once — by the connection, or
+		// by relayed alone (D499) — before every header something in front
+		// could add is taken off.
+		from, secure := g.visitor(r)
 		for k := range r.Header {
 			if untrusted(k) {
 				r.Header.Del(k)
 			}
 		}
-		q := &guestReq{from: g.visitor(r, forwarded), secure: g.secure(r, proto)}
+		q := &guestReq{from: from, secure: secure}
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
@@ -371,10 +374,7 @@ func (g *guestGate) token(r *http.Request) string {
 func (g *guestGate) signed(w http.ResponseWriter, r *http.Request) (*guests.Signed, bool) {
 	q := reqOf(r)
 	tok := g.token(r)
-	if tok != "" {
-		g.s.App.Log.Secret(tok) // a guest's cookie never reaches the activity log
-	}
-	s, err := guests.Check(r.Context(), g.s.App, tok, q.from)
+	s, err := guests.Check(r.Context(), g.s.App, tok, q.from) // a cookie found is kept out of the log
 	if err != nil {
 		if tok != "" {
 			g.setCookie(w, q.secure, "")
@@ -467,7 +467,6 @@ func (g *guestGate) state(w http.ResponseWriter, r *http.Request) {
 		out.SSO = btn.Title
 	}
 	if tok := g.token(r); tok != "" {
-		g.s.App.Log.Secret(tok)
 		if s, err := guests.Check(r.Context(), g.s.App, tok, q.from); err == nil {
 			q.signed, q.session = s, s.Session.ID
 			out.SignedIn, out.Guest = true, &guests.GuestSelf{Name: s.Guest.Name, Email: s.Guest.Email}
@@ -509,8 +508,7 @@ func (g *guestGate) useLink(w http.ResponseWriter, r *http.Request) {
 		guestErr(w, err)
 		return
 	}
-	g.s.App.Log.Secret(in.Token)
-	gu, err := guests.Redeem(r.Context(), g.s.App, in.Token)
+	gu, err := guests.Redeem(r.Context(), g.s.App, in.Token) // a link found is kept out of the log
 	if err != nil {
 		q.what, q.reason = "guest.signin.refused", guests.ReasonLinkGone
 		guestErr(w, err)
@@ -527,7 +525,6 @@ func (g *guestGate) signOut(w http.ResponseWriter, r *http.Request) {
 	q := reqOf(r)
 	q.what = "guest.signout"
 	if tok := g.token(r); tok != "" {
-		g.s.App.Log.Secret(tok)
 		if s, err := guests.Check(r.Context(), g.s.App, tok, q.from); err == nil {
 			q.signed = s
 		}
@@ -666,11 +663,12 @@ func projectOfVersion(r *http.Request, g *guestGate, revisionID string) string {
 
 /* ---------- Review copies kept on this computer ---------- */
 
-// guestMedia serves a review copy kept on this computer, with ranges, after
-// the guest's sign-in and the version's grant are checked; the answer stops
-// soon after the sign-in stops counting.
+// media serves a review copy kept on this computer, with ranges, after the
+// guest's sign-in and the version's grant are checked; the answer stops soon
+// after the version is no longer theirs to watch (whileShown).
 func (g *guestGate) media(w http.ResponseWriter, r *http.Request) { g.serveMedia(w, r, false) }
 
+// still serves the review copy's still, held to the same checks.
 func (g *guestGate) still(w http.ResponseWriter, r *http.Request) { g.serveMedia(w, r, true) }
 
 func (g *guestGate) serveMedia(w http.ResponseWriter, r *http.Request, still bool) {
@@ -714,7 +712,7 @@ func (g *guestGate) serveMedia(w http.ResponseWriter, r *http.Request, still boo
 	}
 	w.Header().Set("Content-Type", mime)
 	w.Header().Set("Cache-Control", "private, no-store")
-	ctx, cancel := g.whileGuest(r, s)
+	ctx, cancel := g.whileShown(r, s, v["version"], v["render"])
 	defer cancel()
 	serveFileUntil(ctx, w, r.WithContext(ctx), path)
 }
@@ -733,9 +731,10 @@ func (g *guestGate) localFile(key, sha string, size int64) (string, bool) {
 	return "", false
 }
 
-// whileGuest ends a long answer (a video being sent) soon after the guest's
-// sign-in stops counting: taken back, signed out, guests off.
-func (g *guestGate) whileGuest(r *http.Request, s *guests.Signed) (context.Context, context.CancelFunc) {
+// whileShown ends a long answer (a video being sent) within guestRecheck of
+// its version no longer being the guest's to watch: that grant or the guest
+// taken back, signed out, guests off, What may leave tightened.
+func (g *guestGate) whileShown(r *http.Request, s *guests.Signed, revisionID, renderID string) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(r.Context())
 	go func() {
 		t := time.NewTicker(guestRecheck)
@@ -745,7 +744,7 @@ func (g *guestGate) whileGuest(r *http.Request, s *guests.Signed) (context.Conte
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				if !guests.StillSignedIn(ctx, g.s.App, s) {
+				if !guests.StillShown(ctx, g.s.App, s, revisionID, renderID) {
 					cancel()
 					return
 				}
@@ -777,7 +776,6 @@ func (g *guestGate) page(w http.ResponseWriter, r *http.Request) {
 	q := reqOf(r)
 	q.what = "guest.page"
 	if tok := g.token(r); tok != "" {
-		g.s.App.Log.Secret(tok)
 		if s, err := guests.Check(r.Context(), g.s.App, tok, q.from); err == nil {
 			q.signed, q.session = s, s.Session.ID
 		}

@@ -127,15 +127,15 @@ func Redeem(ctx context.Context, a *app.App, token string) (*models.Guest, error
 	if !tokenShape(token) {
 		return nil, linkGone()
 	}
-	logbook.RememberSecret(token)
 	if !On(ctx, a) {
 		return nil, signedOut(ReasonGuestsOff)
 	}
 	working := bson.M{"_id": hashOf(token), "workspaceId": a.WorkspaceID(), "usedAt": nil, "revokedAt": nil, "$expr": bson.M{"$gt": bson.A{"$expiresAt", "$$NOW"}}}
 	var l models.GuestLink
 	if err := a.DB.C(store.CGuestLinks).FindOne(ctx, working).Decode(&l); err != nil {
-		return nil, linkGone()
+		return nil, linkGone() // a made-up link is never taken for a secret
 	}
+	logbook.RememberSecret(token)
 	g, _, err := getGuest(ctx, a, l.GuestID)
 	if err != nil || g.State != models.GuestActive {
 		return nil, linkGone()

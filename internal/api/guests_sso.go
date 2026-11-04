@@ -106,14 +106,13 @@ func (g *guestGate) ssoBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ticket := vals.Get("t")
-	g.s.App.Log.Secret(ticket)
 	f, state, err := sso.FlowsIn(g.s.App.Cfg.StateDir()).Begin(ticket)
 	if err != nil {
 		q.reason = guests.ReasonLinkGone
 		g.ssoPage(w, http.StatusGone, "This sign-in link doesn't work any more", "It was opened already, or more than two minutes went by. Start signing in again from your guest page.", true)
 		return
 	}
-	g.s.App.Log.Secret(state)
+	g.s.App.Log.Secret(ticket, state) // ours: a made-up ticket never is
 	if f.Purpose != sso.ForGuest || !strings.EqualFold(r.Host, f.Host) {
 		q.reason = guests.ReasonOther
 		g.ssoPage(w, http.StatusForbidden, "Open this link where you started", "This sign-in began somewhere else. Start again from your guest page.", true)
@@ -142,8 +141,11 @@ func (g *guestGate) ssoBegin(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
-// callbackParams are the provider's answer's parts the callback reads;
-// anything else in it is ignored (bounded by the address's length).
+// ssoCallback finishes a guest's sign-in with the provider's answer: only the
+// parts it reads count (state, code, error, iss), the rest is ignored
+// (bounded by the address's length), and a state or code is kept out of the
+// log only once it belongs to a sign-in begun here (internal/sso keeps the
+// code it exchanges).
 func (g *guestGate) ssoCallback(w http.ResponseWriter, r *http.Request) {
 	q := reqOf(r)
 	q.what = "guest.signin.refused"
@@ -155,8 +157,6 @@ func (g *guestGate) ssoCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	vals := r.URL.Query()
 	state, code := vals.Get("state"), vals.Get("code")
-	g.s.App.Log.Secret(state)
-	g.s.App.Log.Secret(code)
 	mine, rest := takePending(g.pending(r), state)
 	if state == "" || !mine {
 		// Not this browser's sign-in (someone else's answer, a link sent to
@@ -186,6 +186,7 @@ func (g *guestGate) ssoCallback(w http.ResponseWriter, r *http.Request) {
 		g.ssoPage(w, http.StatusGone, "This sign-in can't be finished", words+" Sign in again.", true)
 		return
 	}
+	g.s.App.Log.Secret(state)
 	ctx := r.Context()
 	if e := vals.Get("error"); e != "" {
 		q.reason = "provider_error"

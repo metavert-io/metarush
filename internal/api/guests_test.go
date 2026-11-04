@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,6 +30,7 @@ import (
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/guests"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/media"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
@@ -626,6 +628,96 @@ func TestTakingThingsBackSignsTheGuestOutMidVideo(t *testing.T) {
 	}
 }
 
+// Taking back the grant of the version being watched stops that video even
+// while another grant keeps the guest signed in.
+func TestTakingOneVersionBackStopsItsVideo(t *testing.T) {
+	r := newGuestRig(t)
+	defer func(d time.Duration) { guestRecheck = d }(guestRecheck)
+	guestRecheck = 50 * time.Millisecond
+	watched := r.share("dana@client.example", models.GuestViewer, r.revs[1])
+	r.share("dana@client.example", models.GuestViewer, r.revs[0])
+	big := r.renderSized(r.p, r.revs[1], 2, 16<<20)
+	b := r.browser()
+	b.signIn(r.link("dana@client.example"))
+	res, env, _ := b.get("/guest/api/versions/" + r.revs[1])
+	var w guests.GuestWatchOut
+	_ = json.Unmarshal(env.Data, &w)
+	if res.StatusCode != 200 || w.URL != guests.MediaPath(r.revs[1], big.ID) {
+		t.Fatalf("watch: %d %s %+v", res.StatusCode, w.URL, env.Error)
+	}
+	req, _ := http.NewRequest("GET", r.base+w.URL, nil)
+	req.Host = b.host
+	req.AddCookie(&http.Cookie{Name: guestCookieName, Value: b.cookies[guestCookieName]})
+	sres, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := make([]byte, 4096)
+	if _, err := io.ReadFull(sres.Body, first); err != nil {
+		t.Fatal(err)
+	}
+	call[guests.GuestsRevokeOut](t, r.a, "guests.revoke", guests.GuestsRevokeIn{Grant: watched.Grant.ID}, owner)
+	time.Sleep(10 * guestRecheck)
+	rest, _ := io.Copy(io.Discard, sres.Body)
+	sres.Body.Close()
+	if total := int64(len(first)) + rest; total >= big.Output.Size {
+		t.Fatalf("the whole video went out after its grant was taken back (%d bytes)", total)
+	}
+	// Still signed in for the other version; the one taken back isn't shared.
+	if res, _, _ := b.get("/guest/api/versions/" + r.revs[0]); res.StatusCode != 200 {
+		t.Fatalf("the version still shared: %d", res.StatusCode)
+	}
+	if res, _, _ := b.get("/guest/api/versions/" + r.revs[1]); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("the version taken back: %d", res.StatusCode)
+	}
+	if res, _, _ := b.get(w.URL); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("its video: %d", res.StatusCode)
+	}
+}
+
+// What a visitor sends is never taken for a secret of ours: a made-up cookie,
+// link or sign-in answer would otherwise be blanked out wherever it appears
+// in the activity log (a way to hide words in it, like a guest's email) and
+// grow what every entry is checked against. Tokens MetaRush made are kept out.
+func TestMadeUpTokensArentTakenForSecrets(t *testing.T) {
+	r := newGuestRig(t)
+	r.share("dana@client.example", models.GuestViewer)
+	made := func() string {
+		b := make([]byte, 32)
+		_, _ = rand.Read(b)
+		return base64.RawURLEncoding.EncodeToString(b)
+	}
+	cookie, link, ticket, state := made(), made(), made(), made()
+	code := "dana@client.example"
+	b := r.browser()
+	for _, step := range []func(){
+		func() { b.get("/guest/api/state") },
+		func() { b.get("/") },
+		func() { b.get("/guest/api/shared") },
+		func() { b.do("POST", "/guest/api/signout", map[string]string{}, true) },
+	} {
+		b.cookies[guestCookieName] = cookie
+		step()
+	}
+	b.do("POST", "/guest/api/link", map[string]string{"token": link}, true)
+	b.get(sso.GuestBeginPath + "?t=" + ticket)
+	b.cookies[guestSSOCookie] = state // even a state this browser says it began
+	b.get(sso.GuestCallbackPath + "?state=" + state + "&code=" + url.QueryEscape(code))
+	plain := logbook.NewRedactor() // the shapes every log hides, and no value
+	for _, v := range []string{cookie, link, ticket, state, code} {
+		if logbook.Remembered(v) || r.srv.App.Log.Redactor().String(v) != plain.String(v) {
+			t.Errorf("%q was taken for a secret", v)
+		}
+	}
+	// Ours are: a link made, and the sign-in it gives.
+	tok := r.link("dana@client.example")
+	in := r.browser()
+	in.signIn(tok)
+	if c := in.cookies[guestCookieName]; !logbook.Remembered(tok) || c == "" || !logbook.Remembered(c) {
+		t.Errorf("a link or a sign-in of ours isn't kept out of the log")
+	}
+}
+
 func TestGuestsTurnedOffAreSignedOut(t *testing.T) {
 	r := newGuestRig(t)
 	r.share("dana@client.example", models.GuestViewer)
@@ -850,32 +942,44 @@ func TestMicrosoftGuestsAndOtherDirectoriesDontSignInAsGuests(t *testing.T) {
 	}
 }
 
-// The forwarded address has one seam (believeForwarded), believed nowhere in
-// this release; a relay in front later says where it may be believed (its own
-// port), and nothing else changes.
+// What something in front says about a visitor has one seam (relayed), set
+// nowhere in this release: a relay later reads its own header there, only for
+// requests on its own port, and nothing else changes. (The whole listener with
+// forged headers: TestForgedTailscaleAndForwardedHeadersAreIgnored.)
 func TestTheForwardedAddressHasOneSeam(t *testing.T) {
+	const relayPort = 4999
+	on := func(port int, said string) *http.Request {
+		req := httptest.NewRequest("GET", "/guest/api/state", nil)
+		req.RemoteAddr = "127.0.0.1:50000"
+		req.Header.Set("X-Forwarded-For", "203.0.113.9")
+		req.Header.Set("X-Forwarded-Proto", "https")
+		req.Header.Set("Relay-Visitor", said)
+		return req.WithContext(context.WithValue(req.Context(), http.LocalAddrContextKey, &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: port}))
+	}
 	g := &guestGate{}
-	req := httptest.NewRequest("GET", "/guest/api/state", nil)
-	req.RemoteAddr = "127.0.0.1:9999"
-	if got := g.visitor(req, "203.0.113.7"); got != "127.0.0.1" {
-		t.Fatalf("believed with no seam set: %s", got)
+	if from, https := g.visitor(on(relayPort, "203.0.113.7")); from != "127.0.0.1" || https {
+		t.Fatalf("believed with no relay: %s %v", from, https)
 	}
-	if g.secure(req, "https") {
-		t.Fatal("a forwarded https believed with no seam set")
+	// What a relay sets: its own header, believed only on its own port.
+	g.relayed = func(r *http.Request) (string, bool, bool) {
+		if la, _ := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr); la == nil || la.Port != relayPort {
+			return "", false, false
+		}
+		return r.Header.Get("Relay-Visitor"), true, true
 	}
-	g.believeForwarded = func(r *http.Request) bool { return strings.HasSuffix(r.RemoteAddr, ":9999") } // "only from the relay's port"
-	if got := g.visitor(req, "203.0.113.7, 10.0.0.1"); got != "203.0.113.7" {
-		t.Fatalf("from the relay: %s", got)
+	if from, https := g.visitor(on(relayPort, "203.0.113.7")); from != "203.0.113.7" || !https {
+		t.Fatalf("from the relay: %s %v", from, https)
 	}
-	if !g.secure(req, "https") {
-		t.Fatal("https from the relay isn't believed")
+	if from, _ := g.visitor(on(relayPort, "::ffff:203.0.113.8")); from != "203.0.113.8" {
+		t.Fatalf("a mapped address: %s", from)
 	}
-	other := httptest.NewRequest("GET", "/guest/api/state", nil)
-	other.RemoteAddr = "127.0.0.1:5000"
-	if got := g.visitor(other, "203.0.113.7"); got != "127.0.0.1" || g.secure(other, "https") {
-		t.Fatalf("believed from another port: %s", got)
+	if from, https := g.visitor(on(4846, "203.0.113.7")); from != "127.0.0.1" || https {
+		t.Fatalf("believed on another port: %s %v", from, https)
 	}
-	if got := g.visitor(req, "not an address"); got != "127.0.0.1" {
-		t.Fatalf("a malformed forwarded address: %s", got)
+	// Anything but one address is the connection, HTTPS included.
+	for _, said := range []string{"not an address", "203.0.113.7, 198.51.100.1", ""} {
+		if from, https := g.visitor(on(relayPort, said)); from != "127.0.0.1" || https {
+			t.Fatalf("%q believed: %s %v", said, from, https)
+		}
 	}
 }

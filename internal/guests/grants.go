@@ -303,7 +303,11 @@ func share(ctx context.Context, a *app.App, in *GuestsShareIn) (*GuestsShareOut,
 	// A version that plays someone else's video, or words changed in
 	// someone's voice whose consent is gone, isn't shown to guests (D441).
 	for i := range revs {
-		if why := heldWords(ctx, a, p, &revs[i]); why != "" {
+		why, err := heldWords(ctx, a, p, &revs[i])
+		if err != nil {
+			return nil, err
+		}
+		if why != "" {
 			return stop(apperr.New(apperr.Held, "Version %d can't be shared with guests: %s.", revs[i].Number, why).
 				WithHint("Make a version without it first.").WithDetails(map[string]any{"reason": ReasonHeld, "revisionId": revs[i].ID}))
 		}
@@ -498,11 +502,12 @@ func ordered(kinds []string) []string {
 
 // heldWords says why a version isn't shown to guests ("" it is): it plays
 // someone else's video (a reference) or words changed in someone's voice whose
-// consent is gone, and no person sent it out anyway with a note.
-func heldWords(ctx context.Context, a *app.App, p *models.Project, rev *models.Revision) string {
+// consent is gone, and no person sent it out anyway with a note. When that
+// can't be told (the database didn't answer), it isn't shown: an error.
+func heldWords(ctx context.Context, a *app.App, p *models.Project, rev *models.Revision) (string, error) {
 	g, err := ops.ShipGate(ctx, a, p, rev, "review", nil)
 	if err != nil {
-		return ""
+		return "", apperr.Wrap(apperr.Database, err, "MetaRush couldn't check version %d just now.", rev.Number).WithHint("Try again in a moment.")
 	}
 	var why []string
 	for _, h := range g.Holds {
@@ -511,7 +516,7 @@ func heldWords(ctx context.Context, a *app.App, p *models.Project, rev *models.R
 		}
 		why = append(why, strings.TrimSuffix(lowerFirst(h.Says), "."))
 	}
-	return joinAnd(why)
+	return joinAnd(why), nil
 }
 
 func lowerFirst(s string) string {

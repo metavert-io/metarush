@@ -1151,15 +1151,18 @@ Read `docs/architecture.md` before structural changes.
   `guests.activity` owners. The **guest listener** (`Server.ApplyGuests`/`ListenGuests`, the daemon and
   `followConfig`) binds 127.0.0.1 alone (`guestListen`, port 4846, tests port 0) with its own mux (`SkipClean`; only
   `/`, `/welcome`, `/guest/api/*`, `/guest/sso/*`, `/guest/media/*`), the guest address's exact Host, `Tailscale-*`
-  and forwarded headers deleted before anything reads them (`visitor` = the connection; `believeForwarded` is the one
-  seam a relay sets, nil now), strict JSON ≤ 16 KB, no query on the API, `X-MetaRush-Guest` + same-origin on POSTs,
+  and forwarded headers deleted before anything reads them (`visitor` = the connection; `relayed` is the one seam a
+  relay sets: its own header, only on its own port; nil now), strict JSON ≤ 16 KB, no query on the API,
+  `X-MetaRush-Guest` + same-origin on POSTs,
   per-address limits (`guestRequestsPerMinute`, `guestSignInsPerMinute`), the page by CSP hash. Guest ops
   (`ops.Flags.Guest`: `guest.shared|watch|comments|comment`, HumanOnly) answer for `guests.SignedFrom(ctx)` with
   `Caller.Guest`; dispatch refuses a guest caller on any other op and members on mutating guest ops (owners read
   with `as`); `guests.Check` re-reads session, guest, live grants and the switch on every request; anything not
   named is `notShared`. Video: bucket → `PresignGet` 10 min (never through the host; a store that can't sign
-  refuses); folder store → `/guest/media/<rev>/<render>` with ranges, `MediaFor` per request, `whileGuest` cuts a
-  stream within `guestRecheck`. Sign-in: `mr_guest` (`__Host-` + Secure over HTTPS), new token every sign-in;
+  refuses); folder store → `/guest/media/<rev>/<render>` with ranges, `MediaFor` per request, `whileShown` cuts a
+  stream within `guestRecheck` once its version isn't the guest's to watch (`StillShown`); only tokens found are
+  kept out of the log (`logbook.RememberSecret` after the lookup, never what a visitor sent). Sign-in: `mr_guest`
+  (`__Host-` + Secure over HTTPS), new token every sign-in;
   organization accounts through the members' live setup on `sso.GuestBeginPath|GuestCallbackPath`, purpose
   `sso.ForGuest` (the dashboard's steps refuse it), cookie `mr_guest_sso`, `guests.ForSSO` (trusted email = a guest's
   with live grants; Microsoft guests refused; first account linked, another of the scope refused). Comments carry

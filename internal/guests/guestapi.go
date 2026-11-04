@@ -347,7 +347,11 @@ func mayShow(ctx context.Context, a *app.App, v *seen) error {
 		return apperr.New(apperr.KeptHere, "Version %d can't be shown to guests now: the owner's rules for this client keep it on their computer.", v.rev.Number).
 			WithHint("Ask whoever shared it with you.").WithDetails(map[string]any{"reason": ReasonKeptHere})
 	}
-	if why := heldWords(ctx, a, v.p, v.rev); why != "" {
+	why, err := heldWords(ctx, a, v.p, v.rev)
+	if err != nil {
+		return err
+	}
+	if why != "" {
 		return apperr.New(apperr.Held, "Version %d can't be shown to guests.", v.rev.Number).WithHint("Ask whoever shared it with you for another version.").
 			WithDetails(map[string]any{"reason": ReasonHeld})
 	}

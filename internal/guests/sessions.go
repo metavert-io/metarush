@@ -23,7 +23,10 @@ import (
 // Every request reads it again with the guest, their grants and the
 // workspace's switch, so taking something back, taking a guest back or
 // turning guests off counts on the very next request; taking a guest's last
-// grant or the guest back deletes their sign-ins.
+// grant or the guest back deletes their sign-ins. Only a cookie found here is
+// kept out of the activity log (logbook.RememberSecret), never a made-up one:
+// anyone could otherwise blank words out of the log, and grow what each of
+// its entries is checked against.
 
 // newToken is 256 random bits, written in base64url.
 func newToken() (string, error) {
@@ -97,6 +100,7 @@ func Check(ctx context.Context, a *app.App, token, from string) (*Signed, error)
 	if err != nil {
 		return nil, signedOut("")
 	}
+	logbook.RememberSecret(token) // ours: never in the activity log
 	g, _, err := getGuest(ctx, a, s.GuestID)
 	if err != nil || g.State != models.GuestActive {
 		EndSessions(ctx, a, s.GuestID)
@@ -119,9 +123,13 @@ func Check(ctx context.Context, a *app.App, token, from string) (*Signed, error)
 	return &Signed{Session: s, Guest: *g, Grants: grants, From: from}, nil
 }
 
-// StillSignedIn reports whether a checked sign-in still counts (a long
-// answer — a video streaming — stops soon after it doesn't).
-func StillSignedIn(ctx context.Context, a *app.App, s *Signed) bool {
+// StillShown reports whether a review copy being sent to a guest may go on:
+// the sign-in still counts (the session working, the guest not taken back,
+// guests on), and the grants that work now still name the copy's version and
+// it may still be shown. A long answer — a video streaming — stops soon after
+// either changes: that version's grant taken back while another remains,
+// What may leave tightened, the version deleted.
+func StillShown(ctx context.Context, a *app.App, s *Signed, revisionID, renderID string) bool {
 	if !On(ctx, a) {
 		return false
 	}
@@ -134,7 +142,13 @@ func StillSignedIn(ctx context.Context, a *app.App, s *Signed) bool {
 		return false
 	}
 	grants, err := liveGrants(ctx, a, s.Guest.ID)
-	return err == nil && len(grants) > 0
+	if err != nil || len(grants) == 0 {
+		return false
+	}
+	now := *s
+	now.Guest, now.Grants = *g, grants
+	_, _, err = MediaFor(ctx, a, &now, revisionID, renderID)
+	return err == nil
 }
 
 // EndSession signs one browser out.

@@ -188,7 +188,9 @@ async function main() {
   await page.goto(`${base}/settings/people`);
   const part = page.locator('[data-sso-section]');
   await part.waitFor({ timeout: 20_000 });
-  check('Settings → People has the organization sign-in, not set up', /Not set up/.test(await part.innerText()));
+  // The part shows its state once the status has loaded (a skeleton before).
+  const notSetUp = await waitFor(async () => /Not set up/.test(await part.innerText()), 20_000);
+  check('Settings → People has the organization sign-in, not set up', !!notSetUp, notSetUp ? '' : (await part.innerText()).slice(0, 200));
   await page.locator('[data-method-change]').click();
   await page.locator('[data-method-option="sso"]').click();
   await page.locator('[data-method-next]').click();

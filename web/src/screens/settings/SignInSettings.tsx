@@ -224,7 +224,13 @@ function SignInBody({ st }: { st: SSOStatusOut }) {
         <dl className="divide-y divide-line rounded-[12px] px-3 hairline" data-sso-setup data-sso-provider={setup.provider}>
           <Row label="Provider">
             <span className="font-medium">{setup.title}</span>
-            {st.next && st.live && st.inUse ? <span className="text-subtle"> (waiting for its test; {st.live.title} is in use)</span> : null}
+            {st.next && st.live && st.inUse ? (
+              <span className="text-subtle">
+                {st.next.title === st.live.title
+                  ? ' (a new app or secret, waiting for its test; the one in use stays until you switch)'
+                  : ` (waiting for its test; ${st.live.title} is in use)`}
+              </span>
+            ) : null}
           </Row>
           <Row label="Who may join by themselves">{joinWords(setup)}</Row>
           <Row label="Passwords">{setup.alsoPassword ? 'Still work beside it' : 'Off while it is in use'}</Row>

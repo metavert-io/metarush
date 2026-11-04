@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +14,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/auth"
 	"github.com/metavert-io/metarush/internal/logbook"
+	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/sso"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/testutil/fakeoidc"
@@ -33,6 +36,22 @@ const madeUp = "rowan.vale@example.com"
 // shapes every log hides).
 func hidden(d *dash, v string) bool {
 	return d.srv.App.Log.Redactor().String(v) != logbook.NewRedactor().String(v)
+}
+
+// exportSays reports whether a workspace export made now — by the owner at
+// this computer, as the daemon makes one — keeps v as written in a
+// collection's records (an export scrubs every secret this process knows).
+func exportSays(t *testing.T, d *dash, coll, v string) bool {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "archive")
+	if _, err := ops.CallTyped[ops.WorkspaceExportOut](context.Background(), d.a, "workspace.export", ops.WorkspaceExportIn{To: dir}, ops.Caller{Human: true}); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "collections", coll+".jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Contains(string(b), v)
 }
 
 // logSays reports whether the activity log, written out, says v.
@@ -99,10 +118,16 @@ func TestMadeUpSignInValuesLeaveTheLogAlone(t *testing.T) {
 	if hidden(r.dash, madeUp) || logbook.Remembered(madeUp) {
 		t.Fatalf("%q was taken for a secret", madeUp)
 	}
-	// So the log keeps saying it: inviting that person.
+	// So the log keeps saying it when that person is invited, and a workspace
+	// export keeps a project named after them as it is (an export scrubs
+	// every secret this process knows from what it writes).
 	r.op("users.invite", map[string]any{"email": madeUp}, nil)
 	if !logSays(t, r.dash, madeUp) {
 		t.Fatalf("the activity log lost %q", madeUp)
+	}
+	r.op("project.create", map[string]any{"name": "Interview with " + madeUp}, nil)
+	if !exportSays(t, r.dash, store.CProjects, madeUp) {
+		t.Fatalf("the workspace export lost %q", madeUp)
 	}
 
 	// A real sign-in's ticket, state and code are still kept out of the log.

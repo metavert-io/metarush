@@ -64,7 +64,7 @@ func main() {
 	now := time.Now().UTC()
 	rd := models.Render{ID: ids.New(ids.Render), WorkspaceID: rev.WorkspaceID, ProjectID: rev.ProjectID, RevisionID: rev.ID, RevisionNumber: rev.Number,
 		SpecHash: rev.SpecHash, Preset: rev.Spec.Output.Preset, Quality: "review", State: models.RenderAvailable,
-		Output: &models.RenderOutput{StorageKey: key, SHA256: sha, Size: st.Size(), Duration: rev.Duration, Width: 1280, Height: 720, FPS: 30},
+		Output:    &models.RenderOutput{StorageKey: key, SHA256: sha, Size: st.Size(), Duration: rev.Duration, Width: 1280, Height: 720, FPS: 30},
 		CreatedBy: models.Actor{UserID: "usr_e2e", UserName: "E2E", Via: "cli"}, CreatedAt: now, CompletedAt: &now}
 	if err := db.Insert(ctx, store.CRenders, rd); err != nil {
 		fail(err)

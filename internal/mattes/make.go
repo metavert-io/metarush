@@ -212,6 +212,9 @@ func planFor(ctx context.Context, a *app.App, in *CutoutIn) (*plan, error) {
 		return nil, err
 	}
 	m := p.choice.Model
+	if err := rulesAllow(ctx, a, as, p.projectID, m.Provider); err != nil {
+		return nil, err
+	}
 	if aiservices.RunsHere(m.Provider) {
 		if err := readyAnywhere(ctx, a)(m.Provider, m.Kind, m.ID); err != nil {
 			ae := apperr.From(err)
@@ -221,6 +224,31 @@ func planFor(ctx context.Context, a *app.App, in *CutoutIn) (*plan, error) {
 	}
 	p.fp = Fingerprint(p.sha, p.from, p.to, m.Provider, m.ID)
 	return p, nil
+}
+
+// rulesAllow checks Content Settings' AI services part (D225) for finding
+// the people in a clip with a provider's model, over every project the work
+// touches: the one it is for and every project holding the clip (the
+// default's settings when it is in none).
+func rulesAllow(ctx context.Context, a *app.App, as *models.Asset, projectID, provider string) error {
+	projects := append([]string{}, as.ProjectIDs...)
+	if len(projects) == 0 {
+		projects = []string{""}
+	}
+	if projectID != "" {
+		projects = append([]string{projectID}, projects...)
+	}
+	seen := map[string]bool{}
+	for _, pid := range projects {
+		if seen[pid] {
+			continue
+		}
+		seen[pid] = true
+		if err := aiwork.Allows(ctx, a, pid, aiservices.KindVideoBackground, provider); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // seconds is about how long making a cut-out takes: its frames at the time a

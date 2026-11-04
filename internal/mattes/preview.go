@@ -99,6 +99,11 @@ func Preview(ctx context.Context, a *app.App, in *CutoutPreviewIn) ([]byte, *Cut
 			WithDetails(map[string]any{"component": matting.Component}).WithCommand("metarush components add " + matting.Component)
 	}
 	provider, model, _ := strings.Cut(refs[0], "/")
+	// Content Settings may rule the kind out, or this computer's models (D225):
+	// the preview follows them as the cut-out does.
+	if err := rulesAllow(ctx, a, as, strings.TrimSpace(in.ProjectID), provider); err != nil {
+		return nil, nil, err
+	}
 	env := aiservices.Env{Tools: a.Tools, Cfg: a.Cfg, Home: a.Cfg.Home(), App: a}
 	mm, err := local.Matter(env, model)
 	if err != nil {

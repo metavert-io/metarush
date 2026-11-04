@@ -492,3 +492,52 @@ func TestThePreviewNeverWritesOverAFile(t *testing.T) {
 		}
 	}
 }
+
+// The preview follows Content Settings as the cut-out does (D225): where the
+// clip's project rules background removal out, or this computer's models, no
+// still is made — for a clip in two projects, either one's rule counts.
+func TestThePreviewFollowsContentSettings(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	in := mattes.CutoutPreviewIn{AssetID: e.clip.ID, At: 1, With: mattes.WithColour, Colour: "#00b140"}
+	if _, _, err := mattes.Preview(ctx, e.a, &in); err != nil {
+		t.Fatalf("allowed: %v", err)
+	}
+	// A second project that holds the clip and keeps its own settings.
+	other := ids.New(ids.Project)
+	if err := e.a.DB.Insert(ctx, store.CProjects, models.Project{ID: other, WorkspaceID: e.a.WorkspaceID(), Name: "Client film", Branches: map[string]models.BranchHead{},
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.a.DB.C(store.CAssets).UpdateOne(ctx, bson.M{"_id": e.clip.ID}, bson.M{"$addToSet": bson.M{"projectIds": other}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ops.CallTyped[ops.ContentShowOut](ctx, e.a, "content.own", ops.ContentOwnIn{ProjectID: other}, ops.Caller{}); err != nil {
+		t.Fatal(err)
+	}
+	refused := func(what string) {
+		t.Helper()
+		_, _, err := mattes.Preview(ctx, e.a, &in)
+		if ae := apperr.From(err); ae == nil || ae.Code != apperr.Conflict || !strings.Contains(ae.Message, "Content Settings") {
+			t.Errorf("%s: the preview %v", what, err)
+		}
+		if _, err := e.cutout(t, mattes.CutoutIn{ProjectID: e.project}); apperr.From(err) == nil || !strings.Contains(err.Error(), "Content Settings") {
+			t.Errorf("%s: the cut-out %v", what, err)
+		}
+	}
+	rules := func(r aiwork.RulesSetIn) {
+		t.Helper()
+		r.ProjectID = other
+		if _, err := ops.CallTyped[aiwork.RulesOut](ctx, e.a, "ai.rules.set", r, ops.Caller{Human: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rules(aiwork.RulesSetIn{ForbidKinds: []string{aiservices.KindVideoBackground}})
+	refused("background removal ruled out")
+	rules(aiwork.RulesSetIn{AllowKinds: []string{aiservices.KindVideoBackground}, Forbid: []string{local.Name}})
+	refused("this computer's models ruled out")
+	rules(aiwork.RulesSetIn{Allow: []string{local.Name}})
+	if _, _, err := mattes.Preview(ctx, e.a, &in); err != nil {
+		t.Fatalf("allowed again: %v", err)
+	}
+}

@@ -154,6 +154,34 @@ func TestSessionStartsAfterTheSignOutItRead(t *testing.T) {
 	}
 }
 
+// A new password signs a person out everywhere and this browser carries on
+// with a session made right after: it is good even when the measured time is
+// more than a second behind the server's (under load a slow round trip puts
+// the measured offset off), because the server is asked itself before the
+// session's start is decided.
+func TestASessionRightAfterASignOutIsGoodWhenTheMeasuredTimeIsBehind(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	id := newPerson(t, a, "Maya Lindqvist", "maya@example.com")
+	a.DB.ShiftServerTime(-2 * time.Second) // the measured time two seconds behind the server's
+	t.Cleanup(func() { a.DB.ShiftServerTime(0) })
+	if err := setPassword(ctx, a, id, "sunflowers by the gate", true); err != nil {
+		t.Fatal(err)
+	}
+	forgetAll()
+	u, err := GetUser(ctx, a, id)
+	if err != nil || u.SessionsValidAfter == nil {
+		t.Fatalf("no sign-out recorded: %v %v", u, err)
+	}
+	made := SessionStart(ctx, a, u)
+	if !SessionValid(ctx, a, id, made) {
+		t.Fatalf("a session made right after the sign-out starts at %v, the sign-out was at %v", made, *u.SessionsValidAfter)
+	}
+	if !near(made, serverTime(t, a), time.Minute) {
+		t.Fatalf("the session starts at %v, the server says %v", made, serverTime(t, a))
+	}
+}
+
 // When the database doesn't answer, a sign-in on this computer (a one-time
 // link) waits for its time no longer than a sign-in check does and uses this
 // computer's clock (D180).

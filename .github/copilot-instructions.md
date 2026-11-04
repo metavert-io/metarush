@@ -20,7 +20,9 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
 ## Secrets and outside services
 - Keys never go into argv, logs, the database, `config.yaml`, errors or responses: the keychain or the home's secrets
   file through `internal/providers` and `internal/secretpath`. New kinds of secret are registered with the activity
-  log's redactor. A database address with a password comes from stdin or the environment.
+  log's redactor — a value from a request (a link, ticket, state, code, pairing, password) only once it is found
+  real, never before: a made-up one would hide that word everywhere in the log. A database address with a password
+  comes from stdin or the environment.
 - External programs run only through `internal/tools` (an allowlist, typed arguments, no shell). Downloads are pinned
   by URL and SHA-256, checked before use, and refused under `go test`; a model's licence is read from its own
   repository and recorded with its pin, and is never GPL or for non-commercial use only.

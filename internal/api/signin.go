@@ -143,12 +143,15 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	s.App.Log.Secret(in.Password) // never in the activity log
 	u, err := auth.Authenticate(r.Context(), s.App, in.Email, in.Password)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
+	// This person's password: never in the activity log. Only one that signs
+	// someone in is taken for a secret — a made-up one would blank that word
+	// out of every later entry (and a request's body is never logged).
+	s.App.Log.Secret(in.Password)
 	s.startSession(w, r, u, models.AuthPassword, "")
 	writeOK(w, SignInResult{UserID: u.ID, Name: u.Name})
 }
@@ -196,12 +199,12 @@ func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) authLinkInfo(w http.ResponseWriter, r *http.Request) {
 	token := mux.Vars(r)["token"]
-	s.App.Log.Secret(token)
 	rec, u, err := auth.LookupLink(r.Context(), s.App, token)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
+	s.App.Log.Secret(token) // one of ours (a made-up one is never taken for a secret)
 	st := auth.Settings(r.Context(), s.App)
 	writeOK(w, LinkInfo{Kind: rec.Kind, Email: u.Email, Name: u.Name, ExpiresAt: rec.ExpiresAt, Machine: s.App.Cfg.MachineName(),
 		SSO: ssoButton(st), Password: auth.PasswordOn(r.Context(), s.App)})
@@ -212,13 +215,11 @@ func (s *Server) authLinkAccept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := mux.Vars(r)["token"]
-	s.App.Log.Secret(token)
 	var in LinkAccept
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, err)
 		return
 	}
-	s.App.Log.Secret(in.Password)
 	if !auth.PasswordOn(r.Context(), s.App) {
 		// An invite here is followed by signing in with the organization's account.
 		writeErr(w, apperr.New(apperr.Conflict, "People don't choose a password here: they sign in with their organization's account.").WithDetails(map[string]any{"reason": "no_passwords"}))
@@ -229,6 +230,9 @@ func (s *Server) authLinkAccept(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	// One of our links, and now this person's password: kept out of the log
+	// once they turn out real (what a visitor makes up never is).
+	s.App.Log.Secret(token, in.Password)
 	s.startSession(w, r, u, models.AuthPassword, "")
 	writeOK(w, SignInResult{UserID: u.ID, Name: u.Name})
 }

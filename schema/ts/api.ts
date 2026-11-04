@@ -14,6 +14,8 @@ signInRequest: SignInRequest
 signInResult: SignInResult
 linkInfo: LinkInfo
 linkAccept: LinkAccept
+ssoStart: SSOStart
+ssoStartResult: SSOStartResult
 opInfo: OpInfo
 upload: UploadRecord
 uploadList: UploadList
@@ -155,7 +157,8 @@ name: string
 export interface Access {
 remote: boolean
 machine: string
-signedInWith: ("link" | "password" | "tailscale")
+signedInWith: ("link" | "password" | "tailscale" | "sso")
+provider?: string
 login?: string
 secure: boolean
 publicUrl?: string
@@ -165,7 +168,7 @@ publicUrl?: string
  * via the `definition` "AuthState".
  */
 export interface AuthState {
-method: ("single" | "password" | "tailscale")
+method: ("single" | "password" | "tailscale" | "sso")
 signedIn: boolean
 name?: string
 /**
@@ -177,6 +180,16 @@ here: boolean
  */
 secure: boolean
 machine: string
+sso?: SSOButton
+password: boolean
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "SSOButton".
+ */
+export interface SSOButton {
+provider: ("google" | "microsoft" | "oidc")
+title: string
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema
@@ -204,6 +217,8 @@ email: string
 name?: string
 expiresAt: string
 machine: string
+sso?: SSOButton
+password: boolean
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema
@@ -212,6 +227,21 @@ machine: string
 export interface LinkAccept {
 name?: string
 password: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "SSOStart".
+ */
+export interface SSOStart {
+next?: string
+invite?: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "SSOStartResult".
+ */
+export interface SSOStartResult {
+url: string
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema

@@ -9,6 +9,9 @@ func init() {
 		"users.remove": "remove a person's account", "users.role": "change a person's role",
 		"account.password": "change their password", "account.update": "change their name or email", "account.signoutEverywhere": "sign out everywhere", "account.avatar": "set or remove their picture",
 		"account.preferences": "read their preferences", "account.preferences.set": "change their preferences",
+		"auth.sso.status": "read how people sign in with their organization's account", "auth.sso.set": "set up signing in with an organization's account",
+		"auth.sso.secret": "change the sign-in app's secret on this computer", "auth.sso.test": "start a test sign-in with an organization's account",
+		"auth.sso.discard": "forget a new sign-in setup waiting for its test",
 	} {
 		opBase[k] = v
 	}
@@ -19,6 +22,9 @@ func init() {
 		"users.state": "changed whether a person can sign in", "users.role": "changed a person's role",
 		"account.password": "changed their password", "account.update": "changed their name or email", "account.signoutEverywhere": "signed out everywhere", "account.avatar": "changed their picture",
 		"account.preferences": "changed whether costs are estimated before their edits", "workspace.estimates": "changed whether everyone sees estimates first",
+		"auth.sso.set": "set up signing in with an organization's account", "auth.sso.secret": "changed the sign-in app's secret on this computer",
+		"auth.sso.test": "started a test sign-in with an organization's account", "auth.sso.tested": "passed a test sign-in with an organization's account",
+		"auth.sso.joined": "joined with their organization's account", "auth.sso.discard": "forgot a new sign-in setup waiting for its test",
 	} {
 		eventPhrases[k] = v
 	}

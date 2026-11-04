@@ -28,6 +28,18 @@
 - **Deliver from the version page**. Ready to deliver now has **Deliver…**: the final video goes to a new folder in
   MetaRush exports (in Movies on a Mac, Videos elsewhere), checked against the render, with its record, notes and captions — the same delivery as
   `metarush deliver` — and you can show it in Finder or, from another computer, download it.
+- **Sign in with Google, Microsoft or your organization's own provider**. A new way to sign in, in Settings → People:
+  people use the account they already have (OpenID Connect, with PKCE and every check on the provider's signed
+  answer). Only people you invite, or people of a Google Workspace domain, Microsoft directory or email domain you
+  choose, get in — never anyone just because they have an account there (Microsoft's guests and personal accounts
+  don't sign in). You register the app with the addresses MetaRush shows (this computer's at 127.0.0.1, which only
+  MetaRush answers on), keep its secret on each computer like a key, and test the sign-in on this computer before
+  switching, so you keep getting in; passwords and Tailscale accounts can keep working beside it. Setting up another
+  app or a new secret later never interrupts the sign-in in use: it waits for its own test, and you can forget it.
+  Moving to another provider keeps everyone: each person's first sign-in there links their account by the email it
+  vouches for. Invite links work with it, two sign-ins in two tabs both finish, and `metarush dashboard` at this
+  computer still opens MetaRush if the provider ever stops working. In a terminal: `metarush auth sso
+  status|set|secret|test|discard` and `metarush auth method sso` (the secret through a pipe, or typed without echo).
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says

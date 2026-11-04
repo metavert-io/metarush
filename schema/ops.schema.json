@@ -3867,6 +3867,16 @@
           "type": "array",
           "description": "Tailscale logins linked to them (owners see them)."
         },
+        "signsInWith": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hasSso": {
+          "type": "boolean",
+          "description": "They sign in with an organization's account."
+        },
         "lastSignIn": {
           "type": "string",
           "format": "date-time"
@@ -3898,6 +3908,7 @@
         "state",
         "hasPassword",
         "you",
+        "hasSso",
         "work",
         "createdAt"
       ]
@@ -6903,7 +6914,8 @@
           "enum": [
             "single",
             "password",
-            "tailscale"
+            "tailscale",
+            "sso"
           ]
         },
         "email": {
@@ -6962,7 +6974,8 @@
           "enum": [
             "single",
             "password",
-            "tailscale"
+            "tailscale",
+            "sso"
           ]
         },
         "setAt": {
@@ -6971,6 +6984,12 @@
         },
         "setBy": {
           "$ref": "#/$defs/Actor"
+        },
+        "sso": {
+          "$ref": "#/$defs/SSOSettings"
+        },
+        "ssoNext": {
+          "$ref": "#/$defs/SSOSettings"
         }
       },
       "additionalProperties": false,
@@ -6988,7 +7007,8 @@
           "enum": [
             "single",
             "password",
-            "tailscale"
+            "tailscale",
+            "sso"
           ]
         },
         "you": {
@@ -7019,6 +7039,13 @@
         "people": {
           "type": "integer"
         },
+        "password": {
+          "type": "boolean"
+        },
+        "sso": {
+          "type": "string",
+          "description": "The organization's sign-in by name (Google)"
+        },
         "summary": {
           "type": "string"
         }
@@ -7032,6 +7059,7 @@
         "publicHttps",
         "here",
         "people",
+        "password",
         "summary"
       ]
     },
@@ -37258,7 +37286,8 @@
             "publish_stopped",
             "outside_comments",
             "review_link_ended",
-            "late_writes"
+            "late_writes",
+            "person_joined"
           ]
         },
         "groupKey": {
@@ -60462,6 +60491,368 @@
         "summary"
       ]
     },
+    "SSOCallbacksOut": {
+      "properties": {
+        "local": {
+          "type": "string"
+        },
+        "public": {
+          "type": "string"
+        },
+        "publicHttps": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "local",
+        "publicHttps"
+      ]
+    },
+    "SSOSecretIn": {
+      "properties": {
+        "clientSecret": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "remove": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SSOSecretState": {
+      "properties": {
+        "set": {
+          "type": "boolean"
+        },
+        "masked": {
+          "type": "string",
+          "description": "The last four characters"
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "keychain",
+            "file",
+            "environment"
+          ]
+        },
+        "envVar": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "set",
+        "envVar"
+      ]
+    },
+    "SSOSetIn": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "google",
+            "microsoft",
+            "oidc"
+          ]
+        },
+        "issuer": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Another provider: its address (its issuer"
+        },
+        "tenant": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Microsoft: your directory (tenant) ID"
+        },
+        "clientId": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Another provider: its name on the button."
+        },
+        "domain": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Who may join without an invite: a Google Workspace domain"
+        },
+        "alsoPassword": {
+          "type": "boolean"
+        },
+        "alsoTailscale": {
+          "type": "boolean"
+        },
+        "clientSecret": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "provider",
+        "clientId"
+      ]
+    },
+    "SSOSettings": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "google",
+            "microsoft",
+            "oidc"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "issuer": {
+          "type": "string"
+        },
+        "tenant": {
+          "type": "string"
+        },
+        "clientId": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "alsoPassword": {
+          "type": "boolean"
+        },
+        "alsoTailscale": {
+          "type": "boolean"
+        },
+        "setAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "setBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "rev": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "provider",
+        "issuer",
+        "clientId",
+        "setAt",
+        "setBy"
+      ]
+    },
+    "SSOSetup": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "google",
+            "microsoft",
+            "oidc"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "issuer": {
+          "type": "string"
+        },
+        "tenant": {
+          "type": "string"
+        },
+        "clientId": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "alsoPassword": {
+          "type": "boolean"
+        },
+        "alsoTailscale": {
+          "type": "boolean"
+        },
+        "setAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "setBy": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "provider",
+        "title",
+        "issuer",
+        "clientId",
+        "alsoPassword",
+        "alsoTailscale",
+        "setAt"
+      ]
+    },
+    "SSOStatusOut": {
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "single",
+            "password",
+            "tailscale",
+            "sso"
+          ]
+        },
+        "live": {
+          "$ref": "#/$defs/SSOSetup"
+        },
+        "next": {
+          "$ref": "#/$defs/SSOSetup"
+        },
+        "inUse": {
+          "type": "boolean",
+          "description": "People sign in with their organization's account now."
+        },
+        "secret": {
+          "$ref": "#/$defs/SSOSecretState"
+        },
+        "nextSecret": {
+          "$ref": "#/$defs/SSOSecretState"
+        },
+        "callbacks": {
+          "$ref": "#/$defs/SSOCallbacksOut"
+        },
+        "earlier": {
+          "type": "integer"
+        },
+        "test": {
+          "$ref": "#/$defs/SSOTestView"
+        },
+        "canSwitch": {
+          "type": "boolean"
+        },
+        "switchWhy": {
+          "type": "string",
+          "description": "Why it can't be switched to yet."
+        },
+        "owner": {
+          "type": "boolean"
+        },
+        "here": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "method",
+        "inUse",
+        "secret",
+        "callbacks",
+        "earlier",
+        "canSwitch",
+        "owner",
+        "here",
+        "summary"
+      ]
+    },
+    "SSOTestOut": {
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Open it in a browser on this computer: it goes to the provider and comes back here."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url",
+        "expiresAt",
+        "summary"
+      ]
+    },
+    "SSOTestView": {
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "fresh": {
+          "type": "boolean",
+          "description": "Recent enough to switch with (30 minutes)."
+        },
+        "mine": {
+          "type": "boolean",
+          "description": "Done by the person asking."
+        },
+        "forSetup": {
+          "type": "string",
+          "enum": [
+            "next",
+            "live",
+            "other"
+          ],
+          "description": "Which setup it tested: the one waiting"
+        },
+        "email": {
+          "type": "string",
+          "description": "Who signed in."
+        },
+        "name": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ok",
+        "at",
+        "fresh",
+        "mine",
+        "forSetup",
+        "message"
+      ]
+    },
     "SafeArea": {
       "properties": {
         "top": {
@@ -74799,6 +75190,91 @@
       ],
       "description": "Put sign-in back to a fresh install's: just the owner on this computer, everyone signed out, people kept with their history (on this computer)"
     },
+    "auth.sso.discard": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/EmptyIn"
+        },
+        "output": {
+          "$ref": "#/$defs/SSOStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Forget the new sign-in setup waiting for its test, and its new secret; the sign-in in use stays as it is (owners, on this computer)"
+    },
+    "auth.sso.secret": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/SSOSecretIn"
+        },
+        "output": {
+          "$ref": "#/$defs/SSOStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Keep or remove the sign-in app's client secret on this computer (owners, on this computer)"
+    },
+    "auth.sso.set": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/SSOSetIn"
+        },
+        "output": {
+          "$ref": "#/$defs/SSOStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Set up signing in with your organization's account: the provider, the app, who may join by themselves and whether passwords or Tailscale still work (owners, on this computer)"
+    },
+    "auth.sso.status": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/EmptyIn"
+        },
+        "output": {
+          "$ref": "#/$defs/SSOStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Signing in with your organization's account (Google, Microsoft or another provider): the setup, this computer's app secret, the addresses to register and the last test sign-in"
+    },
+    "auth.sso.test": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/EmptyIn"
+        },
+        "output": {
+          "$ref": "#/$defs/SSOTestOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Start a test sign-in with your organization's account in a browser on this computer, before switching to it (owners)"
+    },
     "auth.status": {
       "properties": {
         "input": {
@@ -74814,7 +75290,7 @@
         "input",
         "output"
       ],
-      "description": "How people sign in to this MetaRush (just you on this computer, email and password, or Tailscale accounts) and who you are"
+      "description": "How people sign in to this MetaRush (just you on this computer, email and password, Tailscale accounts, or their organization's account) and who you are"
     },
     "brand.apply": {
       "properties": {
@@ -83561,6 +84037,11 @@
     "audit.list",
     "auth.method.set",
     "auth.reset",
+    "auth.sso.discard",
+    "auth.sso.secret",
+    "auth.sso.set",
+    "auth.sso.status",
+    "auth.sso.test",
     "auth.status",
     "brand.apply",
     "brand.set",

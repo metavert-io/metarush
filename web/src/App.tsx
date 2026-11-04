@@ -129,7 +129,7 @@ function Gate() {
   // the method when the answer didn't (an older MetaRush).
   const state = useAuthState(!!outErr);
   const method = way.method ?? (outErr ? state.data?.method : undefined);
-  const toSignIn = !!outErr && method === 'password';
+  const toSignIn = !!outErr && (method === 'password' || method === 'sso');
 
   useLiveEvents(qc, !!session.data && !outErr);
 

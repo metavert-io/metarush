@@ -35,6 +35,8 @@ func ContractTypes() []ContractType {
 		{"signInResult", SignInResult{}},
 		{"linkInfo", LinkInfo{}},
 		{"linkAccept", LinkAccept{}},
+		{"ssoStart", SSOStart{}},
+		{"ssoStartResult", SSOStartResult{}},
 		{"opInfo", OpInfo{}},
 		{"upload", uploads.Record{}},
 		{"uploadList", UploadList{}},

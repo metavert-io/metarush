@@ -21,7 +21,7 @@ import (
 // unpairs their own). (provider.settings changes Content Settings and a
 // project's budget, open to members: D193.)
 var ownerOnlyOps = []string{
-	"auth.method.set", "users.invite", "users.resetLink", "users.revoke", "users.disable", "users.enable", "users.remove", "users.role",
+	"auth.method.set", "auth.sso.set", "auth.sso.secret", "auth.sso.test", "auth.sso.discard", "users.invite", "users.resetLink", "users.revoke", "users.disable", "users.enable", "users.remove", "users.role",
 	"remote.enable", "remote.disable", "remote.allow", "remote.signout",
 	"storage.migrate", "trash.configure", "trash.empty", "worker.configure", "asset.delete",
 	"watch.browse", "resources.link", "resources.folder", "render.follow.set", "sound.setup",

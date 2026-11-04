@@ -28,6 +28,7 @@ const METHOD_BLURB: Record<AuthMethod, string> = {
   single: 'Only you, on this computer, with its one-time link. Nobody else can sign in.',
   password: 'Everyone you invite signs in with their email and a password, on this computer or another (another needs the https:// address).',
   tailscale: 'People sign in with their Tailscale account on the address for other computers. Good when everyone is on your Tailscale network already.',
+  sso: 'People sign in with the account they have at Google, Microsoft or your organization’s own provider. You set it up and test it below first.',
 };
 
 /** A plain error line: the server's message, then its hint. */
@@ -191,6 +192,7 @@ function MethodWizard({ status, close, onChanged }: { status: AuthStatusOut; clo
 
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
+    if (choice === 'sso') return; // set up, tested and switched in its own part (SSOStep)
     if (!ready) {
       setError(
         choice === 'tailscale'
@@ -233,7 +235,7 @@ function MethodWizard({ status, close, onChanged }: { status: AuthStatusOut; clo
       <div data-method-wizard data-step="choose">
         <p className="text-[13px] leading-relaxed text-muted">Choose who can open this MetaRush. You give your own sign-in at the next step, so you keep getting in.</p>
         <div role="radiogroup" aria-label="How people sign in" className="mt-4 space-y-2">
-          {(['single', 'password', 'tailscale'] as const).map((m) => {
+          {(['single', 'password', 'tailscale', 'sso'] as const).map((m) => {
             const on = choice === m;
             return (
               <button
@@ -294,6 +296,8 @@ function MethodWizard({ status, close, onChanged }: { status: AuthStatusOut; clo
             serverError={pwError}
           />
         </>
+      ) : choice === 'sso' ? (
+        <SSOStep status={status} close={close} onChanged={onChanged} />
       ) : choice === 'tailscale' ? (
         <TextField
           label="Your Tailscale login"
@@ -313,15 +317,82 @@ function MethodWizard({ status, close, onChanged }: { status: AuthStatusOut; clo
         </p>
       )}
       <FormError text={error} />
-      <div className="flex flex-wrap justify-end gap-2 pt-2">
-        <Button variant="ghost" onClick={() => setStep('choose')}>
-          Back
-        </Button>
-        <Button type="submit" variant={choice === 'single' ? 'danger' : 'primary'} loading={busy} data-method-save>
-          {choice === 'single' ? 'Go back to just me' : 'Save'}
-        </Button>
-      </div>
+      {choice !== 'sso' ? (
+        <div className="flex flex-wrap justify-end gap-2 pt-2">
+          <Button variant="ghost" onClick={() => setStep('choose')}>
+            Back
+          </Button>
+          <Button type="submit" variant={choice === 'single' ? 'danger' : 'primary'} loading={busy} data-method-save>
+            {choice === 'single' ? 'Go back to just me' : 'Save'}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap justify-end gap-2 pt-2">
+          <Button variant="ghost" onClick={() => setStep('choose')}>
+            Back
+          </Button>
+        </div>
+      )}
     </form>
+  );
+}
+
+/**
+ * The organization's account in the method wizard (D430): it is set up and
+ * tested in its own part of the page; the switch is offered here once a test
+ * sign-in passed on this computer.
+ */
+function SSOStep({ status, close, onChanged }: { status: AuthStatusOut; close: (v?: boolean) => void; onChanged: () => void }) {
+  const st = useOp('auth.sso.status', {}, { staleTime: 5_000 });
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const setup = st.data ? (st.data.next ?? st.data.live) : undefined;
+  const goToPart = () => {
+    close();
+    window.setTimeout(() => document.getElementById('sign-in')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+  const doSwitch = async () => {
+    setBusy(true);
+    try {
+      const out = await call('auth.method.set', { method: 'sso' });
+      toast({ tone: 'success', title: METHOD_LABEL[out.method], body: out.summary });
+      onChanged();
+      close(true);
+    } catch (err) {
+      toast({ tone: 'error', title: "Couldn't switch", body: errorWords(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (st.isLoading) return <Skeleton className="h-16" />;
+  return (
+    <div className="space-y-3" data-method-sso>
+      {st.data?.canSwitch && setup ? (
+        <>
+          <p className="text-[13px] leading-relaxed text-muted">
+            {setup.title} passed its test sign-in on this computer. Switching makes it how everyone signs in{setup.alsoPassword ? '; passwords keep working too' : ''}.
+          </p>
+          <div className="flex justify-end">
+            <Button variant="primary" loading={busy} onClick={() => void doSwitch()} data-method-sso-switch>
+              Switch to {setup.title}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-[13px] leading-relaxed text-muted">
+            {setup
+              ? `${setup.title} is set up${status.method === 'sso' ? ' and in use' : ''}. Test it on this computer before switching: you keep getting in with the account you test with.`
+              : 'Choose the provider and the app people sign in with, register the addresses MetaRush shows, then test the sign-in on this computer. Switching comes after the test.'}
+          </p>
+          <div className="flex justify-end">
+            <Button variant="primary" onClick={goToPart} data-method-sso-go>
+              {setup ? 'Go to the test sign-in' : 'Set it up'}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -389,7 +460,9 @@ function YourAccount({ status, onChanged }: { status: AuthStatusOut; onChanged: 
     const ok = await dialog.confirm({
       title: 'Sign out on every computer and browser?',
       body:
-        status.method === 'password'
+        status.method === 'sso'
+          ? `This browser too: you sign in again with ${status.sso ?? 'your organization’s account'}. Use it if you lost a computer or signed in on a shared one.`
+          : status.method === 'password'
           ? 'This browser too: you sign in again with your email and password. Use it if you lost a computer or signed in on a shared one.'
           : status.method === 'tailscale'
             ? 'This browser too. On the address for other computers your Tailscale account signs you in again; on this computer, open MetaRush with its one-time link.'
@@ -418,7 +491,7 @@ function YourAccount({ status, onChanged }: { status: AuthStatusOut; onChanged: 
       <AvatarControl name={you.name || you.email || 'You'} avatar={you.avatar} />
       <form className="mt-3 space-y-3" onSubmit={(e) => void save(e)} noValidate>
         <TextField label="Name" autoComplete="name" maxLength={80} value={name} onChange={setName} help="How others see you in MetaRush." data-account-name-field />
-        <TextField label="Email" type="email" autoComplete="email" autoCapitalize="off" spellCheck={false} value={email} onChange={setEmail} help={status.method === 'password' ? 'You sign in with it.' : undefined} data-account-email-field />
+        <TextField label="Email" type="email" autoComplete="email" autoCapitalize="off" spellCheck={false} value={email} onChange={setEmail} help={status.password ? 'You sign in with it.' : undefined} data-account-email-field />
         {needCurrent ? <PasswordField label="Your current password" autoComplete="current-password" value={current} onChange={setCurrent} help="Changing your email asks for it." /> : null}
         <FormError text={error} />
         <Button type="submit" size="sm" variant="secondary" disabled={!dirty} loading={busy === 'save'} data-account-save>
@@ -426,7 +499,7 @@ function YourAccount({ status, onChanged }: { status: AuthStatusOut; onChanged: 
         </Button>
       </form>
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-        {status.method === 'password' || you.hasPassword ? (
+        {status.password || you.hasPassword ? (
           <Button size="sm" variant="secondary" icon={<Key size={13} />} onClick={changePassword} data-change-password>
             Change password
           </Button>
@@ -524,7 +597,7 @@ function People({ status, people, loading, error, onRetry, onChanged }: {
   const shown = sorted.filter((p) => p.state !== 'earlier').length;
 
   const invite = async (preset?: Account) => {
-    const out = await dialog.open<UserLinkOut>((close) => <InviteForm earlier={earlier} preset={preset} close={close} />, { title: preset ? `Invite ${whoOf(preset)}` : 'Invite a person' });
+    const out = await dialog.open<UserLinkOut>((close) => <InviteForm earlier={earlier} preset={preset} sso={status.sso} close={close} />, { title: preset ? `Invite ${whoOf(preset)}` : 'Invite a person' });
     if (!out) return;
     onChanged();
     void showLink(dialog, out);
@@ -569,7 +642,7 @@ function People({ status, people, loading, error, onRetry, onChanged }: {
         },
       });
     }
-    if (p.state === 'active' && !p.you && status.method === 'password') {
+    if (p.state === 'active' && !p.you && status.password) {
       items.push({ label: 'Make a reset link', icon: <ArrowsClockwise size={14} />, hint: 'They choose a new password with it', onSelect: () => void act(p, 'link', () => call('users.resetLink', { user: p.id }), "Couldn't make the link") });
     }
     if (p.state === 'disabled') {
@@ -688,6 +761,11 @@ function People({ status, people, loading, error, onRetry, onChanged }: {
                       <Theirs>{p.email}</Theirs>
                     </div>
                   ) : null}
+                  {p.signsInWith?.length ? (
+                    <div className="truncate text-[11.5px] text-subtle" data-person-signs-in-with>
+                      Signs in with {p.signsInWith.join(', ')}
+                    </div>
+                  ) : null}
                   {meta ? <div className="truncate text-[11.5px] text-subtle">{meta}</div> : null}
                 </div>
                 {busy.startsWith(p.id) ? <span className="mt-1.5 text-[12px] text-subtle">Working…</span> : null}
@@ -702,7 +780,7 @@ function People({ status, people, loading, error, onRetry, onChanged }: {
   );
 }
 
-function InviteForm({ earlier, preset, close }: { earlier: Account[]; preset?: Account; close: (v?: UserLinkOut) => void }) {
+function InviteForm({ earlier, preset, sso, close }: { earlier: Account[]; preset?: Account; sso?: string; close: (v?: UserLinkOut) => void }) {
   const [email, setEmail] = useState(preset?.email ?? '');
   const [name, setName] = useState(preset?.name ?? '');
   const [role, setRole] = useState<'member' | 'owner'>('member');
@@ -730,7 +808,11 @@ function InviteForm({ earlier, preset, close }: { earlier: Account[]; preset?: A
   };
   return (
     <form className="space-y-4" onSubmit={(e) => void submit(e)} noValidate data-invite-dialog>
-      <p className="text-[13px] leading-relaxed text-muted">MetaRush makes a link for them to choose a password. Nothing is emailed: you send the link yourself.</p>
+      <p className="text-[13px] leading-relaxed text-muted">
+        {sso
+          ? `MetaRush makes a link they follow to sign in with ${sso}; their account there must have the email you give. Nothing is emailed: you send the link yourself.`
+          : 'MetaRush makes a link for them to choose a password. Nothing is emailed: you send the link yourself.'}
+      </p>
       <TextField label="Their email" type="email" autoComplete="off" autoCapitalize="off" spellCheck={false} autoFocus value={email} onChange={setEmail} placeholder="name@example.com" data-invite-email />
       <TextField label="Their name" autoComplete="off" maxLength={80} value={name} onChange={setName} help="Optional: they can change it when they join." data-invite-name />
       <div>

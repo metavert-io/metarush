@@ -147,6 +147,22 @@ func printRendererStatus(st renderer.Status, details bool) {
 	}
 }
 
+// RendererNotNow is `metarush renderer install --json` when nothing was set
+// up on purpose (an AI app at the keys, or a renderer a person left out): the
+// renderer as it is, what that means and the command that sets it up anyway.
+// Set up (or already set up), the answer is the renderer's status itself.
+type RendererNotNow struct {
+	Status  renderer.Status `json:"status"`
+	SetUp   bool            `json:"setUp"` // always false
+	Says    string          `json:"says"`
+	Command string          `json:"command,omitempty"`
+}
+
+const (
+	rendererNotSetUpNote = "The renderer isn't set up on this computer, and nothing was set up now: a person adds it in Settings → Components (it downloads about 400 MB)."
+	rendererLeftOutNote  = "The renderer was left out on this computer, so nothing was set up: a person adds it in Settings → Components."
+)
+
 func rendererInstallCmd() *cobra.Command {
 	var force bool
 	var keep int
@@ -177,7 +193,7 @@ func rendererInstallCmd() *cobra.Command {
 			leftOut := chosen && !ch.Wanted && !ch.Waiting // a person said no
 			upgrade := !chosen && env.SetsItselfUp()       // nobody chose; one was set up here before
 			notNow := func(note, cmd string) error {
-				return emit(c, map[string]any{"status": pre, "setUp": false, "says": note, "command": cmd}, func() {
+				return emit(c, RendererNotNow{Status: pre, Says: note, Command: cmd}, func() {
 					fmt.Println(note)
 					if detailsMode(c) && cmd != "" {
 						fmt.Println("to set it up anyway: " + cmd)
@@ -186,14 +202,13 @@ func rendererInstallCmd() *cobra.Command {
 			}
 			switch {
 			case agent && !env.SetsItselfUp():
-				note := "The renderer isn't set up on this computer, and nothing was set up now: a person adds it in Settings → Components (it downloads about 400 MB)."
+				note := rendererNotSetUpNote
 				if leftOut {
-					note = "The renderer was left out on this computer, so nothing was set up: a person adds it in Settings → Components."
+					note = rendererLeftOutNote
 				}
 				return notNow(note, "metarush components add renderer")
 			case leftOut && !person && !force:
-				return notNow("The renderer was left out on this computer, so nothing was set up: a person adds it in Settings → Components.",
-					"metarush renderer install --force")
+				return notNow(rendererLeftOutNote, "metarush renderer install --force")
 			}
 			ctx, cancel := signalCtx(c.Context())
 			defer cancel()

@@ -72,9 +72,15 @@ type Status struct {
 	// WorkerOnly says the service runs without the dashboard.
 	WorkerOnly bool   `json:"workerOnly"`
 	Binary     string `json:"binary,omitempty"` // the metarush the service runs
-	SameBinary bool   `json:"sameBinary"`       // ... is the binary asking
-	Home       string `json:"home"`
-	Log        string `json:"log"`
+	SameBinary bool   `json:"sameBinary"`       // ... is the binary asking (links followed)
+	// OtherCopy: the service starts another copy of MetaRush than the one
+	// asking: another program file, or this one only through a link (a path
+	// that isn't this program's but leads to it today, so it would follow
+	// whatever the link is changed to). MetaRush.app asks before it takes such
+	// a service over (D473, D475).
+	OtherCopy bool   `json:"otherCopy,omitempty"`
+	Home      string `json:"home"`
+	Log       string `json:"log"`
 	// Linger (systemd) says whether it also runs while nobody is logged in.
 	Linger  *bool  `json:"linger,omitempty"`
 	Problem string `json:"problem,omitempty"`
@@ -100,6 +106,16 @@ type DaemonState struct {
 	Commit  string `json:"commit,omitempty"`
 	// Answering: its dashboard answered just now.
 	Answering bool `json:"answering"`
+	// Program is the program file the daemon runs, as it found itself when it
+	// started (links followed then, so a link changed since doesn't change
+	// it); "" from builds that didn't record it.
+	Program string `json:"program,omitempty"`
+	// SameCopy: the daemon runs this copy of MetaRush — the program file where
+	// the asking one is (an older build there counts); nil when it didn't say.
+	SameCopy *bool `json:"sameCopy,omitempty"`
+	// Newer: the daemon is a newer build than the asking program, which then
+	// leaves it alone (D472).
+	Newer bool `json:"newer,omitempty"`
 }
 
 // Plan is what install writes and runs (shown by --dry-run).
@@ -464,6 +480,7 @@ func (o Options) Get(ctx context.Context) Status {
 	st.Binary, st.WorkerOnly = parseProgram(string(b), p)
 	if o.Exe != "" && st.Binary != "" {
 		st.SameBinary = sameFile(st.Binary, o.Exe)
+		st.OtherCopy = !st.SameBinary || (filepath.Clean(st.Binary) != filepath.Clean(o.Exe) && isLink(st.Binary))
 	}
 	if p == Systemd {
 		out, err := o.run(ctx, []string{tools.Systemctl, "--user", "show", o.Label(), "--property=LoadState,ActiveState,SubState,MainPID,ExecMainStatus,UnitFileState"})
@@ -634,6 +651,36 @@ type Daemon struct {
 	// service manager that started it (launchd | systemd), if any.
 	Mode    string `json:"mode,omitempty"`
 	Service string `json:"service,omitempty"`
+	// Program is the copy of MetaRush it runs (ThisProgram, when it started),
+	// so the record keeps saying which copy runs even when a link to it is
+	// changed later (D474).
+	Program string `json:"program,omitempty"`
+}
+
+// ThisProgram is the copy of MetaRush this program is: its file with every
+// link followed, then the lasting path of that file (StableExecutable's: a
+// Homebrew version folder becomes Homebrew's own path for the formula, which an
+// upgrade keeps). A daemon records it as its Program; another program compares
+// its own with it, so a link changed later can't make another copy look like
+// this one. An update that replaces the file in place (MetaRush.app's) keeps
+// the path, so an older build there still counts as this copy.
+func ThisProgram() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	}
+	if stable, err := stableFrom(exe); err == nil {
+		return stable
+	}
+	return exe
+}
+
+func isLink(path string) bool {
+	fi, err := os.Lstat(path)
+	return err == nil && fi.Mode()&os.ModeSymlink != 0
 }
 
 // ReadDaemon reads a home's daemon record; ok is false when no daemon runs.

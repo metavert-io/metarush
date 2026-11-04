@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": "E_CONFLICT",
+    "message": "MetaRush runs a newer copy (version 0.3.0) than this one, so this one doesn't take its place.",
+    "hint": "Update this copy first, or keep the newer one running.",
+    "details": {
+      "running": "0.3.0",
+      "this": "0.2.0"
+    }
+  },
+  "ok": false
+}

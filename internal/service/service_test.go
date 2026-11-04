@@ -138,7 +138,6 @@ func TestLaunchAgentInstallStatusRestartUninstall(t *testing.T) {
 	}
 }
 
-// The default home gets the plain label; any other home its own.
 // The service runs MetaRush.app's own copy where the app is (an update
 // replaces it in place), never the temporary copy macOS makes of an app
 // opened where it was downloaded (D476).
@@ -153,6 +152,76 @@ func TestStableExecutableRefusesATemporaryCopy(t *testing.T) {
 	}
 }
 
+// A service that starts this copy through a link (~/.local/bin/metarush
+// leading to it today) runs whatever the link is changed to later: it is
+// another copy to the one asking, though the link leads here now (D473, D475).
+// The service that starts this copy's own path is this copy's.
+func TestAServiceThroughALinkIsAnotherCopy(t *testing.T) {
+	lc, _ := fakeTool(t, "launchctl", fakeLaunchctl)
+	userHome := t.TempDir()
+	exe := exeFile(t)
+	o := Options{Home: filepath.Join(t.TempDir(), "home"), Exe: exe, OS: "darwin", UserHome: userHome, UID: 501, Tools: tools.New(config.Tools{Launchctl: lc})}
+	ctx := context.Background()
+	if _, err := o.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if st := o.Get(ctx); !st.SameBinary || st.OtherCopy {
+		t.Fatalf("its own path: %+v", st)
+	}
+	// The same service, read by the program the link leads to.
+	link := filepath.Join(t.TempDir(), "bin", "metarush")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(exe, link); err != nil {
+		t.Fatal(err)
+	}
+	byLink := o
+	byLink.Exe = link
+	if _, err := byLink.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	st := o.Get(ctx)
+	if !st.SameBinary || !st.OtherCopy || st.Binary != link {
+		t.Fatalf("through a link: %+v", st)
+	}
+	// Another program file altogether.
+	other := Options{Home: o.Home, Exe: exeFile(t), OS: "darwin", UserHome: userHome, UID: 501, Tools: o.Tools}
+	if st := other.Get(ctx); st.SameBinary || !st.OtherCopy {
+		t.Fatalf("another copy: %+v", st)
+	}
+}
+
+// ThisProgram is the copy a daemon records: links followed, then the path
+// that lasts (a Homebrew version folder becomes the formula's own path).
+func TestThisProgramFollowsLinks(t *testing.T) {
+	p := ThisProgram()
+	if p == "" || !filepath.IsAbs(p) {
+		t.Fatalf("ThisProgram() = %q", p)
+	}
+	if real, err := filepath.EvalSymlinks(p); err != nil || real != p && !strings.Contains(p, "/opt/") {
+		t.Fatalf("ThisProgram() = %q, links followed %q (%v)", p, real, err)
+	}
+	brew := t.TempDir()
+	cellar := filepath.Join(brew, "Cellar", "metarush", "0.15.0", "bin", "metarush")
+	if err := os.MkdirAll(filepath.Dir(cellar), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cellar, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(brew, "opt", "metarush"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Dir(cellar), filepath.Join(brew, "opt", "metarush", "bin")); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := stableFrom(cellar); err != nil || got != filepath.Join(brew, "opt", "metarush", "bin", "metarush") {
+		t.Fatalf("a Homebrew version folder: %q %v", got, err)
+	}
+}
+
+// The default home gets the plain label; any other home its own.
 func TestLabels(t *testing.T) {
 	u := t.TempDir()
 	o := Options{Home: filepath.Join(u, ".metarush"), UserHome: u, OS: "darwin"}

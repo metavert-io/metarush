@@ -1,7 +1,8 @@
 {
   "data": {
-    "databaseStopped": false,
-    "stopped": true
+    "stopped": true,
+    "pid": 4343,
+    "databaseStopped": false
   },
   "ok": true
 }

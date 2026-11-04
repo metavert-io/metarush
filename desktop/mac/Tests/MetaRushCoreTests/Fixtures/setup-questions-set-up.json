@@ -14,11 +14,12 @@
     },
     "port": 4851,
     "service": {
-      "suggested": true,
+      "suggested": false,
       "installed": true,
       "running": true,
       "otherCopy": true,
-      "says": "MetaRush already starts when you log in, from another copy of MetaRush; setup makes it start this one instead."
+      "otherVersion": "0.1.0",
+      "says": "MetaRush already starts when you log in, from another copy of MetaRush (version 0.1.0); setup leaves it as it is unless you choose to have it start this copy instead."
     },
     "skills": {
       "suggested": true,

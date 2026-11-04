@@ -65,8 +65,24 @@ func stableErr(err error) error {
 	return err
 }
 
+// ServiceInstallOut is `metarush service install --json`.
+type ServiceInstallOut struct {
+	Plan   service.Plan   `json:"plan"`
+	Status service.Status `json:"status"`
+	// StoppedDaemon: a MetaRush the dashboard had started stopped first.
+	StoppedDaemon bool `json:"stoppedDaemon"`
+	Started       bool `json:"started"`
+	Waited        bool `json:"waited"`
+}
+
+// ServiceRestartOut is `metarush service restart --json`.
+type ServiceRestartOut struct {
+	Status  service.Status `json:"status"`
+	Started bool           `json:"started"`
+}
+
 func serviceInstallCmd() *cobra.Command {
-	var workerOnly, dryRun, noWait bool
+	var workerOnly, dryRun, noWait, keepNewer bool
 	var binary string
 	c := &cobra.Command{Use: "install", Short: "Set up (or update) the background service on this machine and start it",
 		RunE: func(c *cobra.Command, _ []string) error {
@@ -87,6 +103,14 @@ func serviceInstallCmd() *cobra.Command {
 			}
 			ctx, cancel := signalCtx(c.Context())
 			defer cancel()
+			// --keep-newer (MetaRush.app always passes it, D473): a newer copy
+			// running for the home, or started by the service, stays.
+			if keepNewer {
+				if other := otherCopyOf(ctx, cfg, o.Get(ctx)); other.Newer {
+					return failErr(c, apperr.New(apperr.Conflict, "MetaRush runs a newer copy%s than this one, so this one doesn't take its place.", other.said()).
+						WithHint("Update this copy first, or keep the newer one running.").WithDetails(map[string]any{"running": other.Version, "this": version.Version}))
+				}
+			}
 			// A daemon `metarush dashboard` started for this home stops first:
 			// from now on the service runs it.
 			stopped, oldPID := false, 0
@@ -109,7 +133,7 @@ func serviceInstallCmd() *cobra.Command {
 				started = waitService(ctx, o, cfg, 40*time.Second, oldPID)
 			}
 			st := o.Get(ctx)
-			res := map[string]any{"plan": plan, "status": st, "stoppedDaemon": stopped, "started": started, "waited": !noWait}
+			res := ServiceInstallOut{Plan: plan, Status: st, StoppedDaemon: stopped, Started: started, Waited: !noWait}
 			if !noWait && !started {
 				lines, _ := service.LogTail(o.LogFile(), 20)
 				return failErr(c, apperr.New(apperr.ToolFailed, "The background service is set up, but MetaRush did not start.").
@@ -145,6 +169,7 @@ func serviceInstallCmd() *cobra.Command {
 	c.Flags().StringVar(&binary, "binary", "", "the metarush binary the service runs (default: this one)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "show the file and the commands without changing anything")
 	c.Flags().BoolVar(&noWait, "no-wait", false, "do not wait for MetaRush to start")
+	c.Flags().BoolVar(&keepNewer, "keep-newer", false, "change nothing when a newer copy of MetaRush runs for this home, or is the one the service starts")
 	return c
 }
 
@@ -288,16 +313,22 @@ func runningDaemon(cfg *config.Config) *service.DaemonState {
 	if !ok {
 		return nil
 	}
-	out := &service.DaemonState{PID: d.PID, Port: d.Port, Mode: d.Mode, Service: d.Service, StartedAt: d.StartedAt, Version: d.Version}
-	if d.Mode == "worker-only" {
-		return out
+	out := &service.DaemonState{PID: d.PID, Port: d.Port, Mode: d.Mode, Service: d.Service, StartedAt: d.StartedAt, Version: d.Version, Program: d.Program}
+	if d.Program != "" {
+		same := d.Program == service.ThisProgram()
+		out.SameCopy = &same
 	}
-	port := d.Port
-	if port == 0 {
-		port = cfg.Dashboard.Port
+	if d.Mode != "worker-only" {
+		port := d.Port
+		if port == 0 {
+			port = cfg.Dashboard.Port
+		}
+		if h, ok := healthAt(cfg.Dashboard.Host, port); ok {
+			out.Answering, out.Version, out.Commit = true, h.Version, h.Commit
+		}
 	}
-	if h, ok := healthAt(cfg.Dashboard.Host, port); ok {
-		out.Answering, out.Version, out.Commit = true, h.Version, h.Commit
+	if c, ok := version.Compare(out.Version, version.Version); ok && c > 0 {
+		out.Newer = true
 	}
 	return out
 }
@@ -348,7 +379,7 @@ func serviceRestartCmd() *cobra.Command {
 				}
 			}
 			st := o.Get(ctx)
-			return emit(c, map[string]any{"status": st, "started": started}, func() { fmt.Println("Restarted the background service.") })
+			return emit(c, ServiceRestartOut{Status: st, Started: started}, func() { fmt.Println("Restarted the background service.") })
 		}}
 	c.Flags().BoolVar(&noWait, "no-wait", false, "do not wait for MetaRush to start")
 	return c

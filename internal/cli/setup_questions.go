@@ -58,13 +58,24 @@ type SetupDatabaseQuestion struct {
 
 // SetupServiceQuestion is MetaRush starting when the person logs in.
 type SetupServiceQuestion struct {
+	// Suggested: start MetaRush when the person logs in. False when another
+	// copy of MetaRush runs the service already: whether this copy takes its
+	// place is a question of its own (`setup --take-over-service`), and its
+	// answer is no unless a person says yes (D473).
 	Suggested bool `json:"suggested"`
 	Installed bool `json:"installed"`
 	Running   bool `json:"running"`
-	// OtherCopy: the background service runs another copy of MetaRush than
-	// this one; setup would make it run this one.
-	OtherCopy bool   `json:"otherCopy,omitempty"`
-	Says      string `json:"says"`
+	// WorkerOnly: the service runs the background work without the dashboard,
+	// and setting it up again keeps it so.
+	WorkerOnly bool `json:"workerOnly,omitempty"`
+	// OtherCopy: the background service starts another copy of MetaRush than
+	// this one (`service status`'s otherCopy); OtherVersion is the version
+	// that copy runs, when it says, and Newer that it is newer than this one,
+	// so setup never takes its place.
+	OtherCopy    bool   `json:"otherCopy,omitempty"`
+	OtherVersion string `json:"otherVersion,omitempty"`
+	Newer        bool   `json:"newer,omitempty"`
+	Says         string `json:"says"`
 }
 
 // SetupSkillsQuestion is Claude Code learning MetaRush's video skills.
@@ -137,10 +148,19 @@ func setupQuestions(c *cobra.Command, h string) *SetupQuestions {
 	q.Service = SetupServiceQuestion{Suggested: true, Says: "MetaRush starts when you log in and keeps running, so the dashboard is always there."}
 	if exe, err := service.StableExecutable(); err == nil {
 		st := service.Options{Home: h, Exe: exe, Tools: ts}.Get(ctx)
-		q.Service.Installed, q.Service.Running = st.Installed, st.Running
-		q.Service.OtherCopy = st.Installed && st.Binary != "" && !st.SameBinary
-		if q.Service.OtherCopy {
-			q.Service.Says = "MetaRush already starts when you log in, from another copy of MetaRush; setup makes it start this one instead."
+		q.Service.Installed, q.Service.Running, q.Service.WorkerOnly = st.Installed, st.Running, st.Installed && st.WorkerOnly
+		if st.Installed && st.OtherCopy {
+			var loaded *config.Config
+			if q.SetUp {
+				loaded = cfg
+			}
+			other := otherCopyOf(ctx, loaded, st)
+			q.Service.OtherCopy, q.Service.Suggested = true, false
+			q.Service.OtherVersion, q.Service.Newer = other.Version, other.Newer
+			q.Service.Says = "MetaRush already starts when you log in, from another copy of MetaRush" + other.said() + "; setup leaves it as it is unless you choose to have it start this copy instead."
+			if other.Newer {
+				q.Service.Says = "MetaRush already starts when you log in, from another copy that is newer than this one" + other.said() + ", so setup leaves it as it is."
+			}
 		}
 	}
 

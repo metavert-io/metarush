@@ -1,6 +1,5 @@
 {
   "data": {
-    "started": true,
     "status": {
       "platform": "launchd",
       "label": "metarush.daemon",
@@ -13,7 +12,8 @@
       "sameBinary": true,
       "home": "/Users/you/.metarush",
       "log": "/Users/you/.metarush/logs/daemon.log"
-    }
+    },
+    "started": true
   },
   "ok": true
 }

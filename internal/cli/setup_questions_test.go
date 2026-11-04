@@ -154,9 +154,9 @@ func TestServiceStatusSaysWhatRuns(t *testing.T) {
 	if st := status(); st.Daemon != nil || st.Installed {
 		t.Fatalf("nothing runs yet: %+v", st)
 	}
-	record := func(mode string) {
+	record := func(mode, program string) {
 		t.Helper()
-		d := service.Daemon{PID: os.Getpid(), Port: port, StartedAt: time.Now().UTC(), Version: "0.15.0", Mode: mode}
+		d := service.Daemon{PID: os.Getpid(), Port: port, StartedAt: time.Now().UTC(), Version: "0.15.0", Mode: mode, Program: program}
 		b, _ := json.Marshal(d)
 		if err := os.MkdirAll(filepath.Join(h, "state"), 0o700); err != nil {
 			t.Fatal(err)
@@ -165,14 +165,31 @@ func TestServiceStatusSaysWhatRuns(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	record("full")
+	// This copy's daemon (it recorded this program), a newer build than this
+	// test's (0.16.0 against VERSION's -dev).
+	record("full", service.ThisProgram())
 	d := status().Daemon
 	if d == nil || !d.Answering || d.Version != "0.16.0" || d.Commit != "abc1234" || d.PID != os.Getpid() || d.Port != port {
 		t.Fatalf("the daemon that answers: %+v", d)
 	}
+	if d.SameCopy == nil || !*d.SameCopy || d.Program != service.ThisProgram() || !d.Newer {
+		t.Fatalf("this copy, newer: %+v", d)
+	}
+	// Another copy's (D473): a program elsewhere, or a link to this one,
+	// recorded as the link's target when it started, so changing the link
+	// later changes nothing.
+	record("full", "/opt/elsewhere/bin/metarush")
+	if d := status().Daemon; d == nil || d.SameCopy == nil || *d.SameCopy {
+		t.Fatalf("another copy: %+v", d)
+	}
+	// A build from before the record named its program: not known.
+	record("full", "")
+	if d := status().Daemon; d == nil || d.SameCopy != nil {
+		t.Fatalf("a daemon that didn't say: %+v", d)
+	}
 	// A worker without the dashboard: what its record says.
-	record("worker-only")
-	if d := status().Daemon; d == nil || d.Answering || d.Version != "0.15.0" || d.Commit != "" || d.Mode != "worker-only" {
+	record("worker-only", "")
+	if d := status().Daemon; d == nil || d.Answering || d.Version != "0.15.0" || d.Commit != "" || d.Mode != "worker-only" || d.Newer {
 		t.Fatalf("a worker: %+v", d)
 	}
 	plain := runCLI(t, h, "service", "status", "--details")
@@ -207,5 +224,100 @@ func TestDoctorJSONSaysItPlainly(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("no plain words for the home not set up: %+v", out.Checks)
+	}
+}
+
+// otherService writes the background service of home h as another copy of
+// MetaRush would have set it up: its program is a stand-in that says it is
+// version v (`version --json`) and, with worker, runs without the dashboard.
+// Nothing is loaded: the service managers never run under go test.
+func otherService(t *testing.T, h, v string, worker bool) string {
+	t.Helper()
+	prog := filepath.Join(t.TempDir(), "other", "metarush")
+	if err := os.MkdirAll(filepath.Dir(prog), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/bin/sh\nif [ \"$1\" = version ]; then printf '{\"ok\": true, \"data\": {\"version\": \"" + v + "\"}}\\n'; fi\n"
+	if err := os.WriteFile(prog, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.Options{Home: h, Exe: prog, WorkerOnly: worker}.InstallPlan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(plan.File), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plan.File, []byte(plan.Content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return prog
+}
+
+// Another copy's background service is never suggested away (D473): setup
+// asks a question of its own, its answer no, and doesn't ask at all when that
+// copy is newer than this one; a worker stays a worker.
+func TestSetupQuestionsWhenAnotherCopyRunsTheService(t *testing.T) {
+	setupEnv(t)
+	bareComputer(t)
+	h := t.TempDir()
+	cfg := config.Default(h)
+	cfg.SetHome(h)
+	cfg.Database = config.Database{URI: "mongodb://db.example.invalid/x", Name: "x"}
+	if err := config.Save(h, cfg); err != nil {
+		t.Fatal(err)
+	}
+	otherService(t, h, "0.1.0", true)
+	var q SetupQuestions
+	decodeData(t, runCLI(t, h, "setup", "questions", "--json"), &q)
+	sv := q.Service
+	if !sv.Installed || !sv.OtherCopy || sv.Suggested || sv.Newer || sv.OtherVersion != "0.1.0" || !sv.WorkerOnly || !strings.Contains(sv.Says, "leaves it as it is") {
+		t.Fatalf("an older copy's service: %+v", sv)
+	}
+	otherService(t, h, "99.0.0", false)
+	var newer SetupQuestions
+	decodeData(t, runCLI(t, h, "setup", "questions", "--json"), &newer)
+	sv = newer.Service
+	if !sv.OtherCopy || sv.Suggested || !sv.Newer || sv.OtherVersion != "99.0.0" || sv.WorkerOnly || !strings.Contains(sv.Says, "newer than this one") {
+		t.Fatalf("a newer copy's service: %+v", sv)
+	}
+	for _, f := range plainwords.CheckShown(sv.Says) {
+		t.Errorf("%q shows %s", sv.Says, f)
+	}
+
+	// service install --keep-newer (the app's) leaves the newer copy alone.
+	r := runCLI(t, h, "service", "install", "--keep-newer", "--json")
+	if r.code == 0 || !strings.Contains(r.stdout, "E_CONFLICT") || !strings.Contains(r.stdout, "newer copy (version 99.0.0)") {
+		t.Fatalf("install over a newer copy: %d %s %s", r.code, r.stdout, r.stderr)
+	}
+}
+
+// What setup does with the background service: another copy's is taken over
+// only when a person says so, never by an older copy, and this copy's running
+// one is left running.
+func TestDecideService(t *testing.T) {
+	this := service.Status{Installed: true, Running: true, SameBinary: true}
+	other := service.Status{Installed: true, Running: true, OtherCopy: true}
+	none := service.Status{}
+	for _, c := range []struct {
+		name             string
+		wanted, takeOver bool
+		st               service.Status
+		o                otherCopy
+		want             serviceChoice
+	}{
+		{"not wanted", false, false, other, otherCopy{}, serviceLeave},
+		{"nothing there", true, false, none, otherCopy{}, serviceInstall},
+		{"this copy runs it", true, false, this, otherCopy{}, serviceRunning},
+		{"this copy, stopped", true, false, service.Status{Installed: true, SameBinary: true}, otherCopy{}, serviceInstall},
+		{"another copy, nobody said", true, false, other, otherCopy{Version: "0.1.0"}, serviceKeepOther},
+		{"another copy, a person said yes", true, true, other, otherCopy{Version: "0.1.0"}, serviceInstall},
+		{"another copy, version not known, yes", true, true, other, otherCopy{}, serviceInstall},
+		{"a newer copy, even with yes", true, true, other, otherCopy{Version: "9.0.0", Newer: true}, serviceKeepNewer},
+		{"a newer copy, nobody said", true, false, other, otherCopy{Version: "9.0.0", Newer: true}, serviceKeepNewer},
+	} {
+		if got := decideService(c.wanted, c.takeOver, c.st, c.o); got != c.want {
+			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
 	}
 }

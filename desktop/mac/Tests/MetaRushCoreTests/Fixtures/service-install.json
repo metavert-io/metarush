@@ -5,7 +5,6 @@
       "content": "",
       "commands": null
     },
-    "started": true,
     "status": {
       "platform": "launchd",
       "label": "metarush.daemon",
@@ -20,6 +19,7 @@
       "log": "/Users/you/.metarush/logs/daemon.log"
     },
     "stoppedDaemon": false,
+    "started": true,
     "waited": true
   },
   "ok": true

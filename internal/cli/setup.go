@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -24,6 +25,7 @@ import (
 	"github.com/metavert-io/metarush/internal/skillsinstall"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/tools"
+	"github.com/metavert-io/metarush/internal/version"
 	"github.com/metavert-io/metarush/internal/wsarchive"
 )
 
@@ -41,8 +43,13 @@ type setupOpts struct {
 	// earlier setup kept for another database (a copy is kept aside).
 	replaceSaved bool
 	service      bool
-	skills       bool
-	open         bool
+	// takeOverService: when another copy of MetaRush runs the background
+	// service, have it run this copy instead. Never the default: a person
+	// says yes (asked separately at a terminal, or this flag), and a copy
+	// older than the one running never takes its place (D473).
+	takeOverService bool
+	skills          bool
+	open            bool
 	// components: exactly these optional components (comma-separated);
 	// noComponents: none (D325).
 	components   string
@@ -93,6 +100,7 @@ database is started when it isn't running. (metarush init is the older, more tec
 	f.BoolVar(&o.replaceSaved, "replace-saved-database", false, "replace a database address an earlier setup kept for another database (the old one is kept aside)")
 	f.IntVar(&o.init.port, "port", 0, "the dashboard's port on 127.0.0.1 (default 4845, or the next free one)")
 	f.BoolVar(&o.service, "service", true, "start MetaRush when you log in and keep it running (launchd on macOS, systemd on Linux)")
+	f.BoolVar(&o.takeOverService, "take-over-service", false, "when another copy of MetaRush runs the background service, have it run this copy instead (never an older copy than the one running)")
 	f.BoolVar(&o.skills, "skills", true, "install MetaRush's video skills for Claude Code (~/.claude/skills; default: when Claude Code is installed)")
 	f.BoolVar(&o.open, "open", true, "open the dashboard at the end (in a terminal only)")
 	f.StringVar(&o.components, "components", "", "add exactly these optional components, comma-separated (metarush components lists them; default: the suggested ones)")
@@ -181,9 +189,15 @@ type SetupStorageOut struct {
 
 // SetupServiceOut is the background service.
 type SetupServiceOut struct {
-	Wanted    bool   `json:"wanted"`
-	Installed bool   `json:"installed"`
-	Running   bool   `json:"running"`
+	Wanted    bool `json:"wanted"`
+	Installed bool `json:"installed"`
+	Running   bool `json:"running"`
+	// WorkerOnly: it runs the background work without the dashboard, as it
+	// did before setup (setup keeps that).
+	WorkerOnly bool `json:"workerOnly,omitempty"`
+	// OtherCopy: another copy of MetaRush runs it and setup left it so
+	// (without --take-over-service, or because that copy is newer).
+	OtherCopy bool   `json:"otherCopy,omitempty"`
 	Problem   string `json:"problem,omitempty"`
 	Says      string `json:"says"`
 }
@@ -829,14 +843,25 @@ func pluginNote(skillsHere bool) string {
 }
 
 func (s *setupRun) installService(ctx context.Context, cfg *config.Config, ts *tools.Set) SetupServiceOut {
-	out := SetupServiceOut{Wanted: s.o.service}
+	wanted := s.o.service || s.o.takeOverService
+	out := SetupServiceOut{Wanted: wanted}
 	exe, err := service.StableExecutable()
 	if err != nil {
 		out.Problem = err.Error()
 	}
 	o := service.Options{Home: s.h, Exe: exe, Tools: ts}
 	st := o.Get(ctx)
-	if !s.o.service {
+	out.WorkerOnly = st.Installed && st.WorkerOnly
+	var other otherCopy
+	if st.Installed && st.OtherCopy {
+		other = otherCopyOf(ctx, cfg, st)
+	}
+	takeOver := s.o.takeOverService
+	if s.prompt && wanted && st.Installed && st.OtherCopy && !other.Newer && !s.changed("take-over-service") {
+		takeOver = askYes("MetaRush already starts when you log in, from another copy of MetaRush"+other.said()+". Have it start this copy instead?", false)
+	}
+	switch decideService(wanted, takeOver, st, other) {
+	case serviceLeave:
 		out.Installed, out.Running = st.Installed, st.Running
 		out.Says = "MetaRush doesn't start by itself when you log in; opening the dashboard starts it."
 		if st.Installed {
@@ -844,13 +869,29 @@ func (s *setupRun) installService(ctx context.Context, cfg *config.Config, ts *t
 		}
 		s.say("· %s", out.Says)
 		return out
-	}
-	if st.Installed && st.Running && st.SameBinary {
+	case serviceKeepOther:
+		out.Installed, out.Running, out.OtherCopy = true, st.Running, true
+		out.Says = "MetaRush already starts when you log in, from another copy of MetaRush" + other.said() + "; it stays as it is."
+		s.say("· %s", out.Says)
+		s.tech("to have it start this copy instead: metarush setup --take-over-service")
+		return out
+	case serviceKeepNewer:
+		out.Installed, out.Running, out.OtherCopy = true, st.Running, true
+		out.Says = "MetaRush already starts when you log in, from another copy that is newer than this one" + other.said() + ", so it stays as it is."
+		if takeOver {
+			out.Problem = "the background service runs a newer copy of MetaRush than this one, so this copy doesn't take its place"
+		}
+		s.say("· %s", out.Says)
+		return out
+	case serviceRunning:
 		out.Installed, out.Running = true, true
 		out.Says = "MetaRush starts when you log in, and runs now."
 		s.say("✓ %s", out.Says)
 		return out
 	}
+	// Set up (again) for this copy, the way it ran: a worker that renders
+	// for the team stays a worker, without the dashboard.
+	o.WorkerOnly = out.WorkerOnly
 	if err == nil {
 		_, err = o.Install(ctx)
 	}
@@ -864,6 +905,9 @@ func (s *setupRun) installService(ctx context.Context, cfg *config.Config, ts *t
 	out.Installed = true
 	out.Running = waitService(ctx, o, cfg, 40*time.Second, 0)
 	out.Says = "MetaRush starts when you log in, and runs now."
+	if out.WorkerOnly {
+		out.Says = "MetaRush's background work starts when you log in, without the dashboard, as before, and runs now."
+	}
 	if !out.Running {
 		out.Says = "MetaRush is set to start when you log in, but it hasn't started yet; its log says why."
 		s.say("! %s", out.Says)
@@ -872,6 +916,89 @@ func (s *setupRun) installService(ctx context.Context, cfg *config.Config, ts *t
 	}
 	s.tech("service %s", o.Label())
 	return out
+}
+
+// serviceChoice is what setup does with the background service (D473).
+type serviceChoice int
+
+const (
+	serviceInstall   serviceChoice = iota // set it up (or again) to run this copy
+	serviceLeave                          // not wanted: it stays as it is
+	serviceRunning                        // it runs this copy already
+	serviceKeepOther                      // another copy runs it, and nobody said to take its place
+	serviceKeepNewer                      // another copy, newer than this one, runs it: it stays even when asked
+)
+
+// decideService: another copy's service is never taken over unless a person
+// said so, and never by an older copy than the one it runs.
+func decideService(wanted, takeOver bool, st service.Status, other otherCopy) serviceChoice {
+	switch {
+	case !wanted:
+		return serviceLeave
+	case st.Installed && st.OtherCopy && other.Newer:
+		return serviceKeepNewer
+	case st.Installed && st.OtherCopy && !takeOver:
+		return serviceKeepOther
+	case st.Installed && st.OtherCopy:
+		return serviceInstall
+	case st.Installed && st.Running:
+		return serviceRunning
+	}
+	return serviceInstall
+}
+
+// otherCopy is another copy of MetaRush running for the home, or that its
+// background service starts: its version (as the running daemon says it, else
+// as the service's program says it) and whether it is newer than this one.
+type otherCopy struct {
+	Version string
+	Newer   bool
+}
+
+func (o otherCopy) said() string {
+	if o.Version == "" {
+		return ""
+	}
+	return " (version " + o.Version + ")"
+}
+
+// otherCopyOf: the daemon running for the home says its version, unless it
+// is this copy; else, when the service starts another copy, that program is
+// asked (`version --json` changes nothing, and it has a few seconds).
+func otherCopyOf(ctx context.Context, cfg *config.Config, st service.Status) otherCopy {
+	var o otherCopy
+	if cfg != nil {
+		if d := runningDaemon(cfg); d != nil && (d.SameCopy == nil || !*d.SameCopy) {
+			o.Version = d.Version
+		}
+	}
+	if o.Version == "" && st.Installed && st.OtherCopy && st.Binary != "" {
+		o.Version = programVersion(ctx, st.Binary)
+	}
+	if c, ok := version.Compare(o.Version, version.Version); ok && c > 0 {
+		o.Newer = true
+	}
+	return o
+}
+
+// programVersion is what `<program> version --json` says its version is, or
+// "" when it doesn't answer within a few seconds.
+func programVersion(ctx context.Context, program string) string {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, program, "version", "--json").Output()
+	if err != nil {
+		return ""
+	}
+	var env struct {
+		Data struct {
+			Version string `json:"version"`
+		} `json:"data"`
+	}
+	if json.Unmarshal(out, &env) != nil {
+		return ""
+	}
+	return env.Data.Version
 }
 
 /* ---------- the end ---------- */

@@ -17,7 +17,9 @@
       "service": "launchd",
       "startedAt": "2026-11-03T12:00:00Z",
       "version": "0.2.0",
-      "answering": false
+      "answering": false,
+      "program": "/Applications/MetaRush.app/Contents/Helpers/metarush",
+      "sameCopy": true
     }
   },
   "ok": true

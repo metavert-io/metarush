@@ -255,24 +255,8 @@ func makeCutOut(ctx context.Context, ts *tools.Set, src string, from, to float64
 	if err != nil {
 		return nil, err
 	}
-	w, h := v.Width, v.Height
-	if long := max(w, h); long > CutOutLong {
-		f := float64(CutOutLong) / float64(long)
-		w, h = int(math.Round(float64(w)*f)), int(math.Round(float64(h)*f))
-	}
-	w, h = matting.Even(w), matting.Even(h)
-	gop := max(1, int(math.Round(v.FPS)))
-	args := append([]string{"-hide_banner", "-nostdin", "-y", "-loglevel", "error"}, matting.SeekArgs(v, first)...)
-	args = append(args, "-i", src, "-i", matte, "-filter_complex",
-		fmt.Sprintf("[0:v]setpts=PTS-STARTPTS,scale=%d:%d:flags=lanczos,format=yuv420p[c];[1:v]setpts=PTS-STARTPTS,scale=%d:%d:flags=bicubic,format=gray[m];[c][m]alphamerge,format=yuva420p[o]", w, h, w, h),
-		"-map", "[o]", "-frames:v", strconv.Itoa(count), "-an", "-sn", "-dn",
-		"-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-b:v", "0", "-crf", "22", "-deadline", "good", "-cpu-used", "4", "-row-mt", "1",
-		"-auto-alt-ref", "0", "-g", strconv.Itoa(gop), "-keyint_min", strconv.Itoa(gop))
-	for flag, val := range map[string]string{"-colorspace": v.ColorSpace, "-color_trc": v.ColorTransfer, "-color_primaries": v.ColorPrimaries, "-color_range": v.ColorRange} {
-		if val != "" {
-			args = append(args, flag, val)
-		}
-	}
+	w, h := matting.CutOutSize(v.Width, v.Height, CutOutLong)
+	args := matting.CutOutArgs(v, first, count, src, matte, w, h)
 	args = append(args, "-progress", "pipe:1", "-nostats", out)
 	_, err = ts.Run(ctx, tools.Spec{Tool: tools.FFmpeg, Args: args, Background: true, OnLine: func(line string) {
 		if n, ok := strings.CutPrefix(line, "frame="); ok && progress != nil {

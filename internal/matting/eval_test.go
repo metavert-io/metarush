@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/tools"
@@ -63,23 +64,50 @@ func TestCutOutEval(t *testing.T) {
 	}
 	out := t.TempDir()
 	t.Log("| clip | model | matte size | per frame | someone found | edge flicker (before → after smoothing) |")
+	// Each stretch is one shot (ffmpeg's scene score finds no cut inside it).
 	for _, c := range []struct {
-		id, what string
-		from     float64
-	}{{"cbp", "a man outdoors, 1080p", 8}, {"spectro", "curly hair, vertical 1080p", 20}, {"artemis", "several people in a busy room, 1080p", 180},
-		{"artemis", "an astronaut, a busy background, 1080p", 240}, {"artemis", "an animation with nobody in it, 1080p", 30}} {
+		id, what      string
+		from, seconds float64
+	}{{"cbp", "a man outdoors, 1080p", 8, 4}, {"spectro", "curly hair, vertical 1080p", 20, 4}, {"artemis", "several people in a busy room, 1080p", 180, 4},
+		{"artemis", "an astronaut, a busy background, 1080p", 236.8, 3.3}, {"artemis", "an animation with nobody in it, 1080p", 30, 4}} {
 		src := filepath.Join(dir, c.id+".webm")
 		if _, err := os.Stat(src); err != nil {
 			t.Fatalf("%s: run scripts/fetch-cutout-clips.sh first (%v)", c.id, err)
 		}
 		for _, m := range ms {
-			res, err := Run(ctx, Job{Tools: ts, Src: src, From: c.from, To: c.from + 4, Model: m.m, Matte: filepath.Join(out, fmt.Sprintf("%s-%.0f-%s.mp4", c.id, c.from, slug(m.name)))})
+			res, err := Run(ctx, Job{Tools: ts, Src: src, From: c.from, To: c.from + c.seconds, Model: m.m, Matte: filepath.Join(out, fmt.Sprintf("%s-%.0f-%s.mp4", c.id, c.from, slug(m.name)))})
 			if err != nil {
 				t.Fatalf("%s with %s: %v", c.id, m.name, err)
 			}
 			me := res.Measures
 			t.Logf("| %s | %s | %d×%d | %.0f ms | %.0f%% | %.1f → %.1f |", c.what, m.name, res.MatteWidth, res.MatteHeight, me.MsPerFrame, me.People*100, me.FlickerBefore, me.FlickerAfter)
 		}
+	}
+	// A longer stretch, made whole: the matte, then the cut-out file (what a
+	// person waits for), in seconds per minute of footage.
+	t.Log("| model | stretch | the matte | the cut-out file | in all, per minute of footage |")
+	for _, m := range ms {
+		secs := 60.0
+		if _, ok := m.m.(MODNet); ok {
+			secs = 20 // about a minute and a half of work on a busy Mac mini
+		}
+		src := filepath.Join(dir, "cbp.webm")
+		matte := filepath.Join(out, "long-"+slug(m.name)+".mp4")
+		t0 := time.Now()
+		res, err := Run(ctx, Job{Tools: ts, Src: src, From: 4, To: 4 + secs, Model: m.m, Matte: matte})
+		if err != nil {
+			t.Fatalf("the long stretch with %s: %v", m.name, err)
+		}
+		matting := time.Since(t0).Seconds()
+		cw, ch := CutOutSize(res.Video.Width, res.Video.Height, 1920)
+		t1 := time.Now()
+		args := append(CutOutArgs(res.Video, res.First, res.Frames, src, matte, cw, ch), filepath.Join(out, "long-"+slug(m.name)+".webm"))
+		if _, err := ts.Run(ctx, tools.Spec{Tool: tools.FFmpeg, Args: args}); err != nil {
+			t.Fatalf("the cut-out file: %v", err)
+		}
+		file := time.Since(t1).Seconds()
+		long := float64(res.Frames) / res.Video.FPS // the clip may end sooner
+		t.Logf("| %s | %.1f s, %d frames | %.0f s | %.0f s | %.1f min |", m.name, long, res.Frames, matting, file, (matting+file)/long)
 	}
 	comp, truth, w, h := composite(t, ts, dir, out)
 	t.Log("| model | mean error | IoU at half | error along the edges | per frame |")

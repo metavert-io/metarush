@@ -573,7 +573,9 @@ using the spec's JSON names and JSON values (names don't need quotes):
 ```
 
 This is what keeps the format lossless as the spec grows: a field without a friendly spelling yet is written (and
-read) in the block, and a field given both ways is an error, never a silent choice. Top-level fields go under
+read) in the block, and a field given both ways is an error, never a silent choice. A clip's replaced background
+([background-removal.md](background-removal.md)) is one: `· {background: {with: "colour", colour: "#00b140", matte:
+"<sha256>"}}`, best changed with `metarush cut background`, which makes the cut-out it needs. Top-level fields go under
 `extra:` in the settings. The completeness test (`TestRoundTripEveryField`) fails for any new spec field that is not
 listed in `cutsheet.Spellings`, so new fields get a decision: a friendly spelling, or explicitly "block".
 

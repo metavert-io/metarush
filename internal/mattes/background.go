@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/metavert-io/metarush/internal/aiservices"
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/editspec"
@@ -349,15 +348,4 @@ func upperFirst(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
-}
-
-// NothingLeaves reports whether a cut-out of a clip made now would stay in
-// the workspace (the model the rules choose runs on a computer of it): the
-// panel's card may then run by itself.
-func NothingLeaves(ctx context.Context, a *app.App, projectID, model string) bool {
-	if model = strings.TrimSpace(model); model != "" {
-		provider, _, _ := strings.Cut(model, "/")
-		return aiservices.IsLocal(provider)
-	}
-	return len(LocalModels(a)) > 0
 }

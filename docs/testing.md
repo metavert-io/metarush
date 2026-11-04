@@ -69,6 +69,7 @@ package may take (default 90m).
 | remote | Mac only | its check of spoofed Tailscale headers sends from `fe80::1%lo0` (`lo0` is macOS's name for loopback) |
 | presenters | Mac only | a presenter reads only sound MetaRush has listened to (nobody's voice in it, or voices a person named), which needs a recognizer on the computer (the transcription component); GitHub's runner has none, so the narration is never transcribed (`ingest --wait` no longer hangs there: it ends at once saying the transcripts wait for that component) and the presenter steps are refused |
 | start-from-video | Mac only | its video is `tests/fixtures/gen/reference-short.mp4` (made with `say`), and the draft waits until MetaRush has heard its words, which needs a recognizer on the computer; what's on screen is read with Apple Vision |
+| background | Mac only | its person finder stands in for Apple Vision's model, which runs only on a Mac (MODNet's side is covered by `go test` with a stand-in model) |
 | install | Mac only (for now) | it serves a stand-in for MongoDB's download made from a copy of a real `mongod` (a local `mongod`, or `METARUSH_TEST_MONGOD`); CI runs MongoDB in a container, with no `mongod` to copy |
 
 The nightly runs keep the Linux list honest: a run that fails there for a Linux reason moves to the Mac list here

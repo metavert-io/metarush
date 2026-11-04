@@ -515,6 +515,20 @@ Read `docs/architecture.md` before structural changes.
   (`localmodels/pins.go`: URL + SHA-256, files only, a program's SHA-256 checked before each run), made only by
   `ai.local.setup` (owners, people only), never under go test (`METARUSH_LOCAL_MODELS_BASE`, loopback); tests use
   `internal/testutil/fakelocal`; measurements `-tags localeval`.
+- **Background removal for video** (D505–D514, `internal/matting`, `internal/mattes`, `editspec/background.go`,
+  `video/src/clips/background.tsx`, `web/src/components/studio/BackgroundDialog.tsx`, docs/background-removal.md): AI
+  kind `video-background` (role `clip` = footage and faces, never sound); a clip's **cut-out** (`mattes`, `mte_`,
+  migration 70, one per fingerprint: media, stretch, model; never changed once ready) is made by a heavy `matte` job
+  on any computer that can — Apple Vision through the helper's protocol-3 `segment` (pipe of BGRA frames), or MODNet
+  (component `video-cut-outs`, pinned) — smoothed over time, kept as one WebM with VP9 alpha (`matting.CutOutArgs`);
+  work elsewhere only through AI work's keeper (`matte:`). Cuts pin it in `clips[].background.matte`; Go resolves
+  `PlanBackground` + `RenderPlan.cutOutSources` (preview `/media/cutouts/{sha}`, renders the worker's loopback
+  server; nested plans via `FillNested`); Remotion layers clip, what goes behind, then the cut-out
+  (`OffthreadVideo transparent`, SVG edge filter); Safari's preview plays the clip as recorded. `cut.background` is a
+  checked change that makes the cut-out first (`waiting`); cards never Auto when something would leave; QA qa-8
+  (`background_matte*`, `background_replaced`); Content Credentials "Footage changed with AI" (enhanced); deleting
+  footage deletes its cut-outs. Measured with `-tags matteeval` on clips from `scripts/fetch-cutout-clips.sh` (never
+  committed).
 - **Abilities that provide a kind of AI work** (D281, `internal/abilities/provides.go`, docs/abilities.md): `provides:
   [<kind>]` (validated by `providesProblems`: fixed input names per kind; no video, voice copies, dubs or
   transcription yet) makes an approved ability provider `ability-<name>` (route `ability`) through an
@@ -1357,6 +1371,7 @@ scripts/components-e2e.sh                                 # only the required co
 scripts/resources-e2e.sh                                  # the Add box, Inbox clips dragged onto project cards, the Sources "…" menu, Delete…, a nested cut (D79–D84; ports 5660–5669)
 scripts/motion-shapes-e2e.sh                              # a person approves a motion graphic, a non-person draws it widescreen too, the approved frames stay, the person approves the new shape and a widescreen cut's note clears (D377, D381; ports 5740–5749)
 scripts/start-from-video-e2e.sh                           # a link becomes a reference, what the video does and a recipe draft; the panel's card; a file chosen on a phone (D398–D404; ports 5760–5769; Mac)
+scripts/background-e2e.sh                                 # Replace the background… on a clip with a stand-in person finder: the still, the cut-out made with its progress, the version saved, the preview, out and Undo, then a review copy's frames (D505–D514; ports 5830–5839; Mac)
 scripts/handover-e2e.sh                                   # two computers: the dry run in Settings → Storage, the handover file at a terminal, receive, the conversation going on in the same session, the old computer stepping down to a client, clean (D344–D348; ports 5710–5719)
 ```
 

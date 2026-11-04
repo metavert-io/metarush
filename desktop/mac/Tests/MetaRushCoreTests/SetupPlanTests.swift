@@ -77,6 +77,12 @@ import Testing
         b.takeOver = true // even if it were set
         #expect(SetupAnswers.serviceQuestion(newer) == .otherIsNewer(otherVersion: "0.3.0"))
         #expect(b.arguments(newer).contains("--service=false") && !b.arguments(newer).contains("--take-over-service"))
+        // A copy that doesn't say which version it is may be newer: not offered either.
+        let unknown = try questions("setup-questions-other-unknown.json")
+        var c = SetupAnswers(unknown)
+        c.takeOver = true
+        #expect(SetupAnswers.serviceQuestion(unknown) == .otherUnknown)
+        #expect(c.arguments(unknown).contains("--service=false") && !c.arguments(unknown).contains("--take-over-service"))
         // Where nothing else runs it, the service is the plain question, suggested yes.
         let fresh = try questions("setup-questions.json")
         #expect(SetupAnswers.serviceQuestion(fresh) == .startAtLogin && SetupAnswers(fresh).service)

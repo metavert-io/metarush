@@ -19,14 +19,48 @@ import (
 func versionString() string { return version.Version }
 
 // versionOut is `metarush version --json`: the build (the same fields as
-// /api/health and Settings → General) and the cut format it reads and writes.
+// /api/health and Settings → General) and the cut format it reads and writes;
+// with --compare, this build against another version.
 type versionOut struct {
 	version.Info
-	EditSpec int `json:"editSpec"`
+	EditSpec int              `json:"editSpec"`
+	Compared *VersionCompared `json:"compared,omitempty"`
+}
+
+// VersionCompared is `metarush version --compare <version>`: this build
+// against another version, ordered the way MetaRush orders versions (a build
+// past a release is newer than the release). MetaRush.app asks it before its
+// copy takes the place of another (D475), so the order is MetaRush's own.
+type VersionCompared struct {
+	Other string `json:"other"`
+	// Order is 1 when this build is newer than Other, 0 when they are the
+	// same version, -1 when it is older.
+	Order int `json:"order"`
+	// Known: the two can be ordered (not, say, two builds of one release
+	// from source whose commit counts aren't known).
+	Known bool `json:"known"`
+}
+
+func compareTo(this, other string) *VersionCompared {
+	c, ok := version.Compare(this, other)
+	return &VersionCompared{Other: other, Order: c, Known: ok}
+}
+
+func (v *VersionCompared) plain() string {
+	switch {
+	case !v.Known:
+		return "This MetaRush can't tell whether it is newer than " + v.Other + "."
+	case v.Order > 0:
+		return "This MetaRush is newer than " + v.Other + "."
+	case v.Order < 0:
+		return "This MetaRush is older than " + v.Other + "."
+	}
+	return "This MetaRush is " + v.Other + "."
 }
 
 func versionCmd() *cobra.Command {
-	return &cobra.Command{
+	var compare string
+	c := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version (--details: what's new in it, and the version each of your computers runs)",
 		Long: "Print this MetaRush's version, the way Settings → General heads it.\n\n" +
@@ -35,9 +69,17 @@ func versionCmd() *cobra.Command {
 			"--json is the build alone and needs no workspace (scripts check it); --details --json is everything (op version.show).",
 		RunE: func(c *cobra.Command, _ []string) error {
 			b := version.Current()
-			if !detailsMode(c) {
-				return emit(c, versionOut{Info: b, EditSpec: editspec.SchemaVersion}, func() {
+			if !detailsMode(c) || compare != "" {
+				out := versionOut{Info: b, EditSpec: editspec.SchemaVersion}
+				if compare != "" {
+					out.Compared = compareTo(b.Version, compare)
+				}
+				return emit(c, out, func() {
 					fmt.Println(b.Plain())
+					if out.Compared != nil {
+						fmt.Println(out.Compared.plain())
+						return
+					}
 					fmt.Println("(Add --details to see what's new in it and the version each of your computers runs.)")
 				})
 			}
@@ -45,6 +87,8 @@ func versionCmd() *cobra.Command {
 			return emit(c, out, func() { printAbout(out) })
 		},
 	}
+	c.Flags().StringVar(&compare, "compare", "", "say whether this MetaRush is newer than, the same as or older than this version")
+	return c
 }
 
 // aboutHere is version.show for this home's workspace, or, when MetaRush isn't

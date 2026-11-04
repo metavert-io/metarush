@@ -57,7 +57,12 @@ final class SetupModel: ObservableObject {
                 answers = a
                 portText = String(q.port)
                 linkState = commandLink.state()
-                linkEffect = q.setUp ? commandLink.effect(try? await metarush.call(["service", "status"], as: ServiceStatus.self)) : .none
+                if q.setUp {
+                    let st = try? await metarush.call(["service", "status"], as: ServiceStatus.self)
+                    linkEffect = commandLink.effect(st, there: await commandLink.there(asking: metarush))
+                } else {
+                    linkEffect = .none
+                }
                 // Another program there is replaced only when the person ticks it.
                 link = linkState == .missing && linkEffect == .none
                 page = .welcome
@@ -143,7 +148,10 @@ final class SetupModel: ObservableObject {
     }
 
     private func makeLink() {
-        if case .refused = linkEffect { return }
+        switch linkEffect {
+        case .refused, .unknown: return
+        default: break
+        }
         guard link, linkState != .ours else { return }
         do {
             let aside = try commandLink.make(replacing: linkState != .missing)
@@ -306,6 +314,8 @@ struct SetupView: View {
                     if model.answers?.takeOver == true { Plain(Words.takeOverNote, secondary: true) }
                 case .otherIsNewer(let v):
                     Plain(Words.serviceOtherNewer(v), secondary: true)
+                case .otherUnknown:
+                    Plain(Words.serviceOtherUnknown, secondary: true)
                 }
                 Toggle(Words.openAtLoginToggle, isOn: binding(\.openAtLogin))
                 Plain(Words.openAtLoginNote, secondary: true)
@@ -318,6 +328,8 @@ struct SetupView: View {
                     switch model.linkEffect {
                     case .refused(let running):
                         Plain(Words.linkRefused(running), secondary: true)
+                    case .unknown:
+                        Plain(Words.linkUnknown, secondary: true)
                     case .serviceFollows(let running):
                         Toggle(Words.linkToggle, isOn: $model.link)
                         if model.linkState != .missing { Plain(Words.linkToggleOther, secondary: true) }

@@ -131,6 +131,7 @@ public enum Words {
     public static func serviceOtherCopy(_ v: String?) -> String {
         "MetaRush already starts when you log in, from another copy of MetaRush" + (v.map { " (version \($0))" } ?? "") + ". It stays as it is unless you choose this app's copy."
     }
+    public static let serviceOtherUnknown = "MetaRush already starts when you log in, from another copy that doesn't say which version it is. It may be newer than this app, so it stays as it is."
     public static let takeOverToggle = "Start this app's copy instead"
     public static let takeOverNote = "The other copy stops running in the background and this app's starts in its place; the other copy stays on this Mac."
     public static func serviceOtherNewer(_ v: String?) -> String {
@@ -220,6 +221,8 @@ public enum Words {
     public static func linkServiceFollows(_ running: String?) -> String {
         "MetaRush in the background starts from there too, so from its next start it runs this app's copy" + (running.map { " instead of version \($0)" } ?? "") + "."
     }
+    public static let linkOtherNewer = "That copy is newer than this app's."
+    public static let linkUnknown = "MetaRush in the background starts from there, from a copy that doesn't say which version it is. It may be newer than this app, so the link stays as it is."
     public static func linkRefused(_ running: String?) -> String {
         "MetaRush in the background starts from there and runs a newer copy" + (running.map { " (version \($0))" } ?? "") + " than this app, so the link stays as it is."
     }

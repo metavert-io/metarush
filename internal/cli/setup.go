@@ -857,7 +857,7 @@ func (s *setupRun) installService(ctx context.Context, cfg *config.Config, ts *t
 		other = otherCopyOf(ctx, cfg, st)
 	}
 	takeOver := s.o.takeOverService
-	if s.prompt && wanted && st.Installed && st.OtherCopy && !other.Newer && !s.changed("take-over-service") {
+	if s.prompt && wanted && st.Installed && st.OtherCopy && other.mayTakeOver() && !s.changed("take-over-service") {
 		takeOver = askYes("MetaRush already starts when you log in, from another copy of MetaRush"+other.said()+". Have it start this copy instead?", false)
 	}
 	switch decideService(wanted, takeOver, st, other) {
@@ -882,6 +882,15 @@ func (s *setupRun) installService(ctx context.Context, cfg *config.Config, ts *t
 			out.Problem = "the background service runs a newer copy of MetaRush than this one, so this copy doesn't take its place"
 		}
 		s.say("· %s", out.Says)
+		return out
+	case serviceKeepUnknown:
+		out.Installed, out.Running, out.OtherCopy = true, st.Running, true
+		out.Says = otherUnknownSays
+		if takeOver {
+			out.Problem = "the background service runs another copy of MetaRush that doesn't say which version it is, so this copy doesn't take its place"
+		}
+		s.say("· %s", out.Says)
+		s.tech("to set it up for this copy all the same: metarush service install")
 		return out
 	case serviceRunning:
 		out.Installed, out.Running = true, true
@@ -927,21 +936,28 @@ func sameMode(o service.Options, st service.Status) service.Options {
 type serviceChoice int
 
 const (
-	serviceInstall   serviceChoice = iota // set it up (or again) to run this copy
-	serviceLeave                          // not wanted: it stays as it is
-	serviceRunning                        // it runs this copy already
-	serviceKeepOther                      // another copy runs it, and nobody said to take its place
-	serviceKeepNewer                      // another copy, newer than this one, runs it: it stays even when asked
+	serviceInstall     serviceChoice = iota // set it up (or again) to run this copy
+	serviceLeave                            // not wanted: it stays as it is
+	serviceRunning                          // it runs this copy already
+	serviceKeepOther                        // another copy runs it, and nobody said to take its place
+	serviceKeepNewer                        // another copy, newer than this one, runs it: it stays even when asked
+	serviceKeepUnknown                      // another copy that doesn't say its version runs it: it stays even when asked
 )
 
+// otherUnknownSays is setup's word for another copy whose version can't be told.
+const otherUnknownSays = "MetaRush already starts when you log in, from another copy of MetaRush that doesn't say which version it is, so it stays as it is."
+
 // decideService: another copy's service is never taken over unless a person
-// said so, and never by an older copy than the one it runs.
+// said so, and never by an older copy than the one it runs (nor when that
+// copy's version can't be told: it may be newer).
 func decideService(wanted, takeOver bool, st service.Status, other otherCopy) serviceChoice {
 	switch {
 	case !wanted:
 		return serviceLeave
 	case st.Installed && st.OtherCopy && other.Newer:
 		return serviceKeepNewer
+	case st.Installed && st.OtherCopy && !other.Known:
+		return serviceKeepUnknown
 	case st.Installed && st.OtherCopy && !takeOver:
 		return serviceKeepOther
 	case st.Installed && st.OtherCopy:
@@ -953,11 +969,15 @@ func decideService(wanted, takeOver bool, st service.Status, other otherCopy) se
 }
 
 // otherCopy is another copy of MetaRush running for the home, or that its
-// background service starts: its version (as the running daemon says it, else
-// as the service's program says it) and whether it is newer than this one.
+// background service starts (Present): the newest version either says it is
+// (the running daemon, the service's program), whether that is newer than
+// this one, and whether that could be told at all (Known: a version it can
+// order against this one; a service program that is gone can't be newer).
 type otherCopy struct {
+	Present bool
 	Version string
 	Newer   bool
+	Known   bool
 }
 
 func (o otherCopy) said() string {
@@ -967,22 +987,50 @@ func (o otherCopy) said() string {
 	return " (version " + o.Version + ")"
 }
 
-// otherCopyOf: the daemon running for the home says its version, unless it
-// is this copy; else, when the service starts another copy, that program is
-// asked (`version --json` changes nothing, and it has a few seconds).
+// mayTakeOver: this copy may take the other's place if a person says so.
+func (o otherCopy) mayTakeOver() bool { return o.Known && !o.Newer }
+
+// otherCopyOf asks both: the daemon running for the home (unless it is this
+// copy) and, when the service starts another copy, that program (`version
+// --json` changes nothing, and it has a few seconds), so an older copy opened
+// by its dashboard can't hide a newer program the service starts. The newer of
+// the two counts. Nothing answering, or a version that can't be ordered
+// against this one, is not known: it may be newer.
 func otherCopyOf(ctx context.Context, cfg *config.Config, st service.Status) otherCopy {
 	var o otherCopy
+	var found []string
 	if cfg != nil {
 		if d := runningDaemon(cfg); d != nil && (d.SameCopy == nil || !*d.SameCopy) {
-			o.Version = d.Version
+			o.Present = true
+			if d.Version != "" {
+				found = append(found, d.Version)
+			}
 		}
 	}
-	if o.Version == "" && st.Installed && st.OtherCopy && st.Binary != "" {
-		o.Version = programVersion(ctx, st.Binary)
+	gone := false
+	if st.Installed && st.OtherCopy && st.Binary != "" {
+		o.Present = true
+		if _, err := os.Stat(st.Binary); err != nil {
+			gone = true // nothing there to run, nor to be newer
+		} else if v := programVersion(ctx, st.Binary); v != "" {
+			found = append(found, v)
+		}
 	}
-	if c, ok := version.Compare(o.Version, version.Version); ok && c > 0 {
-		o.Newer = true
+	ordered := len(found) > 0
+	for _, v := range found {
+		c, ok := version.Compare(v, version.Version)
+		if !ok {
+			ordered = false
+		} else if c > 0 {
+			o.Newer = true
+		}
+		if o.Version == "" {
+			o.Version = v
+		} else if c, ok := version.Compare(v, o.Version); ok && c > 0 {
+			o.Version = v
+		}
 	}
+	o.Known = ordered || (gone && len(found) == 0)
 	return o
 }
 

@@ -103,12 +103,18 @@ func serviceInstallCmd() *cobra.Command {
 			}
 			ctx, cancel := signalCtx(c.Context())
 			defer cancel()
-			// --keep-newer (MetaRush.app always passes it, D473): a newer copy
-			// running for the home, or started by the service, stays.
+			// --keep-newer (MetaRush.app always passes it, D473): another copy
+			// running for the home, or started by the service, stays when it
+			// is newer, or when its version can't be told (it may be newer).
 			if keepNewer {
-				if other := otherCopyOf(ctx, cfg, o.Get(ctx)); other.Newer {
+				switch other := otherCopyOf(ctx, cfg, o.Get(ctx)); {
+				case other.Present && other.Newer:
 					return failErr(c, apperr.New(apperr.Conflict, "MetaRush runs a newer copy%s than this one, so this one doesn't take its place.", other.said()).
 						WithHint("Update this copy first, or keep the newer one running.").WithDetails(map[string]any{"running": other.Version, "this": version.Version}))
+				case other.Present && !other.Known:
+					return failErr(c, apperr.New(apperr.Conflict, "MetaRush runs another copy that doesn't say which version it is, so this one doesn't take its place.").
+						WithHint("It may be newer. Set the service up from the copy you want it to run.").WithCommand("metarush service install").
+						WithDetails(map[string]any{"running": other.Version, "this": version.Version}))
 				}
 			}
 			// A daemon `metarush dashboard` started for this home stops first:

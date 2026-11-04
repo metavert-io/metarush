@@ -74,10 +74,10 @@ type Status struct {
 	Binary     string `json:"binary,omitempty"` // the metarush the service runs
 	SameBinary bool   `json:"sameBinary"`       // ... is the binary asking (links followed)
 	// OtherCopy: the service starts another copy of MetaRush than the one
-	// asking: another program file, or this one only through a link (a path
-	// that isn't this program's but leads to it today, so it would follow
-	// whatever the link is changed to). MetaRush.app asks before it takes such
-	// a service over (D473, D475).
+	// asking, which asks before it takes such a service over (D473). A link
+	// that leads to the program asking (~/.local/bin/metarush → this one) is
+	// this copy; which copy actually runs is the daemon's own record
+	// (DaemonState.Program), which a link changed later doesn't change.
 	OtherCopy bool   `json:"otherCopy,omitempty"`
 	Home      string `json:"home"`
 	Log       string `json:"log"`
@@ -480,7 +480,7 @@ func (o Options) Get(ctx context.Context) Status {
 	st.Binary, st.WorkerOnly = parseProgram(string(b), p)
 	if o.Exe != "" && st.Binary != "" {
 		st.SameBinary = sameFile(st.Binary, o.Exe)
-		st.OtherCopy = !st.SameBinary || (filepath.Clean(st.Binary) != filepath.Clean(o.Exe) && isLink(st.Binary))
+		st.OtherCopy = !st.SameBinary
 	}
 	if p == Systemd {
 		out, err := o.run(ctx, []string{tools.Systemctl, "--user", "show", o.Label(), "--property=LoadState,ActiveState,SubState,MainPID,ExecMainStatus,UnitFileState"})
@@ -676,11 +676,6 @@ func ThisProgram() string {
 		return stable
 	}
 	return exe
-}
-
-func isLink(path string) bool {
-	fi, err := os.Lstat(path)
-	return err == nil && fi.Mode()&os.ModeSymlink != 0
 }
 
 // ReadDaemon reads a home's daemon record; ok is false when no daemon runs.

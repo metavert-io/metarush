@@ -44,6 +44,10 @@ import Testing
         #expect(ready["ready"]?.bool == true && ready["says"] == nil)
         let other = try await canned("service-status-other-newer.json").call(["service", "status"], as: ServiceStatus.self)
         #expect(other.otherCopy == true && other.startsAnotherCopy && other.daemon?.sameCopy == false && other.daemon?.newer == true && other.daemon?.version == "0.3.0")
+        let compared = try await canned("version-2-compared-0.3.0.json").call(["version", "--compare", "0.3.0"], as: VersionInfo.self)
+        #expect(compared.version == "0.2.0" && compared.compared == VersionInfo.Compared(other: "0.3.0", order: -1, known: true))
+        let unordered = try await canned("version-2-compared-unknown.json").call(["version"], as: VersionInfo.self)
+        #expect(unordered.compared?.known == false)
         let worker = try await canned("setup-questions-other-worker.json").call(["setup", "questions"], as: SetupQuestions.self)
         #expect(worker.service.otherCopy == true && worker.service.workerOnly == true && worker.service.otherVersion == "0.1.0" && !worker.service.suggested)
     }

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -237,10 +238,22 @@ func otherService(t *testing.T, h, v string, worker bool) string {
 	if err := os.MkdirAll(filepath.Dir(prog), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// v "": a program that doesn't say its version.
 	script := "#!/bin/sh\nif [ \"$1\" = version ]; then printf '{\"ok\": true, \"data\": {\"version\": \"" + v + "\"}}\\n'; fi\n"
+	if v == "" {
+		script = "#!/bin/sh\nexit 1\n"
+	}
 	if err := os.WriteFile(prog, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	serviceFor(t, h, prog, worker)
+	return prog
+}
+
+// serviceFor writes home h's background service as starting prog (nothing is
+// loaded: the service managers never run under go test).
+func serviceFor(t *testing.T, h, prog string, worker bool) {
+	t.Helper()
 	plan, err := service.Options{Home: h, Exe: prog, WorkerOnly: worker}.InstallPlan()
 	if err != nil {
 		t.Fatal(err)
@@ -251,7 +264,6 @@ func otherService(t *testing.T, h, v string, worker bool) string {
 	if err := os.WriteFile(plan.File, []byte(plan.Content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return prog
 }
 
 // Another copy's background service is never suggested away (D473): setup
@@ -290,6 +302,111 @@ func TestSetupQuestionsWhenAnotherCopyRunsTheService(t *testing.T) {
 	if r.code == 0 || !strings.Contains(r.stdout, "E_CONFLICT") || !strings.Contains(r.stdout, "newer copy (version 99.0.0)") {
 		t.Fatalf("install over a newer copy: %d %s %s", r.code, r.stdout, r.stderr)
 	}
+
+	// A copy that doesn't say its version may be newer: not offered, and
+	// --keep-newer leaves it alone too.
+	otherService(t, h, "", false)
+	var silent SetupQuestions
+	decodeData(t, runCLI(t, h, "setup", "questions", "--json"), &silent)
+	if sv := silent.Service; !sv.OtherCopy || sv.Suggested || sv.Newer || !sv.VersionUnknown || sv.OtherVersion != "" || sv.Says != otherUnknownSays {
+		t.Fatalf("a copy that doesn't say its version: %+v", sv)
+	}
+	r = runCLI(t, h, "service", "install", "--keep-newer", "--json")
+	if r.code == 0 || !strings.Contains(r.stdout, "E_CONFLICT") || !strings.Contains(r.stdout, "doesn't say which version") {
+		t.Fatalf("install over a copy of unknown version: %d %s %s", r.code, r.stdout, r.stderr)
+	}
+}
+
+// What the other copy is, from both its daemon and its program: an older copy
+// opened by its dashboard can't hide a newer program the service starts; a
+// program that is gone can't be newer; nothing answering isn't known (D473).
+func TestOtherCopyAsksBoth(t *testing.T) {
+	setupEnv(t)
+	h := t.TempDir()
+	cfg := config.Default(h)
+	cfg.SetHome(h)
+	if err := config.Save(h, cfg); err != nil {
+		t.Fatal(err)
+	}
+	record := func(v string) {
+		t.Helper()
+		// Another copy's worker (its version from its record: no dashboard to ask).
+		b, _ := json.Marshal(service.Daemon{PID: os.Getpid(), StartedAt: time.Now().UTC(), Version: v, Mode: "worker-only", Program: "/opt/elsewhere/bin/metarush"})
+		if err := os.MkdirAll(filepath.Join(h, "state"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(h, "state", "daemon.json"), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	other := func() otherCopy {
+		t.Helper()
+		exe, err := service.StableExecutable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return otherCopyOf(context.Background(), cfg, service.Options{Home: h, Exe: exe}.Get(context.Background()))
+	}
+	record("0.1.0")
+	otherService(t, h, "99.0.0", false)
+	if o := other(); !o.Present || !o.Newer || !o.Known || o.Version != "99.0.0" {
+		t.Errorf("an older daemon, a newer program: %+v", o)
+	}
+	otherService(t, h, "0.1.1", false)
+	if o := other(); !o.Present || o.Newer || !o.Known || o.Version != "0.1.1" || !o.mayTakeOver() {
+		t.Errorf("both older: %+v", o)
+	}
+	record("99.0.1")
+	if o := other(); !o.Newer || o.Version != "99.0.1" {
+		t.Errorf("a newer daemon, an older program: %+v", o)
+	}
+	if err := os.Remove(filepath.Join(h, "state", "daemon.json")); err != nil {
+		t.Fatal(err)
+	}
+	otherService(t, h, "", false)
+	if o := other(); !o.Present || o.Newer || o.Known || o.mayTakeOver() {
+		t.Errorf("nothing says its version: %+v", o)
+	}
+	serviceFor(t, h, filepath.Join(t.TempDir(), "gone", "metarush"), false)
+	if o := other(); !o.Present || o.Newer || !o.Known {
+		t.Errorf("the service's program is gone: %+v", o)
+	}
+}
+
+// setup run from the program a link leads to (~/.local/bin/metarush → this
+// one) is this copy: the service isn't another copy's, so setup suggests it
+// and sets a stopped one up again rather than leaving it (D473).
+func TestSetupFromTheLinksTargetIsThisCopy(t *testing.T) {
+	setupEnv(t)
+	bareComputer(t)
+	h := t.TempDir()
+	cfg := config.Default(h)
+	cfg.SetHome(h)
+	cfg.Database = config.Database{URI: "mongodb://db.example.invalid/x", Name: "x"}
+	if err := config.Save(h, cfg); err != nil {
+		t.Fatal(err)
+	}
+	exe, err := service.StableExecutable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "bin", "metarush")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(exe, link); err != nil {
+		t.Fatal(err)
+	}
+	serviceFor(t, h, link, false)
+	var q SetupQuestions
+	decodeData(t, runCLI(t, h, "setup", "questions", "--json"), &q)
+	if sv := q.Service; !sv.Installed || sv.OtherCopy || !sv.Suggested || sv.Running {
+		t.Fatalf("a service through a link to this program: %+v", sv)
+	}
+	st := service.Options{Home: h, Exe: exe}.Get(context.Background())
+	if got := decideService(true, false, st, otherCopy{}); got != serviceInstall {
+		t.Errorf("its stopped service: %v, want it set up again", got)
+	}
 }
 
 // What setup does with the background service: another copy's is taken over
@@ -310,11 +427,13 @@ func TestDecideService(t *testing.T) {
 		{"nothing there", true, false, none, otherCopy{}, serviceInstall},
 		{"this copy runs it", true, false, this, otherCopy{}, serviceRunning},
 		{"this copy, stopped", true, false, service.Status{Installed: true, SameBinary: true}, otherCopy{}, serviceInstall},
-		{"another copy, nobody said", true, false, other, otherCopy{Version: "0.1.0"}, serviceKeepOther},
-		{"another copy, a person said yes", true, true, other, otherCopy{Version: "0.1.0"}, serviceInstall},
-		{"another copy, version not known, yes", true, true, other, otherCopy{}, serviceInstall},
-		{"a newer copy, even with yes", true, true, other, otherCopy{Version: "9.0.0", Newer: true}, serviceKeepNewer},
-		{"a newer copy, nobody said", true, false, other, otherCopy{Version: "9.0.0", Newer: true}, serviceKeepNewer},
+		{"another copy, nobody said", true, false, other, otherCopy{Version: "0.1.0", Known: true}, serviceKeepOther},
+		{"another copy, a person said yes", true, true, other, otherCopy{Version: "0.1.0", Known: true}, serviceInstall},
+		{"another copy whose program is gone, yes", true, true, other, otherCopy{Present: true, Known: true}, serviceInstall},
+		{"a newer copy, even with yes", true, true, other, otherCopy{Version: "9.0.0", Newer: true, Known: true}, serviceKeepNewer},
+		{"a newer copy, nobody said", true, false, other, otherCopy{Version: "9.0.0", Newer: true, Known: true}, serviceKeepNewer},
+		{"a version not known, even with yes", true, true, other, otherCopy{Present: true}, serviceKeepUnknown},
+		{"a version not known, nobody said", true, false, other, otherCopy{Present: true}, serviceKeepUnknown},
 	} {
 		if got := decideService(c.wanted, c.takeOver, c.st, c.o); got != c.want {
 			t.Errorf("%s: %v, want %v", c.name, got, c.want)

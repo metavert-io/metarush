@@ -64,6 +64,8 @@ func TestMacAppFixtures(t *testing.T) {
 		Says: "MetaRush already starts when you log in, from another copy that is newer than this one (version 0.3.0), so setup leaves it as it is."}
 	otherWorker := setUp
 	otherWorker.Service.WorkerOnly = true
+	otherUnknown := setUp
+	otherUnknown.Service = SetupServiceQuestion{Suggested: false, Installed: true, Running: true, OtherCopy: true, VersionUnknown: true, Says: otherUnknownSays}
 
 	result := SetupResult{Home: home, Fresh: true, Workspace: config.Ref{ID: "ws_1", Name: "My Studio"}, Installation: config.Ref{ID: "ins_1", Name: "Studio Mac"},
 		User:      config.UserRef{ID: "usr_1", Name: "Sam"},
@@ -109,10 +111,9 @@ func TestMacAppFixtures(t *testing.T) {
 		return d
 	}
 	// The service runs ~/.local/bin/metarush, a link that leads to this app's
-	// copy today: another copy to the app all the same (D473), while the
-	// daemon it started says it is this copy.
+	// copy: this copy (D473), and the daemon it started says so too.
 	viaLink := status(true, true, true, daemon("0.1.0", "aaaaaaa", true, "full"))
-	viaLink.Binary, viaLink.OtherCopy = "/Users/you/.local/bin/metarush", true
+	viaLink.Binary = "/Users/you/.local/bin/metarush"
 	otherWorkerStatus := status(true, true, false, &service.DaemonState{PID: 4346, Mode: "worker-only", Service: "launchd", StartedAt: started, Version: "0.1.0",
 		Program: "/opt/homebrew/opt/metarush/bin/metarush", SameCopy: &no})
 	otherWorkerStatus.WorkerOnly = true
@@ -123,12 +124,18 @@ func TestMacAppFixtures(t *testing.T) {
 	notSetUp := apperr.New(apperr.NotConfigured, "MetaRush isn't set up on this machine yet").WithHint("MetaRush's checkup (doctor) says what is wrong and how to fix it.").WithCommand("metarush doctor")
 
 	files := map[string]any{
-		"version-1.json":                        ok(versionOut{Info: version.Describe("0.1.0", "aaaaaaa", "2026-11-01T00:00:00Z"), EditSpec: 12}),
-		"version-2.json":                        ok(versionOut{Info: version.Describe("0.2.0", "bbbbbbb", "2026-11-03T00:00:00Z"), EditSpec: 12}),
+		"version-1.json": ok(versionOut{Info: version.Describe("0.1.0", "aaaaaaa", "2026-11-01T00:00:00Z"), EditSpec: 12}),
+		"version-2.json": ok(versionOut{Info: version.Describe("0.2.0", "bbbbbbb", "2026-11-03T00:00:00Z"), EditSpec: 12}),
+		"version-3.json": ok(versionOut{Info: version.Describe("0.3.0", "ccccccc", "2026-11-05T00:00:00Z"), EditSpec: 12}),
+		// version --compare <v> from the 0.2.0 build: older, newer, not to be ordered.
+		"version-2-compared-0.1.0.json":         ok(versionOut{Info: version.Describe("0.2.0", "bbbbbbb", "2026-11-03T00:00:00Z"), EditSpec: 12, Compared: compareTo("0.2.0", "0.1.0")}),
+		"version-2-compared-0.3.0.json":         ok(versionOut{Info: version.Describe("0.2.0", "bbbbbbb", "2026-11-03T00:00:00Z"), EditSpec: 12, Compared: compareTo("0.2.0", "0.3.0")}),
+		"version-2-compared-unknown.json":       ok(versionOut{Info: version.Describe("0.2.0", "bbbbbbb", "2026-11-03T00:00:00Z"), EditSpec: 12, Compared: compareTo("0.2.0", "0.2.0-dev")}),
 		"setup-questions.json":                  ok(questions),
 		"setup-questions-set-up.json":           ok(setUp),
 		"setup-questions-other-newer.json":      ok(otherNewer),
 		"setup-questions-other-worker.json":     ok(otherWorker),
+		"setup-questions-other-unknown.json":    ok(otherUnknown),
 		"setup.json":                            ok(result),
 		"not-set-up.json":                       fail(notSetUp),
 		"setup-failed.json":                     fail(apperr.New(apperr.Database, "The database on this computer couldn't be set up").WithHint("Run setup again: it carries on where it stopped.").WithCommand("metarush setup")),

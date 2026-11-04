@@ -101,7 +101,7 @@ final class LinkModel: ObservableObject {
     let metarush: MetaRush
     @Published var state: CommandLink.State
     @Published var effect: CommandLink.Effect
-    @Published var otherVersion: String?
+    @Published var there: CommandLink.There = .nothing
     @Published var appVersion: String?
     @Published var said: String?
     @Published var failed: MetaRushError?
@@ -113,18 +113,27 @@ final class LinkModel: ObservableObject {
         effect = link.effect(service)
     }
 
-    /// load asks the program there its version and this app's program its own,
-    /// and the service again (the menu's answer may be a minute old).
+    /// load asks the program there its version (and this app's program how
+    /// the two are ordered), this app's program its own, and the service again
+    /// (the menu's answer may be a minute old).
     func load() {
         Task {
-            if let st = try? await metarush.call(["service", "status"], as: ServiceStatus.self) { effect = link.effect(st) }
             appVersion = (try? await metarush.call(["version"], as: VersionInfo.self))?.version
-            if state != .missing && state != .ours { otherVersion = await link.versionThere() }
+            there = await link.there(asking: metarush)
+            let st = try? await metarush.call(["service", "status"], as: ServiceStatus.self)
+            effect = link.effect(st, there: there)
+        }
+    }
+
+    var refused: Bool {
+        switch effect {
+        case .refused, .unknown: return true
+        default: return false
         }
     }
 
     func make(replacing: Bool) {
-        if case .refused = effect { return }
+        if refused { return }
         do {
             let aside = try link.make(replacing: replacing)
             state = .ours
@@ -167,7 +176,8 @@ struct LinkView: View {
                     }
                 case .otherLink, .otherProgram:
                     Plain(Words.linkOtherText)
-                    if let v = Words.linkVersions(other: model.otherVersion, app: model.appVersion) { Plain(v) }
+                    if let v = Words.linkVersions(other: model.there.version, app: model.appVersion) { Plain(v) }
+                    if model.there.newer { Plain(Words.linkOtherNewer) }
                     effectNote
                     if let failed = model.failed { ErrorBox(error: failed) }
                     HStack {
@@ -181,16 +191,14 @@ struct LinkView: View {
         .padding(22)
     }
 
-    private var refused: Bool {
-        if case .refused = model.effect { return true }
-        return false
-    }
+    private var refused: Bool { model.refused }
 
     @ViewBuilder private var effectNote: some View {
         switch model.effect {
         case .none: EmptyView()
         case .serviceFollows(let running): Plain(Words.linkServiceFollows(running))
         case .refused(let running): Plain(Words.linkRefused(running))
+        case .unknown: Plain(Words.linkUnknown)
         }
     }
 }

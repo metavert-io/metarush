@@ -43,11 +43,14 @@ public struct SetupAnswers: Equatable, Sendable {
         case startAtLogin
         case takeOver(otherVersion: String?)
         case otherIsNewer(otherVersion: String?)
+        /// That copy doesn't say which version it is, so it may be newer: not offered either.
+        case otherUnknown
     }
 
     public static func serviceQuestion(_ q: SetupQuestions) -> ServiceQuestion {
         guard q.service.otherCopy == true else { return .startAtLogin }
         if q.service.newer == true { return .otherIsNewer(otherVersion: q.service.otherVersion) }
+        if q.service.versionUnknown == true { return .otherUnknown }
         return .takeOver(otherVersion: q.service.otherVersion)
     }
 
@@ -90,7 +93,7 @@ public struct SetupAnswers: Equatable, Sendable {
         case .takeOver:
             // Another copy's service stays as it is unless the person said yes.
             a += takeOver ? ["--service=true", "--take-over-service"] : ["--service=false"]
-        case .otherIsNewer:
+        case .otherIsNewer, .otherUnknown:
             a.append("--service=false")
         }
         if q.skills.claudeInstalled {

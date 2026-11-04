@@ -5,12 +5,22 @@ import Foundation
 // written from the Go types themselves (internal/cli TestMacAppFixtures), so a
 // renamed field fails a test instead of a person's setup.
 
-/// `metarush version --json`: the build.
+/// `metarush version --json`: the build; with `--compare <v>`, this build
+/// against another version in MetaRush's own order.
 public struct VersionInfo: Codable, Equatable, Sendable {
     public var version: String
     public var release: String
     public var commit: String
     public var dev: Bool?
+    public var compared: Compared?
+
+    public struct Compared: Codable, Equatable, Sendable {
+        public var other: String
+        /// 1: this build is newer than `other`, 0 the same, -1 older.
+        public var order: Int
+        /// The two can be ordered.
+        public var known: Bool
+    }
 
     public init(version: String, release: String, commit: String, dev: Bool? = nil) {
         self.version = version
@@ -57,6 +67,8 @@ public struct SetupQuestions: Codable, Equatable, Sendable {
         public var otherCopy: Bool?
         public var otherVersion: String?
         public var newer: Bool?
+        /// That copy doesn't say which version it is: it may be newer.
+        public var versionUnknown: Bool?
         public var says: String
     }
 

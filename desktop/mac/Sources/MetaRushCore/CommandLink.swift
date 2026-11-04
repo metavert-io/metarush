@@ -86,25 +86,72 @@ public struct CommandLink: Sendable {
         /// The background service doesn't start MetaRush from here.
         case none
         /// It does: from its next start it runs this app's copy instead of
-        /// the one it runs now (that one's version, when it says).
+        /// the one there (that one's version, when it says).
         case serviceFollows(running: String?)
-        /// It does, and the copy it runs now is newer than this app's, so the
-        /// link isn't made.
+        /// It does, and the copy there (or the one running from it) is newer
+        /// than this app's, so the link isn't made.
         case refused(running: String?)
+        /// It does, and the copy there doesn't say which version it is (it may
+        /// be newer), so the link isn't made either.
+        case unknown
     }
 
-    public func effect(_ st: ServiceStatus?) -> Effect {
+    /// There is the program at the link's path, as far as the person choosing
+    /// needs to know: its version and whether it is newer than this app's.
+    public enum There: Equatable, Sendable {
+        /// Nothing there, or this app's own link.
+        case nothing
+        /// A program that doesn't say which version it is.
+        case silent
+        /// Its version, and whether it is newer than this app's (nil: the two
+        /// can't be ordered).
+        case version(String, newer: Bool?)
+
+        public var version: String? {
+            if case .version(let v, _) = self { return v }
+            return nil
+        }
+
+        public var newer: Bool {
+            if case .version(_, newer: true) = self { return true }
+            return false
+        }
+    }
+
+    /// there asks the program at the link's path its version (a few seconds
+    /// at most), then this app's own program how the two are ordered (`version
+    /// --compare`: MetaRush's order, never one written here).
+    public func there(asking metarush: MetaRush, seconds: Double = 5) async -> There {
+        switch state() {
+        case .missing, .ours: return .nothing
+        default: break
+        }
+        guard let v = await versionThere(seconds: seconds) else { return .silent }
+        guard let c = (try? await metarush.call(["version", "--compare", v], as: VersionInfo.self))?.compared, c.known else {
+            return .version(v, newer: nil)
+        }
+        return .version(v, newer: c.order < 0)
+    }
+
+    /// effect: what the link means for a service that starts MetaRush from
+    /// its path. Refused when the copy there, or the copy running from it, is
+    /// newer than this app's, or can't be told (whether MetaRush runs or not).
+    public func effect(_ st: ServiceStatus?, there: There = .nothing) -> Effect {
         guard let st, st.installed, let bin = st.binary, !bin.isEmpty,
               URL(fileURLWithPath: bin).standardizedFileURL.path == link.standardizedFileURL.path else { return .none }
         let d = st.daemon
-        let other = d != nil && d?.sameCopy != true
-        if other && d?.newer == true { return .refused(running: d?.version) }
-        return .serviceFollows(running: other ? d?.version : nil)
+        let otherRunning = d != nil && d?.sameCopy != true
+        if otherRunning && d?.newer == true { return .refused(running: d?.version) }
+        switch there {
+        case .version(let v, newer: true): return .refused(running: v)
+        case .version(_, newer: nil), .silent: return .unknown
+        default: break
+        }
+        return .serviceFollows(running: there.version ?? (otherRunning ? d?.version : nil))
     }
 
     /// The version the program there says it is (`version --json`, a few
-    /// seconds at most), so the person sees both before choosing; nil when
-    /// nothing answers.
+    /// seconds at most); nil when nothing answers.
     public func versionThere(runner: CommandRunner = ProcessRunner(), seconds: Double = 5) async -> String? {
         guard state() != .missing else { return nil }
         let there = MetaRush(program: link, runner: runner)

@@ -77,6 +77,40 @@ import Testing
         #expect(link.effect(st) == .refused(running: "0.3.0"))
         // Through the link, already this app's copy: nothing new to say about what runs.
         #expect(link.effect(try status("service-status-via-link.json")) == .serviceFollows(running: nil))
+        // MetaRush stopped: the program there says what it is (D475).
+        var stopped = try status("service-status-stopped.json")
+        stopped.binary = "/Users/you/.local/bin/metarush"
+        #expect(link.effect(stopped, there: .version("0.3.0", newer: true)) == .refused(running: "0.3.0"))
+        #expect(link.effect(stopped, there: .version("0.1.0", newer: false)) == .serviceFollows(running: "0.1.0"))
+        #expect(link.effect(stopped, there: .version("0.2.0-dev", newer: nil)) == .unknown)
+        #expect(link.effect(stopped, there: .silent) == .unknown)
+        // Where the service doesn't start MetaRush from the link, the link changes nothing in the background.
+        #expect(link.effect(try status("service-status-other-copy.json"), there: .version("0.3.0", newer: true)) == .none)
+    }
+
+    /// The program at the link's path: its version, and whether it is newer
+    /// than this app's, in MetaRush's own order (`version --compare` from the
+    /// app's program); one that says nothing is `silent`.
+    @Test func theProgramThereAndHowItOrders() async throws {
+        let (d, _) = try setUp()
+        let app = try FakeMetaRush()
+        let link = CommandLink(folder: d.url.appendingPathComponent("home/.local/bin"), target: app.program)
+        #expect(await link.there(asking: app.metarush()) == .nothing)
+        let other = try FakeMetaRush()
+        try FileManager.default.createDirectory(at: link.folder, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link.link, withDestinationURL: other.program)
+        // The stand-in at the link answers from the link's folder.
+        let answer = { (name: String) throws in try fixture(name).write(to: link.folder.appendingPathComponent("version.json")) }
+        #expect(await link.there(asking: app.metarush()) == .silent)
+        try answer("version-3.json")
+        try app.answer("version", "version-2-compared-0.3.0.json")
+        #expect(await link.there(asking: app.metarush()) == .version("0.3.0", newer: true))
+        #expect(app.calls.last?.hasPrefix("version --compare 0.3.0 --json") == true)
+        try answer("version-1.json")
+        try app.answer("version", "version-2-compared-0.1.0.json")
+        #expect(await link.there(asking: app.metarush()) == .version("0.1.0", newer: false))
+        try app.answer("version", "version-2-compared-unknown.json")
+        #expect(await link.there(asking: app.metarush()) == .version("0.1.0", newer: nil))
     }
 
     @Test func theVersionOfTheProgramThere() async throws {

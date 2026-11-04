@@ -9,7 +9,6 @@
     "workerOnly": false,
     "binary": "/Users/you/.local/bin/metarush",
     "sameBinary": true,
-    "otherCopy": true,
     "home": "/Users/you/.metarush",
     "log": "/Users/you/.metarush/logs/daemon.log",
     "daemon": {

@@ -75,7 +75,11 @@ type SetupServiceQuestion struct {
 	OtherCopy    bool   `json:"otherCopy,omitempty"`
 	OtherVersion string `json:"otherVersion,omitempty"`
 	Newer        bool   `json:"newer,omitempty"`
-	Says         string `json:"says"`
+	// VersionUnknown: that copy doesn't say which version it is (or one this
+	// copy can't order against its own), so it may be newer: setup leaves it
+	// as it is, as it does a newer one.
+	VersionUnknown bool   `json:"versionUnknown,omitempty"`
+	Says           string `json:"says"`
 }
 
 // SetupSkillsQuestion is Claude Code learning MetaRush's video skills.
@@ -156,10 +160,14 @@ func setupQuestions(c *cobra.Command, h string) *SetupQuestions {
 			}
 			other := otherCopyOf(ctx, loaded, st)
 			q.Service.OtherCopy, q.Service.Suggested = true, false
-			q.Service.OtherVersion, q.Service.Newer = other.Version, other.Newer
-			q.Service.Says = "MetaRush already starts when you log in, from another copy of MetaRush" + other.said() + "; setup leaves it as it is unless you choose to have it start this copy instead."
-			if other.Newer {
+			q.Service.OtherVersion, q.Service.Newer, q.Service.VersionUnknown = other.Version, other.Newer, !other.Newer && !other.Known
+			switch {
+			case other.Newer:
 				q.Service.Says = "MetaRush already starts when you log in, from another copy that is newer than this one" + other.said() + ", so setup leaves it as it is."
+			case !other.Known:
+				q.Service.Says = otherUnknownSays
+			default:
+				q.Service.Says = "MetaRush already starts when you log in, from another copy of MetaRush" + other.said() + "; setup leaves it as it is unless you choose to have it start this copy instead."
 			}
 		}
 	}

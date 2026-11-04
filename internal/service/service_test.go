@@ -152,11 +152,11 @@ func TestStableExecutableRefusesATemporaryCopy(t *testing.T) {
 	}
 }
 
-// A service that starts this copy through a link (~/.local/bin/metarush
-// leading to it today) runs whatever the link is changed to later: it is
-// another copy to the one asking, though the link leads here now (D473, D475).
-// The service that starts this copy's own path is this copy's.
-func TestAServiceThroughALinkIsAnotherCopy(t *testing.T) {
+// A service that starts MetaRush through a link (~/.local/bin/metarush) is
+// the copy the link leads to: this one when it leads to the program asking
+// (setup run from the link's target then fixes a stopped service instead of
+// leaving it as another copy's), another when it leads elsewhere (D473, D475).
+func TestAServiceThroughALink(t *testing.T) {
 	lc, _ := fakeTool(t, "launchctl", fakeLaunchctl)
 	userHome := t.TempDir()
 	exe := exeFile(t)
@@ -168,7 +168,7 @@ func TestAServiceThroughALinkIsAnotherCopy(t *testing.T) {
 	if st := o.Get(ctx); !st.SameBinary || st.OtherCopy {
 		t.Fatalf("its own path: %+v", st)
 	}
-	// The same service, read by the program the link leads to.
+	// The service set up through a link to this program, read by this program.
 	link := filepath.Join(t.TempDir(), "bin", "metarush")
 	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
 		t.Fatal(err)
@@ -181,13 +181,23 @@ func TestAServiceThroughALinkIsAnotherCopy(t *testing.T) {
 	if _, err := byLink.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	st := o.Get(ctx)
-	if !st.SameBinary || !st.OtherCopy || st.Binary != link {
-		t.Fatalf("through a link: %+v", st)
+	if st := o.Get(ctx); !st.SameBinary || st.OtherCopy || st.Binary != link {
+		t.Fatalf("through a link to this program: %+v", st)
 	}
-	// Another program file altogether.
-	other := Options{Home: o.Home, Exe: exeFile(t), OS: "darwin", UserHome: userHome, UID: 501, Tools: o.Tools}
-	if st := other.Get(ctx); st.SameBinary || !st.OtherCopy {
+	// The link changed to lead to another program: another copy from then on.
+	other := exeFile(t)
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other, link); err != nil {
+		t.Fatal(err)
+	}
+	if st := o.Get(ctx); st.SameBinary || !st.OtherCopy {
+		t.Fatalf("through a link to another program: %+v", st)
+	}
+	// Read by another program altogether.
+	elsewhere := Options{Home: o.Home, Exe: exeFile(t), OS: "darwin", UserHome: userHome, UID: 501, Tools: o.Tools}
+	if st := elsewhere.Get(ctx); st.SameBinary || !st.OtherCopy {
 		t.Fatalf("another copy: %+v", st)
 	}
 }

@@ -12,6 +12,10 @@
   and hear when a guest asks unusually often; a client's What may leave can keep their things from guests. **Nothing
   is reachable from the internet yet**: the guest address is this computer's own (`http://127.0.0.1:4846`), served
   by a web server of its own on 127.0.0.1 only; a later release gives guests a public address.
+- **Made-up sign-in values can't hide words in the activity log**. A sign-in link, an organization sign-in's answer,
+  a browser extension's pairing code or token, or a password that someone sends MetaRush is kept out of the activity
+  log only once it turns out to be real. Before, whatever a visitor sent there was taken for a secret, so a made-up
+  one equal to a word — a person's email, say — blanked that word out of every later entry.
 - **Delivered videos can carry Content Credentials**. Turn them on in Settings → Delivery (or `metarush credentials
   on`; a client's Content Settings can say on, required or off for their projects) and every final video MetaRush
   delivers carries a signed record, in the open C2PA format, that it was made with MetaRush, which footage, sound and

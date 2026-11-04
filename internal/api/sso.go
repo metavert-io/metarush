@@ -159,8 +159,10 @@ func (s *Server) ssoStart(w http.ResponseWriter, r *http.Request) {
 	acc := accessOf(r)
 	f := sso.Flow{Purpose: sso.ForSignIn, Public: acc.public, Setup: auth.LiveUse(s.App.Cfg, st.SSO).Fingerprint(), Next: nextPath(in.Next)}
 	if in.Invite != "" {
-		s.App.Log.Secret(in.Invite)
 		rec, u, err := auth.LookupLink(ctx, s.App, in.Invite)
+		if err == nil {
+			s.App.Log.Secret(in.Invite) // one of ours (a made-up one is never taken for a secret)
+		}
 		if err != nil || rec.Kind != auth.LinkInvite {
 			writeErr(w, auth.ErrLinkGone)
 			return
@@ -195,14 +197,13 @@ var errElsewhere = errors.New("elsewhere")
 
 func (s *Server) ssoBegin(w http.ResponseWriter, r *http.Request) {
 	ticket := r.URL.Query().Get("t")
-	s.App.Log.Secret(ticket)
 	acc := accessOf(r)
 	f, state, err := sso.FlowsIn(s.App.Cfg.StateDir()).Begin(ticket)
 	if err != nil {
 		s.ssoPage(w, http.StatusGone, "This sign-in link doesn't work any more", "It was opened already, or more than two minutes went by. Start signing in again from MetaRush.", "/signin")
 		return
 	}
-	s.App.Log.Secret(state)
+	s.App.Log.Secret(ticket, state) // ours, now that it was found (a made-up ticket is never taken for a secret)
 	if f.Purpose == sso.ForGuest || acc.public != f.Public || !s.sameHost(r, f) {
 		// A guest's sign-in finishes only on the guest listener (D496).
 		s.ssoPage(w, http.StatusForbidden, "Open this link where you started", "This sign-in began at another address of MetaRush. Start again there.", "")
@@ -239,9 +240,11 @@ func (s *Server) ssoCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
+	// The state is kept out of the log once it is a sign-in begun here (after
+	// Finish), the code once the provider takes it (sso.Client.Exchange): a
+	// visitor's made-up values are never taken for secrets, or anyone could
+	// blank words out of the activity log.
 	state, code := q.Get("state"), q.Get("code")
-	s.App.Log.Secret(state)
-	s.App.Log.Secret(code)
 	acc := accessOf(r)
 	mine, rest := takePending(pendingStates(r, acc), state)
 	if state == "" || !mine {
@@ -271,6 +274,7 @@ func (s *Server) ssoCallback(w http.ResponseWriter, r *http.Request) {
 		s.ssoPage(w, http.StatusGone, "This sign-in can't be finished", words+" Sign in again.", "/signin")
 		return
 	}
+	s.App.Log.Secret(state) // a sign-in begun here
 	ctx := r.Context()
 	fail := func(reason string, err error) {
 		s.ssoFailed(w, r, f, reason, err)

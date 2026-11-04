@@ -143,9 +143,10 @@ func (g *guestGate) ssoBegin(w http.ResponseWriter, r *http.Request) {
 
 // ssoCallback finishes a guest's sign-in with the provider's answer: only the
 // parts it reads count (state, code, error, iss), the rest is ignored
-// (bounded by the address's length), and a state or code is kept out of the
-// log only once it belongs to a sign-in begun here (internal/sso keeps the
-// code it exchanges).
+// (bounded by the address's length). The state is kept out of the log once it
+// belongs to a sign-in begun here, the code only once the provider takes it
+// (sso.Client.Exchange): a code made up by someone who began their own
+// sign-in is never taken for a secret.
 func (g *guestGate) ssoCallback(w http.ResponseWriter, r *http.Request) {
 	q := reqOf(r)
 	q.what = "guest.signin.refused"

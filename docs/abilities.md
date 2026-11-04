@@ -183,6 +183,19 @@ the import. A person then checks it on a computer here (`metarush ability check 
 once in the sandbox with the network off), and an owner approves it (an unchecked import can't be approved). Both
 operations are LocalOnly; the dashboard's two endpoints choose every path themselves.
 
+## From a community catalogue
+
+A community catalogue is a public list of abilities — an index served over HTTPS, often from a GitHub repository —
+that an owner trusts (`metarush ability catalogues add <https-address>`, or Settings → Abilities; none by default).
+Anyone browses what the trusted ones list (`metarush ability browse`, or Library → Abilities → Browse catalogues):
+what each does and needs, its publisher and licence, and whether it is here already — the catalogue's word, "listed,
+not checked by MetaRush". A person brings one in (`metarush ability import --from-catalogue <catalogue>:<name>`, or
+**Bring it in…**): MetaRush fetches exactly the version listed — a repository's commit and folder, read raw by the
+same hardened git as repositories brought in, or an ability file checked by its SHA-256 — refuses it unless its
+archive is the version listed and its manifest says what the listing says, and records it **imported**, like an
+ability file: check it here, then an owner approves it. [ability-catalogue.md](ability-catalogue.md) has the index's
+format, how to make one (`metarush ability catalogues make`) and what MetaRush checks and doesn't.
+
 ## The starter pack
 
 Seven abilities in `abilities/` at the repository's root (its README has the table), each with `notes.md` on its

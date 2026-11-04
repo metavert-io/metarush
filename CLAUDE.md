@@ -378,7 +378,8 @@ Read `docs/architecture.md` before structural changes.
   kept. State file version 2: older pairings are the installation's owner's (`browserext.Of(a)`).
 - **Where things are in the dashboard** (D184, `web/src/layout/AccountMenu.tsx`, `web/src/screens/settings/`): the bar
   is Studio, Library (tabs incl. People, Motion, Recipes and Abilities), Renders, To-dos; Settings sections are routes
-  `/settings/<general|people|preferences|claude|footage|extension|storage|components|integrations|log|cli>` (preferences: D208, light/dark
+  `/settings/<general|people|preferences|claude|footage|extension|storage|components|integrations|abilities|log|cli>` (abilities: the
+  community catalogues an owner trusts, D481; preferences: D208, light/dark
   moved there from General; extension: D191; its old
   Footage anchors redirect through `movedPart`; Brand left for Content Settings, D193: `/settings/brand` and
   `/settings/content` open the default's) opened from the account menu (avatar
@@ -980,6 +981,31 @@ Read `docs/architecture.md` before structural changes.
   `footage.captions` / `metarush footage captions`. Not yet runnable (D286 c2patool, D287 Resolve MCP): `# NOT YET
   RUNNABLE.` first, notes say what's missing, `TestStarterNotYetRunnable` pins the refusal;
   `install-c2patool.sh` pins c2patool 0.28.3 by SHA-256. Browser run: `scripts/starter-e2e.sh` (ports 5530–5539).
+- **Community catalogues of abilities** (D480–D489, `internal/abilities/catalogues_*.go`, `internal/resources/repofolder.go`,
+  `internal/assistant/ability_actions.go`, `web/src/components/abilities/Catalogues.tsx`, docs/ability-catalogue.md): an
+  index `metarush.ability-catalogue/1` (`CatalogueIndex`/`models.CatalogueEntry`, schema `schema/ability-catalogue.schema.json`;
+  `ParseIndex` strict: the index refused whole for its own unknown fields or bounds, an entry left out with why;
+  every word cleaned by `ops.CleanText`; `revoked` read, `signatures` accepted and never trusted, a new meaning is
+  `/2`). Owners trust catalogues (`ability.catalogues.add|remove`: OwnerOnly + HumanOnly, a dry run first; records
+  `ability_catalogues`, migration 67, `_id` `<ws>/<key>`, unique per URL; config `abilities.catalogues.suggested`
+  only suggests, empty in code). Reading (`readHTTPS`): https only, same-site redirects (3), 4 MB / 30 s, local
+  addresses refused at the dial (`resources.LocalIP`), ETag; refreshed on browse when `fetchedAt` is a day old and
+  `checkedAt` ten minutes by the server's clock (`store.StaleBefore`, claimed by `$currentDate`), finished even when
+  the asker leaves; a failure keeps the copy and says why. Tests and browser runs (`providers.RealServicesRefused`)
+  read only loopback, trusting `METARUSH_CATALOGUE_CA`; git sources need `METARUSH_GIT_BASE`. `ability.browse` and
+  `ability.catalogues` are reads (`leave.readsShow` "-"), their words quoted for AI readers (`ops.AIReader`,
+  `ListedQuoteNote`). `ability.catalogues.import` (Mutating, HumanOnly; not LocalOnly — it reads no files here):
+  `resources.FolderAt` (D104's git: one commit, shallow, blobs raw) or an ability file by SHA-256 → `archiveOfFolder`
+  (Build's rules) → refused unless the archive's SHA-256 is the listing's and `listingDiffers` finds nothing
+  (hosts, keys, network, sends, outputs, `ai:` read raw from the manifest, provides, cost, licence, programs, OS,
+  local, changes-outside) → `recordImported` with `imported.catalogue`; the same name from the same catalogue is the
+  next version, else `--as-version`. The panel's Claude browses (`ability browse`, `ability catalogues list` are
+  read-only commands) and its refused import is a HumanOnly card pinned to the version it saw, never Auto. CLI:
+  `metarush ability catalogues [list|add|remove|make]`, `ability browse`, `ability import --from-catalogue`
+  (also `abilities …`; changes need `personAtTheKeys`). The generator (`MakeIndex`, no database) pins each folder to
+  its repository's commit only when the commit's files build the same archive; `abilities/catalogue.sample.json` is
+  the starter pack, checked by `TestTheSampleCatalogueIsSound`. Browser run `scripts/ability-catalogue-e2e.sh`
+  (ports 5810–5819, `scripts/catalogueserve`).
 - **The first-party catalogue and the menu** (D269–D272, `internal/ops/offers.go`, `internal/catalog/firstparty.go`,
   `menu.go`, docs/catalogue.md): what MetaRush does is about fifty abilities, each an `ops.Offer` annotation next to
   its operation (stable `ID`, group, title, sentence, fixed `Input`, `Needs`: a first-run item, OS, programs, keys,
@@ -1253,6 +1279,7 @@ scripts/database-move-e2e.sh                              # Settings → Storage
 scripts/components-e2e.sh                                 # only the required components, then Settings → Components and Getting started's Add it with a stand-in Homebrew (D324–D327; ports 5650–5659)
 scripts/resources-e2e.sh                                  # the Add box, Inbox clips dragged onto project cards, the Sources "…" menu, Delete…, a nested cut (D79–D84; ports 5660–5669)
 scripts/motion-shapes-e2e.sh                              # a person approves a motion graphic, a non-person draws it widescreen too, the approved frames stay, the person approves the new shape and a widescreen cut's note clears (D377, D381; ports 5740–5749)
+scripts/ability-catalogue-e2e.sh                          # a community catalogue: trusted in Settings → Abilities, browsed, an ability brought in from a repository's commit, checked, approved, a lying listing refused, removed (D480–D487; ports 5810–5819)
 scripts/handover-e2e.sh                                   # two computers: the dry run in Settings → Storage, the handover file at a terminal, receive, the conversation going on in the same session, the old computer stepping down to a client, clean (D344–D348; ports 5710–5719)
 ```
 

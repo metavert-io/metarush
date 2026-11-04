@@ -13,6 +13,7 @@ import (
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
+	"github.com/metavert-io/metarush/internal/resources"
 	"github.com/metavert-io/metarush/internal/tools"
 )
 
@@ -174,5 +175,53 @@ func TestMakeACatalogue(t *testing.T) {
 	got := mustCall[AbilityImportOut](t, a, "ability.catalogues.import", AbilityCatalogueImportIn{From: "acme:title-card"}, ops.Caller{Human: true})
 	if got.Version != pushed.Index.Abilities[0].Archive || got.State != models.AbilityImported {
 		t.Fatalf("the generator's index imports: %+v", got)
+	}
+}
+
+// The sample catalogue of the starter pack (abilities/catalogue.sample.json)
+// is read whole, and — where this checkout has the commit it pins — each
+// listing is exactly the archive of its folder there and says what its
+// manifest says (D487). Regenerate it with
+// metarush ability catalogues make abilities --out abilities/catalogue.sample.json --commit <a commit on main>.
+func TestTheSampleCatalogueIsSound(t *testing.T) {
+	root := filepath.Join("..", "..")
+	b, err := os.ReadFile(filepath.Join(root, "abilities", "catalogue.sample.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cp, err := ParseIndex(b)
+	if err != nil || len(cp.LeftOut) != 0 || len(cp.Abilities) == 0 {
+		t.Fatalf("the sample: %+v %v", cp, err)
+	}
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git isn't installed")
+	}
+	ts := tools.New(config.Tools{})
+	for _, e := range cp.Abilities {
+		g := e.Source.Git
+		if g == nil {
+			t.Fatalf("%s: the sample pins this repository's commits", e.Name)
+		}
+		if err := exec.Command("git", "-C", root, "cat-file", "-e", g.Commit+"^{commit}").Run(); err != nil {
+			t.Logf("this checkout hasn't commit %s (a shallow clone): %s's files aren't compared", g.Commit[:12], e.Name)
+			continue
+		}
+		files, err := resources.FolderAtHere(context.Background(), ts, root, g.Commit, g.Path, folderLimits())
+		if err != nil {
+			t.Fatalf("%s: %v", e.Name, err)
+		}
+		arc, err := archiveOfFolder(files)
+		if err != nil {
+			t.Fatalf("%s: %v", e.Name, err)
+		}
+		if arc.Hash != e.Archive {
+			t.Errorf("%s: the sample names %s, its folder at %s is %s", e.Name, Short(e.Archive), g.Commit[:12], Short(arc.Hash))
+			continue
+		}
+		m, _ := arc.Manifest()
+		manifest, _ := arc.File(ManifestFile)
+		if diffs := listingDiffers(e, m, manifest); len(diffs) > 0 {
+			t.Errorf("%s: the listing differs from its manifest: %v", e.Name, diffs)
+		}
 	}
 }

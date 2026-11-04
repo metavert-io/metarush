@@ -841,6 +841,28 @@ func catalogueOf(ctx context.Context, a *app.App, u string) *models.AbilityCatal
 
 var errNotListed = errors.New("not listed")
 
+// takenBack is why the catalogue a version came from took it back (D488),
+// in its words (quoted for an AI), or "".
+func takenBack(ctx context.Context, a *app.App, v *models.AbilityVersion) string {
+	if v.Imported == nil || v.Imported.Catalogue == nil {
+		return ""
+	}
+	c := catalogueOf(ctx, a, v.Imported.Catalogue.URL)
+	if c == nil || c.Index == nil {
+		return ""
+	}
+	quote, _ := quoter(a)
+	for _, r := range c.Index.Revoked {
+		if r.Archive == v.Hash {
+			if r.Why == "" {
+				return "The catalogue took this version back without saying why."
+			}
+			return quote(r.Why)
+		}
+	}
+	return ""
+}
+
 // listingOf is the listing of an ability in a catalogue's copy.
 func listingOf(c *models.AbilityCatalogue, name string) (models.CatalogueEntry, error) {
 	if c.Index != nil {

@@ -3830,6 +3830,9 @@
         "canApprove": {
           "type": "boolean"
         },
+        "takenBack": {
+          "type": "string"
+        },
         "message": {
           "type": "string"
         },

@@ -140,10 +140,13 @@ type AbilityShowOut struct {
 	Versions []AbilityVersionRow `json:"versions"`
 	Runs     []AbilityRunRow     `json:"runs" jsonschema:"description=Its latest runs\\, newest first."`
 	// CanApprove: its check passed and an owner hasn't approved it.
-	CanApprove bool   `json:"canApprove"`
-	Message    string `json:"message"`
-	Next       string `json:"next,omitempty"`
-	Link       string `json:"link"`
+	CanApprove bool `json:"canApprove"`
+	// TakenBack says why the community catalogue it came from took this
+	// version back (D488): the catalogue's words.
+	TakenBack string `json:"takenBack,omitempty" jsonschema:"description=The catalogue it came from took this version back: why\, in the catalogue's words."`
+	Message   string `json:"message"`
+	Next      string `json:"next,omitempty"`
+	Link      string `json:"link"`
 }
 
 // AbilityCheckIn checks a folder on this computer.
@@ -687,6 +690,7 @@ func showAbility(ctx context.Context, a *app.App, ref string) (*AbilityShowOut, 
 		}
 	}
 	out.CanApprove = v.Check.OK && v.State != models.AbilityApproved && v.State != models.AbilityFailed
+	out.TakenBack = takenBack(ctx, a, v)
 	out.Message = fmt.Sprintf("“%s”, version %d (%s): %s", v.Title, v.Number, StateWords(v.State), v.Does)
 	switch {
 	case v.State == models.AbilityFailed:

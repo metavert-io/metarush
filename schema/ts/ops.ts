@@ -5435,6 +5435,7 @@ versions: AbilityVersionRow[]
  */
 runs: AbilityRunRow[]
 canApprove: boolean
+takenBack?: string
 message: string
 next?: string
 link: string

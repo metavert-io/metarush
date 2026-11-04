@@ -325,6 +325,23 @@ func TestImportFromACatalogueRepository(t *testing.T) {
 	if again.New || again.Number != 1 {
 		t.Fatalf("the same version again brings nothing new: %+v", again)
 	}
+	// The catalogue takes it back: its page says so (its approval here stays an owner's).
+	if s := mustCall[AbilityShowOut](t, a, "ability.show", AbilityRefIn{Ref: "title-card"}, ops.Caller{}); s.TakenBack != "" {
+		t.Fatalf("not taken back yet: %q", s.TakenBack)
+	}
+	revoked := indexWith(gitListing(commit, hash))
+	revoked["revoked"] = []any{map[string]any{"archive": hash, "why": "It printed the words twice."}}
+	cat.set(t, revoked)
+	old := askAgainAfter
+	askAgainAfter = 20 * time.Millisecond
+	t.Cleanup(func() { askAgainAfter = old })
+	time.Sleep(50 * time.Millisecond)
+	if b := mustCall[AbilityBrowseOut](t, a, "ability.browse", AbilityBrowseIn{Refresh: true}, ops.Caller{}); b.Abilities[0].Revoked == "" || b.Abilities[0].CanBringIn {
+		t.Fatalf("browse says it was taken back: %+v", b.Abilities[0])
+	}
+	if s := mustCall[AbilityShowOut](t, a, "ability.show", AbilityRefIn{Ref: "title-card"}, ops.Caller{}); s.TakenBack != "It printed the words twice." {
+		t.Fatalf("its page says it was taken back: %q", s.TakenBack)
+	}
 	// Checked here, then an owner approves it.
 	needSandbox(t, a)
 	chk := mustCall[AbilityCheckOut](t, a, "ability.check", AbilityCheckIn{Version: "title-card@" + hash}, ops.Caller{})

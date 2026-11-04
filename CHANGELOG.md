@@ -1,6 +1,21 @@
 # Changelog
 
 ## Unreleased
+- **Abilities from community catalogues**. A community catalogue is a public list of abilities — an index served over
+  HTTPS, often from a GitHub repository. An owner trusts one under Settings → Abilities (`metarush ability catalogues
+  add <https-address>`; none is trusted by default); anyone browses what it lists in Library → Abilities → Browse
+  catalogues (`metarush ability browse`): what each does and needs — keys, network, places, AI — its publisher and
+  licence, and whether it is here already, marked "listed, not checked by MetaRush". A person brings one in (Bring it
+  in…, `metarush ability import --from-catalogue <catalogue>:<name>`): MetaRush fetches exactly the version listed — a
+  repository's commit and folder, read without running anything, or an ability file checked by its fingerprint — and
+  refuses it unless it is that version and its manifest says what the listing says. It comes in as a draft, like an
+  ability file: checked on a computer here, then approved by an owner. Claude in the panel may browse and propose
+  bringing one in as a card you run; AI apps only browse. Catalogues are read again once a day or when you ask, and
+  every word in them is shown as the catalogue's own.
+- **Make a catalogue's index from a folder of abilities**. `metarush ability catalogues make <folder> --out
+  index.json` pins each ability to its repository's commit and its version, only when the commit holds exactly its
+  files, and lists it from its own manifest; `docs/ability-catalogue.md` has the format and what MetaRush checks, and
+  `abilities/catalogue.sample.json` is the starter pack as a catalogue.
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says

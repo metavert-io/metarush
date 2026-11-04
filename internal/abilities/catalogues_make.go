@@ -175,11 +175,14 @@ func MakeIndex(ctx context.Context, ts *tools.Set, in MakeIn) (*MakeOut, error) 
 		ix.Date = time.Now().UTC().Format("2006-01-02")
 	}
 	out.Version = ix.Version
-	b, err := json.MarshalIndent(ix, "", "  ")
-	if err != nil {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false) // people read the index: <clip> stays <clip>
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(ix); err != nil {
 		return nil, err
 	}
-	b = append(b, '\n')
+	b := buf.Bytes()
 	// What MetaRush writes, MetaRush reads whole.
 	cp, err := ParseIndex(b)
 	if err != nil {

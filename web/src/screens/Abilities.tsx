@@ -430,6 +430,14 @@ function AbilityBody({ d, run }: { d: AbilityShowOut; run?: string }) {
           {v.state === 'approved' ? <RunButton d={d} /> : null}
         </div>
       </header>
+      {d.takenBack ? (
+        <p className="flex items-start gap-2 rounded-[10px] bg-danger-soft px-3 py-2 text-[13px] text-danger" role="alert" data-taken-back>
+          <WarningCircle size={15} className="mt-[2px] shrink-0" aria-hidden />
+          <span>
+            The catalogue it came from took this version back: <Theirs>{d.takenBack}</Theirs>
+          </span>
+        </p>
+      ) : null}
       {run ? <RunPanel name={v.name} id={run} /> : null}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="space-y-6">

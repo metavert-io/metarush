@@ -141,6 +141,9 @@ func printAbilityPage(p abilities.AbilityPage) {
 func printAbilityShow(out *abilities.AbilityShowOut, details bool) {
 	v := out.Ability
 	fmt.Println(out.Message)
+	if out.TakenBack != "" {
+		fmt.Println("The catalogue it came from took this version back: " + theirs(out.TakenBack))
+	}
 	printAbilityPage(out.Page)
 	if len(v.Facts.Inputs) > 0 {
 		fmt.Println("Its inputs:")

@@ -168,9 +168,16 @@ func (g *guestGate) visitor(r *http.Request, forwarded string) string {
 	return host
 }
 
-// secure reports a request that came over HTTPS (never, in this release: the
-// guest address is this computer's own, http).
-func (g *guestGate) secure(r *http.Request) bool { return r.TLS != nil }
+// secure reports a request that came over HTTPS: a TLS connection, or a
+// forwarded "https" where believeForwarded says it may be believed (nowhere
+// yet: the guest address is this computer's own, http).
+func (g *guestGate) secure(r *http.Request, forwardedProto string) bool {
+	if r.TLS != nil {
+		return true
+	}
+	proto := strings.TrimSpace(strings.Split(forwardedProto, ",")[0])
+	return g.believeForwarded != nil && strings.EqualFold(proto, "https") && g.believeForwarded(r)
+}
 
 type guestCtxKey struct{}
 
@@ -219,13 +226,15 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 // own header on changes; then the request is recorded.
 func (g *guestGate) guard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		forwarded := r.Header.Get("X-Forwarded-For")
+		// What something in front says about the visitor is read here, once,
+		// and judged by believeForwarded (D499); then it is gone.
+		forwarded, proto := r.Header.Get("X-Forwarded-For"), r.Header.Get("X-Forwarded-Proto")
 		for k := range r.Header {
 			if untrusted(k) {
 				r.Header.Del(k)
 			}
 		}
-		q := &guestReq{from: g.visitor(r, forwarded), secure: g.secure(r)}
+		q := &guestReq{from: g.visitor(r, forwarded), secure: g.secure(r, proto)}
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")

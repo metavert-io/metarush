@@ -849,3 +849,33 @@ func TestMicrosoftGuestsAndOtherDirectoriesDontSignInAsGuests(t *testing.T) {
 		t.Fatalf("our directory's member: %d %s", res.StatusCode, raw)
 	}
 }
+
+// The forwarded address has one seam (believeForwarded), believed nowhere in
+// this release; a relay in front later says where it may be believed (its own
+// port), and nothing else changes.
+func TestTheForwardedAddressHasOneSeam(t *testing.T) {
+	g := &guestGate{}
+	req := httptest.NewRequest("GET", "/guest/api/state", nil)
+	req.RemoteAddr = "127.0.0.1:9999"
+	if got := g.visitor(req, "203.0.113.7"); got != "127.0.0.1" {
+		t.Fatalf("believed with no seam set: %s", got)
+	}
+	if g.secure(req, "https") {
+		t.Fatal("a forwarded https believed with no seam set")
+	}
+	g.believeForwarded = func(r *http.Request) bool { return strings.HasSuffix(r.RemoteAddr, ":9999") } // "only from the relay's port"
+	if got := g.visitor(req, "203.0.113.7, 10.0.0.1"); got != "203.0.113.7" {
+		t.Fatalf("from the relay: %s", got)
+	}
+	if !g.secure(req, "https") {
+		t.Fatal("https from the relay isn't believed")
+	}
+	other := httptest.NewRequest("GET", "/guest/api/state", nil)
+	other.RemoteAddr = "127.0.0.1:5000"
+	if got := g.visitor(other, "203.0.113.7"); got != "127.0.0.1" || g.secure(other, "https") {
+		t.Fatalf("believed from another port: %s", got)
+	}
+	if got := g.visitor(req, "not an address"); got != "127.0.0.1" {
+		t.Fatalf("a malformed forwarded address: %s", got)
+	}
+}

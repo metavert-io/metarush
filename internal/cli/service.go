@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -44,12 +45,24 @@ func serviceOptions(c *cobra.Command, workerOnly bool, binary string) (service.O
 	exe := binary
 	if exe == "" {
 		if exe, err = service.StableExecutable(); err != nil {
-			return service.Options{}, nil, failErr(c, err)
+			if !errors.Is(err, service.ErrTemporaryCopy) || c.Name() == "install" {
+				return service.Options{}, nil, failErr(c, stableErr(err))
+			}
+			exe = "" // status, restart and removal don't run this copy
 		}
 	} else if exe, err = filepath.Abs(expandHome(exe)); err != nil {
 		return service.Options{}, nil, failErr(c, err)
 	}
 	return service.Options{Home: h, Exe: exe, WorkerOnly: workerOnly, Tools: tools.New(cfg.Tools)}, cfg, nil
+}
+
+// stableErr says why this copy of MetaRush can't be the one the service runs.
+func stableErr(err error) error {
+	if errors.Is(err, service.ErrTemporaryCopy) {
+		return apperr.New(apperr.InvalidInput, "MetaRush is running from a temporary copy macOS made, which is gone after a restart.").
+			WithHint("Move MetaRush to the Applications folder and open it from there, then set up the background service.")
+	}
+	return err
 }
 
 func serviceInstallCmd() *cobra.Command {
@@ -187,12 +200,13 @@ func serviceStatusCmd() *cobra.Command {
 	var details bool
 	c := &cobra.Command{Use: "status", Short: "Say whether the background service is installed and running",
 		RunE: func(c *cobra.Command, _ []string) error {
-			o, _, err := serviceOptions(c, false, "")
+			o, cfg, err := serviceOptions(c, false, "")
 			if err != nil {
 				return err
 			}
 			st := o.Get(c.Context())
-			return emit(c, st, func() { printServiceStatus(st, details) })
+			st.Daemon = runningDaemon(cfg)
+			return emit(c, st, func() { printServiceStatus(st, details || detailsMode(c)) })
 		}}
 	addDetails(c, &details)
 	return c
@@ -206,6 +220,7 @@ func printServiceStatus(st service.Status, details bool) {
 				fmt.Println("  problem: " + st.Problem)
 			}
 			fmt.Println("  set it up: metarush service install (add --worker-only for a machine that only renders)")
+			printRunning(st.Daemon)
 		} else {
 			fmt.Println("(Add --details to see the command that sets it up.)")
 		}
@@ -249,6 +264,57 @@ func printServiceStatus(st service.Status, details bool) {
 			fmt.Printf("  last exit code %d\n", *st.LastExit)
 		}
 	}
+	if details {
+		printRunning(st.Daemon)
+	}
+}
+
+// printRunning is the MetaRush running for the home (--details).
+func printRunning(d *service.DaemonState) {
+	if d == nil {
+		return
+	}
+	answers := "not answering"
+	if d.Answering {
+		answers = "answering"
+	}
+	fmt.Printf("  running: MetaRush %s (commit %s), pid %d, port %d, %s\n", orText(d.Version, "-"), orText(d.Commit, "-"), d.PID, d.Port, answers)
+}
+
+// runningDaemon is the MetaRush running for this home as it says it is: its
+// record, and the build its dashboard's health check reports (D474).
+func runningDaemon(cfg *config.Config) *service.DaemonState {
+	d, ok := service.ReadDaemon(cfg.Home())
+	if !ok {
+		return nil
+	}
+	out := &service.DaemonState{PID: d.PID, Port: d.Port, Mode: d.Mode, Service: d.Service, StartedAt: d.StartedAt, Version: d.Version}
+	if d.Mode == "worker-only" {
+		return out
+	}
+	port := d.Port
+	if port == 0 {
+		port = cfg.Dashboard.Port
+	}
+	if h, ok := healthAt(cfg.Dashboard.Host, port); ok {
+		out.Answering, out.Version, out.Commit = true, h.Version, h.Commit
+	}
+	return out
+}
+
+// healthAt is the build a dashboard on this computer reports (/api/health).
+func healthAt(host string, port int) (version.Info, bool) {
+	client := http.Client{Timeout: 1500 * time.Millisecond}
+	res, err := client.Get(fmt.Sprintf("http://%s:%d/api/health", host, port))
+	if err != nil {
+		return version.Info{}, false
+	}
+	defer res.Body.Close()
+	var h version.Info
+	if res.StatusCode != http.StatusOK || json.NewDecoder(res.Body).Decode(&h) != nil {
+		return version.Info{}, false
+	}
+	return h, true
 }
 
 func serviceRestartCmd() *cobra.Command {
@@ -380,16 +446,7 @@ func waitService(ctx context.Context, o service.Options, cfg *config.Config, d t
 
 // healthCommit is the build the running dashboard reports.
 func healthCommit(cfg *config.Config) string {
-	client := http.Client{Timeout: 1500 * time.Millisecond}
-	res, err := client.Get(fmt.Sprintf("http://%s:%d/api/health", cfg.Dashboard.Host, cfg.Dashboard.Port))
-	if err != nil {
-		return ""
-	}
-	defer res.Body.Close()
-	var h struct {
-		Commit string `json:"commit"`
-	}
-	_ = json.NewDecoder(res.Body).Decode(&h)
+	h, _ := healthAt(cfg.Dashboard.Host, cfg.Dashboard.Port)
 	return h.Commit
 }
 

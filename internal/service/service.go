@@ -79,6 +79,27 @@ type Status struct {
 	Linger  *bool  `json:"linger,omitempty"`
 	Problem string `json:"problem,omitempty"`
 	Fix     string `json:"fix,omitempty"`
+	// Daemon is the MetaRush running for this home, whoever started it (this
+	// service or the dashboard), as it says it is; nil when none runs. Only
+	// `metarush service status` fills it (D474): the Mac app checks that the
+	// build answering after an update is the new one.
+	Daemon *DaemonState `json:"daemon,omitempty"`
+}
+
+// DaemonState is the running MetaRush as its record (state/daemon.json) and
+// its dashboard's health check say.
+type DaemonState struct {
+	PID       int       `json:"pid"`
+	Port      int       `json:"port,omitempty"`
+	Mode      string    `json:"mode,omitempty" jsonschema:"enum=,enum=full,enum=worker-only"`
+	Service   string    `json:"service,omitempty"` // launchd | systemd when the service started it
+	StartedAt time.Time `json:"startedAt"`
+	// Version and Commit are the build that answered the health check (a
+	// worker without the dashboard: Version from its record, no Commit).
+	Version string `json:"version,omitempty"`
+	Commit  string `json:"commit,omitempty"`
+	// Answering: its dashboard answered just now.
+	Answering bool `json:"answering"`
 }
 
 // Plan is what install writes and runs (shown by --dry-run).
@@ -550,14 +571,28 @@ func parseProgram(content, platform string) (string, bool) {
 
 // StableExecutable is the path of this binary that survives upgrades: a
 // Homebrew Cellar path (which changes with every version) becomes the
-// <prefix>/opt/metarush link.
+// <prefix>/opt/metarush link, and the copy inside MetaRush.app stays where
+// the app is (an update replaces the app in place). A temporary copy macOS
+// made of the app is refused (ErrTemporaryCopy).
 func StableExecutable() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
+	return stableFrom(exe)
+}
+
+// ErrTemporaryCopy: this MetaRush runs from the temporary copy macOS makes of
+// an app opened where it was downloaded (App Translocation), a folder that is
+// gone after a restart, so nothing may be set to run from there (D476).
+var ErrTemporaryCopy = errors.New("MetaRush is running from a temporary copy macOS made of the app")
+
+func stableFrom(exe string) (string, error) {
 	if abs, err := filepath.Abs(exe); err == nil {
 		exe = abs
+	}
+	if strings.Contains(exe, "/AppTranslocation/") {
+		return "", ErrTemporaryCopy
 	}
 	if i := strings.Index(exe, "/Cellar/"); i > 0 {
 		prefix, base := exe[:i], filepath.Base(exe)

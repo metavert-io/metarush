@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -138,6 +139,20 @@ func TestLaunchAgentInstallStatusRestartUninstall(t *testing.T) {
 }
 
 // The default home gets the plain label; any other home its own.
+// The service runs MetaRush.app's own copy where the app is (an update
+// replaces it in place), never the temporary copy macOS makes of an app
+// opened where it was downloaded (D476).
+func TestStableExecutableRefusesATemporaryCopy(t *testing.T) {
+	inApp := "/Applications/MetaRush.app/Contents/Helpers/metarush"
+	if got, err := stableFrom(inApp); err != nil || got != inApp {
+		t.Fatalf("the app's own copy: %q %v", got, err)
+	}
+	moved := "/private/var/folders/q1/x7/T/AppTranslocation/3F2A9C1E-0B1D-4E57-9A43-1C6E7B9D2F10/d/MetaRush.app/Contents/Helpers/metarush"
+	if _, err := stableFrom(moved); !errors.Is(err, ErrTemporaryCopy) {
+		t.Fatalf("a temporary copy: %v", err)
+	}
+}
+
 func TestLabels(t *testing.T) {
 	u := t.TempDir()
 	o := Options{Home: filepath.Join(u, ".metarush"), UserHome: u, OS: "darwin"}

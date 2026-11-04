@@ -109,7 +109,7 @@ database is started when it isn't running. (metarush init is the older, more tec
 	f.BoolVar(&o.init.yes, "yes", false, "take the suggested answer for every question not given as a flag")
 	f.BoolVar(&o.init.testDB, "test-db", false, "allow a throwaway metarush-test-* database (browser runs)")
 	_ = f.MarkHidden("test-db")
-	cmd.AddCommand(setupStatusCmd())
+	cmd.AddCommand(setupStatusCmd(), setupQuestionsCmd())
 	return cmd
 }
 
@@ -607,13 +607,7 @@ func (s *setupRun) chooseDatabase() error {
 func (s *setupRun) choosePort() error {
 	o := s.o
 	if o.init.port == 0 {
-		o.init.port = 4845
-		for p := 4845; p < 4900; p++ {
-			if portOpen(p) {
-				o.init.port = p
-				break
-			}
-		}
+		o.init.port = suggestedPort()
 		if s.prompt {
 			v := ask("The dashboard's port on this computer", strconv.Itoa(o.init.port))
 			if p, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
@@ -625,6 +619,16 @@ func (s *setupRun) choosePort() error {
 		return fail(s.c, apperr.InvalidInput, "That isn't a port the dashboard can use.", "Choose one above 1024.")
 	}
 	return nil
+}
+
+// suggestedPort is the dashboard's suggested port: 4845, or the next free one.
+func suggestedPort() int {
+	for p := 4845; p < 4900; p++ {
+		if portOpen(p) {
+			return p
+		}
+	}
+	return 4845
 }
 
 func portOpen(p int) bool {

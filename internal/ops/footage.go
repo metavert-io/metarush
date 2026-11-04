@@ -98,7 +98,7 @@ type AnalyzeIn struct {
 	AssetID    string `json:"assetId,omitempty"`
 	ProjectID  string `json:"projectId,omitempty"`
 	Transcribe *bool  `json:"transcribe,omitempty"`
-	// Visual looks at what's on screen too (Apple Vision on a Mac; default true when possible).
+	// Visual looks at what's on screen too (Apple Vision on a Mac, the open models elsewhere; default true when possible).
 	Visual *bool `json:"visual,omitempty"`
 	Force  bool  `json:"force,omitempty" jsonschema:"description=Re-run even if results exist."`
 }
@@ -240,7 +240,7 @@ func init() {
 			"The scene list is the raw hard-cut detection."
 		return out, nil
 	})
-	Def("footage.analyze", "Schedule local analysis (transcript, technical evidence, and what's on screen on a Mac) for an asset or a whole project", Flags{Mutating: true}, func(ctx context.Context, a *app.App, in *AnalyzeIn) (*AnalyzeOut, error) {
+	Def("footage.analyze", "Schedule local analysis (transcript, technical evidence, and what's on screen where a computer can look) for an asset or a whole project", Flags{Mutating: true}, func(ctx context.Context, a *app.App, in *AnalyzeIn) (*AnalyzeOut, error) {
 		filter := bson.M{"state": models.AssetAvailable}
 		switch {
 		case in.AssetID != "":
@@ -296,7 +296,7 @@ func init() {
 		}
 		out.Note = "The analysis runs in the background on a machine running MetaRush. The transcript, the pauses and what's on screen show up as each part finishes."
 		if noMac {
-			out.Note += " What's on screen was not looked at: that uses Apple Vision on a Mac, and no Mac in this workspace can do it yet."
+			out.Note += " What's on screen was not looked at: no computer in this workspace can yet. A Mac can, and any other computer once Seeing what's on screen is added in Settings → Components."
 		}
 		return out, nil
 	})

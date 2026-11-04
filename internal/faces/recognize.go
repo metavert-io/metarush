@@ -201,7 +201,7 @@ func (r *recognizer) decide(f models.FaceTrack, not map[string]bool) faceid.Deci
 	if v == nil || len(r.people) == 0 {
 		return faceid.Decision{}
 	}
-	return faceid.Decide(v, r.people, not, r.th)
+	return faceid.Decide(v, r.people, not, r.th.For(f.PrintsBy))
 }
 
 // Change is what re-scoring the library changed.
@@ -227,7 +227,7 @@ func Refresh(ctx context.Context, a *app.App, also string) (*Change, error) {
 		bson.M{"printModel": faceid.ModelName},
 		bson.M{"recognized": bson.M{"$ne": nil}},
 		bson.M{"candidate.by": bson.M{"$in": bson.A{"looks", "both"}}},
-	}}, &fs, options.Find().SetProjection(bson.M{"assetId": 1, "personId": 1, "confirmedBy": 1, "prints": 1, "printModel": 1, "rejected": 1,
+	}}, &fs, options.Find().SetProjection(bson.M{"assetId": 1, "personId": 1, "confirmedBy": 1, "prints": 1, "printModel": 1, "printsBy": 1, "rejected": 1,
 		"recognized": 1, "candidate": 1, "checked": 1, "group": 1, "skipped": 1, "quality": 1})); err != nil {
 		return nil, err
 	}
@@ -242,6 +242,7 @@ func Refresh(ctx context.Context, a *app.App, also string) (*Change, error) {
 		qs       []float64
 		rejected map[string]bool
 		cur      string
+		by       string // what found the faces (D448)
 	}
 	groups := map[string]*looksOf{}
 	for _, f := range fs {
@@ -283,6 +284,9 @@ func Refresh(ctx context.Context, a *app.App, also string) (*Change, error) {
 			g = &looksOf{asset: f.AssetID, rejected: map[string]bool{}}
 			groups[k] = g
 		}
+		if f.PrintsBy != "" {
+			g.by = f.PrintsBy
+		}
 		g.vecs = append(g.vecs, Vector(f))
 		g.qs = append(g.qs, f.Quality)
 		for _, r := range f.Rejected {
@@ -299,7 +303,7 @@ func Refresh(ctx context.Context, a *app.App, also string) (*Change, error) {
 		}
 		sug := ""
 		if len(rec.people) > 0 {
-			if d := faceid.Decide(c, rec.people, g.rejected, rec.th); len(d.Suggestions) > 0 {
+			if d := faceid.Decide(c, rec.people, g.rejected, rec.th.For(g.by)); len(d.Suggestions) > 0 {
 				sug = d.Suggestions[0].PersonID
 			}
 		}

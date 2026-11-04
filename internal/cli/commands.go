@@ -543,7 +543,7 @@ func footageCmd() *cobra.Command {
 	var an ops.AnalyzeIn
 	var noTx, noVisual, wait bool
 	analyze := &cobra.Command{
-		Use: "analyze", Short: "Prepare footage (again): transcripts, pauses and loud parts, and on a Mac what's on screen",
+		Use: "analyze", Short: "Prepare footage (again): transcripts, pauses and loud parts, and what's on screen where a computer can look",
 		RunE: func(c *cobra.Command, args []string) error {
 			if noTx {
 				f := false

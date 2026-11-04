@@ -80,7 +80,7 @@ func TestBackgroundRemovalConforms(t *testing.T) {
 	if len(*handed) == 0 || (*handed)[0] != "image/png" {
 		t.Fatalf("the mask was handed %v", *handed)
 	}
-	local.Masker = func(context.Context, aiservices.Env, string, string) (bool, error) { return false, nil }
+	local.Masker = func(context.Context, aiservices.Env, string, string, string) (bool, error) { return false, nil }
 	m, _ := aiservices.ModelFor(local.Name, aiservices.KindBackground, "")
 	req := aiconformance.SampleRequest(t, m, t.TempDir())
 	if _, err := a.Submit(aiservices.WithEnv(context.Background(), e), "", req); err == nil || !strings.Contains(err.Error(), "No subject was found") {

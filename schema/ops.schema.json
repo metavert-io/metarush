@@ -61678,6 +61678,57 @@
         "revisionId"
       ]
     },
+    "ScreenIndexHere": {
+      "properties": {
+        "backend": {
+          "type": "string",
+          "enum": [
+            "apple-vision",
+            "open-models"
+          ]
+        },
+        "supported": {
+          "type": "boolean"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "canSetUp": {
+          "type": "boolean"
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        },
+        "fix": {
+          "type": "string"
+        },
+        "engine": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sees": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "backend",
+        "supported",
+        "ready",
+        "text",
+        "engine",
+        "sees"
+      ]
+    },
     "ScriptView": {
       "properties": {
         "hasOriginal": {
@@ -72502,7 +72553,7 @@
       "properties": {
         "supported": {
           "type": "boolean",
-          "description": "This is a Mac (Apple Vision exists here)."
+          "description": "This computer can look at what's on screen at all (a Mac with Apple Vision, or macOS and Linux with the open models)."
         },
         "ready": {
           "type": "boolean"
@@ -72510,6 +72561,22 @@
         "canBuild": {
           "type": "boolean",
           "description": "The Xcode Command Line Tools can build the helper here."
+        },
+        "backend": {
+          "type": "string",
+          "enum": [
+            "apple-vision",
+            "open-models"
+          ]
+        },
+        "engine": {
+          "type": "string"
+        },
+        "sees": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "text": {
           "type": "string"
@@ -72524,6 +72591,9 @@
         "supported",
         "ready",
         "canBuild",
+        "backend",
+        "engine",
+        "sees",
         "text"
       ]
     },
@@ -72569,7 +72639,7 @@
         },
         "possible": {
           "type": "boolean",
-          "description": "This Mac or another Mac in the workspace can look at clips."
+          "description": "This computer or another computer in the workspace can look at clips."
         },
         "clips": {
           "type": "integer",
@@ -72639,6 +72709,20 @@
         },
         "summary": {
           "type": "string"
+        },
+        "lookedWith": {
+          "type": "string",
+          "enum": [
+            "",
+            "apple-vision",
+            "open-models"
+          ]
+        },
+        "notLookedFor": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "lines": {
           "items": {
@@ -74104,6 +74188,14 @@
           "maximum": 100,
           "minimum": 0,
           "description": "Defer heavy jobs only on battery"
+        },
+        "screenIndex": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "apple-vision",
+            "open-models"
+          ]
         }
       },
       "additionalProperties": false,
@@ -74192,6 +74284,14 @@
             "$ref": "#/$defs/WorkerLack"
           },
           "type": "array"
+        },
+        "screenIndex": {
+          "type": "string",
+          "enum": [
+            "",
+            "apple-vision",
+            "open-models"
+          ]
         },
         "concurrency": {
           "type": "integer"
@@ -74300,6 +74400,23 @@
         "configPath": {
           "type": "string"
         },
+        "screenIndex": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "apple-vision",
+            "open-models"
+          ]
+        },
+        "looksWith": {
+          "$ref": "#/$defs/ScreenIndexHere"
+        },
+        "screenIndexChoices": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "note": {
           "type": "string"
         }
@@ -74312,7 +74429,10 @@
         "heavyEnabled",
         "battery",
         "deferringHeavy",
-        "configPath"
+        "configPath",
+        "screenIndex",
+        "looksWith",
+        "screenIndexChoices"
       ]
     },
     "WorksItem": {
@@ -78650,7 +78770,7 @@
         "input",
         "output"
       ],
-      "description": "Schedule local analysis (transcript, technical evidence, and what's on screen on a Mac) for an asset or a whole project"
+      "description": "Schedule local analysis (transcript, technical evidence, and what's on screen where a computer can look) for an asset or a whole project"
     },
     "footage.captions": {
       "properties": {
@@ -79177,7 +79297,7 @@
         "input",
         "output"
       ],
-      "description": "Say whether clips get looked at (Apple Vision on a Mac), on this machine and in the workspace, and how many are done"
+      "description": "Say whether clips get looked at (Apple Vision on a Mac, the open models elsewhere), on this machine and in the workspace, and how many are done"
     },
     "footage.whatItDoes": {
       "properties": {
@@ -84719,7 +84839,7 @@
         "input",
         "output"
       ],
-      "description": "Change this installation's worker settings (heavy-job battery threshold) in its config.yaml; owners"
+      "description": "Change this installation's worker settings (heavy-job battery threshold, how it looks at what's on screen) in its config.yaml; owners"
     },
     "worker.list": {
       "properties": {
@@ -84753,7 +84873,7 @@
         "input",
         "output"
       ],
-      "description": "Show this installation's battery state and heavy-job battery policy"
+      "description": "Show this installation's battery state, heavy-job battery policy and how it looks at what's on screen"
     },
     "workspace.adopt": {
       "properties": {

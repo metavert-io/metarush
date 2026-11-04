@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/tools"
 )
@@ -27,6 +28,8 @@ type TagInput struct {
 	// Tools are this machine's programs (a tagger may run an allowlisted one,
 	// such as the on-device visual index's helper).
 	Tools *tools.Set
+	// Cfg is this machine's settings (how it looks at what's on screen, D408).
+	Cfg *config.Config
 }
 
 // Tagger suggests tags. Taggers run when a version is added and on refresh;

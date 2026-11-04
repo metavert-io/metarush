@@ -18,8 +18,14 @@ Measurements, run by hand when a recognizer or its settings change (build tag `v
 English recognizers' comparison, the loaded models against the CLI, and the multilingual path
 (`scripts/fetch-speech.sh` fetches openly licensed readings into the gitignored `tests/fixtures/speech/`,
 then `EVAL_SPEECH=tests/fixtures/speech EVAL_LANGS=es go test -tags voiceeval -run TestMultilingual
-./internal/transcribe/`, one language at a time). Content Credentials with the real c2patool, once on a computer that
-has it: `METARUSH_REAL_C2PATOOL=<c2patool> go test -tags c2pareal -run TestRealC2patool ./internal/c2pa/` (with
+./internal/transcribe/`, one language at a time). The open models that look at what's on screen are compared with
+Apple Vision the same way (build tag `screeneval`: `go run ./scripts/fetchscreenmodels <folder>`, then
+`METARUSH_SCREEN_MODELS=<folder> go test -tags screeneval ./internal/visionmodels/` on a Mac with the fixtures), and
+face recognition with them by `tools/vision/eval/faces.py --with open-models`. On every push their runners run on
+stand-in models with the real ones' shapes (`internal/onnx/onnxtest`, `internal/testutil/fakescreen`) through the
+onnxruntime CI takes from the transcriber's pinned Linux build (`scripts/ci-onnxruntime.sh`, `METARUSH_ORT_LIB`).
+Content Credentials with the real c2patool, once on a computer that has it:
+`METARUSH_REAL_C2PATOOL=<c2patool> go test -tags c2pareal -run TestRealC2patool ./internal/c2pa/` (with
 `TestRealC2patoolIsNoOracle`: another program trying to get a signature while the real c2patool signs)
 ([content-credentials.md](content-credentials.md)).
 
@@ -28,7 +34,7 @@ Fakes, so no test reaches a real service: `internal/assistant/fakeclaude` (Claud
 (rclone and its Google Drives; the real rclone is refused under `go test`), `fakec2patool` (c2patool, signing through
 MetaRush's own signer; the real one is refused under `go test` unless a test names it), `gcsemu`
 and gofakes3 (buckets), `dblink` (a database link a test can cut), `fakenode`, and a fake `brew` and `gh` where
-needed. Downloads are refused under `go test` (the stabilizer, the face model) unless a local copy is given, and so are
+needed. Downloads are refused under `go test` (the stabilizer, the face model, the open models) unless a local copy is given, and so are
 Google's and ElevenLabs' real addresses (a test that forgets its fake fails before anything is sent).
 
 ## What runs where and when
@@ -90,6 +96,9 @@ and leaves `browser.yml`'s matrix.
     https://huggingface.co/opencv/face_recognition_sface/resolve/3d7082438a6e4551e840c9b2bb60b71e8da4b524/face_recognition_sface_2021dec.onnx
   shasum -a 256 face_recognition_sface_2021dec.onnx   # 0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79
   ```
+- **The open models** for running `people` and `acceptance` with them on a Mac (D405): `go run
+  ./scripts/fetchscreenmodels <folder>` once, then `METARUSH_SCREEN_INDEX=open-models SCREEN_MODELS=<folder>` before
+  the script; the run links them into its own models folder beside this computer's speech models.
 
 ## How to run
 

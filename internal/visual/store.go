@@ -60,6 +60,29 @@ func Load(ctx context.Context, db *store.DB, workspaceID, assetID string) *Store
 	return LoadMany(ctx, db, workspaceID, []string{assetID})[assetID]
 }
 
+// LoadMedia reads an asset's latest index of exactly one media — a fixed
+// copy's (its SHA-256) or the original's ("") — never another's in its
+// place, as Load does when a fixed copy hasn't been looked at yet (nil when
+// that media has none; D467).
+func LoadMedia(ctx context.Context, db *store.DB, workspaceID, assetID, media string) (*Stored, error) {
+	var docs []struct {
+		AssetID   string    `bson:"assetId"`
+		Model     string    `bson:"model"`
+		CreatedAt time.Time `bson:"createdAt"`
+		Data      Index     `bson:"data"`
+	}
+	f := store.SameMedia(assetID, media)
+	f["kind"] = InsightKind
+	if err := db.Find(ctx, store.CInsights, workspaceID, f, &docs, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetLimit(1)); err != nil {
+		return nil, err
+	}
+	if len(docs) == 0 {
+		return nil, nil
+	}
+	d := &docs[0]
+	return &Stored{AssetID: d.AssetID, CreatedAt: d.CreatedAt, Model: d.Model, Index: &d.Data}, nil
+}
+
 // LoadFaces reads only where the faces are in each asset's latest index, and
 // where the eye is drawn and the footage's cuts (planning: framing that keeps
 // faces in frame or follows movement).

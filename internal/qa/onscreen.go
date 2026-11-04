@@ -71,7 +71,7 @@ func (r *run) onScreen(ctx context.Context) {
 	const name = "on_screen"
 	kinds := []string{"face_cut_off", "faces_covered", "graphic_covers_face", "text_under_captions"}
 	if len(r.in.OnScreen) == 0 {
-		why := "MetaRush hasn't looked at what's on screen in this footage yet (that needs a Mac), so faces and text in the footage weren't checked against the crop, the captions and the graphics"
+		why := "MetaRush hasn't looked at what's on screen in this footage yet (that needs a Mac, or a computer with Seeing what's on screen added), so faces and text in the footage weren't checked against the crop, the captions and the graphics"
 		if r.in.Look != nil {
 			why = "None of this cut's footage has been looked at yet, so faces and text in the footage weren't checked against the crop, the captions and the graphics"
 		}

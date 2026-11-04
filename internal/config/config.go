@@ -62,6 +62,8 @@ type Config struct {
 	Improve Improve `yaml:"improve,omitempty"`
 	// Recordings limits screen recordings received on this machine (D258).
 	Recordings Recordings `yaml:"recordings,omitempty"`
+	// ScreenIndex chooses how this computer looks at what's on screen (D408).
+	ScreenIndex ScreenIndex `yaml:"screenIndex,omitempty"`
 
 	home       string        `yaml:"-"`
 	secretMode string        `yaml:"-"` // inferred from the raw file when Secrets is empty
@@ -238,8 +240,49 @@ func (c *Config) SetHeavyBatteryThreshold(n int) {
 
 // liveSettings are values that change at runtime and are read concurrently.
 type liveSettings struct {
-	threshold atomic.Int32
-	remote    atomic.Pointer[Remote]
+	threshold   atomic.Int32
+	remote      atomic.Pointer[Remote]
+	screenIndex atomic.Pointer[string]
+}
+
+// ScreenIndex chooses how this computer looks at what's on screen (D408):
+// Apple Vision on a Mac, the open models on this computer everywhere else.
+type ScreenIndex struct {
+	// Backend: auto (the default: Apple Vision on a Mac, the open models
+	// elsewhere), apple-vision, or open-models (a Mac can be made to use the
+	// open models, to compare them with Apple Vision).
+	Backend string `yaml:"backend,omitempty"`
+}
+
+// Ways this computer can look at what's on screen (screenIndex.backend).
+const (
+	ScreenAuto        = "auto"
+	ScreenAppleVision = "apple-vision"
+	ScreenOpenModels  = "open-models"
+)
+
+// ScreenIndexChoice is screenIndex.backend as it is now: auto, apple-vision
+// or open-models (METARUSH_SCREEN_INDEX wins: tests and measurements).
+func (c *Config) ScreenIndexChoice() string {
+	if v := strings.TrimSpace(os.Getenv(EnvPrefix + "SCREEN_INDEX")); v != "" {
+		return v
+	}
+	if c.live != nil {
+		if p := c.live.screenIndex.Load(); p != nil {
+			return *p
+		}
+	}
+	if c.ScreenIndex.Backend == "" {
+		return ScreenAuto
+	}
+	return c.ScreenIndex.Backend
+}
+
+// SetScreenIndexChoice changes it for everything sharing this config (the
+// daemon's worker looks again at what it can do).
+func (c *Config) SetScreenIndexChoice(v string) {
+	c.ensureLive()
+	c.live.screenIndex.Store(&v)
 }
 
 func (c *Config) ensureLive() {

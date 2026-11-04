@@ -131,6 +131,17 @@ type groupState struct {
 	key    string
 }
 
+// printsBy is what found a clip's faces before they were fingerprinted
+// (D448): the first fingerprinted face's (one clip, one index).
+func printsBy(fs []models.FaceTrack) string {
+	for _, f := range fs {
+		if len(f.Prints) > 0 {
+			return f.PrintsBy
+		}
+	}
+	return ""
+}
+
 func (g *groupState) tracks() []int {
 	out := make([]int, 0, len(g.faces))
 	for _, f := range g.faces {
@@ -688,12 +699,13 @@ func (cf *clipFacts) suggest(g *groupState, rec *recognizer, namedHere map[strin
 	}
 	// How the faces look.
 	if g.centroid != nil && rec != nil && len(rec.people) > 0 {
-		d := faceid.Decide(g.centroid, rec.people, rejected, rec.th)
+		th := rec.th.For(printsBy(g.faces))
+		d := faceid.Decide(g.centroid, rec.people, rejected, th)
 		for i, m := range d.Suggestions {
 			if i > 0 {
 				break
 			}
-			w := math.Min(2.5, 1+(m.Score-rec.th.Suggest)*5)
+			w := math.Min(2.5, 1+(m.Score-th.Suggest)*5)
 			if s := add(m.PersonID, m.Name, false, w, "looks", models.BasisLooks, models.TodoEvidence{Kind: "looks", Score: m.Score,
 				Text: fmt.Sprintf("Looks like %s in other clips (%d%% alike).", m.Name, pct(m.Score))}); s != nil {
 				s.looks = m.Score

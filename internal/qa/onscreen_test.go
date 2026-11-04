@@ -168,3 +168,39 @@ func checkOf(rep *models.QAReport, name string) *models.QACheck {
 	}
 	return nil
 }
+
+// The on-screen check reads an index the open models made as it reads Apple
+// Vision's (D405, D411): faces with their five points and capture quality,
+// the sign's words at the open models' confidence, where the eye is drawn
+// from the faces, no labels; the same findings, the same fixes.
+func TestOnScreenReadsAnOpenModelsIndex(t *testing.T) {
+	ts := toolset(t)
+	var samples []visual.Sample
+	for at := 0.5; at < 6; at++ {
+		f := vision.Frame{W: 960, H: 540, Labels: []vision.Label{}, Animals: []vision.Detection{}, Humans: []vision.Detection{},
+			Text: []vision.Text{{S: "SALE ENDS SUNDAY", Conf: 1, Box: vision.Box{0.4, 0.86, 0.2, 0.05}}}}
+		box := vision.Box{0.82, 0.2, 0.12, 0.22}
+		if at >= 3 {
+			box = vision.Box{0.45, 0.72, 0.1, 0.2}
+		}
+		q, roll := 0.6, 0.0
+		f.Faces = []vision.Face{{Conf: 0.95, Box: box, Quality: &q, Roll: &roll, LMC: 0.95,
+			LM: [][2]float64{{box[0] + 0.03, box[1] + 0.07}, {box[0] + 0.08, box[1] + 0.07}, {box[0] + 0.06, box[1] + 0.11}, {box[0] + 0.04, box[1] + 0.15}, {box[0] + 0.08, box[1] + 0.15}}}}
+		f.Attention = &vision.Attention{At: [2]float64{box[0] + box[2]/2, box[1] + box[3]/2}, Peak: 0.95, Objects: []vision.Detection{{Conf: 0.95, Box: box}}}
+		samples = append(samples, visual.Sample{At: at, Frame: f})
+	}
+	idx := visual.Build(samples, 1, 60, []float64{3}, "proxy")
+	idx.Backend, idx.Sees = visual.BackendOpenModels, []string{"faces", "landmarks", "text", "attention"}
+	spec := walkSpec(editspec.FramingCenter)
+	plan := resolve(t, spec, facts(false))
+	path := render(t, ts, "540x960", 6, "", "")
+	rep := analyze(t, ts, path, plan, spec, func(in *Input) {
+		in.OnScreen = map[string]*visual.Index{astA: idx}
+		in.FaceNames = map[string]map[int]string{astA: {1: "Ada"}}
+	})
+	for _, k := range []string{"face_cut_off", "faces_covered", "text_under_captions"} {
+		if f := find(rep, k); f == nil || f.Fix == nil {
+			t.Fatalf("%s from the open models' index: %+v", k, f)
+		}
+	}
+}

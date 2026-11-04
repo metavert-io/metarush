@@ -265,7 +265,7 @@ var opBase = map[string]string{
 	"workspace.exports": "look at the workspace's exports",
 	"workspace.adopt":   "say this restored copy is now the workspace",
 	"workspace.restore": "restore the workspace from an export",
-	"worker.settings":   "check the battery settings", "worker.configure": "change the battery settings", "machine.list": "list machines", "machine.invite": "invite a machine",
+	"worker.settings":   "check this computer's battery and looking settings", "worker.configure": "change this computer's battery or looking settings", "machine.list": "list machines", "machine.invite": "invite a machine",
 	"machine.revoke": "remove a machine", "machine.rekeyPlan": "check what giving this machine its own storage key would do",
 	"machine.rekey": "give this machine its own storage key", "audit.list": "read the audit trail",
 	"machine.handover.plan": "check what handing this computer's role over would do", "machine.handover.status": "look at whether this computer hands its role over",

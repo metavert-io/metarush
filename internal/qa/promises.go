@@ -361,7 +361,7 @@ func (r *run) promiseCaptions(m measures.Measure) promiseResult {
 			switch {
 			case !read:
 				res.status, res.limit, res.unit = models.PromiseUnmeasured, nil, ""
-				res.measured = "The cut's own captions are off, and MetaRush couldn't read the captions the footage carries (that needs the footage looked at on a Mac)."
+				res.measured = "The cut's own captions are off, and MetaRush couldn't read the captions the footage carries (that needs the footage looked at, on a Mac or a computer with Seeing what's on screen added)."
 				return res
 			case share >= CaptionCoverage:
 				res.status, res.value = models.PromiseKept, num(share*100)
@@ -1009,7 +1009,7 @@ func (r *run) promiseFaces() promiseResult {
 		}
 	}
 	if check == nil || check.Status == "skipped" {
-		why := "MetaRush looks at faces only in footage it has indexed on a Mac."
+		why := "MetaRush looks at faces only in footage it has looked at (on a Mac, or a computer with Seeing what's on screen added)."
 		if check != nil && check.Detail != "" {
 			why = sentenceOf(check.Detail)
 		}

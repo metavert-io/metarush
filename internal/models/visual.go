@@ -62,8 +62,13 @@ type FaceTrack struct {
 	// model that made them (D114). Server side only: never sent to clients.
 	Prints     []FacePrint `bson:"prints,omitempty" json:"-"`
 	PrintModel string      `bson:"printModel,omitempty" json:"-"`
-	CreatedAt  time.Time   `bson:"createdAt" json:"createdAt"`
-	UpdatedAt  time.Time   `bson:"updatedAt" json:"updatedAt"`
+	// PrintsBy is what found the face and its five points before they were
+	// fingerprinted (D448): apple-vision or open-models; prints made before it
+	// was recorded are Apple Vision's. For measurements and tuning: matching
+	// treats both alike.
+	PrintsBy  string    `bson:"printsBy,omitempty" json:"-"`
+	CreatedAt time.Time `bson:"createdAt" json:"createdAt"`
+	UpdatedAt time.Time `bson:"updatedAt" json:"updatedAt"`
 }
 
 // FacePrint is one face fingerprint: when in the clip, how usable the frame

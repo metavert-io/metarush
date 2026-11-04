@@ -473,7 +473,8 @@ func EnqueueDerivatives(ctx context.Context, a *app.App, as *models.Asset, trans
 	if transcribe && as.Media.HasAudio {
 		add(jobs.TypeTranscribe, 6, true)
 	}
-	// What's on screen (Apple Vision on a Mac; D73): after the transcript, so a
+	// What's on screen (Apple Vision on a Mac, the open models elsewhere; D73,
+	// D405): after the transcript, so a
 	// face alone on screen while a named voice speaks can be asked about.
 	if as.Media.HasVideo && visualsPossible(ctx, a) {
 		add(jobs.TypeVisual, 3, true)

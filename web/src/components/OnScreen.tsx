@@ -27,7 +27,7 @@ export function clock(t: number): string {
 
 /**
  * The clip's "On screen" tab: what the on-device index saw (Apple Vision on a
- * Mac), line by line, the faces and whose they are (only where a person said
+ * Mac, the open models elsewhere), line by line, the faces and whose they are (only where a person said
  * so; "Is this …?" questions can be answered here), on-screen text, things
  * seen, and scene descriptions Claude Code wrote.
  */
@@ -50,7 +50,7 @@ export function OnScreenPanel({ asset, onSeek }: { asset: AssetSummary; onSeek: 
   const look = () =>
     analyze.mutate(
       { assetId: asset.id, transcribe: false, force: v.state === 'failed' },
-      { onSuccess: () => toast({ tone: 'info', title: "Looking at what's on screen", body: 'It runs on a Mac; big jobs wait while the battery is low.' }) },
+      { onSuccess: () => toast({ tone: 'info', title: "Looking at what's on screen", body: 'It runs on a computer in this workspace that can look; big jobs wait while the battery is low.' }) },
     );
   return (
     <div data-onscreen>
@@ -113,13 +113,18 @@ export function OnScreenPanel({ asset, onSeek }: { asset: AssetSummary; onSeek: 
       ) : v.state === 'none' ? (
         <EmptyState compact title="No picture" body="This clip has no video, so there is nothing on screen to look at." />
       ) : v.state === 'unavailable' ? (
-        <EmptyState compact icon={<Eye size={20} />} title="Needs a Mac" body="Seeing what's on screen uses Apple Vision, which runs on a Mac. When a Mac in this workspace runs MetaRush, it looks at your clips." />
+        <EmptyState
+          compact
+          icon={<Eye size={20} />}
+          title="No computer can look yet"
+          body="A Mac in this workspace looks at your clips with Apple Vision; any other computer does once Seeing what's on screen is added in Settings → Components."
+        />
       ) : (
         <EmptyState
           compact
           icon={<Eye size={20} />}
           title={v.state === 'failed' ? 'Could not look at this clip' : 'Not looked at yet'}
-          body={v.state === 'failed' ? v.note : 'MetaRush looks at about one frame a second on this Mac (nothing is uploaded): people and faces, the place, things and animals, and text on screen.'}
+          body={v.state === 'failed' ? v.note : 'MetaRush looks at about one frame a second on a computer in this workspace (nothing is uploaded): people and faces, the place, things and animals, and text on screen.'}
           action={
             <Button variant="secondary" size="sm" loading={analyze.isPending} onClick={look}>
               {v.state === 'failed' ? 'Try again' : 'Look now'}
@@ -128,7 +133,12 @@ export function OnScreenPanel({ asset, onSeek }: { asset: AssetSummary; onSeek: 
         />
       )}
       <Described asset={asset} described={v.described} onSeek={onSeek} />
-      {v.state === 'available' ? <p className="mt-4 text-[11.5px] leading-relaxed text-subtle">MetaRush's guesses, from about one frame a second. Names show only where you confirmed a face.</p> : null}
+      {v.state === 'available' ? (
+        <p className="mt-4 text-[11.5px] leading-relaxed text-subtle">
+          MetaRush's guesses, from about one frame a second. Names show only where you confirmed a face.
+          {v.lookedWith === 'open-models' ? ' Looked at with the open models, which find faces, read the words on screen and see what stands out, but don’t name places, things or animals.' : ''}
+        </p>
+      ) : null}
     </div>
   );
 }

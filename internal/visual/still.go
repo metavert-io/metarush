@@ -11,16 +11,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/resources"
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/vision"
 )
 
-// A picture added to the resources library (D79) is looked at once by the
-// same on-device helper as clips: what Apple Vision sees becomes suggested
-// tags, the words in it become the version's text, which search reads. On a
-// machine without the helper (not a Mac, or not built yet) nothing happens;
+// A picture added to the resources library (D79) is looked at once by what
+// looks at clips on this computer: what Apple Vision sees becomes suggested
+// tags, the words in it become the version's text, which search reads (the
+// open models read the words and suggest no tags, D411). On a machine that
+// can't look yet (no helper built, no open models added) nothing happens;
 // `metarush resources refresh` looks again later.
 
 func init() {
@@ -84,7 +86,11 @@ const lookMemo = 32
 // picture first (sips, macOS); a PDF is looked at through its first page
 // picture (D108).
 func lookAt(ctx context.Context, in resources.TagInput) *vision.Frame {
-	if in.Tools == nil || in.Version == nil || in.Path == "" || !in.Tools.Has(tools.Vision) {
+	if in.Tools == nil || in.Version == nil || in.Path == "" {
+		return nil
+	}
+	lk := stillLooker(ctx, in)
+	if lk == nil {
 		return nil
 	}
 	src := ""
@@ -116,7 +122,7 @@ func lookAt(ctx context.Context, in resources.TagInput) *vision.Frame {
 		defer cleanup()
 		src = png
 	}
-	f = analyzeStill(ctx, in.Tools, src)
+	f = analyzeStill(ctx, lk, src)
 	looks.Lock()
 	if _, had := looks.m[key]; !had {
 		looks.order = append(looks.order, key)
@@ -169,7 +175,16 @@ func rasterizeSVG(ctx context.Context, ts *tools.Set, svg string, w, h int) (str
 	return out, cleanup, nil
 }
 
-func analyzeStill(ctx context.Context, ts *tools.Set, path string) *vision.Frame {
+// stillLooker is what looks at a picture here: this computer's looker when
+// it is ready (never set up for a picture), else nil.
+var stillLooker = func(ctx context.Context, in resources.TagInput) Looker {
+	if lk := looker.Here(ctx, in.Cfg, in.Tools); lk != nil {
+		return lk
+	}
+	return nil
+}
+
+func analyzeStill(ctx context.Context, lk Looker, path string) *vision.Frame {
 	b, err := resources.StillJPEG(path, stillSide)
 	if err != nil {
 		return nil
@@ -185,7 +200,7 @@ func analyzeStill(ctx context.Context, ts *tools.Set, path string) *vision.Frame
 	cctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	var got *vision.Frame
-	if err := vision.Analyze(cctx, ts, dir, vision.Options{}, func(f vision.Frame) {
+	if err := lk.Analyze(cctx, dir, vision.Options{}, func(f vision.Frame) {
 		if f.Error == "" {
 			got = &f
 		}

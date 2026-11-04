@@ -73,7 +73,7 @@ export const AI_KINDS: { value: AIKind; label: string; what: string }[] = [
   {
     value: 'background-removal',
     label: 'Cut-out',
-    what: 'Take a picture’s background away (on this computer, free, on a Mac)',
+    what: 'Take a picture’s background away (on this computer, free: Apple Vision on a Mac, the cut-out model elsewhere)',
   },
   {
     value: 'upscale',

@@ -17,13 +17,31 @@
         "subject lifting"
       ],
       "needs": {
-        "os": [
-          "mac"
-        ],
         "setup": "local-apple-vision"
       },
       "cost": "free",
       "madeWith": "metarush/ai-cut-outs"
+    },
+    {
+      "id": "ai-cut-outs-open",
+      "name": "metarush/ai-cut-outs-open",
+      "group": "make",
+      "title": "AI cut-outs with BiRefNet",
+      "does": "Takes a picture's background away with an open model (BiRefNet) on this computer, as a new picture; nothing leaves it.",
+      "op": "ai.make",
+      "input": {
+        "kind": "background-removal",
+        "model": "local/birefnet"
+      },
+      "words": [
+        "background remover",
+        "transparent cut-out"
+      ],
+      "needs": {
+        "setup": "local-birefnet"
+      },
+      "cost": "free",
+      "madeWith": "metarush/ai-cut-outs-open"
     },
     {
       "id": "ai-larger-pictures",
@@ -707,9 +725,6 @@
         "recognize people"
       ],
       "needs": {
-        "os": [
-          "mac"
-        ],
         "setup": "on-screen-helper"
       },
       "cost": "free",
@@ -1140,7 +1155,7 @@
       "name": "metarush/remove-background",
       "group": "fix",
       "title": "A photo's subject",
-      "does": "Takes the background out of a photo or a logo, leaving its subject; a background that isn't one plain colour needs a Mac.",
+      "does": "Takes the background out of a photo or a logo, leaving its subject; a background that isn't one plain colour needs a Mac, or the cut-out model on other computers.",
       "op": "asset.fixes.set",
       "input": {
         "tick": [
@@ -1152,10 +1167,8 @@
         "transparent background"
       ],
       "needs": {
-        "os": [
-          "mac"
-        ],
-        "partly": "only plain-colour backgrounds"
+        "partly": "only plain-colour backgrounds",
+        "setup": "cut-outs"
       },
       "cost": "free",
       "madeWith": "metarush/remove-background"
@@ -1647,9 +1660,6 @@
         "what can be seen"
       ],
       "needs": {
-        "os": [
-          "mac"
-        ],
         "setup": "on-screen-helper"
       },
       "cost": "free",

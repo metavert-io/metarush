@@ -171,8 +171,8 @@ func (e *Env) Ready(ctx context.Context, name string) bool {
 // StateOf is one component's state.
 func (e *Env) StateOf(ctx context.Context, c *Component) ComponentState {
 	f := e.Find(ctx, c)
-	st := ComponentState{Name: c.Name, Title: c.Title, Unlocks: c.Unlocks, Features: append([]string{}, c.Features...), Required: c.Required,
-		Suggested: c.SuggestedHere(e), Ready: f.Ready, Size: c.Size(), Time: c.Time(), Licence: c.Licence, Needs: c.Needs,
+	st := ComponentState{Name: c.Name, Title: c.Title, Unlocks: e.unlocksOf(c), Features: append([]string{}, c.Features...), Required: c.Required,
+		Suggested: c.SuggestedHere(e), Ready: f.Ready, Size: e.sizeOf(c), Time: c.Time(), Licence: e.licenceOf(c), Needs: e.needsOf(c),
 		Version: f.Version, Path: f.Path, Detail: f.Detail}
 	if st.Features == nil {
 		st.Features = []string{}

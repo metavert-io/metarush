@@ -6,7 +6,10 @@
 # <command>.json and ends with <command>.status (default 0).
 # The answers are the Go-written fixtures (internal/cli TestMacAppFixtures). Never the
 # real program: it touches no service and no network, and in a home it only notes steps.
+# Inside a test app (Contents/Helpers/metarush) its answers are in Contents/Resources/stand-in,
+# since everything in Helpers must be signed code for the app's signature.
 D="$(cd "$(dirname "$0")" && pwd)"
+if [ -d "$D/../Resources/stand-in" ]; then D="$(cd "$D/../Resources/stand-in" && pwd)"; fi
 printf '%s\n' "$*" >>"$D/calls.log"
 args=" $* "
 case "$args" in

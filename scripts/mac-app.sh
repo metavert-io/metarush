@@ -10,15 +10,19 @@
 #       this Mac has one (environment or release-signing.env; notarized and stapled too with METARUSH_NOTARY_PROFILE),
 #       else ad hoc. Then MetaRush-<version>.zip (what Sparkle downloads) and MetaRush-<version>.dmg (the first
 #       download). The update key is the EdDSA public key: given, from METARUSH_SPARKLE_PUBLIC_KEY, or read from this
-#       Mac's keychain with --key-from-keychain (Sparkle's generate_keys -p); without one the app never updates.
+#       Mac's keychain with --key-from-keychain (Sparkle's generate_keys -p); without one the app never updates. A key
+#       given is checked against the keychain's when this Mac has one; the feed address must be https.
 #   scripts/mac-app.sh sign-update <archive> [--ed-key-file FILE|-] [--account NAME]
 #       the archive's EdDSA signature, by Sparkle's sign_update: the private key from this Mac's keychain (made once
 #       with `scripts/mac-app.sh tools` then generate_keys; docs/mac-app.md), or a key file (tests: made at run time)
 #   scripts/mac-app.sh appcast <archive> [--url URL] [--out FILE] [--ed-key-file FILE|-] [--account NAME]
-#       the feed entry for the archive (default <archive's folder>/appcast.xml), signed, with what's new from
-#       CHANGELOG.md; the URL defaults to the repository's release download for this version
+#       the feed entry for the archive (default <archive's folder>/appcast.xml), with what's new from CHANGELOG.md;
+#       the archive and the feed itself signed (SURequireSignedFeed), then both checked against the update key the
+#       archive's app carries, so a release the app would refuse never leaves this Mac; the URL defaults to the
+#       repository's release download for this version
 #   scripts/mac-app.sh test       the app's Swift tests (swift-testing with the Command Line Tools)
 #   scripts/mac-app.sh tools      fetch Sparkle's tools (pinned by SHA-256) into the cache and print their folder
+#                                 (METARUSH_SPARKLE_TOOLS names another folder of them: the tests')
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$ROOT/scripts/lib/status.sh" # an unset variable fails the script on macOS's bash 3.2 too; it ends with `exit 0`
@@ -68,6 +72,7 @@ repo_slug() {
 
 # sparkle_tools: Sparkle's release unpacked in the cache (checked against its SHA-256 before anything is kept).
 sparkle_tools() {
+  if [ -n "${METARUSH_SPARKLE_TOOLS:-}" ]; then echo "$METARUSH_SPARKLE_TOOLS"; return; fi
   local cache="${XDG_CACHE_HOME:-$HOME/Library/Caches}/metarush/sparkle/$SPARKLE_VERSION" tmp
   if [ -x "$cache/bin/sign_update" ]; then echo "$cache"; return; fi
   mkdir -p "$(dirname "$cache")"
@@ -137,16 +142,30 @@ cmd_build() {
     [ -n "$slug" ] || die "no feed address: this checkout has no GitHub remote (give --feed-url)"
     feed="https://github.com/$slug/releases/latest/download/appcast.xml"
   fi
+  case "$feed" in
+  https://?*) ;;
+  *) die "the feed address must be https (--feed-url $feed)" ;;
+  esac
   if [ -z "$bundle_id" ]; then
     [ -n "$slug" ] || die "no bundle identifier: this checkout has no GitHub remote (give --bundle-id)"
     bundle_id="io.github.$(printf '%s' "$slug" | tr '[:upper:]' '[:lower:]' | tr '/' '.' | tr -c 'a-z0-9.-' '-')"
   fi
   [ -n "$key" ] || key="$(read_setting METARUSH_SPARKLE_PUBLIC_KEY)"
+  local account
+  account="$(read_setting METARUSH_SPARKLE_ACCOUNT)"
   if [ -z "$key" ] && [ "$keychain" = 1 ]; then
-    local tools account
-    tools="$(sparkle_tools)"
-    account="$(read_setting METARUSH_SPARKLE_ACCOUNT)"
-    key="$("$tools/bin/generate_keys" -p ${account:+--account "$account"})" || die "no update key in this Mac's keychain (docs/mac-app.md, the release Mac's one-time steps)"
+    key="$("$(sparkle_tools)/bin/generate_keys" -p ${account:+--account "$account"})" || die "no update key in this Mac's keychain (docs/mac-app.md, the release Mac's one-time steps)"
+  elif [ -n "$key" ]; then
+    # A key given (a flag, the environment, release-signing.env) must be the one this Mac signs with: an app
+    # built with another refuses every update signed here, for good.
+    go run ./scripts/macapp check-key "$key" || die "the update key given isn't an EdDSA public key"
+    local mine
+    if mine="$("$(sparkle_tools)/bin/generate_keys" -p ${account:+--account "$account"} 2>/dev/null)" && [ -n "$mine" ]; then
+      [ "$mine" = "$key" ] || die "the update key given isn't the one in this Mac's keychain: an app built with it would refuse every update signed here"
+      ok "the update key is this Mac's (its keychain)"
+    else
+      note "this Mac's keychain has no update key to check it against: appcast checks every signature against the app's key before release"
+    fi
   fi
   [ -n "$key" ] || key="__ED_PUBLIC_KEY__"
 
@@ -191,9 +210,16 @@ cmd_build() {
   for rp in $(otool -l "$app/Contents/MacOS/MetaRush" | awk '/LC_RPATH/{getline; getline; print $2}' | grep '^/Library/Developer/' || true); do
     install_name_tool -delete_rpath "$rp" "$app/Contents/MacOS/MetaRush" 2>/dev/null || true
   done
-  sed -e "s|__BUNDLE_ID__|$bundle_id|" -e "s|__VERSION__|$version|" -e "s|__BUNDLE_VERSION__|$bundle_version|" \
-    -e "s|__COMMIT__|$commit|" -e "s|__FEED_URL__|$feed|" -e "s|__ED_PUBLIC_KEY__|$key|" "$PKG/Info.plist" >"$app/Contents/Info.plist"
-  plutil -lint "$app/Contents/Info.plist" >/dev/null
+  # The template's __NAMES__ filled in by plutil, value by value (no text substitution: an address may hold & or |).
+  local info="$app/Contents/Info.plist" k v
+  cp "$PKG/Info.plist" "$info"
+  for k in CFBundleIdentifier=bundle_id CFBundleShortVersionString=version CFBundleVersion=bundle_version MetaRushCommit=commit \
+    SUFeedURL=feed SUPublicEDKey=key; do
+    v="${k#*=}"
+    plutil -replace "${k%%=*}" -string "${!v}" "$info"
+  done
+  plutil -lint "$info" >/dev/null
+  ! grep -q "__[A-Z_]*__" "$info" || [ "$key" = "__ED_PUBLIC_KEY__" ] || die "Info.plist still has a name to fill in"
   "$harness" icon "$work/AppIcon.iconset" >/dev/null
   iconutil -c icns "$work/AppIcon.iconset" -o "$app/Contents/Resources/AppIcon.icns"
   cp "$PKG/THIRD_PARTY.md" "$app/Contents/Resources/THIRD_PARTY.md"
@@ -275,20 +301,23 @@ cmd_sign_update() {
 
 cmd_appcast() {
   [ $# -ge 1 ] || usage
-  local archive="$1" url="" out="" opts=()
+  local archive="$1" url="" out="" opts=() stdin_key=""
   shift
   while [ $# -gt 0 ]; do
     case "$1" in
     --url) url="${2:?}"; shift ;;
     --out) out="${2:?}"; shift ;;
-    --ed-key-file) opts+=(--ed-key-file "${2:?}"); shift ;;
+    --ed-key-file) opts+=(--ed-key-file "${2:?}"); [ "$2" != - ] || stdin_key=1; shift ;;
     --account) opts+=(--account "${2:?}"); shift ;;
     *) usage ;;
     esac
     shift
   done
   [ -f "$archive" ] || die "no archive at $archive"
-  local work plist short bundle minsys slug sig
+  # A key on the standard input signs twice (the archive, then the feed): read once, kept in memory only.
+  local key_in=""
+  [ -z "$stdin_key" ] || key_in="$(cat)"
+  local work plist short bundle minsys slug sig pub
   WORK="$(mktemp -d "${TMPDIR:-/tmp}/metarush-appcast-XXXXXX")"
   work="$WORK"
   ditto -x -k "$archive" "$work"
@@ -297,16 +326,28 @@ cmd_appcast() {
   short="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")"
   bundle="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")"
   minsys="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist")"
+  pub="$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$plist" 2>/dev/null || true)"
+  case "$pub" in "" | __ED_PUBLIC_KEY__) die "the app in this archive has no update key, so it would never update: build it with the key (docs/mac-app.md)" ;; esac
   slug="$(repo_slug)"
   if [ -z "$url" ]; then
     [ -n "$slug" ] || die "no address for the archive: give --url"
     url="https://github.com/$slug/releases/download/v$short/$(basename "$archive")"
   fi
   [ -n "$out" ] || out="$(dirname "$archive")/appcast.xml"
-  sig="$(signature "$archive" ${opts[@]+"${opts[@]}"})"
+  local tools
+  tools="$(sparkle_tools)"
+  sign_with() { # sign_with <sign_update arguments…>: the key from the standard input when it came that way
+    if [ -n "$stdin_key" ]; then printf '%s\n' "$key_in" | "$tools/bin/sign_update" "$@"; else "$tools/bin/sign_update" "$@"; fi
+  }
+  sig="$(sign_with -p ${opts[@]+"${opts[@]}"} "$archive")"
   go run ./scripts/macapp appcast --archive "$archive" --url "$url" --short-version "$short" --version "$bundle" --minimum-system "$minsys" \
     --signature "$sig" --changelog "$ROOT/CHANGELOG.md" ${slug:+--link "https://github.com/$slug"} --out "$out"
-  ok "$out: MetaRush $short ($bundle), signed, from $url"
+  # The feed signed too (SURequireSignedFeed): sign_update writes its signature into the file.
+  sign_with ${opts[@]+"${opts[@]}"} "$out" >/dev/null
+  # Both checked against the key the archive's app carries: a key mix-up stops here, before anything is published.
+  go run ./scripts/macapp verify --public-key "$pub" --archive "$archive" --signature "$sig" --feed "$out" ||
+    die "the signatures don't match the update key in the app: the app would refuse this release (a different key signed it)"
+  ok "$out: MetaRush $short ($bundle), the archive and the feed signed and checked against the app's key, from $url"
 }
 
 cmd_test() {

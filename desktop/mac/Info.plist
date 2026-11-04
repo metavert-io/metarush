@@ -7,7 +7,10 @@
   one), the feed address (the repository's latest release unless given another) and the update
   key: the EdDSA public key of the release Mac (Sparkle's generate_keys, or one given to the
   build). The key stays this placeholder in the repository; a build without a real one never
-  updates (docs/mac-app.md).
+  updates (docs/mac-app.md). Sparkle checks an update's EdDSA signature before it unpacks
+  anything, with no fallback to the app's code signature (SUVerifyUpdateBeforeExtraction),
+  and takes only a feed signed with the same key (SURequireSignedFeed): both from the first
+  release on, since an app without them would accept an unsigned feed (D471).
 -->
 <plist version="1.0">
 <dict>
@@ -46,6 +49,10 @@
 	<key>SUPublicEDKey</key>
 	<string>__ED_PUBLIC_KEY__</string>
 	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
+	<key>SURequireSignedFeed</key>
 	<true/>
 </dict>
 </plist>

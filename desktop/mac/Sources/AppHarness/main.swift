@@ -43,12 +43,14 @@ final class AcceptingDriver: NSObject, SPUUserDriver {
     func showUpdaterError(_ error: Error, acknowledgement: @escaping () -> Void) {
         let e = error as NSError
         var underlying: [Int] = []
+        var said: [String] = []
         var u = e.userInfo[NSUnderlyingErrorKey] as? NSError
         while let x = u {
             underlying.append(x.code)
+            said.append(x.localizedDescription)
             u = x.userInfo[NSUnderlyingErrorKey] as? NSError
         }
-        out(["error": e.code, "underlying": underlying, "message": e.localizedDescription])
+        out(["error": e.code, "underlying": underlying, "underlyingMessages": said, "message": e.localizedDescription])
         acknowledgement()
         exit(2)
     }
@@ -56,7 +58,9 @@ final class AcceptingDriver: NSObject, SPUUserDriver {
     func showDownloadDidReceiveExpectedContentLength(_ expectedContentLength: UInt64) {}
     func showDownloadDidReceiveData(ofLength length: UInt64) {}
     func showDownloadDidStartExtractingUpdate() { say("extracting") }
-    func showExtractionReceivedProgress(_ progress: Double) {}
+    /// The archive being unpacked (progress from the unarchiver itself): what an
+    /// update with a bad signature must never reach (SUVerifyUpdateBeforeExtraction).
+    func showExtractionReceivedProgress(_ progress: Double) { say("unpacking \(progress)") }
     func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) { reply(.install) }
     func showInstallingUpdate(withApplicationTerminated applicationTerminated: Bool, retryTerminatingApplication: @escaping () -> Void) {
         say("installing")

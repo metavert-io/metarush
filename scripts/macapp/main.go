@@ -1,12 +1,15 @@
 // macapp is scripts/mac-app.sh's Go side (D477, D479): the bundle version Sparkle
-// compares, and the appcast entry for a built MetaRush.app archive.
+// compares, the appcast entry for a built MetaRush.app archive, and the checks
+// of an update key and of a release's signatures against the key its app carries.
 //
 //	go run ./scripts/macapp bundle-version 0.16.0-dev.3        → 0.16.0.3
 //	go run ./scripts/macapp appcast --archive MetaRush-0.16.0.zip --url <its address> \
 //	    --short-version 0.16.0 --version 0.16.0 --minimum-system 13.0 --signature <EdDSA, base64> \
 //	    [--changelog CHANGELOG.md] [--title MetaRush] [--link <project page>] [--date <RFC 3339>] --out appcast.xml
+//	go run ./scripts/macapp check-key <public key>             an EdDSA public key (32 bytes, base64)?
+//	go run ./scripts/macapp verify --public-key <the app's SUPublicEDKey> --archive <zip> --signature <sig> --feed appcast.xml
 //
-// It never signs anything: the signature comes from Sparkle's sign_update (scripts/mac-app.sh sign-update).
+// It never signs anything: the signatures come from Sparkle's sign_update (scripts/mac-app.sh).
 package main
 
 import (
@@ -34,6 +37,17 @@ func main() {
 		fmt.Println(v)
 	case "appcast":
 		if err := appcast(os.Args[2:]); err != nil {
+			fail(err)
+		}
+	case "check-key":
+		if len(os.Args) != 3 {
+			usage()
+		}
+		if err := macapp.CheckPublicKey(os.Args[2]); err != nil {
+			fail(err)
+		}
+	case "verify":
+		if err := verify(os.Args[2:]); err != nil {
 			fail(err)
 		}
 	default:
@@ -85,8 +99,32 @@ func appcast(args []string) error {
 	return os.WriteFile(*out, b, 0o644)
 }
 
+func verify(args []string) error {
+	fs := flag.NewFlagSet("verify", flag.ExitOnError)
+	key := fs.String("public-key", "", "the update key the app carries (SUPublicEDKey)")
+	archive := fs.String("archive", "", "the zip Sparkle downloads")
+	sig := fs.String("signature", "", "its EdDSA signature")
+	feed := fs.String("feed", "", "the signed appcast")
+	_ = fs.Parse(args)
+	if *key == "" || *archive == "" || *sig == "" || *feed == "" {
+		return fmt.Errorf("--public-key, --archive, --signature and --feed are needed")
+	}
+	a, err := os.ReadFile(*archive)
+	if err != nil {
+		return err
+	}
+	if err := macapp.VerifyArchive(a, *sig, *key); err != nil {
+		return err
+	}
+	f, err := os.ReadFile(*feed)
+	if err != nil {
+		return err
+	}
+	return macapp.VerifyFeed(f, *key)
+}
+
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: go run ./scripts/macapp bundle-version <version> | appcast --archive <zip> --url <address> --short-version <v> --version <bundle v> --signature <sig> [--changelog CHANGELOG.md] --out <file>")
+	fmt.Fprintln(os.Stderr, "usage: go run ./scripts/macapp bundle-version <version> | appcast --archive <zip> --url <address> --short-version <v> --version <bundle v> --signature <sig> [--changelog CHANGELOG.md] --out <file> | check-key <public key> | verify --public-key <key> --archive <zip> --signature <sig> --feed <appcast>")
 	os.Exit(2)
 }
 

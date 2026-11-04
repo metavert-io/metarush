@@ -138,6 +138,9 @@ func ParseIndex(b []byte) (*models.CatalogueCopy, error) {
 	if !utf8.Valid(b) {
 		return nil, notAnIndex("it isn't text")
 	}
+	if why := strictKeys(b, reflect.TypeOf(indexDoc{})); why != "" {
+		return nil, notAnIndex("%s", why)
+	}
 	var doc indexDoc
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
@@ -148,7 +151,7 @@ func ParseIndex(b []byte) (*models.CatalogueCopy, error) {
 			return nil, notAnIndex("its %s isn't what an index says there", plainField(un.Field))
 		case strings.HasPrefix(err.Error(), "json: unknown field "):
 			field := strings.Trim(strings.TrimPrefix(err.Error(), "json: unknown field "), `"`)
-			return nil, notAnIndex("it has a field this MetaRush doesn't know (%s)", clean(field, 40))
+			return nil, notAnIndex("%s", withWord("it has a field this MetaRush doesn't know", field, ""))
 		}
 		return nil, notAnIndex("it isn't an index in the form MetaRush reads")
 	}
@@ -158,7 +161,7 @@ func ParseIndex(b []byte) (*models.CatalogueCopy, error) {
 	switch {
 	case doc.Format == IndexFormat:
 	case strings.HasPrefix(doc.Format, indexFormatPrefix):
-		return nil, apperr.New(apperr.InvalidInput, "That catalogue is in a newer format (%s) than this MetaRush reads.", clean(doc.Format, 60)).
+		return nil, apperr.New(apperr.InvalidInput, "%s.", withWord("That catalogue is in a newer format than this MetaRush reads", doc.Format, "")).
 			WithHint("A newer MetaRush reads it.")
 	default:
 		return nil, notAnIndex("it doesn't say it is one (its format should be %s)", IndexFormat)
@@ -200,7 +203,7 @@ func ParseIndex(b []byte) (*models.CatalogueCopy, error) {
 	out.Signed = len(doc.Signatures) > 0
 	for _, r := range doc.Revoked {
 		if !ValidHash(r.Archive) {
-			return nil, notAnIndex("a version it takes back isn't named by its archive's SHA-256")
+			return nil, notAnIndex("a version it takes back isn't named by its fingerprint (64 characters, 0–9 and a–f)")
 		}
 		r.Name, _ = indexLine(r.Name, NameMax)
 		if !ValidName(r.Name) {
@@ -237,26 +240,32 @@ func ParseIndex(b []byte) (*models.CatalogueCopy, error) {
 
 // parseEntry reads one entry strictly; why says why it is left out.
 func parseEntry(raw json.RawMessage) (models.CatalogueEntry, string) {
+	// Its name, if it has one, says which entry is left out.
+	named := func() models.CatalogueEntry {
+		var n struct {
+			Name string `json:"name"`
+		}
+		_ = json.Unmarshal(raw, &n)
+		if ValidName(n.Name) {
+			return models.CatalogueEntry{Name: n.Name}
+		}
+		return models.CatalogueEntry{}
+	}
+	if why := strictKeys(raw, reflect.TypeOf(IndexEntry{})); why != "" {
+		return named(), why
+	}
 	var ie IndexEntry
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&ie); err != nil {
-		// Its name, if it has one, says which entry it is.
-		var named struct {
-			Name string `json:"name"`
-		}
-		_ = json.Unmarshal(raw, &named)
-		e := models.CatalogueEntry{}
-		if ValidName(named.Name) {
-			e.Name = named.Name
-		}
+		e := named()
 		var un *json.UnmarshalTypeError
 		switch {
 		case errors.As(err, &un):
 			return e, fmt.Sprintf("its %s isn't what an index says there", plainField(un.Field))
 		case strings.HasPrefix(err.Error(), "json: unknown field "):
 			field := strings.Trim(strings.TrimPrefix(err.Error(), "json: unknown field "), `"`)
-			return e, fmt.Sprintf("it has a field this MetaRush doesn't know (%s); a newer MetaRush may read it", clean(field, 40))
+			return e, withWord("it has a field this MetaRush doesn't know", field, "; a newer MetaRush may read it")
 		}
 		return e, "it isn't in the form an index lists an ability"
 	}
@@ -320,7 +329,7 @@ func cleanEntry(e models.CatalogueEntry) (models.CatalogueEntry, string) {
 		return e, why
 	}
 	if !ValidHash(e.Archive) {
-		return e, "its archive should be named by its SHA-256 (64 lowercase hex characters)"
+		return e, "its version should be named by its fingerprint (64 characters, 0–9 and a–f)"
 	}
 	if e.Licence, ok = indexLine(e.Licence, 80); !ok || e.Licence == "" {
 		return e, "its licence should be one to 80 characters"
@@ -339,7 +348,7 @@ func cleanEntry(e models.CatalogueEntry) (models.CatalogueEntry, string) {
 	}
 	for _, h := range e.Hosts {
 		if why := hostProblem(h); why != "" {
-			return e, fmt.Sprintf("a host it names (%s): %s", clean(h, 80), why)
+			return e, withWord("a host it names", h, ": "+why)
 		}
 	}
 	if len(e.Keys) > 8 {
@@ -354,7 +363,7 @@ func cleanEntry(e models.CatalogueEntry) (models.CatalogueEntry, string) {
 		}
 		for _, h := range k.Hosts {
 			if why := hostProblem(h); why != "" {
-				return e, fmt.Sprintf("a host its %s key goes to (%s): %s", k.Name, clean(h, 80), why)
+				return e, withWord("a host its "+k.Name+" key goes to", h, ": "+why)
 			}
 		}
 		if len(k.Hosts) == 0 {
@@ -367,7 +376,7 @@ func cleanEntry(e models.CatalogueEntry) (models.CatalogueEntry, string) {
 	for k, v := range e.AI {
 		switch {
 		case !slices.Contains(e.Outputs, k):
-			return e, fmt.Sprintf("it says what AI does to %s, which it doesn't list among what it brings back", clean(k, 20))
+			return e, withWord("it says what AI does to a kind of thing", k, ", which it doesn't list among what it brings back")
 		case !slices.Contains(models.AIDeclarations, v):
 			return e, "what AI does to what it brings back should be made, edited, enhanced or none"
 		}
@@ -387,6 +396,27 @@ func cleanEntry(e models.CatalogueEntry) (models.CatalogueEntry, string) {
 		if l.Service, ok = indexLine(l.Service, 60); !ok || l.Service == "" {
 			return e, "its service on the computer should be named in one to 60 characters"
 		}
+	}
+	if len(e.Files) > 4 {
+		return e, "it reads more than 4 files an owner sets up"
+	}
+	files := map[string]bool{}
+	for i, f := range e.Files {
+		switch {
+		case !keyNameRe.MatchString(f.Name):
+			return e, "a file it reads should be named with lowercase letters, digits and dashes"
+		case files[f.Name]:
+			return e, withWord("it names a file it reads", f.Name, " twice")
+		case f.Kind != "" && !slices.Contains(FileKinds, f.Kind):
+			return e, withWord("a file it reads is of a kind this MetaRush doesn't know", f.Kind, "; a newer MetaRush may read it")
+		}
+		files[f.Name] = true
+		if e.Files[i].Says, ok = indexLine(f.Says, 200); !ok || e.Files[i].Says == "" {
+			return e, "what each file it reads is should be said in one to 200 characters"
+		}
+	}
+	if e.Terms, ok = indexLine(e.Terms, 300); !ok {
+		return e, "its service's terms should be one line of at most 300 characters"
 	}
 	if len(e.Programs) > 8 {
 		return e, "it needs more than 8 programs"
@@ -433,11 +463,11 @@ func listProblem(what string, xs []string, max int, allowed []string) string {
 	seen := map[string]bool{}
 	for _, x := range xs {
 		if seen[x] {
-			return fmt.Sprintf("its %s list says %s twice", what, clean(x, 30))
+			return withWord("its "+what+" list says one thing twice", x, "")
 		}
 		seen[x] = true
 		if !slices.Contains(allowed, x) {
-			return fmt.Sprintf("its %s list has %s, which this MetaRush doesn't know; a newer MetaRush may read it", what, clean(x, 30))
+			return withWord("its "+what+" list has something this MetaRush doesn't know", x, "; a newer MetaRush may read it")
 		}
 	}
 	return ""
@@ -473,7 +503,7 @@ func sourceProblem(s models.CatalogueSource) string {
 			return "its repository should be a GitHub repository's address (https://github.com/owner/name)"
 		}
 		if !sha40Re.MatchString(g.Commit) {
-			return "its commit should be named in full (40 lowercase hex characters)"
+			return "its commit should be named in full (40 characters, 0–9 and a–f)"
 		}
 		if g.Path != "" && !repoFolderPath(g.Path) {
 			return "its folder in the repository should be a plain path (letters, digits, dots, dashes and underscores; no hidden folders)"
@@ -483,7 +513,7 @@ func sourceProblem(s models.CatalogueSource) string {
 			return "its ability file " + why
 		}
 		if !ValidHash(s.File.SHA256) {
-			return "its ability file should be named by its SHA-256 (64 lowercase hex characters)"
+			return "its ability file should be named by its fingerprint (64 characters, 0–9 and a–f)"
 		}
 	default:
 		return "it should say where its files are: a repository's commit and folder, or an ability file"
@@ -508,9 +538,13 @@ func repoFolderPath(p string) bool {
 	return true
 }
 
-// webAddressProblem checks an address an index gives: https, a host, no
-// sign-in or fragment, never this computer or a local network (a file's
-// address may be this computer's only in tests, D482).
+// webAddressProblem checks an address an index (or an owner) gives: https, a
+// host, no sign-in, no part after ? (where sign-ins and keys hide: a private
+// file's raw address carries one there, and an address is kept, shown to
+// everyone here and AI readers too, written in the activity log and copied
+// into every version brought in) and none after #, never this computer or a
+// local network (a fetched address may be this computer's only in tests,
+// D482).
 func webAddressProblem(raw string, fetched bool) string {
 	if len(raw) > 500 {
 		return "should be an address of at most 500 characters"
@@ -523,6 +557,8 @@ func webAddressProblem(raw string, fetched bool) string {
 		return "should be a secure address (https)"
 	case u.User != nil:
 		return "should be an address without a sign-in in it"
+	case u.RawQuery != "" || u.ForceQuery || strings.Contains(raw, "?"):
+		return "should be an address without a part after ? (sign-ins and keys hide there)"
 	case u.Fragment != "" || strings.Contains(raw, "#"):
 		return "should be an address without a part after #"
 	case resources.LocalAddress(u.Hostname()) && !(fetched && testLoopback(u.Hostname())):
@@ -540,13 +576,165 @@ func validDate(s string) bool {
 	return err == nil
 }
 
-// plainField names a field of the index for people.
+// plainField names a field of the index for people (in quotes, as the index
+// spells it), or says "content" when its name isn't a plain word.
 func plainField(f string) string {
-	if f == "" {
-		return "content"
-	}
 	parts := strings.Split(f, ".")
-	return clean(parts[len(parts)-1], 40)
+	if w := theirWord(parts[len(parts)-1]); w != "" {
+		return "field " + w
+	}
+	return "content"
+}
+
+// plainWordRe is what MetaRush repeats of an index in its own sentences
+// (D483): letters, digits and . _ - / : + * only, at most 60 characters.
+// Anything else — spaces, quotes, hidden or reordering characters — is never
+// repeated: an index's words reach people and AI readers in MetaRush's
+// sentences only as such a word, in quotes.
+var plainWordRe = regexp.MustCompile(`^[A-Za-z0-9._/:+*-]{1,60}$`)
+
+// theirWord is an index's word in quotes when it is plain, else "".
+func theirWord(s string) string {
+	if plainWordRe.MatchString(s) {
+		return "“" + s + "”"
+	}
+	return ""
+}
+
+// withWord says what without the index's word when it isn't plain, else
+// with it in quotes: "a host it names (“API.example.com”): …".
+func withWord(what, word, rest string) string {
+	if w := theirWord(word); w != "" {
+		return what + " (" + w + ")" + rest
+	}
+	return what + rest
+}
+
+// strictKeys refuses what encoding/json would quietly let through (D480): a
+// key twice in one object (the last would win) and a key spelled otherwise
+// than its field's own name (encoding/json matches names whatever their
+// case), at every depth of t, so what a person or a JSON Schema validator
+// reads in an index is what MetaRush uses. What sits under a
+// json.RawMessage (each listing, read on its own; signatures, never read) is
+// only walked over. "" when nothing is wrong, or when it isn't JSON (the
+// decoder after it says so).
+func strictKeys(b []byte, t reflect.Type) string {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	why, err := walkKeys(dec, t)
+	if err != nil {
+		return ""
+	}
+	return why
+}
+
+var rawMessageType = reflect.TypeOf(json.RawMessage(nil))
+
+func walkKeys(dec *json.Decoder, t reflect.Type) (string, error) {
+	tok, err := dec.Token()
+	if err != nil {
+		return "", err
+	}
+	for t != nil && t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t == rawMessageType {
+		t = nil
+	}
+	d, ok := tok.(json.Delim)
+	if !ok {
+		return "", nil
+	}
+	switch d {
+	case '{':
+		var fields map[string]reflect.Type
+		var elem reflect.Type
+		if t != nil {
+			switch t.Kind() {
+			case reflect.Struct:
+				fields = jsonFields(t)
+			case reflect.Map:
+				elem = t.Elem()
+			}
+		}
+		seen := map[string]bool{}
+		for dec.More() {
+			kt, err := dec.Token()
+			if err != nil {
+				return "", err
+			}
+			k, _ := kt.(string)
+			if t != nil && seen[strings.ToLower(k)] { // what isn't read here isn't judged here
+				return withWord("it has a field twice", k, ""), nil
+			}
+			seen[strings.ToLower(k)] = true
+			next := elem
+			if fields != nil {
+				ft, ok := fields[k]
+				if !ok {
+					for name := range fields {
+						if strings.EqualFold(name, k) {
+							return withWord("it writes a field's name in other letters than the format", k, ", whose names are exact"), nil
+						}
+					}
+				}
+				next = ft // nil when unknown: the decoder says so
+			}
+			if why, err := walkKeys(dec, next); why != "" || err != nil {
+				return why, err
+			}
+		}
+		_, err := dec.Token()
+		return "", err
+	case '[':
+		var elem reflect.Type
+		if t != nil && (t.Kind() == reflect.Slice || t.Kind() == reflect.Array) {
+			elem = t.Elem()
+		}
+		for dec.More() {
+			if why, err := walkKeys(dec, elem); why != "" || err != nil {
+				return why, err
+			}
+		}
+		_, err := dec.Token()
+		return "", err
+	}
+	return "", nil
+}
+
+// jsonFields are a struct's JSON names and their types, with embedded
+// structs' fields as encoding/json reads them.
+func jsonFields(t reflect.Type) map[string]reflect.Type {
+	out := map[string]reflect.Type{}
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if name == "-" {
+			continue
+		}
+		if f.Anonymous && name == "" {
+			ft := f.Type
+			if ft.Kind() == reflect.Pointer {
+				ft = ft.Elem()
+			}
+			if ft.Kind() == reflect.Struct {
+				for k, v := range jsonFields(ft) {
+					if _, ok := out[k]; !ok {
+						out[k] = v
+					}
+				}
+				continue
+			}
+		}
+		if !f.IsExported() {
+			continue
+		}
+		if name == "" {
+			name = f.Name
+		}
+		out[name] = f.Type
+	}
+	return out
 }
 
 func ordinal(n int) string {

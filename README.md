@@ -1153,8 +1153,9 @@ person each time.
   and needs, its publisher, licence and whether it is here — in **Library → Abilities → Browse catalogues** or
   `metarush ability browse`: the catalogue's word, "listed, not checked by MetaRush". A person brings one in
   (**Bring it in…**, `ability import --from-catalogue <catalogue>:<name>`): MetaRush fetches exactly the version
-  listed, refuses it unless it is that version and says what the listing says, and it comes in as a draft to check
-  here and approve. Maintainers make the index with `metarush ability catalogues make`
+  listed — from a commit the repository's own branches or tags hold — refuses it unless it is that version and says
+  what the listing says, and it comes in as a draft to check here and approve. When a catalogue takes back a version
+  you brought in, the owners are asked on To-dos. Maintainers make the index with `metarush ability catalogues make`
   ([community catalogues](docs/ability-catalogue.md)).
 
 ### A starter pack of six abilities

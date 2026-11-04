@@ -79,14 +79,17 @@ func printCatalogueRow(r abilities.CatalogueRow, details bool) {
 	if r.Maintainer != "" {
 		fmt.Println("  Kept by " + theirs(r.Maintainer) + " (its word).")
 	}
+	// Why a listing was left out and why a read failed are MetaRush's words
+	// with only the catalogue's plain words in them, in quotes; cleaned again
+	// here all the same.
 	if n := len(r.LeftOut); n > 0 {
 		fmt.Printf("  MetaRush left %s out:\n", pluralWords(n, "listing", "listings"))
 		for _, l := range r.LeftOut {
-			fmt.Printf("    %s: %s\n", l.Name, l.Why)
+			fmt.Printf("    %s: %s\n", ops.CleanText(l.Name), ops.CleanText(l.Why))
 		}
 	}
 	if r.Problem != "" {
-		fmt.Println("  The last time MetaRush asked: " + r.Problem + " Its copy before stays in use.")
+		fmt.Println("  The last time MetaRush asked: " + ops.CleanText(r.Problem) + " Its copy before stays in use.")
 	}
 	if details {
 		fmt.Printf("  %s · version %d of %s", r.URL, r.Version, r.Date)
@@ -268,7 +271,7 @@ func abilityBrowseCmd() *cobra.Command {
 				}
 				for _, r := range out.Catalogues {
 					if r.Problem != "" {
-						fmt.Printf("%s: %s Its copy before stays in use.\n", theirsTitle(r.Title, r.Key), r.Problem)
+						fmt.Printf("%s: %s Its copy before stays in use.\n", theirsTitle(r.Title, r.Key), ops.CleanText(r.Problem))
 					}
 				}
 				fmt.Println(out.Message)
@@ -303,6 +306,9 @@ func printListed(l abilities.ListedAbility, details bool) {
 		fmt.Println("    " + n)
 	}
 	fmt.Println("  " + l.CostWords + " Licence: " + theirs(e.Licence) + ".")
+	if e.Terms != "" {
+		fmt.Println("  Its service's terms: " + theirs(e.Terms))
+	}
 	for _, w := range l.Warnings {
 		fmt.Println("  Note: " + w)
 	}
@@ -363,10 +369,20 @@ func abilityImportFromCatalogue(c *cobra.Command, in abilities.AbilityCatalogueI
 		if !look.New {
 			return nil
 		}
+		if look.Of {
+			fmt.Printf("  It comes in as a new version of the ability called %s here.\n", look.Name)
+		}
 		fmt.Println(abilities.ListedNote)
 		if !askYes("Bring it in", false) {
 			return fail(c, apperr.Canceled, "Nothing came in.", "")
 		}
+		// What comes in is exactly the version shown: if the catalogue lists
+		// another one by now, nothing does.
+		pinned, err := abilities.PinListedRef(in.From, look.Version)
+		if err != nil {
+			return failErr(c, err)
+		}
+		in.From = pinned
 	}
 	return runOpWith(c, a, "ability.catalogues.import", in, human, say)
 }

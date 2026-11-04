@@ -540,11 +540,28 @@ type CatalogueEntry struct {
 	Local *CatalogueLocal `bson:"local,omitempty" json:"local,omitempty"`
 	// ChangesOutside: it publishes, uploads or drives another app.
 	ChangesOutside bool `bson:"changesOutside,omitempty" json:"changesOutside,omitempty"`
+	// Likeness: it makes someone's likeness (MetaRush doesn't run those yet).
+	Likeness bool `bson:"likeness,omitempty" json:"likeness,omitempty"`
+	// Files are files an owner sets up for it on each computer (a model, for
+	// instance): checked when chosen, and each run reads only a copy.
+	Files []CatalogueFile `bson:"files,omitempty" json:"files,omitempty" jsonschema:"maxItems=4"`
+	// Terms are its service's terms a person should know before using it.
+	Terms string `bson:"terms,omitempty" json:"terms,omitempty" jsonschema:"maxLength=300"`
 	// Programs are what each computer needs installed; OS the systems it runs on.
 	Programs []string        `bson:"programs,omitempty" json:"programs,omitempty" jsonschema:"maxItems=8"`
 	OS       []string        `bson:"os,omitempty" json:"os,omitempty" jsonschema:"maxItems=2"`
 	Tags     []string        `bson:"tags,omitempty" json:"tags,omitempty" jsonschema:"maxItems=20"`
 	Links    []CatalogueLink `bson:"links,omitempty" json:"links,omitempty" jsonschema:"maxItems=8"`
+}
+
+// CatalogueFile is a file an ability reads that an owner sets up on each
+// computer, as its manifest's needs.files says.
+type CatalogueFile struct {
+	Name string `bson:"name" json:"name" jsonschema:"pattern=^[a-z][a-z0-9-]{0\\,39}$"`
+	// Says what file to give, in the ability's words.
+	Says string `bson:"says" json:"says" jsonschema:"minLength=1,maxLength=200"`
+	// Kind is a kind of file MetaRush checks by its first bytes ("" for any).
+	Kind string `bson:"kind,omitempty" json:"kind,omitempty" jsonschema:"enum=,enum=whisper-model,enum=whisper-translator"`
 }
 
 // CatalogueAI says, per kind of output, what AI does to it (as an ability's

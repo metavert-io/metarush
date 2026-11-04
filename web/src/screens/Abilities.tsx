@@ -556,6 +556,11 @@ function Decide({ d }: { d: AbilityShowOut }) {
       title: `Approve “${v.title}”?`,
       body: (
         <div className="space-y-2 text-[13px]">
+          {d.takenBack ? (
+            <p className="font-medium text-danger" data-approve-taken-back>
+              The catalogue it came from took this version back: <Theirs>{d.takenBack}</Theirs>
+            </p>
+          ) : null}
           <p>Members can then run this exact version on every computer a person sets it up on.</p>
           <p>{d.page.network}</p>
           <p>{d.page.leaves}</p>
@@ -1170,6 +1175,11 @@ function RunForm({ d, onDone }: { d: AbilityShowOut; onDone: (out?: AbilityRunOu
       {plan ? (
         <div className="space-y-2 rounded-[12px] bg-hover/50 p-3 text-[13px] hairline" data-plan>
           <p className="font-medium">{plan.message}</p>
+          {plan.takenBack ? (
+            <p className="font-medium text-danger" data-plan-taken-back>
+              The catalogue it came from took this version back: <Theirs>{plan.takenBack}</Theirs>
+            </p>
+          ) : null}
           {plan.localWords ? (
             <div data-local-program>
               <p>{plan.localWords}</p>

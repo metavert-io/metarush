@@ -4306,6 +4306,7 @@ state: string
 stateLabel: string
 message: string
 link: string
+takenBack?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -4449,6 +4450,12 @@ ai?: CatalogueAI
 cost: ("free" | "keyed" | "priced")
 local?: CatalogueLocal
 changesOutside?: boolean
+likeness?: boolean
+/**
+ * @maxItems 4
+ */
+files?: CatalogueFile[]
+terms?: string
 /**
  * @maxItems 8
  */
@@ -4532,6 +4539,15 @@ captions?: ("made" | "edited" | "enhanced" | "none")
 export interface CatalogueLocal {
 port: number
 service: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueFile".
+ */
+export interface CatalogueFile {
+name: string
+says: string
+kind?: ("" | "whisper-model" | "whisper-translator")
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -5083,6 +5099,7 @@ isolation?: ("" | "macos-sandbox" | "bubblewrap")
 localProgram?: AbilityLocalProgram
 localWords?: string
 terms?: string
+takenBack?: string
 apart: string
 projectId?: string
 estimatesFirst: boolean
@@ -35740,7 +35757,7 @@ autoMerged?: AutoMerge[]
 export interface Todo {
 id: string
 workspaceId: string
-kind: ("speaker_unnamed" | "speaker_match" | "music_rights" | "brief_missing" | "duplicate_person" | "revision_approval" | "face_person" | "spelling" | "face_group" | "remotion_approval" | "recipe_run" | "ability_approval" | "ship_gate")
+kind: ("speaker_unnamed" | "speaker_match" | "music_rights" | "brief_missing" | "duplicate_person" | "revision_approval" | "face_person" | "spelling" | "face_group" | "remotion_approval" | "recipe_run" | "ability_approval" | "ship_gate" | "ability_taken_back")
 scope: ("asset" | "project" | "revision" | "workspace")
 assetId?: string
 projectId?: string
@@ -35982,7 +35999,7 @@ appearances: number
 export interface TodoListIn {
 projectId?: string
 assetId?: string
-kind?: ("speaker_unnamed" | "speaker_match" | "music_rights" | "brief_missing" | "duplicate_person" | "revision_approval" | "face_person" | "spelling" | "face_group" | "remotion_approval" | "recipe_run" | "ability_approval")
+kind?: ("speaker_unnamed" | "speaker_match" | "music_rights" | "brief_missing" | "duplicate_person" | "revision_approval" | "face_person" | "spelling" | "face_group" | "remotion_approval" | "recipe_run" | "ability_approval" | "ship_gate" | "ability_taken_back")
 /**
  * Default open.
  */

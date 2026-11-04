@@ -111,5 +111,9 @@ at "2026-10-02T10:00:00Z"
 g commit -qm "Add the logo and some test data"
 mkdir -p "$(dirname "$BARE")"
 g clone -q --bare "$W/src" "$BARE"
+# Like GitHub: a fetch may leave folders and files out (a partial fetch) and ask
+# for one thing by its name.
+g -C "$BARE" config uploadpack.allowFilter true
+g -C "$BARE" config uploadpack.allowAnySHA1InWant true
 echo "made $BARE"
 exit 0

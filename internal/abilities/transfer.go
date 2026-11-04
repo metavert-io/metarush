@@ -548,7 +548,7 @@ func recordImported(ctx context.Context, a *app.App, arc *Archive, m *Manifest, 
 	}
 	why := "It came from another workspace and hasn't been checked on a computer here yet."
 	if from.Catalogue != nil {
-		why = fmt.Sprintf("It came from the catalogue “%s” and hasn't been checked on a computer here yet.", from.Catalogue.Title)
+		why = fmt.Sprintf("It came from the catalogue %s and hasn't been checked on a computer here yet.", their(from.Catalogue.Title))
 	}
 	ctx = context.WithoutCancel(ctx)
 	for attempt := 0; attempt < 5; attempt++ {

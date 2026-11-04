@@ -6,12 +6,15 @@
   add <https-address>`; none is trusted by default); anyone browses what it lists in Library → Abilities → Browse
   catalogues (`metarush ability browse`): what each does and needs — keys, network, places, AI — its publisher and
   licence, and whether it is here already, marked "listed, not checked by MetaRush". A person brings one in (Bring it
-  in…, `metarush ability import --from-catalogue <catalogue>:<name>`): MetaRush fetches exactly the version listed — a
-  repository's commit and folder, read without running anything, or an ability file checked by its fingerprint — and
-  refuses it unless it is that version and its manifest says what the listing says. It comes in as a draft, like an
-  ability file: checked on a computer here, then approved by an owner. Claude in the panel may browse and propose
-  bringing one in as a card you run; AI apps only browse. Catalogues are read again once a day or when you ask, and
-  every word in them is shown as the catalogue's own.
+  in…, `metarush ability import --from-catalogue <catalogue>:<name>`): MetaRush fetches exactly the version listed and
+  shown — a commit one of the repository's branches or tags holds (never one only someone's copy has) and only its
+  folder, read without running anything, or an ability file checked by its fingerprint — and refuses it unless it is
+  that version and its manifest says what the listing says, the files an owner sets up for it and its service's terms
+  included. It comes in as a draft, like an ability file: checked on a computer here, then approved by an owner.
+  Claude in the panel may browse and propose bringing one in as a card you run; AI apps only browse. Catalogues are
+  read again once a day (or when you ask); when one takes back a version you brought in, the owners are asked whether
+  to take back its approval, and its page, its plans and the approval say so. Every word in a catalogue is shown as
+  its own and quoted for AI apps, and an address with a sign-in or a `?` part is refused.
 - **Make a catalogue's index from a folder of abilities**. `metarush ability catalogues make <folder> --out
   index.json` pins each ability to its repository's commit and its version, only when the commit holds exactly its
   files, and lists it from its own manifest; `docs/ability-catalogue.md` has the format and what MetaRush checks, and

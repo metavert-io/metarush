@@ -174,7 +174,19 @@ func git(ctx context.Context, ts *tools.Set, dir string, stdin io.Reader, stdout
 		cfg = append(cfg, "-c", "protocol.file.allow=always")
 	}
 	env := []string{"GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=" + falseProgram(), "SSH_ASKPASS=" + falseProgram(), "GCM_INTERACTIVE=never", "GIT_LFS_SKIP_SMUDGE=1"}
+	if extra, ok := ctx.Value(gitEnvKey{}).([]string); ok {
+		env = append(env, extra...)
+	}
 	return ts.Run(ctx, tools.Spec{Tool: tools.Git, Dir: dir, Args: append(cfg, args...), Env: env, Stdin: stdin, Stdout: stdout})
+}
+
+type gitEnvKey struct{}
+
+// withoutLazyFetch keeps every git run under ctx from fetching an object it
+// lacks by itself (a partial repository's "lazy fetch"): only the fetches
+// MetaRush asks for, each within its limit, download anything.
+func withoutLazyFetch(ctx context.Context) context.Context {
+	return context.WithValue(ctx, gitEnvKey{}, []string{"GIT_NO_LAZY_FETCH=1"})
 }
 
 func falseProgram() string {

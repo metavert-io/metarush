@@ -6,7 +6,7 @@
   "maintainer": {
     "github": "metavert-io"
   },
-  "version": 2,
+  "version": 3,
   "date": "2026-11-04",
   "abilities": [
     {
@@ -20,7 +20,7 @@
       "source": {
         "git": {
           "repository": "https://github.com/metavert-io/metarush",
-          "commit": "968fa087c4c5084df6fa83913d9d0a0b751d3b94",
+          "commit": "176fc6f900262bf0587def5bf499530c2d590068",
           "path": "abilities/comfyui-local"
         }
       },
@@ -67,7 +67,7 @@
       "source": {
         "git": {
           "repository": "https://github.com/metavert-io/metarush",
-          "commit": "968fa087c4c5084df6fa83913d9d0a0b751d3b94",
+          "commit": "176fc6f900262bf0587def5bf499530c2d590068",
           "path": "abilities/english-captions"
         }
       },
@@ -81,6 +81,13 @@
         "captions": "made"
       },
       "cost": "free",
+      "files": [
+        {
+          "name": "whisper-model",
+          "says": "A whisper.cpp model that can translate: ggml-medium.bin, ggml-small.bin or ggml-large-v3.bin (not a turbo or .en model)",
+          "kind": "whisper-translator"
+        }
+      ],
       "programs": [
         "python3",
         "ffmpeg",
@@ -112,7 +119,7 @@
       "source": {
         "git": {
           "repository": "https://github.com/metavert-io/metarush",
-          "commit": "968fa087c4c5084df6fa83913d9d0a0b751d3b94",
+          "commit": "176fc6f900262bf0587def5bf499530c2d590068",
           "path": "abilities/freesound-effects"
         }
       },
@@ -141,6 +148,7 @@
         "sound": "none"
       },
       "cost": "keyed",
+      "terms": "Freesound's API is free for non-commercial use only: for client or other commercial work, ask Freesound first (the sounds' own licences are separate).",
       "programs": [
         "python3"
       ],
@@ -170,7 +178,7 @@
       "source": {
         "git": {
           "repository": "https://github.com/metavert-io/metarush",
-          "commit": "968fa087c4c5084df6fa83913d9d0a0b751d3b94",
+          "commit": "176fc6f900262bf0587def5bf499530c2d590068",
           "path": "abilities/open-media"
         }
       },
@@ -228,7 +236,7 @@
       "source": {
         "git": {
           "repository": "https://github.com/metavert-io/metarush",
-          "commit": "968fa087c4c5084df6fa83913d9d0a0b751d3b94",
+          "commit": "176fc6f900262bf0587def5bf499530c2d590068",
           "path": "abilities/pexels-stock"
         }
       },

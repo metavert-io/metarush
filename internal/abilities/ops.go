@@ -208,6 +208,9 @@ type AbilityDecisionOut struct {
 	StateLabel string `json:"stateLabel"`
 	Message    string `json:"message"`
 	Link       string `json:"link"`
+	// TakenBack is why the catalogue this version came from took it back, in
+	// its words (D488), when it did.
+	TakenBack string `json:"takenBack,omitempty"`
 }
 
 // AbilitySetupIn sets an ability up on this computer: the programs it runs
@@ -691,6 +694,9 @@ func showAbility(ctx context.Context, a *app.App, ref string) (*AbilityShowOut, 
 	}
 	out.CanApprove = v.Check.OK && v.State != models.AbilityApproved && v.State != models.AbilityFailed
 	out.TakenBack = takenBack(ctx, a, v)
+	if ops.AIReader(a) {
+		quoteImported(&out.Ability)
+	}
 	out.Message = fmt.Sprintf("“%s”, version %d (%s): %s", v.Title, v.Number, StateWords(v.State), v.Does)
 	switch {
 	case v.State == models.AbilityFailed:
@@ -875,7 +881,12 @@ func approve(ctx context.Context, a *app.App, in *AbilityApproveIn) (*AbilityDec
 	if prog != nil {
 		msg += fmt.Sprintf(" On port %d it may reach only %s.", localPort, programWords(*prog))
 	}
-	return decisionOut(nv, msg), nil
+	out := decisionOut(nv, msg)
+	// Approved all the same: it says what the owner approved over (D488).
+	if out.TakenBack = takenBack(ctx, a, nv); out.TakenBack != "" {
+		out.Message += " The catalogue it came from took this version back."
+	}
+	return out, nil
 }
 
 func revoke(ctx context.Context, a *app.App, in *AbilityRevokeIn) (*AbilityDecisionOut, error) {

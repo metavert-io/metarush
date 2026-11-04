@@ -90,6 +90,8 @@ func readHTTPS(ctx context.Context, what, raw, etag string, max int64, timeout t
 		return nil, apperr.New(apperr.InvalidInput, "MetaRush reads %s only over a secure connection: give an address that starts with https://.", what)
 	case u.User != nil:
 		return nil, apperr.New(apperr.InvalidInput, "Give the address for %s without a sign-in in it.", what)
+	case u.RawQuery != "" || u.ForceQuery:
+		return nil, apperr.New(apperr.InvalidInput, "Give the address for %s without a part after ? (sign-ins and keys hide there).", what)
 	case resources.LocalAddress(u.Hostname()) && !testLoopback(u.Hostname()):
 		return nil, apperr.New(apperr.InvalidInput, "That address is on this computer or a local network, so MetaRush won't read %s from it.", what)
 	case testMode() && !testLoopback(u.Hostname()):
@@ -110,6 +112,8 @@ func readHTTPS(ctx context.Context, what, raw, etag string, max int64, timeout t
 	if err != nil {
 		return nil, err
 	}
+	// Each read has a client of its own: nothing of it stays open after.
+	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, readProblem(what, u, err, timeout)
@@ -190,8 +194,10 @@ func catalogueClient(start *url.URL) (*http.Client, error) {
 		}
 	}
 	d := &net.Dialer{Timeout: 15 * time.Second}
+	// One read, one connection: closed when it ends (DisableKeepAlives), so
+	// no connection or its goroutines outlive a read.
 	tr := &http.Transport{Proxy: nil, TLSClientConfig: tlsConf, TLSHandshakeTimeout: 15 * time.Second, ResponseHeaderTimeout: 30 * time.Second,
-		MaxResponseHeaderBytes: 64 << 10, ForceAttemptHTTP2: true,
+		MaxResponseHeaderBytes: 64 << 10, ForceAttemptHTTP2: true, DisableKeepAlives: true,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			host, port, err := net.SplitHostPort(addr)
 			if err != nil {

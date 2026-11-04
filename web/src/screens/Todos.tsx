@@ -19,7 +19,7 @@ import { useDialog } from '../ui/Dialog';
 import { Button, cx, EmptyState, ErrorPanel, Freshness, Kbd, Skeleton, Spinner, Theirs } from '../ui/primitives';
 import { useToast } from '../ui/Toast';
 
-type KindFilter = 'all' | 'speakers' | 'faces' | 'music' | 'brief' | 'people' | 'approval' | 'spelling' | 'runs' | 'gate';
+type KindFilter = 'all' | 'speakers' | 'faces' | 'music' | 'brief' | 'people' | 'approval' | 'spelling' | 'runs' | 'gate' | 'takenBack';
 const KIND_GROUPS: Record<Exclude<KindFilter, 'all'>, { label: string; kinds: TodoKind[] }> = {
   speakers: { label: 'Who is speaking', kinds: ['speaker_unnamed', 'speaker_match'] },
   faces: { label: "Who's on screen", kinds: ['face_group', 'face_person'] },
@@ -30,6 +30,7 @@ const KIND_GROUPS: Record<Exclude<KindFilter, 'all'>, { label: string; kinds: To
   spelling: { label: 'Spelling', kinds: ['spelling'] },
   runs: { label: 'Runs that wait', kinds: ['recipe_run'] },
   gate: { label: 'Before it goes out', kinds: ['ship_gate'] },
+  takenBack: { label: 'Taken back by a catalogue', kinds: ['ability_taken_back'] },
 };
 
 function kindIcon(kind: TodoKind) {
@@ -592,7 +593,7 @@ function BulkBar({ todos, total, onSelectAll, onDone }: { todos: Todo[]; total: 
   // A face question's first answer counts only when it suggests someone (a
   // quick pick on "Who is this?" is not a suggestion, D189).
   const withSuggestion = todos.filter(
-    (t) => t.suggestions.length > 0 && t.kind !== 'revision_approval' && t.kind !== 'remotion_approval' && t.kind !== 'ability_approval' && t.kind !== 'recipe_run' && t.kind !== 'ship_gate' && (t.kind !== 'face_group' || !!t.context.personName),
+    (t) => t.suggestions.length > 0 && t.kind !== 'revision_approval' && t.kind !== 'remotion_approval' && t.kind !== 'ability_approval' && t.kind !== 'ability_taken_back' && t.kind !== 'recipe_run' && t.kind !== 'ship_gate' && (t.kind !== 'face_group' || !!t.context.personName),
   );
   const run = async (fn: (t: Todo) => Promise<boolean>, list: Todo[], verb: string) => {
     let ok = 0;

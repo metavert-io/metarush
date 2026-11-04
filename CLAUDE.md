@@ -1085,28 +1085,41 @@ Read `docs/architecture.md` before structural changes.
 - **Community catalogues of abilities** (D480–D489, `internal/abilities/catalogues_*.go`, `internal/resources/repofolder.go`,
   `internal/assistant/ability_actions.go`, `web/src/components/abilities/Catalogues.tsx`, docs/ability-catalogue.md): an
   index `metarush.ability-catalogue/1` (`CatalogueIndex`/`models.CatalogueEntry`, schema `schema/ability-catalogue.schema.json`;
-  `ParseIndex` strict: the index refused whole for its own unknown fields or bounds, an entry left out with why;
-  every word cleaned by `ops.CleanText`; `revoked` read, `signatures` accepted and never trusted, a new meaning is
-  `/2`). Owners trust catalogues (`ability.catalogues.add|remove`: OwnerOnly + HumanOnly, a dry run first; records
-  `ability_catalogues`, migration 67, `_id` `<ws>/<key>`, unique per URL; config `abilities.catalogues.suggested`
-  only suggests, empty in code). Reading (`readHTTPS`): https only, same-site redirects (3), 4 MB / 30 s, local
-  addresses refused at the dial (`resources.LocalIP`), ETag; refreshed on browse when `fetchedAt` is a day old and
-  `checkedAt` ten minutes by the server's clock (`store.StaleBefore`, claimed by `$currentDate`), finished even when
-  the asker leaves; a failure keeps the copy and says why. Tests and browser runs (`providers.RealServicesRefused`)
-  read only loopback, trusting `METARUSH_CATALOGUE_CA`; git sources need `METARUSH_GIT_BASE`. `ability.browse` and
-  `ability.catalogues` are reads (`leave.readsShow` "-"), their words quoted for AI readers (`ops.AIReader`,
-  `ListedQuoteNote`). `ability.catalogues.import` (Mutating, HumanOnly; not LocalOnly — it reads no files here):
-  `resources.FolderAt` (D104's git: one commit, shallow, blobs raw) or an ability file by SHA-256 → `archiveOfFolder`
-  (Build's rules) → refused unless the archive's SHA-256 is the listing's and `listingDiffers` finds nothing
-  (hosts, keys, network, sends, outputs, what AI does to them (D460's `ai:`), provides, cost, licence, programs, OS,
-  local, changes-outside) → `recordImported` with `imported.catalogue`; the same name from the same catalogue is the
-  next version, else `--as-version`. The panel's Claude browses (`ability browse`, `ability catalogues list` are
-  read-only commands) and its refused import is a HumanOnly card pinned to the version it saw, never Auto. CLI:
-  `metarush ability catalogues [list|add|remove|make]`, `ability browse`, `ability import --from-catalogue`
-  (also `abilities …`; changes need `personAtTheKeys`). The generator (`MakeIndex`, no database) pins each folder to
-  its repository's commit only when the commit's files build the same archive; `abilities/catalogue.sample.json` is
-  the starter pack, checked by `TestTheSampleCatalogueIsSound`. Browser run `scripts/ability-catalogue-e2e.sh`
-  (ports 5810–5819, `scripts/catalogueserve`).
+  `ParseIndex` strict: `strictKeys` refuses a field twice or in other letters at every depth (encoding/json would take
+  the last, or any case), the index refused whole for its own unknown fields or bounds, an entry left out with why;
+  every word cleaned by `ops.CleanText`; MetaRush's own sentences repeat an index's word only when plain
+  (`theirWord`/`withWord`, in quotes) and catalogue words go into them through `their()` (`ops.Quote`); `revoked`
+  read, `signatures` accepted and never trusted, a new meaning is `/2`; listings say `files`, `likeness`, `terms` too).
+  Owners trust catalogues (`ability.catalogues.add|remove`: OwnerOnly + HumanOnly, a dry run first; records
+  `ability_catalogues`, migration 67, `_id` `<ws>/<key>`, unique per URL, added only by an insert-only upsert; config
+  `abilities.catalogues.suggested` only suggests, empty in code). Addresses (`webAddressProblem`): https, no sign-in, no
+  `?` or `#` part, never local. Reading (`readHTTPS`): https only, same-site redirects (3), 4 MB / 30 s, local addresses
+  refused at the dial (`resources.LocalIP`), ETag, no connection kept; refreshed when `fetchedAt` is a day old and
+  `checkedAt` ten minutes by the server's clock (`store.StaleBefore`, claimed by `$currentDate`), on browse and by every
+  daemon (`RunCatalogueRefresh`), finished even when the asker leaves; a failure keeps the copy and says why. A version
+  its catalogue takes back gets an owners' to-do (`ability_taken_back`: revoke / turn down / keep, people and owners
+  only; `noteTakenBack`), and `takenBack` on its page, its plans (part of the fingerprint) and the approval. Tests and
+  browser runs (`providers.RealServicesRefused`) read only loopback, trusting `METARUSH_CATALOGUE_CA`; git sources need
+  `METARUSH_GIT_BASE` (the fixture serves partial fetches like GitHub). `ability.browse` and `ability.catalogues` are
+  reads (`leave.readsShow` "-"), every catalogue word (reasons and problems included) quoted for AI readers
+  (`ops.AIReader`, `ListedQuoteNote`; `ability.show` quotes a version's catalogue origin). `ability.catalogues.import`
+  (Mutating, HumanOnly; not LocalOnly — it reads no files here): `resources.FolderAt` — the commit must be the
+  repository's own (a branch's or a tag's tip by `ls-remote`, else in their history fetched without folders or files,
+  `--filter=tree:0`, never refs/pull/*; GitHub serves a fork network's commits under every copy's address), then the
+  commit's folders (`--filter=blob:none --depth=1`) and the folder's own files by name, each fetch within a size limit
+  (`fetchWithin`), no lazy fetch (`withoutLazyFetch`), blobs raw — or an ability file by SHA-256 → `archiveOfFolder`
+  (Build's rules) → refused unless the archive's SHA-256 is the listing's and `listingDiffers` finds nothing (hosts,
+  keys, network, sends, outputs, what AI does to them (D460's `ai:`), provides, cost, licence, programs, OS, files,
+  likeness, terms, local, changes-outside) → `recordImported` with `imported.catalogue`; the same name from the same
+  catalogue is the next version, else `--as-version`. What a look fetched is kept in memory ten minutes by workspace,
+  source and version (`fetched`), so Bring it in fetches once. Browse's `Ref` and every confirmation pin the version
+  in full (`PinListedRef`). The panel's Claude browses (`ability browse`, `ability catalogues list` are read-only
+  commands) and its refused import is a HumanOnly card pinned to the version it saw, saying when it comes in as another
+  version, never Auto. CLI: `metarush ability catalogues [list|add|remove|make]`, `ability browse`, `ability import
+  --from-catalogue` (also `abilities …`; changes need `personAtTheKeys`). The generator (`MakeIndex`, no database) pins
+  each folder to its repository's commit only when the commit's files build the same archive;
+  `abilities/catalogue.sample.json` is the starter pack, checked by `TestTheSampleCatalogueIsSound`. Browser run
+  `scripts/ability-catalogue-e2e.sh` (ports 5810–5819, `scripts/catalogueserve`).
 - **The first-party catalogue and the menu** (D269–D272, `internal/ops/offers.go`, `internal/catalog/firstparty.go`,
   `menu.go`, docs/catalogue.md): what MetaRush does is about fifty abilities, each an `ops.Offer` annotation next to
   its operation (stable `ID`, group, title, sentence, fixed `Input`, `Needs`: a first-run item, OS, programs, keys,

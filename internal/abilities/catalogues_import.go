@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/metavert-io/metarush/internal/app"
@@ -69,26 +70,26 @@ func importListed(ctx context.Context, a *app.App, in *AbilityCatalogueImportIn)
 		return nil, err
 	}
 	if len(cs) == 0 { // removed just now
-		return nil, apperr.New(apperr.NotFound, "This workspace doesn't trust a catalogue called “%s” any more.", clean(key, 120))
+		return nil, apperr.New(apperr.NotFound, "This workspace doesn't trust a catalogue called %s any more.", their(clip(key, 120)))
 	}
 	c := &cs[0]
 	if c.Index == nil {
-		return nil, apperr.New(apperr.Provider, "MetaRush hasn't read “%s” yet: %s", c.Key, firstNonEmpty(c.Problem, "try again in a moment.")).WithCommand("metarush ability browse --catalogue " + c.Key + " --refresh")
+		return nil, apperr.New(apperr.Provider, "MetaRush hasn't read %s yet: %s", c.Key, firstNonEmpty(ops.CleanText(c.Problem), "try again in a moment.")).WithCommand("metarush ability browse --catalogue " + c.Key + " --refresh")
 	}
 	e, err := listingOf(c, name)
 	if errors.Is(err, errNotListed) {
-		return nil, apperr.New(apperr.NotFound, "“%s” doesn't list an ability called %s.", c.Index.Title, name).WithCommand("metarush ability browse --catalogue " + c.Key)
+		return nil, apperr.New(apperr.NotFound, "%s doesn't list an ability called %s.", their(c.Index.Title), name).WithCommand("metarush ability browse --catalogue " + c.Key)
 	}
 	if err != nil {
 		return nil, err
 	}
 	if version != "" && !strings.HasPrefix(e.Archive, version) {
-		return nil, apperr.New(apperr.Conflict, "“%s” lists another version of %s now (%s, not %s): nothing came in.", c.Index.Title, name, Short(e.Archive), Short(version)).
+		return nil, apperr.New(apperr.Conflict, "%s lists another version of %s now (%s, not %s): nothing came in.", their(c.Index.Title), name, Short(e.Archive), Short(version)).
 			WithHint("Look at it again, then bring in the version it lists.").WithCommand("metarush ability browse --catalogue " + c.Key + " --name " + name)
 	}
 	for _, r := range c.Index.Revoked {
 		if r.Archive == e.Archive {
-			return nil, apperr.New(apperr.Validation, "“%s” took this version of %s back%s: nothing came in.", c.Index.Title, name, whyWords(r.Why))
+			return nil, apperr.New(apperr.Validation, "%s took this version of %s back%s: nothing came in.", their(c.Index.Title), name, whyWords(r.Why))
 		}
 	}
 	from := &models.AbilityImport{Made: dayOf(c.Index.Date), Decisions: []models.AbilityFileDecision{}, Lineage: []string{e.Archive}, At: now(), By: a.Actor,
@@ -122,9 +123,9 @@ func importListed(ctx context.Context, a *app.App, in *AbilityCatalogueImportIn)
 			return v.Imported != nil && v.Imported.Catalogue != nil && v.Imported.Catalogue.URL == c.URL
 		})
 		if !fromHere && !in.AsVersion {
-			return nil, apperr.New(apperr.Conflict, "This workspace already has an ability called “%s” (“%s”) that didn't come from “%s”.", name, here[0].Title, c.Index.Title).
+			return nil, apperr.New(apperr.Conflict, "This workspace already has an ability called %s (%s) that didn't come from %s.", name, their(here[0].Title), their(c.Index.Title)).
 				WithHint("Bring it in as a new version of that ability only if it is the same one; otherwise rename one of them.").
-				WithCommand("metarush ability import --from-catalogue " + c.Key + ":" + name + "@" + Short(e.Archive) + " --as-version")
+				WithCommand("metarush ability import --from-catalogue " + c.Key + ":" + name + "@" + e.Archive + " --as-version")
 		}
 		of = true
 	}
@@ -135,7 +136,7 @@ func importListed(ctx context.Context, a *app.App, in *AbilityCatalogueImportIn)
 		return nil, err
 	}
 	if arc.Hash != e.Archive {
-		return nil, apperr.New(apperr.Integrity, "The files MetaRush fetched for %s aren't the version “%s” names (it names %s; the files are %s): nothing came in.", name, c.Index.Title, Short(e.Archive), Short(arc.Hash)).
+		return nil, apperr.New(apperr.Integrity, "The files MetaRush fetched for %s aren't the version %s names (it names %s; the files are %s): nothing came in.", name, their(c.Index.Title), Short(e.Archive), Short(arc.Hash)).
 			WithDetails(map[string]any{"listed": e.Archive, "fetched": arc.Hash})
 	}
 	m, err := arc.Manifest()
@@ -143,17 +144,17 @@ func importListed(ctx context.Context, a *app.App, in *AbilityCatalogueImportIn)
 		return nil, apperr.New(apperr.Validation, "The ability %s lists can't be read: %s", name, err.Error())
 	}
 	if m.Name != e.Name {
-		return nil, apperr.New(apperr.Integrity, "“%s” lists %s, but the ability's own manifest names %s: nothing came in.", c.Index.Title, e.Name, clean(m.Name, 40))
+		return nil, apperr.New(apperr.Integrity, "%s lists %s, but the ability's own manifest names %s: nothing came in.", their(c.Index.Title), e.Name, their(clip(m.Name, 40)))
 	}
 	if probs := m.Validate(arc.Programs()); len(probs) > 0 {
 		var words []string
 		for _, p := range probs {
 			words = append(words, p.String())
 		}
-		return nil, apperr.New(apperr.Validation, "The ability “%s” lists has problems MetaRush won't bring in: %s", c.Index.Title, strings.Join(words, "; ")).WithDetails(map[string]any{"problems": words})
+		return nil, apperr.New(apperr.Validation, "The ability %s lists has problems MetaRush won't bring in: %s", their(c.Index.Title), strings.Join(words, "; ")).WithDetails(map[string]any{"problems": words})
 	}
 	if diffs := listingDiffers(e, m); len(diffs) > 0 {
-		return nil, apperr.New(apperr.Integrity, "“%s” describes %s differently from what it is: %s. Nothing came in.", c.Index.Title, name, strings.Join(diffs, "; ")).
+		return nil, apperr.New(apperr.Integrity, "%s describes %s differently from what it is: %s. Nothing came in.", their(c.Index.Title), name, strings.Join(diffs, "; ")).
 			WithHint("Tell whoever keeps the catalogue; what an ability may do is what its own manifest says.").WithDetails(map[string]any{"differences": diffs})
 	}
 	f := factsOf(m)
@@ -166,11 +167,11 @@ func importListed(ctx context.Context, a *app.App, in *AbilityCatalogueImportIn)
 		out.Files = append(out.Files, models.AbilityFile{Path: x.Path, Size: int64(len(b)), SHA256: sum(b), Program: x.Exec})
 	}
 	if m.Title != e.Title {
-		out.Lineage = fmt.Sprintf("The catalogue calls it “%s”; it calls itself “%s”.", e.Title, m.Title)
+		out.Lineage = fmt.Sprintf("The catalogue calls it %s; it calls itself %s.", their(e.Title), their(m.Title))
 	}
 	if in.DryRun {
 		out.State = models.AbilityImported
-		out.Message = fmt.Sprintf("“%s” would come in from “%s” as %s, never approved here: check it on this computer, then an owner approves it.", m.Title, c.Index.Title,
+		out.Message = fmt.Sprintf("%s would come in from %s as %s, never approved here: check it on this computer, then an owner approves it.", their(m.Title), their(c.Index.Title),
 			map[bool]string{true: "a new version of the ability here", false: "a new ability"}[of])
 		return out, nil
 	}
@@ -181,7 +182,7 @@ func importListed(ctx context.Context, a *app.App, in *AbilityCatalogueImportIn)
 	out.Number, out.State, out.Link = v.Number, v.State, links.Ability(v.Name, v.Hash)
 	a.Audit(context.WithoutCancel(ctx), "ability.catalogues.import", "ability", v.ID, "", map[string]any{"name": v.Name, "version": v.Hash, "number": v.Number,
 		"catalogue": c.Key, "url": c.URL, "catalogueVersion": c.Index.Version, "source": sourceOf(from.Catalogue), "of": of})
-	out.Message = fmt.Sprintf("Version %d of “%s” came in from “%s” as a draft: it isn't approved or set up here.", v.Number, v.Title, c.Index.Title)
+	out.Message = fmt.Sprintf("Version %d of %s came in from %s as a draft: it isn't approved or set up here.", v.Number, their(v.Title), their(c.Index.Title))
 	out.Next = "Check it on this computer (metarush ability check --version " + v.Name + "@" + Short(v.Hash) + "); then an owner reads what it may do under Library → Abilities and approves it."
 	return out, nil
 }
@@ -190,7 +191,7 @@ func whyWords(why string) string {
 	if why == "" {
 		return ""
 	}
-	return " (" + strings.TrimSuffix(why, ".") + ")"
+	return " (" + their(strings.TrimSuffix(why, ".")) + ")"
 }
 
 // dayOf reads a catalogue's date (zero when it isn't one).
@@ -210,8 +211,82 @@ func sourceOf(c *models.AbilityFromCatalogue) string {
 	return c.FileURL + "#" + c.FileSHA256
 }
 
-// fetchListed fetches what a listing pins and builds its canonical archive.
+// fetchedKeep is how long what a look at a listing fetched and found to be
+// its version is kept for bringing it in (a variable only for tests).
+var fetchedKeep = 10 * time.Minute
+
+// fetched keeps, in this process, archives fetched for listings and found to
+// be the version they name (D485): a person's Bring it in (a look first, then
+// bringing it in) fetches once. Keyed by the workspace, where the files came
+// from and the version, so a listing elsewhere naming the same version is
+// fetched from there all the same; a few at a time, each for fetchedKeep.
+var fetched = struct {
+	sync.Mutex
+	m     map[string]*Archive
+	order []string
+}{m: map[string]*Archive{}}
+
+const fetchedMax = 4
+
+func fetchedKey(ws string, e models.CatalogueEntry) string {
+	if g := e.Source.Git; g != nil {
+		return ws + " git " + g.Repository + " " + g.Commit + " " + g.Path + " " + e.Archive
+	}
+	if f := e.Source.File; f != nil {
+		return ws + " file " + f.URL + " " + f.SHA256 + " " + e.Archive
+	}
+	return ""
+}
+
+func keepFetched(ws string, e models.CatalogueEntry, arc *Archive) {
+	k := fetchedKey(ws, e)
+	if k == "" || arc.Hash != e.Archive {
+		return
+	}
+	fetched.Lock()
+	defer fetched.Unlock()
+	if _, ok := fetched.m[k]; !ok {
+		fetched.order = append(fetched.order, k)
+	}
+	fetched.m[k] = arc
+	for len(fetched.order) > fetchedMax {
+		delete(fetched.m, fetched.order[0])
+		fetched.order = fetched.order[1:]
+	}
+	time.AfterFunc(fetchedKeep, func() {
+		fetched.Lock()
+		defer fetched.Unlock()
+		if fetched.m[k] == arc {
+			delete(fetched.m, k)
+			fetched.order = slices.DeleteFunc(fetched.order, func(x string) bool { return x == k })
+		}
+	})
+}
+
+func fetchedBefore(ws string, e models.CatalogueEntry) *Archive {
+	fetched.Lock()
+	defer fetched.Unlock()
+	if arc := fetched.m[fetchedKey(ws, e)]; arc != nil && arc.Hash == e.Archive {
+		return arc
+	}
+	return nil
+}
+
+// fetchListed fetches what a listing pins and builds its canonical archive
+// (or takes the one a look just fetched from there and found to be the
+// version listed).
 func fetchListed(ctx context.Context, a *app.App, e models.CatalogueEntry) (*Archive, error) {
+	if arc := fetchedBefore(a.WorkspaceID(), e); arc != nil {
+		return arc, nil
+	}
+	arc, err := fetchListedNow(ctx, a, e)
+	if err == nil {
+		keepFetched(a.WorkspaceID(), e, arc)
+	}
+	return arc, err
+}
+
+func fetchListedNow(ctx context.Context, a *app.App, e models.CatalogueEntry) (*Archive, error) {
 	switch g, f := e.Source.Git, e.Source.File; {
 	case g != nil:
 		if err := os.MkdirAll(a.Cfg.Scratch.Dir, 0o755); err != nil {
@@ -327,10 +402,40 @@ func listingDiffers(e models.CatalogueEntry, m *Manifest) []string {
 		out = append(out, fmt.Sprintf("its cost: the listing says %s, the ability %s", e.Cost, costClass(f)))
 	}
 	if !strings.EqualFold(strings.TrimSpace(e.Licence), strings.TrimSpace(f.Licence)) {
-		out = append(out, fmt.Sprintf("its licence: the listing says “%s”, the ability “%s”", e.Licence, f.Licence))
+		out = append(out, fmt.Sprintf("its licence: the listing says %s, the ability %s", their(e.Licence), their(f.Licence)))
 	}
 	if e.ChangesOutside != f.Outside {
 		out = append(out, "whether it changes things outside MetaRush")
+	}
+	if e.Likeness != f.Likeness {
+		out = append(out, "whether it makes someone's likeness")
+	}
+	// The files an owner chooses for it on each computer: which, of what
+	// kind, and what it asks for.
+	listedFiles, isFiles := map[string]models.CatalogueFile{}, map[string]models.AbilityNeededFile{}
+	var names []string
+	for _, x := range e.Files {
+		listedFiles[x.Name] = x
+	}
+	for _, x := range f.Files {
+		isFiles[x.Name] = x
+		names = append(names, x.Name)
+	}
+	listedNames := make([]string, 0, len(listedFiles))
+	for n := range listedFiles {
+		listedNames = append(listedNames, n)
+	}
+	differ("the files it reads", listedNames, names)
+	sort.Strings(names)
+	for _, n := range names {
+		l, ok := listedFiles[n]
+		says, _ := indexLine(isFiles[n].Says, 200)
+		if ok && (l.Kind != isFiles[n].Kind || l.Says != says) {
+			out = append(out, fmt.Sprintf("what its %s file is", n))
+		}
+	}
+	if terms, _ := indexLine(f.Terms, 300); e.Terms != terms {
+		out = append(out, "its service's terms")
 	}
 	switch l, is := e.Local, f.Local; {
 	case l == nil && is != nil:

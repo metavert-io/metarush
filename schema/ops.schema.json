@@ -1937,6 +1937,9 @@
         },
         "link": {
           "type": "string"
+        },
+        "takenBack": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -3126,6 +3129,9 @@
           "type": "string"
         },
         "terms": {
+          "type": "string"
+        },
+        "takenBack": {
           "type": "string"
         },
         "apart": {
@@ -11447,6 +11453,20 @@
         "changesOutside": {
           "type": "boolean"
         },
+        "likeness": {
+          "type": "boolean"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/CatalogueFile"
+          },
+          "type": "array",
+          "maxItems": 4
+        },
+        "terms": {
+          "type": "string",
+          "maxLength": 300
+        },
         "programs": {
           "items": {
             "type": "string"
@@ -11488,6 +11508,33 @@
         "licence",
         "network",
         "cost"
+      ]
+    },
+    "CatalogueFile": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "says": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "",
+            "whisper-model",
+            "whisper-translator"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "says"
       ]
     },
     "CatalogueFileSource": {
@@ -69965,7 +70012,8 @@
             "remotion_approval",
             "recipe_run",
             "ability_approval",
-            "ship_gate"
+            "ship_gate",
+            "ability_taken_back"
           ]
         },
         "scope": {
@@ -70556,7 +70604,9 @@
             "face_group",
             "remotion_approval",
             "recipe_run",
-            "ability_approval"
+            "ability_approval",
+            "ship_gate",
+            "ability_taken_back"
           ]
         },
         "state": {

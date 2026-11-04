@@ -78,6 +78,12 @@ ai?: CatalogueAI
 cost: ("free" | "keyed" | "priced")
 local?: CatalogueLocal
 changesOutside?: boolean
+likeness?: boolean
+/**
+ * @maxItems 4
+ */
+files?: CatalogueFile[]
+terms?: string
 /**
  * @maxItems 8
  */
@@ -158,6 +164,15 @@ captions?: ("made" | "edited" | "enhanced" | "none")
 export interface CatalogueLocal {
 port: number
 service: string
+}
+/**
+ * This interface was referenced by `CatalogueIndex`'s JSON-Schema
+ * via the `definition` "CatalogueFile".
+ */
+export interface CatalogueFile {
+name: string
+says: string
+kind?: ("" | "whisper-model" | "whisper-translator")
 }
 /**
  * This interface was referenced by `CatalogueIndex`'s JSON-Schema

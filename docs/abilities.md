@@ -204,11 +204,13 @@ that an owner trusts (`metarush ability catalogues add <https-address>`, or Sett
 Anyone browses what the trusted ones list (`metarush ability browse`, or Library → Abilities → Browse catalogues):
 what each does and needs, its publisher and licence, and whether it is here already — the catalogue's word, "listed,
 not checked by MetaRush". A person brings one in (`metarush ability import --from-catalogue <catalogue>:<name>`, or
-**Bring it in…**): MetaRush fetches exactly the version listed — a repository's commit and folder, read raw by the
-same hardened git as repositories brought in, or an ability file checked by its SHA-256 — refuses it unless its
-archive is the version listed and its manifest says what the listing says, and records it **imported**, like an
-ability file: check it here, then an owner approves it. [ability-catalogue.md](ability-catalogue.md) has the index's
-format, how to make one (`metarush ability catalogues make`) and what MetaRush checks and doesn't.
+**Bring it in…**): MetaRush fetches exactly the version listed — a commit one of the repository's branches or tags
+holds and its folder, read raw by the same hardened git as repositories brought in, or an ability file checked by its
+SHA-256 — refuses it unless its archive is the version listed and its manifest says what the listing says, and
+records it **imported**, like an ability file: check it here, then an owner approves it. When the catalogue later
+takes that version back, the owners are asked on To-dos whether to take back its approval (or turn it down), and its
+page, its plans and the approval say so. [ability-catalogue.md](ability-catalogue.md) has the index's format, how to
+make one (`metarush ability catalogues make`) and what MetaRush checks and doesn't.
 
 ## The starter pack
 

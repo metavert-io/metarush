@@ -220,7 +220,7 @@ func findCatalogue(ctx context.Context, a *app.App, ref string) (*models.Ability
 		return nil, err
 	}
 	if len(cs) == 0 {
-		return nil, apperr.New(apperr.NotFound, "This workspace doesn't trust a catalogue called “%s”.", clean(ref, 120)).
+		return nil, apperr.New(apperr.NotFound, "This workspace doesn't trust a catalogue called %s.", their(clip(ref, 120))).
 			WithHint("Owners add catalogues under Settings → Abilities; the list says which are trusted.").WithCommand("metarush ability catalogues list")
 	}
 	return &cs[0], nil
@@ -251,13 +251,16 @@ func publisherWords(p *models.CataloguePublisher) string {
 
 // catalogueRow is a trusted catalogue as lists show it (quoted for an AI).
 func catalogueRow(c *models.AbilityCatalogue, quote func(string) string) CatalogueRow {
-	r := CatalogueRow{Key: c.Key, URL: c.URL, FetchedAt: c.FetchedAt, CheckedAt: c.CheckedAt, Problem: c.Problem, AddedBy: firstNonEmpty(c.AddedBy.UserName, "an owner"),
-		AddedAt: c.AddedAt, LeftOut: []models.CatalogueLeftOut{}}
+	// What MetaRush says of a catalogue's reading (its problem, why a listing
+	// was left out) carries the catalogue's plain words in quotes; for an AI it
+	// is quoted whole, like everything that comes of a catalogue (D483).
+	r := CatalogueRow{Key: c.Key, URL: c.URL, FetchedAt: c.FetchedAt, CheckedAt: c.CheckedAt, Problem: quoteNonEmpty(quote, ops.CleanText(c.Problem)),
+		AddedBy: firstNonEmpty(c.AddedBy.UserName, "an owner"), AddedAt: c.AddedAt, LeftOut: []models.CatalogueLeftOut{}}
 	if ix := c.Index; ix != nil {
 		r.Title, r.About, r.Maintainer, r.Version, r.Date = quote(ix.Title), quoteNonEmpty(quote, ix.About), quoteNonEmpty(quote, publisherWords(ix.Maintainer)), ix.Version, ix.Date
 		r.Abilities, r.Revoked, r.Signed = len(ix.Abilities), len(ix.Revoked), ix.Signed
 		for _, l := range ix.LeftOut {
-			r.LeftOut = append(r.LeftOut, models.CatalogueLeftOut{Name: l.Name, Why: l.Why})
+			r.LeftOut = append(r.LeftOut, models.CatalogueLeftOut{Name: l.Name, Why: quote(ops.CleanText(l.Why))})
 		}
 	}
 	r.Line = fmt.Sprintf("%s (%s): %s listed", firstNonEmpty(r.Title, c.Key), c.Key, plural(r.Abilities, "ability", "abilities"))
@@ -279,6 +282,11 @@ func quoteNonEmpty(quote func(string) string, s string) string {
 	}
 	return quote(s)
 }
+
+// their puts a catalogue's words (or anyone's) into MetaRush's own
+// sentences: cleaned of hidden characters and in quotes they can't close
+// early (D483).
+func their(s string) string { return ops.Quote(ops.CleanText(s)) }
 
 // quoter quotes a catalogue's words for an AI (D483); people see them as written.
 func quoter(a *app.App) (func(string) string, string) {
@@ -343,7 +351,7 @@ func addCatalogue(ctx context.Context, a *app.App, in *AbilityCatalogueAddIn) (*
 		key = cp.Name
 	}
 	if !ValidName(key) {
-		return nil, apperr.New(apperr.InvalidInput, "“%s” can't name a catalogue here: use lowercase letters, digits and dashes, starting with a letter.", clean(key, 40))
+		return nil, apperr.New(apperr.InvalidInput, "%s can't name a catalogue here: use lowercase letters, digits and dashes, starting with a letter.", their(clip(key, 40)))
 	}
 	c := models.AbilityCatalogue{ID: catalogueID(a.WorkspaceID(), key), WorkspaceID: a.WorkspaceID(), Key: key, URL: u, AddedBy: a.Actor, ETag: got.ETag, SHA256: sum(got.Body), Index: cp}
 	if in.DryRun {
@@ -357,7 +365,7 @@ func addCatalogue(ctx context.Context, a *app.App, in *AbilityCatalogueAddIn) (*
 		}
 		quote, _ := quoter(a)
 		out := &AbilityCatalogueAddOut{Catalogue: catalogueRow(&c, quote), DryRun: true, Note: ListedNote}
-		out.Message = fmt.Sprintf("“%s” lists %s; trusting it lets people here browse it and bring abilities in from it.", cp.Title, plural(len(cp.Abilities), "ability", "abilities"))
+		out.Message = fmt.Sprintf("%s lists %s; trusting it lets people here browse it and bring abilities in from it.", their(cp.Title), plural(len(cp.Abilities), "ability", "abilities"))
 		return out, nil
 	}
 	doc, err := toDoc(c)
@@ -365,14 +373,23 @@ func addCatalogue(ctx context.Context, a *app.App, in *AbilityCatalogueAddIn) (*
 		return nil, err
 	}
 	delete(doc, "addedAt")
-	res, err := a.DB.C(store.CAbilityCatalogues).UpdateOne(ctx, bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID()},
+	// Only ever an insert, stamped by the server's clock: the filter matches
+	// no catalogue that is here (each has addedAt), so a short name or an
+	// address that is taken fails on its unique index and leaves the
+	// catalogue that has it as it was.
+	res, err := a.DB.C(store.CAbilityCatalogues).UpdateOne(ctx, bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID(), "addedAt": bson.M{"$exists": false}},
 		bson.M{"$setOnInsert": doc, "$currentDate": bson.M{"addedAt": true, "fetchedAt": true, "checkedAt": true}}, options.UpdateOne().SetUpsert(true))
 	switch {
 	case mongo.IsDuplicateKeyError(err):
-		return nil, apperr.New(apperr.Conflict, "This workspace already trusts that catalogue.")
+		var same []models.AbilityCatalogue
+		if ferr := a.DB.Find(ctx, store.CAbilityCatalogues, a.WorkspaceID(), bson.M{"url": u}, &same, options.Find().SetLimit(1)); ferr == nil && len(same) > 0 {
+			return nil, apperr.New(apperr.Conflict, "This workspace already trusts that catalogue (it is called %s here).", same[0].Key)
+		}
+		return nil, apperr.New(apperr.Conflict, "Another catalogue here is called %s.", key).
+			WithHint("Give this one another short name.").WithCommand("metarush ability catalogues add " + u + " --name <another-name>")
 	case err != nil:
 		return nil, err
-	case res.MatchedCount > 0:
+	case res.MatchedCount > 0 || res.UpsertedCount == 0:
 		return nil, apperr.New(apperr.Conflict, "Another catalogue here is called %s.", key).
 			WithHint("Give this one another short name.").WithCommand("metarush ability catalogues add " + u + " --name <another-name>")
 	}
@@ -384,7 +401,7 @@ func addCatalogue(ctx context.Context, a *app.App, in *AbilityCatalogueAddIn) (*
 	a.Audit(ctx, "ability.catalogues.add", "ability_catalogue", c.ID, "", map[string]any{"key": key, "url": u, "version": cp.Version, "abilities": len(cp.Abilities), "leftOut": len(cp.LeftOut)})
 	quote, _ := quoter(a)
 	out := &AbilityCatalogueAddOut{Catalogue: catalogueRow(&saved, quote), Note: ListedNote}
-	out.Message = fmt.Sprintf("This workspace trusts “%s” now: it lists %s.", cp.Title, plural(len(cp.Abilities), "ability", "abilities"))
+	out.Message = fmt.Sprintf("This workspace trusts %s now: it lists %s.", their(cp.Title), plural(len(cp.Abilities), "ability", "abilities"))
 	if n := len(cp.LeftOut); n > 0 {
 		out.Message += fmt.Sprintf(" MetaRush left %s of it out (the list says why).", plural(n, "listing", "listings"))
 	}
@@ -417,7 +434,7 @@ func removeCatalogue(ctx context.Context, a *app.App, in *AbilityCatalogueRemove
 		title = c.Index.Title
 	}
 	return &AbilityCatalogueRemoveOut{Key: c.Key, URL: c.URL, Title: title,
-		Message: fmt.Sprintf("This workspace doesn't trust “%s” any more: nothing more comes in from it. Abilities brought in from it stay, each with its own approval.", title)}, nil
+		Message: fmt.Sprintf("This workspace doesn't trust %s any more: nothing more comes in from it. Abilities brought in from it stay, each with its own approval.", their(title))}, nil
 }
 
 // refreshCatalogues reads again the catalogues whose copy is a day old by
@@ -429,6 +446,12 @@ func removeCatalogue(ctx context.Context, a *app.App, in *AbilityCatalogueRemove
 func refreshCatalogues(ctx context.Context, a *app.App, cs []models.AbilityCatalogue, force bool) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Duration(len(cs))*(indexTimeout+5*time.Second))
 	defer cancel()
+	changed := false
+	defer func() {
+		if changed {
+			noteTakenBack(ctx, a) // what a new copy takes back reaches the owners at once (D488)
+		}
+	}()
 	for i := range cs {
 		c := &cs[i]
 		filter := bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID()}
@@ -464,6 +487,7 @@ func refreshCatalogues(ctx context.Context, a *app.App, cs []models.AbilityCatal
 			}
 			set["index"], set["etag"], set["sha256"], set["problem"] = cp, got.ETag, sum(got.Body), ""
 			stamp["fetchedAt"] = true
+			changed = true
 		}
 		upd := bson.M{"$set": set}
 		if len(stamp) > 0 {
@@ -510,13 +534,26 @@ func ParseListedRef(s string) (catalogue, name, version string, err error) {
 	catalogue, rest := s[:i], s[i+1:]
 	name, version, _ = strings.Cut(rest, "@")
 	if !ValidName(name) {
-		return "", "", "", apperr.New(apperr.InvalidInput, "“%s” can't name an ability: lowercase letters, digits and dashes, starting with a letter.", clean(name, 60))
+		return "", "", "", apperr.New(apperr.InvalidInput, "%s can't name an ability: lowercase letters, digits and dashes, starting with a letter.", their(clip(name, 60)))
 	}
 	version = strings.ToLower(version)
 	if strings.Contains(rest, "@") && (len(version) < 8 || len(version) > 64 || !hexRe.MatchString(version)) {
-		return "", "", "", apperr.New(apperr.InvalidInput, "“%s” isn't a version MetaRush can look up: give the first 8 or more characters of it.", clean(version, 70))
+		return "", "", "", apperr.New(apperr.InvalidInput, "%s isn't a version MetaRush can look up: give the first 8 or more characters of it.", their(clip(version, 70)))
 	}
 	return catalogue, name, version, nil
+}
+
+// PinListedRef is catalogue:name[@version] pinned to a version in full: the
+// one a person was shown, so that is what comes in or nothing does (D485).
+func PinListedRef(from, version string) (string, error) {
+	key, name, _, err := ParseListedRef(from)
+	if err != nil {
+		return "", err
+	}
+	if !ValidHash(version) {
+		return "", apperr.New(apperr.InvalidInput, "Pin the version in full (all 64 characters of it).")
+	}
+	return key + ":" + name + "@" + version, nil
 }
 
 func browse(ctx context.Context, a *app.App, in *AbilityBrowseIn) (*AbilityBrowseOut, error) {
@@ -679,11 +716,18 @@ func listed(c *models.AbilityCatalogue, e models.CatalogueEntry, here, other *Li
 	if e.Local != nil {
 		q.Local = &models.CatalogueLocal{Port: e.Local.Port, Service: quote(e.Local.Service)}
 	}
+	q.Files = nil
+	for _, f := range e.Files {
+		q.Files = append(q.Files, models.CatalogueFile{Name: f.Name, Says: quote(f.Says), Kind: f.Kind})
+	}
+	q.Terms = quoteNonEmpty(quote, e.Terms)
 	title := c.Key
 	if c.Index != nil {
 		title = quote(c.Index.Title)
 	}
-	l := ListedAbility{Ref: c.Key + ":" + e.Name + "@" + Short(e.Archive), Catalogue: c.Key, CatalogueTitle: title, Entry: q, Publisher: publisherWords(&q.Publisher),
+	// Ref pins the very version listed, in full (D485): what a person saw is
+	// what comes in.
+	l := ListedAbility{Ref: c.Key + ":" + e.Name + "@" + e.Archive, Catalogue: c.Key, CatalogueTitle: title, Entry: q, Publisher: publisherWords(&q.Publisher),
 		Needs: []string{}, Warnings: []string{}}
 	if other != nil && (here == nil || other.Version != here.Version) {
 		l.Other = other
@@ -691,7 +735,7 @@ func listed(c *models.AbilityCatalogue, e models.CatalogueEntry, here, other *Li
 	l.Here = here
 	f := listedFacts(q)
 	l.Reaches, l.Leaves, l.CostWords, l.Decides, l.Makes, l.AIWords = networkWords(f), sendsWords(f), listedCost(e.Cost), deciderWords(decider(f)), listedMakes(e), aiWords(e)
-	l.Needs = listedNeeds(q)
+	l.Needs = listedNeeds(e)
 	switch g, fl := e.Source.Git, e.Source.File; {
 	case g != nil:
 		repo := strings.TrimPrefix(g.Repository, "https://github.com/")
@@ -736,8 +780,11 @@ func listed(c *models.AbilityCatalogue, e models.CatalogueEntry, here, other *Li
 // listedFacts are what a listing declares, as an ability's facts (for the
 // words MetaRush says of every ability).
 func listedFacts(e models.CatalogueEntry) models.AbilityFacts {
-	f := models.AbilityFacts{Network: e.Network, Hosts: e.Hosts, Sends: e.Sends, Outside: e.ChangesOutside, Outputs: e.Outputs, Programs: e.Programs, OS: e.OS,
-		Licence: e.Licence, Provides: e.Provides, Free: e.Cost != "priced"}
+	f := models.AbilityFacts{Network: e.Network, Hosts: e.Hosts, Sends: e.Sends, Outside: e.ChangesOutside, Likeness: e.Likeness, Outputs: e.Outputs, Programs: e.Programs, OS: e.OS,
+		Licence: e.Licence, Terms: e.Terms, Provides: e.Provides, Free: e.Cost != "priced"}
+	for _, nf := range e.Files {
+		f.Files = append(f.Files, models.AbilityNeededFile{Name: nf.Name, Says: nf.Says, Kind: nf.Kind, Env: FileEnv(nf.Name)})
+	}
 	if e.Cost == "priced" {
 		f.Price = &models.AbilityPrice{}
 	}
@@ -802,7 +849,8 @@ func aiWords(e models.CatalogueEntry) string {
 	return upperFirst(strings.Join(parts, "; ")) + "."
 }
 
-// listedNeeds says what each computer needs for a listing.
+// listedNeeds says what each computer needs for a listing, the catalogue's
+// own words in quotes.
 func listedNeeds(e models.CatalogueEntry) []string {
 	out := []string{}
 	for _, k := range e.Keys {
@@ -815,14 +863,20 @@ func listedNeeds(e models.CatalogueEntry) []string {
 	if len(e.Programs) > 0 {
 		out = append(out, fmt.Sprintf("%s, which a person sets up there.", joinAnd(e.Programs)))
 	}
+	for _, f := range e.Files {
+		out = append(out, fmt.Sprintf("A %s file it reads, which an owner chooses on each computer (it asks for %s); MetaRush checks it there and copies it into each run, read-only.", f.Name, their(f.Says)))
+	}
 	if len(e.OS) > 0 {
 		out = append(out, "It runs only on "+joinAnd(osWords(e.OS))+".")
 	}
 	if l := e.Local; l != nil {
-		out = append(out, fmt.Sprintf("%s on the computer it runs on (port %d), which an owner agrees to when approving it.", l.Service, l.Port))
+		out = append(out, fmt.Sprintf("%s on the computer it runs on (port %d), which an owner agrees to when approving it.", their(l.Service), l.Port))
 	}
 	if e.ChangesOutside {
 		out = append(out, "It changes something outside MetaRush (it publishes, uploads or drives another app), so only a person starts it.")
+	}
+	if e.Likeness {
+		out = append(out, "It makes someone's likeness: "+lowerFirst(deciderWords(DecideLikeness)))
 	}
 	if len(out) == 0 {
 		out = append(out, "Nothing to set up.")
@@ -863,6 +917,18 @@ func takenBack(ctx context.Context, a *app.App, v *models.AbilityVersion) string
 	return ""
 }
 
+// quoteImported quotes, for an AI, what the catalogue a version came from
+// said of it (D483): its title and the publisher it named are its words.
+func quoteImported(v *models.AbilityVersion) {
+	if v.Imported == nil || v.Imported.Catalogue == nil {
+		return
+	}
+	imp, c := *v.Imported, *v.Imported.Catalogue
+	c.Title, c.Publisher = ops.Quote(c.Title), quoteNonEmpty(ops.Quote, c.Publisher)
+	imp.Catalogue = &c
+	v.Imported = &imp
+}
+
 // listingOf is the listing of an ability in a catalogue's copy.
 func listingOf(c *models.AbilityCatalogue, name string) (models.CatalogueEntry, error) {
 	if c.Index != nil {
@@ -873,7 +939,7 @@ func listingOf(c *models.AbilityCatalogue, name string) (models.CatalogueEntry, 
 		}
 		for _, l := range c.Index.LeftOut {
 			if l.Name == name {
-				return models.CatalogueEntry{}, apperr.New(apperr.Validation, "“%s” lists %s, but MetaRush left it out: %s.", c.Index.Title, name, l.Why)
+				return models.CatalogueEntry{}, apperr.New(apperr.Validation, "%s lists %s, but MetaRush left it out: %s.", their(c.Index.Title), name, ops.CleanText(l.Why))
 			}
 		}
 	}

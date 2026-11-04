@@ -4,23 +4,24 @@ import "time"
 
 // To-do kinds: questions MetaRush cannot answer by itself.
 const (
-	TodoSpeakerUnnamed   = "speaker_unnamed"   // who is this voice?
-	TodoSpeakerMatch     = "speaker_match"     // is this voice <person>?
-	TodoMusicRights      = "music_rights"      // may we use this music?
-	TodoBriefMissing     = "brief_missing"     // the project brief lacks goal/audience/tone
-	TodoDuplicatePerson  = "duplicate_person"  // are these two people the same person?
-	TodoRevisionApproval = "revision_approval" // a cut is waiting for approval
-	TodoFacePerson       = "face_person"       // is this confirmed face really <person>?
-	TodoSpelling         = "spelling"          // put a word people keep fixing on the spelling list? (D147)
-	TodoFaceGroup        = "face_group"        // who is this (a group of one person's faces in a clip, D155)?
-	TodoRemotionApproval = "remotion_approval" // a version of a Remotion source waits for a person (D172)
-	TodoRecipeRun        = "recipe_run"        // a run of a recipe waits for a person or for Claude (D204)
-	TodoAbilityApproval  = "ability_approval"  // a version of an ability waits for an owner (D231)
-	TodoShipGate         = "ship_gate"         // hold versions back until the quality check passes and sign-offs are given? (D298, asked once)
+	TodoSpeakerUnnamed   = "speaker_unnamed"    // who is this voice?
+	TodoSpeakerMatch     = "speaker_match"      // is this voice <person>?
+	TodoMusicRights      = "music_rights"       // may we use this music?
+	TodoBriefMissing     = "brief_missing"      // the project brief lacks goal/audience/tone
+	TodoDuplicatePerson  = "duplicate_person"   // are these two people the same person?
+	TodoRevisionApproval = "revision_approval"  // a cut is waiting for approval
+	TodoFacePerson       = "face_person"        // is this confirmed face really <person>?
+	TodoSpelling         = "spelling"           // put a word people keep fixing on the spelling list? (D147)
+	TodoFaceGroup        = "face_group"         // who is this (a group of one person's faces in a clip, D155)?
+	TodoRemotionApproval = "remotion_approval"  // a version of a Remotion source waits for a person (D172)
+	TodoRecipeRun        = "recipe_run"         // a run of a recipe waits for a person or for Claude (D204)
+	TodoAbilityApproval  = "ability_approval"   // a version of an ability waits for an owner (D231)
+	TodoShipGate         = "ship_gate"          // hold versions back until the quality check passes and sign-offs are given? (D298, asked once)
+	TodoAbilityTakenBack = "ability_taken_back" // the catalogue a version came from took it back: take back its approval, or turn it down? (D488)
 )
 
 // TodoKinds lists every kind (for validation and filters).
-var TodoKinds = []string{TodoSpeakerUnnamed, TodoSpeakerMatch, TodoMusicRights, TodoBriefMissing, TodoDuplicatePerson, TodoRevisionApproval, TodoFacePerson, TodoSpelling, TodoFaceGroup, TodoRemotionApproval, TodoRecipeRun, TodoAbilityApproval, TodoShipGate}
+var TodoKinds = []string{TodoSpeakerUnnamed, TodoSpeakerMatch, TodoMusicRights, TodoBriefMissing, TodoDuplicatePerson, TodoRevisionApproval, TodoFacePerson, TodoSpelling, TodoFaceGroup, TodoRemotionApproval, TodoRecipeRun, TodoAbilityApproval, TodoShipGate, TodoAbilityTakenBack}
 
 // To-do states and resolutions.
 const (
@@ -186,7 +187,7 @@ type TodoRemotion struct {
 type Todo struct {
 	ID          string `bson:"_id" json:"id"`
 	WorkspaceID string `bson:"workspaceId" json:"workspaceId"`
-	Kind        string `bson:"kind" json:"kind" jsonschema:"enum=speaker_unnamed,enum=speaker_match,enum=music_rights,enum=brief_missing,enum=duplicate_person,enum=revision_approval,enum=face_person,enum=spelling,enum=face_group,enum=remotion_approval,enum=recipe_run,enum=ability_approval,enum=ship_gate"`
+	Kind        string `bson:"kind" json:"kind" jsonschema:"enum=speaker_unnamed,enum=speaker_match,enum=music_rights,enum=brief_missing,enum=duplicate_person,enum=revision_approval,enum=face_person,enum=spelling,enum=face_group,enum=remotion_approval,enum=recipe_run,enum=ability_approval,enum=ship_gate,enum=ability_taken_back"`
 	Scope       string `bson:"scope" json:"scope" jsonschema:"enum=asset,enum=project,enum=revision,enum=workspace"`
 	AssetID     string `bson:"assetId,omitempty" json:"assetId,omitempty"`
 	ProjectID   string `bson:"projectId,omitempty" json:"projectId,omitempty"`

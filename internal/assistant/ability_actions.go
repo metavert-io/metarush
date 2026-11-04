@@ -19,9 +19,12 @@ import (
 // becomes a card a person runs: the listing as the catalogue says it, pinned
 // to the version Claude saw, the note that MetaRush didn't check it, and what
 // happens after (a check on this computer, an owner's approval). It is a
-// person's decision (HumanOnly), so Auto never runs it and it is never
-// approved with others. Trusting a catalogue is never a card: it is an
-// owner's choice under Settings → Abilities; nor is bringing in a file.
+// person's decision (HumanOnly): Auto never runs it, and a person's Approve
+// all takes it with the rest only because that person chose to (the card
+// says everything a single Approve would). It says so when it comes in as
+// another version of an ability here, Claude's --as-version included.
+// Trusting a catalogue is never a card: it is an owner's choice under
+// Settings → Abilities; nor is bringing in a file.
 
 // abilityCommands are the commands handled here.
 var abilityCommands = map[string]bool{"ability import": true, "ability catalogues add": true, "ability catalogues remove": true}
@@ -75,7 +78,10 @@ func (m *Manager) describeAbility(ctx context.Context, call *cliCall, a *Assista
 		return
 	}
 	in := abilities.AbilityCatalogueImportIn{From: l.Catalogue + ":" + l.Entry.Name + "@" + l.Entry.Archive, AsVersion: hasBool(call, "as-version")}
-	if l.Other != nil && !in.AsVersion {
+	switch {
+	case l.Other != nil && in.AsVersion:
+		a.Details = append(a.Details, fmt.Sprintf("Claude asked to bring it in as a new version of the ability called %s here (version %d now), whichever catalogue that one came from: approve this only if they are the same ability", l.Entry.Name, l.Other.Number))
+	case l.Other != nil:
 		a.Details = append(a.Details, fmt.Sprintf("Another version of it is here (version %d): it comes in as its next version when it came from this catalogue", l.Other.Number))
 	}
 	setInput(a, "ability.catalogues.import", in)

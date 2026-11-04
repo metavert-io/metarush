@@ -145,7 +145,7 @@ export function BrowseCatalogues({ catalogue, listing }: { catalogue?: string; l
             <p key={c.key} className="mb-3 flex items-start gap-2 text-[12.5px] text-muted" data-catalogue-problem={c.key}>
               <Warning size={14} className="mt-[3px] shrink-0 text-accent-text" aria-hidden />
               <span>
-                <Theirs>{c.title || c.key}</Theirs>: {c.problem} Its copy before stays in use.
+                <Theirs>{c.title || c.key}</Theirs>: <Theirs>{c.problem}</Theirs> Its copy before stays in use.
               </span>
             </p>
           ))}
@@ -226,6 +226,11 @@ function ListedCard({ l, highlight }: { l: ListedAbility; highlight?: boolean })
         <ListedRow label="Licence">
           <Theirs>{e.licence}</Theirs>
         </ListedRow>
+        {e.terms ? (
+          <ListedRow label="Its service's terms">
+            <Theirs>{e.terms}</Theirs>
+          </ListedRow>
+        ) : null}
         <ListedRow label="Who starts a run">{l.decides}</ListedRow>
       </dl>
       {l.warnings.map((w, i) => (
@@ -503,14 +508,18 @@ function CatalogueItem({ c }: { c: CatalogueRow }) {
             ) : null}{' '}
             · added by <Theirs>{c.addedBy}</Theirs>
           </p>
-          {c.problem ? <p className="mt-1 text-[12px] text-accent-text">The last time MetaRush asked: {c.problem} Its copy before stays in use.</p> : null}
+          {c.problem ? (
+            <p className="mt-1 text-[12px] text-accent-text">
+              The last time MetaRush asked: <Theirs>{c.problem}</Theirs> Its copy before stays in use.
+            </p>
+          ) : null}
           {c.leftOut.length > 0 ? (
             <details className="mt-1 text-[12px] text-muted">
               <summary className="cursor-pointer select-none text-subtle hover:text-fg">MetaRush left {plural(c.leftOut.length, 'listing')} out</summary>
               <ul className="mt-1 space-y-0.5">
                 {c.leftOut.map((x, i) => (
                   <li key={i}>
-                    <Theirs>{x.name}</Theirs>: {x.why}
+                    <Theirs>{x.name}</Theirs>: <Theirs>{x.why}</Theirs>
                   </li>
                 ))}
               </ul>

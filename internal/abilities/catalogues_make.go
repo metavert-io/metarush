@@ -310,6 +310,12 @@ func makeEntry(ctx context.Context, ts *tools.Set, dir string, in MakeIn) (model
 	if l := f.Local; l != nil {
 		e.Local = &models.CatalogueLocal{Port: l.Port, Service: l.Service}
 	}
+	e.Likeness = f.Likeness
+	for _, nf := range f.Files {
+		says, _ := indexLine(nf.Says, 200)
+		e.Files = append(e.Files, models.CatalogueFile{Name: nf.Name, Says: says, Kind: nf.Kind})
+	}
+	e.Terms, _ = indexLine(f.Terms, 300)
 	if len(e.Sends) == 0 {
 		e.Sends = nil
 	}

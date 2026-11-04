@@ -71,5 +71,10 @@ func remindApproval(ctx context.Context, a *app.App, v *models.AbilityVersion) {
 func decided(ctx context.Context, a *app.App, v *models.AbilityVersion) {
 	if v != nil {
 		_, _ = todos.Close(ctx, a, approvalKey(v.Name)+v.Hash, models.ResolvedElsewhere, v.State)
+		// A version its catalogue took back (D488): taking its approval back or
+		// turning it down answers the owners' question about it.
+		if v.State == models.AbilityRevoked || v.State == models.AbilityTurnedDown {
+			_, _ = todos.Close(ctx, a, takenBackKey(v.Hash), models.ResolvedElsewhere, v.State)
+		}
 	}
 }

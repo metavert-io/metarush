@@ -64,6 +64,33 @@
       "type": "object",
       "description": "What AI does to each kind of output: made, edited, enhanced or none."
     },
+    "CatalogueFile": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "says": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "",
+            "whisper-model",
+            "whisper-translator"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "says"
+      ]
+    },
     "CatalogueFileSource": {
       "properties": {
         "url": {
@@ -381,6 +408,20 @@
         },
         "changesOutside": {
           "type": "boolean"
+        },
+        "likeness": {
+          "type": "boolean"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/CatalogueFile"
+          },
+          "type": "array",
+          "maxItems": 4
+        },
+        "terms": {
+          "type": "string",
+          "maxLength": 300
         },
         "programs": {
           "items": {

@@ -11,9 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/metavert-io/metarush/internal/abilities"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/plainwords"
+	"github.com/metavert-io/metarush/internal/store"
 )
 
 // A catalogue on this computer the workspace trusts, listing one ability.
@@ -111,6 +114,28 @@ func TestBringingInAnAbilityIsAPersonsCard(t *testing.T) {
 	}
 	if c := card("metarush ability catalogues add https://x.example/index.json"); c.State != ActionUnavailable || c.Op != "" {
 		t.Fatalf("trusting a catalogue: %+v", c)
+	}
+	// An ability of its name is here already (not from this catalogue):
+	// Claude's --as-version rides on the card only said aloud.
+	ws := a.WorkspaceID()
+	mine := strings.Repeat("e", 64)
+	if _, err := a.DB.C(store.CAbilities).InsertOne(ctx, bson.M{"_id": ws + "/" + mine, "workspaceId": ws, "name": "stock-photos", "hash": mine, "number": 1,
+		"state": "waiting", "title": "Stock photos (mine)"}); err != nil {
+		t.Fatal(err)
+	}
+	as := card("metarush ability import --from-catalogue acme:stock-photos --as-version")
+	var asIn abilities.AbilityCatalogueImportIn
+	if err := json.Unmarshal([]byte(as.Input), &asIn); err != nil || !asIn.AsVersion || asIn.From != "acme:stock-photos@"+archive ||
+		!strings.Contains(strings.Join(as.Details, " "), "as a new version of the ability called stock-photos here") {
+		t.Fatalf("as a new version, said on the card: %+v %v", as, err)
+	}
+	if plain := card("metarush ability import --from-catalogue acme:stock-photos"); !strings.Contains(strings.Join(plain.Details, " "), "Another version of it is here") {
+		t.Fatalf("another version here: %v", plain.Details)
+	}
+	for _, s := range as.Details {
+		if err := plainwords.CheckPanel(s); err != nil {
+			t.Errorf("card text %q: %v", s, err)
+		}
 	}
 	// Claude's own channel can't bring it in.
 	claude := *a

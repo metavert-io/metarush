@@ -248,6 +248,9 @@ type DeliveryGeneratedClip struct {
 	// picture's background taken away, made larger) aren't disclosed as
 	// AI-generated: the record's pictures say them (DeliveryResource.AI).
 	Work string `json:"work,omitempty" jsonschema:"enum=made,enum=edited,enum="`
+	// Ability is the ability that made it (name@version), as its manifest
+	// declares what AI did (D460); Provider is then the ability's title.
+	Ability string `json:"ability,omitempty"`
 	// Presenter names who reads the lines in a presenter clip (D277), the
 	// consent a person's presenter relies on, and its watermark ("none" when
 	// the service documents none).

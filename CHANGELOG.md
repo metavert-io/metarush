@@ -11,10 +11,17 @@
   never handed to the signing tool, which gets one signature per video and must put exactly that one in the file.
   Each signed copy is read back and checked before it goes out; the video's record, its notes file ("This video
   carries Content Credentials…") and the receipt say so, and a video that can't be signed goes out without them and
-  says why. "Required" holds a version until this computer can sign it — and after a signing here failed, until Try it
-  on a sample works — with the ship gate off too; a person can still send it out without them, with a note. The
+  says why. "Required" holds a version until this computer can sign it — its key readable (a locked keychain holds it),
+  its timestamp service one MetaRush asks, and after a signing here failed, until Try it on a sample works — with the
+  ship gate off too; a person can still send it out without them, with a note. The
   signing tool, c2patool, is a new optional component (Settings → Components). `metarush credentials check <video>`
   reads any video's.
+- **Abilities say what AI does to what they make**. An ability's manifest now says, for each kind of output, whether
+  a generative AI model made it, changed it, only improved it, or no AI took part (`ai: {picture: made}`), and what an
+  ability brings in carries that word. Content Credentials, the delivery's record, the quality check and the receipt
+  read it the way they read AI services' work, so a picture the ComfyUI ability made from words is disclosed as
+  AI-generated and a stock photo isn't. An output whose manifest says nothing counts as made with AI, and `ability
+  check` asks the author to say; the starter abilities say.
 - **Remotion refreshes can't see other programs' temporary files**. A source's own refresh steps can no longer read,
   write or connect to anything inside the temporary folders other programs use (the system's temporary folders and, on
   a Mac, the other folders of yours beside them), apart from their own copy and cache.

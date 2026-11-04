@@ -26,6 +26,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/c2pa"
+	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/plainwords"
@@ -632,5 +633,151 @@ func TestCredentialsChoiceIsAnOwners(t *testing.T) {
 	}
 	if st := do[ops.CredentialsStatusOut](t, a, "credentials.set", ops.CredentialsSetIn{Mode: models.CredentialsOff}); st.Mode != models.CredentialsOff {
 		t.Fatalf("off: %+v", st)
+	}
+}
+
+// A required signing that fails before c2patool runs (D461): the key can't
+// be read (a locked keychain). The gate sees it without signing — held, not
+// Ready — so a person can send the version out without them with a note;
+// once the key reads again it lets the version go signed. Where they are only
+// on, a delivery that can't read the key goes out without them and is
+// remembered like a signing c2patool couldn't do: a version that requires
+// them then waits for a signing that works, a note covers that too, and a
+// sample that works clears it.
+func TestAnUnreadableKeyHoldsARequiredVersionThatANoteSends(t *testing.T) {
+	a, _ := credentialsAppState(t, fakec2patool.State{})
+	do[ops.GateSettingsOut](t, a, "delivery.gate.set", ops.GateSetIn{On: true})
+	p, rid, _ := approvedWithRender(t, a, "Harbour story", true)
+	do[ops.CredentialsSetupOut](t, a, "credentials.setup", ops.CredentialsSetupIn{Test: true})
+	ready := func() *ops.ShipGateOut {
+		return do[ops.ShipGateOut](t, a, "delivery.ready", ops.ShipGateIn{ProjectID: p.ID})
+	}
+	account := a.Cfg.KeychainAccount("content-credentials")
+	key, err := keyring.Get(config.KeychainService, account) // the test keychain's (keyring.MockInit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock := func() { keyring.MockInitWithError(errors.New("the keychain is locked")) }
+	unlock := func() {
+		keyring.MockInit()
+		if err := keyring.Set(config.KeychainService, account, key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(keyring.MockInit)
+
+	// On: a delivery that can't read the key goes out without them, and says why.
+	do[ops.CredentialsStatusOut](t, a, "credentials.set", ops.CredentialsSetIn{Mode: models.CredentialsOn})
+	lock()
+	out := do[ops.DeliverOut](t, a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()})
+	if c := out.Files[0].ContentCredentials; c == nil || c.Signed || !strings.Contains(c.Problem, "couldn't read the signing key") {
+		t.Fatalf("on, with the key locked away: %+v", c)
+	}
+	// Required, the key still locked: held without signing anything, a note covers it.
+	do[ops.CredentialsStatusOut](t, a, "content.credentials.set", ops.ContentCredentialsSetIn{ProjectID: p.ID, Mode: models.CredentialsRequired})
+	st := do[ops.CredentialsStatusOut](t, a, "credentials.status", ops.CredentialsStatusIn{ProjectID: p.ID})
+	if st.Here.Ready || !strings.Contains(strings.Join(st.Here.Problems, " "), "Unlock the keychain") {
+		t.Fatalf("this computer, its key locked away: %+v", st.Here)
+	}
+	g := ready()
+	if g.Ready || len(g.Holds) != 1 || !strings.HasPrefix(g.Holds[0].Key, "credentials:key:") || g.Holds[0].Paths[0].Op != "credentials.test" ||
+		!strings.Contains(g.Holds[0].Says, "can't sign them: MetaRush couldn't read the signing key from this computer's keychain") {
+		t.Fatalf("held for the key: %+v", g)
+	}
+	if err := doErr(a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()}, person); code(err) != "E_HELD" {
+		t.Fatalf("delivered while held: %v", err)
+	}
+	if sent := do[ops.ShipGateOut](t, a, "delivery.override", ops.ShipOverrideIn{ShipGateIn: ops.ShipGateIn{ProjectID: p.ID}, Note: "The keychain is locked; the client takes it without.", Holds: shownKeys(g)}); !sent.Ready {
+		t.Fatalf("a note: %+v", sent)
+	}
+	out = do[ops.DeliverOut](t, a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()})
+	if c := out.Files[0].ContentCredentials; c == nil || c.Signed || !strings.Contains(c.Problem, "with a note") {
+		t.Fatalf("sent without them with a note: %+v", out.Files[0])
+	}
+	// The key reads again: the delivery that couldn't read it is remembered,
+	// so the version waits for a signing that works (a note would cover it too).
+	unlock()
+	g = ready()
+	if g.Ready || len(g.Holds) != 1 || !strings.HasPrefix(g.Holds[0].Key, "credentials:failed:") || !strings.Contains(g.Holds[0].Says, "couldn't read the signing key") {
+		t.Fatalf("held for the failed signing: %+v", g)
+	}
+	if tried := do[ops.CredentialsTestOut](t, a, "credentials.test", struct{}{}); !tried.Verified {
+		t.Fatalf("the sample: %+v", tried)
+	}
+	if g := ready(); holdOf(g, models.HoldCredentials) {
+		t.Fatalf("still held after a sample worked: %+v", g)
+	}
+	out = do[ops.DeliverOut](t, a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()})
+	if c := out.Files[0].ContentCredentials; c == nil || !c.Signed || !c.Verified {
+		t.Fatalf("signed again: %+v", c)
+	}
+}
+
+// The same for a timestamp service whose name now leads to a local network
+// (D461, D438): the gate sees it before a delivery tries — held, a note
+// covers it — and Try it on a sample remembers it like any failed signing;
+// back on the internet, a sample clears it and the version goes out signed.
+func TestARefusedTimestampServiceHoldsARequiredVersionThatANoteSends(t *testing.T) {
+	a, _ := credentialsAppState(t, fakec2patool.State{})
+	do[ops.GateSettingsOut](t, a, "delivery.gate.set", ops.GateSetIn{On: true})
+	p, rid, _ := approvedWithRender(t, a, "Harbour story", true)
+	do[ops.CredentialsSetupOut](t, a, "credentials.setup", ops.CredentialsSetupIn{Test: true})
+	inside := false
+	was := c2pa.LookupHost
+	t.Cleanup(func() { c2pa.LookupHost = was })
+	c2pa.LookupHost = func(_ context.Context, host string) ([]net.IPAddr, error) {
+		if host != "timestamp.example.org" {
+			return nil, errors.New("no such host")
+		}
+		if inside {
+			return []net.IPAddr{{IP: net.ParseIP("10.0.0.5")}}, nil
+		}
+		return []net.IPAddr{{IP: net.ParseIP("203.0.113.10")}}, nil
+	}
+	tsa := "https://timestamp.example.org/tsr"
+	do[ops.CredentialsStatusOut](t, a, "credentials.set", ops.CredentialsSetIn{Mode: models.CredentialsRequired, TimestampURL: &tsa})
+	ready := func() *ops.ShipGateOut {
+		return do[ops.ShipGateOut](t, a, "delivery.ready", ops.ShipGateIn{ProjectID: p.ID})
+	}
+	if g := ready(); !g.Ready {
+		t.Fatalf("set up, with a timestamp service: %+v", g)
+	}
+	inside = true // its name now leads to a local network
+	g := ready()
+	if g.Ready || len(g.Holds) != 1 || !strings.HasPrefix(g.Holds[0].Key, "credentials:timestamp:") ||
+		!strings.Contains(g.Holds[0].Says, "the timestamp service timestamp.example.org leads to this computer or a local network") {
+		t.Fatalf("held for the timestamp service: %+v", g)
+	}
+	if err := doErr(a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()}, person); code(err) != "E_HELD" {
+		t.Fatalf("delivered while held: %v", err)
+	}
+	if sent := do[ops.ShipGateOut](t, a, "delivery.override", ops.ShipOverrideIn{ShipGateIn: ops.ShipGateIn{ProjectID: p.ID}, Note: "No timestamp today; the client takes it without.", Holds: shownKeys(g)}); !sent.Ready {
+		t.Fatalf("a note: %+v", sent)
+	}
+	out := do[ops.DeliverOut](t, a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()})
+	if c := out.Files[0].ContentCredentials; c == nil || c.Signed || !strings.Contains(c.Problem, "with a note") {
+		t.Fatalf("sent without them with a note: %+v", out.Files[0])
+	}
+	// Try it on a sample while it is refused: a signing that failed, remembered.
+	if err := doErr(a, "credentials.test", struct{}{}, person); err == nil || !strings.Contains(err.Error(), "local network") {
+		t.Fatalf("a sample with the service refused: %v", err)
+	}
+	if f := c2pa.LastFailure(a.Cfg); f == nil || !strings.Contains(f.Why, "local network") {
+		t.Fatalf("the failure isn't remembered: %+v", f)
+	}
+	// Back on the internet: the remembered failure holds until a sample works.
+	inside = false
+	if g := ready(); g.Ready || !strings.HasPrefix(g.Holds[0].Key, "credentials:failed:") {
+		t.Fatalf("held for the failed sample: %+v", g)
+	}
+	if tried := do[ops.CredentialsTestOut](t, a, "credentials.test", struct{}{}); !tried.Verified {
+		t.Fatalf("the sample: %+v", tried)
+	}
+	if g := ready(); !g.Ready {
+		t.Fatalf("still held after a sample worked: %+v", g)
+	}
+	out = do[ops.DeliverOut](t, a, "deliver.export", ops.DeliverIn{RevisionIDs: []string{rid}, Out: t.TempDir()})
+	if c := out.Files[0].ContentCredentials; c == nil || !c.Signed || !c.Verified || !c.Timestamped {
+		t.Fatalf("signed again: %+v", c)
 	}
 }

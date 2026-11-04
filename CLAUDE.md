@@ -744,14 +744,18 @@ Read `docs/architecture.md` before structural changes.
   delivery's AI uses, `deliveryItem.ai`): title "Video", MetaRush + version, `c2pa.created` (composite, or
   compositeSynthetic with AI parts) + `c2pa.placed` per part + `c2pa.edited`, all created assertions; ingredients by
   `sha256:` with IPTC source types for AI parts — what AI did is one answer, `models.AIWorkOf(kind, edit)` (D435:
-  made / edited / enhanced by the generation's kind, `ResourceMadeWith.aiKind`; unknown kinds count as made), read by
-  the manifest, the record (`generated[].work`, `resources[].ai`) and QA, through nested cuts and calls — never names,
-  prompts, consents or a thumbnail. Records: `contentCredentials` in the sidecar and `DeliverFile`, a `## Content
+  made / edited / enhanced by the generation's kind, `ResourceMadeWith.aiKind`; unknown kinds count as made) and, for
+  what abilities bring in, their manifests' `ai` per output kind (D460: `AbilityMadeWith.AI`; nothing declared counts
+  as made; a providing ability's work is the stronger of the kind's and its word, `Output.Work` → `aiWork`), asked
+  through `models.AIWorkOfSource` / `AIWorkOfMadeWith` by the manifest, the record (`generated[].work|ability`,
+  `resources[].ai`), QA and the receipt, through nested cuts and calls — never names, prompts, consents or a thumbnail. Records: `contentCredentials` in the sidecar and `DeliverFile`, a `## Content
   Credentials` section in `.notes.md`, `Revision.contentCredentials` → the receipt's `signed`. Required: the gate's
   `credentials` hold (overridable with a note, `Anyway`: it holds and takes a note with the gate off too —
   `holdsAnyway`; never for timelines or posts); a signing that fails stops the delivery and is remembered on this
   computer (`c2pa.RecordFailure`, `state/private/content-credentials-failed.json`) until a signing works, so the hold
-  becomes `credentials:failed:…` with Try it on a sample (D437). Remotion refreshes can't see inside temporary folders
+  becomes `credentials:failed:…` with Try it on a sample (D437); `credentialsHere` looks as a signing would without
+  signing — the key read (a locked keychain: `credentials:key:…`) and the timestamp name (`credentials:timestamp:…`) —
+  and a key or timestamp failure during a delivery or a sample is recorded like c2patool's (D461). Remotion refreshes can't see inside temporary folders
   (D439, `insideFor`). The version page's Deliver… (`/api/deliver`: a new folder in the exports folder). Tests:
   `internal/testutil/fakec2patool` (JUMBF + COSE like c2patool; it can over-ask, steal, swap or hold), certificates made
   at run time, `TestTheSignerIsNoOracle`; `-tags c2pareal` with `METARUSH_REAL_C2PATOOL`; browser run
@@ -968,7 +972,9 @@ Read `docs/architecture.md` before structural changes.
   own installation (`InstallationOf`), hidden folders always win, writes only its output, home and tmp folders, runs
   `tools.Spec.Contained` (own session, its group killed when it ends); an open network goes through the proxy too
   (`AnyHost`); declared outputs only, copied out without following
-  links, through `ingest.File`/`resources.AddFile` with `madeWith` (`models.AbilityMadeWith`). Node's fetch needs the
+  links, through `ingest.File`/`resources.AddFile` with `madeWith` (`models.AbilityMadeWith`, its `ai` what the
+  manifest's `ai` says AI does to that kind of output: made | edited | enhanced | none, D460; a kind it doesn't name
+  counts as made and `ability check` warns). Node's fetch needs the
   preload (`sandbox.NodePreload`). Tests: `go test ./internal/abilities/ ./internal/sandbox/` (local test servers
   only), `scripts/abilities-e2e.sh` (port 5420). **In find** (D268, `internal/abilities/catalogue.go`): kind
   `ability`, each entry a change and a person's to do unless the decider says safe, `Blocked` with a plain `missing`

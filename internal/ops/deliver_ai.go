@@ -19,7 +19,8 @@ import (
 // every cut it plays, at any depth, conversations' members included, with
 // the same rules for each — its generated clips, its narration's AI voices
 // and cleaned-up lines, its clearer voices, its changed words, the pictures
-// it shows — and one answer per kind of work (models.AIWorkOf). Content
+// it shows, what abilities brought in as their manifests declare (D460) —
+// and one answer for each (models.AIWorkOfSource, AIWorkOfMadeWith). Content
 // Credentials list what it finds; the delivery's record discloses the same
 // AI-made and AI-edited pieces; the quality check counts pictures by the
 // same answer.
@@ -42,7 +43,9 @@ type aiPiece struct {
 	Nested string
 	// For the record only, never a manifest: its title, what made it.
 	Title, Provider, Model, GenerationID string
-	Likeness                             bool
+	// Ability is the ability that made it (name@version; D460).
+	Ability  string
+	Likeness bool
 }
 
 // made is what made a piece, as a manifest says it ("Google Gemini, veo-3.1").
@@ -89,17 +92,40 @@ func aiPieces(uses []cutUse, pics []shownPicture) []aiPiece {
 		out = append(out, p)
 	}
 	for _, u := range uses {
-		// Clips an AI model made or changed (their source says so).
+		// Clips an AI model made or changed: generated ones, and an ability's
+		// as its manifest declares (D460) — their source says so.
+		music := map[string]bool{}
+		for _, t := range u.spec.Audio {
+			if t.Role == editspec.RoleMusic {
+				music[t.AssetID] = true
+			}
+		}
 		for _, id := range editspec.AssetIDs(u.spec) {
 			as, ok := u.asset(id)
-			if !ok || !as.Source.IsGenerated() {
+			if !ok {
 				continue
 			}
-			p := aiPiece{SHA256: as.SHA256, Format: as.MIME, AssetID: id, Nested: u.nested, Title: as.DisplayTitle(), Work: models.AIWorkMade, What: "footage"}
-			if g := as.Source.Generated; g != nil {
+			work := models.AIWorkOfSource(as.Source)
+			if work == "" {
+				continue
+			}
+			p := aiPiece{SHA256: as.SHA256, Format: as.MIME, AssetID: id, Nested: u.nested, Title: as.DisplayTitle(), Work: work, What: "footage"}
+			switch src := as.Source; {
+			case src.Generated != nil:
+				g := src.Generated
 				p.Kind, p.Provider, p.Model, p.GenerationID, p.Likeness = g.Kind, g.ProviderTitle, g.Model, g.GenerationID, g.Likeness
-				p.Work = models.AIWorkOf(g.Kind, false)
 				p.What = whatAIMade(g)
+			case src.IsAbility():
+				p.Kind, p.Provider = "ability", src.AbilityTitle()
+				if src.MadeWith != nil {
+					p.Model, p.Ability = src.MadeWith.Ability, src.MadeWith.Ability
+				}
+				switch {
+				case music[id]:
+					p.What = "music"
+				case as.Kind != "video":
+					p.What = "sound"
+				}
 			}
 			add(p)
 		}
@@ -139,12 +165,19 @@ func aiPieces(uses []cutUse, pics []shownPicture) []aiPiece {
 		}
 	}
 	for _, pic := range pics {
+		// Pictures an AI service made or changed, and an ability's as its
+		// manifest declares (D460).
 		mw := pic.MadeWith
-		if mw == nil || mw.Kind != "ai" {
+		work := models.AIWorkOfMadeWith(mw, pic.Kind)
+		if work == "" {
 			continue
 		}
-		add(aiPiece{What: "picture", Work: models.AIWorkOf(firstNonEmpty(pic.Kind, "picture"), mw.Edit), Kind: pic.Kind, SHA256: pic.SHA256, ResourceID: pic.ResourceID,
-			Nested: pic.Nested, Title: pic.Title, Provider: mw.ProviderTitle, Model: mw.Model, GenerationID: mw.GenerationID, Likeness: pic.Likeness || mw.Likeness})
+		p := aiPiece{What: "picture", Work: work, Kind: pic.Kind, SHA256: pic.SHA256, ResourceID: pic.ResourceID, Nested: pic.Nested, Title: pic.Title,
+			Provider: mw.ProviderTitle, Model: mw.Model, GenerationID: mw.GenerationID, Likeness: pic.Likeness || mw.Likeness}
+		if ab := mw.Ability; mw.Kind == "ability" && ab != nil {
+			p.Kind, p.Provider, p.Model, p.Ability = "ability", firstNonEmpty(ab.Title, ab.Name), ab.Ability, ab.Ability
+		}
+		add(p)
 	}
 	return out
 }

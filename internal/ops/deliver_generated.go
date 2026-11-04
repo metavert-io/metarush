@@ -12,8 +12,10 @@ import (
 )
 
 // generatedIn lists the AI-generated clips a delivered cut shows (its own
-// clips and those of the cuts it nests), how long they are on screen, and
-// what each place asks people to disclose (D127). Nil when there are none.
+// clips and those of the cuts it nests) — generated ones, and those an
+// ability made or changed with AI as its manifest declares (D460) — how long
+// they are on screen, and what each place asks people to disclose (D127).
+// Nil when there are none.
 func generatedIn(it *deliveryItem, order []string, used map[string][]string) *DeliveryGenerated {
 	seconds := map[string]float64{}
 	for _, c := range it.rev.Spec.Clips {
@@ -29,17 +31,27 @@ func generatedIn(it *deliveryItem, order []string, used map[string][]string) *De
 	g := &DeliveryGenerated{Clips: []DeliveryGeneratedClip{}}
 	add := func(as models.Asset, usedAs []string, secs float64) {
 		s := as.Source
-		if !s.IsGenerated() {
+		work := models.AIWorkOfSource(s)
+		// Generated clips, and what an ability made or changed with AI as its
+		// manifest declares (D460).
+		if !s.IsGenerated() && !models.AIDisclosed(work) {
 			return
 		}
-		c := DeliveryGeneratedClip{AssetID: as.ID, Title: as.DisplayTitle(), SHA256: as.SHA256, UsedAs: usedAs, Seconds: math.Round(secs*10) / 10}
+		c := DeliveryGeneratedClip{AssetID: as.ID, Title: as.DisplayTitle(), SHA256: as.SHA256, UsedAs: usedAs, Seconds: math.Round(secs*10) / 10, Work: work}
 		if usedAs == nil {
 			c.UsedAs = []string{}
 		}
-		c.Work = models.AIWorkMade
+		if !s.IsGenerated() {
+			c.Provider = s.AbilityTitle()
+			if s.MadeWith != nil {
+				c.Ability = s.MadeWith.Ability
+			}
+			if as.Kind != "video" {
+				c.Kind = "sound"
+			}
+		}
 		if gs := s.Generated; gs != nil {
 			c.GenerationID, c.Provider, c.Model, c.Look, c.Likeness, c.Kind = gs.GenerationID, gs.ProviderTitle, gs.Model, gs.Look, gs.Likeness, gs.Kind
-			c.Work = models.AIWorkOf(gs.Kind, false)
 			if gs.Watermark != "" {
 				g.Watermark = gs.Watermark
 			}
@@ -110,7 +122,7 @@ func aiPictures(a *app.App, it *deliveryItem, g *DeliveryGenerated) *DeliveryGen
 				g = &DeliveryGenerated{Clips: []DeliveryGeneratedClip{}}
 			}
 			g.Clips = append(g.Clips, DeliveryGeneratedClip{Kind: "picture", ResourceID: p.ResourceID, Title: p.Title, GenerationID: p.GenerationID,
-				Provider: p.Provider, Model: p.Model, SHA256: p.SHA256, UsedAs: []string{used}, Likeness: p.Likeness, Work: p.Work})
+				Provider: p.Provider, Model: p.Model, SHA256: p.SHA256, UsedAs: []string{used}, Likeness: p.Likeness, Work: p.Work, Ability: p.Ability})
 			g.Likeness = g.Likeness || p.Likeness
 			if mw := pic.MadeWith; mw != nil && mw.Watermark != "" {
 				g.Watermark = mw.Watermark

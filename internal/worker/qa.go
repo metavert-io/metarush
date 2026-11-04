@@ -75,15 +75,20 @@ func qaHandler(ctx context.Context, w *Worker, j *models.Job, report Report) (ma
 	generated := map[string]qa.GeneratedClip{}
 	for _, as := range assets {
 		names[as.ID] = as.DisplayTitle()
-		switch {
-		case as.Source.IsGenerated():
-			// AI-generated footage is noted on its own (D127), not credited as someone's.
+		// AI-generated footage is noted on its own (D127): generated clips, and
+		// what an ability made or changed with AI as its manifest declares
+		// (D460, the answer delivery and Content Credentials give).
+		if models.AIDisclosed(models.AIWorkOfSource(as.Source)) {
 			gc := qa.GeneratedClip{}
 			if g := as.Source.Generated; g != nil {
 				gc.Provider, gc.Likeness, gc.Presenter = g.ProviderTitle, g.Likeness, g.Kind == "presenter"
+			} else if as.Source.IsAbility() {
+				gc.Provider = "the ability “" + as.Source.AbilityTitle() + "”"
 			}
 			generated[as.ID] = gc
-		case as.Source != nil:
+		}
+		// Others' clips are credited; a generated one isn't someone's.
+		if as.Source != nil && !as.Source.IsGenerated() {
 			credits[as.ID] = as.Source.Short()
 		}
 		// The evidence of the media the version plays (D152): its fixed copy's when it pins one.
@@ -117,19 +122,20 @@ func qaHandler(ctx context.Context, w *Worker, j *models.Job, report Report) (ma
 			if v.Source.License != "" {
 				rc.License = v.Source.License
 			}
-			// A picture an AI service made, or changed with generative AI (D226):
-			// a promise to disclose it counts it (D300); one AI only improved (its
-			// background taken away, made larger) isn't AI-generated (D435: the
-			// same answer the delivery's record and Content Credentials give).
-			if mw := v.Source.MadeWith; mw != nil && mw.Kind == "ai" {
+			// A picture an AI service made, or changed with generative AI (D226),
+			// or an ability's as its manifest declares (D460): a promise to
+			// disclose it counts it (D300); one AI only improved (its background
+			// taken away, made larger) isn't AI-generated (D435: the same answer
+			// the delivery's record and Content Credentials give).
+			if mw := v.Source.MadeWith; mw != nil {
 				kind := mw.AIKind
-				if kind == "" && mw.GenerationID != "" {
+				if mw.Kind == "ai" && kind == "" && mw.GenerationID != "" {
 					var g models.Generation
 					if a.DB.GetByID(ctx, store.CGenerations, a.WorkspaceID(), mw.GenerationID, &g) == nil {
 						kind = g.Kind
 					}
 				}
-				rc.AI = models.AIDisclosed(models.AIWorkOf(firstOf(kind, "picture"), mw.Edit))
+				rc.AI = models.AIDisclosed(models.AIWorkOfMadeWith(mw, kind))
 			}
 		}
 		resCredits = append(resCredits, rc)
@@ -380,12 +386,4 @@ func num(v any) float64 {
 		return float64(x)
 	}
 	return 0
-}
-
-// firstOf is a, else b.
-func firstOf(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
 }

@@ -387,6 +387,11 @@ func TestAbilityProvidesThroughTheJob(t *testing.T) {
 	if v := big.Latest(); v.Source.MadeWith == nil || v.Source.MadeWith.Provider != "ability-grow" || !strings.Contains(big.Title, "larger") {
 		t.Fatalf("picture %+v", big)
 	}
+	// Its manifest says nothing about what AI does to its pictures: what it
+	// made counts as made, more than an upscale is (D460), wherever it is told.
+	if v := big.Latest(); v.Source.MadeWith.AIWork != models.AIWorkMade || models.AIWorkOfMadeWith(v.Source.MadeWith, "") != models.AIWorkMade {
+		t.Fatalf("what AI did: %+v", v.Source.MadeWith)
+	}
 	// Content Settings can rule the ability out by name, like any provider.
 	if _, err := ops.CallTyped[ops.ContentShowOut](context.Background(), e.a, "content.own", ops.ContentOwnIn{ProjectID: e.project}, ops.Caller{}); err != nil {
 		t.Fatal(err)
@@ -396,6 +401,32 @@ func TestAbilityProvidesThroughTheJob(t *testing.T) {
 	}
 	if _, err := call[aiwork.AIEstimate](t, e.a, "ai.estimate", in, false); codeOf(err) != apperr.Conflict {
 		t.Fatalf("forbidden: %v", err)
+	}
+}
+
+// An ability that provides larger pictures and says its model only enhances
+// them (D460): what it brings back is kept as enhanced, like the built-in
+// upscaler's — not disclosed as AI-generated — the kind and its word agreeing.
+func TestAProvidingAbilitysPicturesAreWhatItDeclares(t *testing.T) {
+	e := setup(t)
+	said := map[string]string{"ability.yaml": strings.Replace(strings.Replace(growAbility["ability.yaml"], "name: grow", "name: grow-said", 1),
+		"provides: [upscale]", "provides: [upscale]\nai: {picture: enhanced}", 1), "grow.py": growAbility["grow.py"]}
+	e.approveAbility(t, said)
+	pic := e.picture(t, "harbour-sign", 48, 32)
+	out, err := call[aiwork.MakeOut](t, e.a, "ai.make", aiwork.MakeIn{Kind: aiservices.KindUpscale, ProjectID: e.project, Model: "ability-grow-said/grow-said", Pictures: []string{pic.Name}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.run(t, out.JobID); err != nil {
+		t.Fatal(err)
+	}
+	g := e.gen(t, out.Work.ID)
+	var big models.Resource
+	if err := e.a.DB.GetByID(context.Background(), store.CResources, e.a.WorkspaceID(), g.Outcome.Outputs[0].ResourceID, &big); err != nil {
+		t.Fatal(err)
+	}
+	if mw := big.Latest().Source.MadeWith; mw == nil || mw.AIWork != models.AIWorkEnhanced || models.AIDisclosed(models.AIWorkOfMadeWith(mw, "")) {
+		t.Fatalf("what AI did: %+v", mw)
 	}
 }
 

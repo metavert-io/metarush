@@ -30,8 +30,12 @@ They are off until an owner turns them on.
   and what delivery says tell you why.
 - **Required**: the same, but a video that can't be signed doesn't go out. A version this computer can't sign waits
   ([the ship gate](ship-gate.md): "Its videos must carry Content Credentials, and this computer can't sign them: …",
-  with Set them up), with the gate off too. A signing that fails during the delivery stops it — nothing is written —
-  and this computer remembers it until a signing works again: the version then waits with "Its videos must carry
+  with Set them up), with the gate off too. "Can't sign" is looked at as a signing would, without signing anything
+  (D461): the certificate, the key read from the keychain (a locked keychain holds the version: "MetaRush couldn't read
+  the signing key from this computer's keychain. Unlock the keychain…", with Try it on a sample), c2patool, and the
+  timestamp service's name (one that now leads to this computer or a local network holds it too). A signing that fails
+  during the delivery — c2patool's, or the key or the timestamp service's on the way to it — stops it, nothing is
+  written, and this computer remembers it until a signing works again: the version then waits with "Its videos must carry
   Content Credentials, and the last signing on this computer failed (…)", and **Try it on a sample** (`metarush
   credentials test`) signs MetaRush's own sample — when that checks out, the version is ready again. Either way a
   person can send it out without them, with a note (`metarush deliver override`, Deliver anyway…), gate on or off; the
@@ -136,10 +140,14 @@ computer when a video is signed.
 The parts are what the delivery's record lists: the footage and sound the cut plays, the cuts it nests and what they
 play (their narration and pictures included), a call's recordings, the narration's recordings, the pictures it shows
 (fonts aren't parts), and every part AI made or changed — so the manifest discloses exactly what the record, the
-quality check and the receipt disclose. What AI did to a part comes from one answer (`models.AIWorkOf`), read by the
-manifest, the record and the quality check alike: the kind of AI work that made it (generated video, a picture made from
-words, a picture made larger…), never a guess from its name; a kind MetaRush doesn't know counts as made by AI. At most
-200 parts are listed.
+quality check and the receipt disclose. What AI did to a part comes from one answer (`models.AIWorkOf`,
+`AIWorkOfSource`, `AIWorkOfMadeWith`), read by the manifest, the record, the quality check and the receipt alike: for AI
+services' work the kind of AI work that made it (generated video, a picture made from words, a picture made larger…),
+never a guess from its name, a kind MetaRush doesn't know counting as made; for what an ability brought in, what its
+manifest declares for that kind of output (`ai: made | edited | enhanced | none`, [abilities.md](abilities.md)), nothing
+declared counting as made (D460) — so a picture the ComfyUI starter made from words is an "AI-generated picture" ("Made
+with Pictures from ComfyUI on this computer, comfyui-local@…") and the video compositeSynthetic, while a stock photo
+an ability found stays a plain "Picture". At most 200 parts are listed.
 
 **Digital source types** (IPTC's, as C2PA uses them):
 
@@ -175,8 +183,9 @@ Each video's record (the `.json` next to it) has `contentCredentials`:
 
 `signed` and `verified` are false, with `problem` and `says`, when it carries none; `testCertificate` marks a test
 certificate; `required` says the settings ask for them. The record's AI parts say what AI did in the same words:
-`generated[].work` is `made` or `edited`, and each picture's `ai` is `made`, `edited` or `enhanced` (a background taken
-away, made larger — said, not disclosed as AI-generated). `sha256` and `size` are the delivered file's (its credentials
+`generated[].work` is `made` or `edited` (with `ability`, name@version, for what an ability brought in), and each
+picture's `ai` is `made`, `edited` or `enhanced` (a background taken away, made larger — said, not disclosed as
+AI-generated). `sha256` and `size` are the delivered file's (its credentials
 included); the render's own stay under `render`. `manifestHash` is the SHA-256 of the manifest store in the file.
 
 The `.notes.md` file says it in a few plain sentences ("This video carries Content Credentials, …", or why it went out

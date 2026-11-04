@@ -4487,6 +4487,9 @@ terms?: string
 minutes: number
 mb: number
 provides?: string[]
+ai?: {
+[k: string]: string
+}
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -5903,6 +5906,7 @@ model: string
 modelTitle?: string
 operation: ("shot" | "again" | "variation" | "extend" | "edit" | "look-test" | "make")
 kind?: string
+aiWork?: ("made" | "edited" | "enhanced" | "")
 take?: number
 prompt?: string
 look?: string
@@ -5988,6 +5992,10 @@ licence?: string
 source?: string
 credit?: string
 author?: string
+/**
+ * What the ability's manifest declares AI did to this kind of output; empty: nothing declared, counted as made.
+ */
+ai?: ("made" | "edited" | "enhanced" | "none" | "")
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -11986,6 +11994,7 @@ watermark?: string
 likeness?: boolean
 edit?: boolean
 aiKind?: string
+aiWork?: ("made" | "edited" | "enhanced" | "")
 ability?: AbilityMadeWith
 repoId?: string
 repoSha?: string
@@ -18322,6 +18331,7 @@ model: string
 look?: string
 likeness?: boolean
 work?: ("made" | "edited" | "")
+ability?: string
 presenter?: string
 consent?: string
 presenterWatermark?: string

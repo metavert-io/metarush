@@ -1896,6 +1896,12 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "ai": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
         }
       },
       "additionalProperties": false,
@@ -2546,6 +2552,17 @@
         },
         "author": {
           "type": "string"
+        },
+        "ai": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none",
+            ""
+          ],
+          "description": "What the ability's manifest declares AI did to this kind of output; empty: nothing declared, counted as made."
         }
       },
       "additionalProperties": false,
@@ -18904,6 +18921,9 @@
             ""
           ]
         },
+        "ability": {
+          "type": "string"
+        },
         "presenter": {
           "type": "string"
         },
@@ -26037,6 +26057,15 @@
         },
         "kind": {
           "type": "string"
+        },
+        "aiWork": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            ""
+          ]
         },
         "take": {
           "type": "integer"
@@ -58478,6 +58507,15 @@
         },
         "aiKind": {
           "type": "string"
+        },
+        "aiWork": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            ""
+          ]
         },
         "ability": {
           "$ref": "#/$defs/AbilityMadeWith"

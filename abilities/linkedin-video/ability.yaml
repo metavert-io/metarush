@@ -15,6 +15,7 @@ inputs:
   notes: {kind: delivery-notes, optional: true, says: The words that go with it}
   visibility: {kind: choice, options: [connections, public], default: connections, says: Who sees the post}
 outputs: [document]
+ai: {document: none}
 cost: free
 hosts: [api.linkedin.com, www.linkedin.com]
 sends: [footage, words]

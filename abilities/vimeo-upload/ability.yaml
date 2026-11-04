@@ -13,6 +13,7 @@ inputs:
   notes: {kind: delivery-notes, optional: true, says: Its title and description}
   privacy: {kind: choice, options: [private, unlisted, public], default: private, says: Who can see it}
 outputs: [document]
+ai: {document: none}
 cost: free
 keys: [{name: vimeo, env: VIMEO_TOKEN, hosts: [api.vimeo.com, "*.cloud.vimeo.com"]}]
 hosts: [api.vimeo.com, "*.cloud.vimeo.com"]

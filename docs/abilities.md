@@ -22,7 +22,8 @@ runs: python3 fetch.py                # a program it needs, or a file of the fol
 inputs:
   words: {kind: words, max: 100, says: What the photo shows}
   count: {kind: number, min: 1, max: 6, default: 1}
-outputs: [picture]                    # footage, sound, picture, document, font
+outputs: [picture]                    # footage, sound, picture, document, font, captions
+ai: {picture: none}                   # what AI does to each kind of output: made, edited, enhanced or none
 cost: {service: Example Photos, usd: 0.02, per: photo, from: count, as-of: 2026-10-01}   # or: free
 keys: [{name: example-photos, env: PHOTOS_KEY, hosts: [api.photos.example], header: X-Api-Key}]  # or query: api_key; or just [example-photos]
 hosts: [api.photos.example, cdn.photos.example]
@@ -65,6 +66,19 @@ run is broken off. On another computer an owner agrees to that computer's progra
 it when approving (`ability approve --local-service`), and a person starts each run, because the service runs outside
 the sandbox. What reaches only that service doesn't leave this computer through MetaRush, though the
 service itself may send things on.
+
+**What AI does to what it makes** (`ai`, D460). For each kind of output, one of four words: `made` (a generative AI
+model makes it: a picture from words, speech, music), `edited` (a generative model changes captured media by making
+new content in it: a mouth matched to new words, a voice changed), `enhanced` (a model changes it without making
+anything new: made larger, its background taken away, a voice made clearer) or `none` (no AI takes part: stock media
+found and downloaded, a post's receipt). Every output a run brings in carries its kind's word (`madeWith.ai` on a
+clip, picture or captions), and Content Credentials, the delivery's record, the quality check and the receipt read it
+with the same answer as for AI services' work (`models.AIWorkOfSource`, `AIWorkOfMadeWith`): made and edited parts are
+disclosed as AI-generated, enhanced ones are said (in Content Credentials) without being called AI-generated. A kind of
+output the manifest doesn't name counts as made — saying too much is safer than too little — and `ability check` asks
+the author to say; outputs kept before manifests could say count as made too. An ability that `provides` a kind of
+AI work can't say less than that work is (a picture from words is made; making one larger is at least enhanced), and
+what it brings back counts as the stronger of the two.
 
 The full schema is `schema/ability.schema.json` (generated from `internal/abilities.Manifest`). Rules a schema can't
 say are checked too: a key goes only to hosts the ability declares (a key named after one of MetaRush's own

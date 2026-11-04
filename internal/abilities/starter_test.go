@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"gopkg.in/yaml.v3"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/catalog"
@@ -375,6 +376,10 @@ func TestStarterPexels(t *testing.T) {
 			!strings.HasPrefix(src.MadeWith.Ability.Credit, "Photo by Photographer ") || !strings.HasPrefix(src.URL, "https://www.pexels.com/photo/") {
 			t.Fatalf("photo %d's source: %+v %+v", i, src, src.MadeWith)
 		}
+		// A stock photo it found: no AI's, as its manifest says (D460).
+		if src.MadeWith.Ability.AI != models.AIWorkNone || models.AIWorkOfMadeWith(src.MadeWith, "") != "" {
+			t.Fatalf("photo %d said made with AI: %+v", i, src.MadeWith.Ability)
+		}
 	}
 	// The key went only to the API, never to where the pictures are.
 	if k := keyedHosts(out); len(k["pexels"]) != 1 || k["pexels"][0] != "api.pexels.com" {
@@ -397,6 +402,9 @@ func TestStarterPexels(t *testing.T) {
 	}
 	if as.Source == nil || as.Source.Uploader != "Video Maker" || !strings.Contains(as.Source.Credit(), "Video by Video Maker on Pexels (Pexels License): https://www.pexels.com/video/4001/") {
 		t.Fatalf("the clip's source and credit: %+v %q", as.Source, as.Source.Credit())
+	}
+	if as.Source.MadeWith == nil || as.Source.MadeWith.AI != models.AIWorkNone || models.AIWorkOfSource(as.Source) != "" {
+		t.Fatalf("stock footage said made with AI: %+v", as.Source.MadeWith)
 	}
 
 	// A key Pexels refuses: the run says what to do.
@@ -843,6 +851,13 @@ func TestStarterComfyUI(t *testing.T) {
 	if out.Run.State != models.AbilityRunDone || len(out.Run.Outputs) != 1 || out.Run.Outputs[0].Status != "added" || out.Run.Outputs[0].Kind != OutPicture {
 		t.Fatalf("the run: %+v\n%s", out.Run, out.Log)
 	}
+	// The picture a generative model made carries its manifest's word (D460):
+	// delivery, Content Credentials and the quality check disclose it as made with AI.
+	pic := resourceOf(t, a, out.Run.Outputs[0].ResourceID)
+	if src := pic.Latest().Source; src.MadeWith == nil || src.MadeWith.Ability == nil ||
+		src.MadeWith.Ability.AI != models.AIWorkMade || models.AIWorkOfMadeWith(src.MadeWith, "") != models.AIWorkMade {
+		t.Fatalf("what AI did to the ComfyUI picture: %+v", src.MadeWith)
+	}
 	if len(*prompts) != 1 {
 		t.Fatalf("ComfyUI got %d graphs", len(*prompts))
 	}
@@ -1167,6 +1182,35 @@ func TestStarterPackIsWhole(t *testing.T) {
 	}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("the starter pack: %v, want %v", got, want)
+	}
+	// Each says, truthfully, what AI does to every kind of output it makes
+	// (D460): ComfyUI makes its pictures with a generative model, whisper.cpp
+	// writes the captions; stock and openly licensed media found on the web,
+	// and the receipts of posts, are no AI's.
+	says := map[string]map[string]string{
+		"comfyui-local":     {OutPicture: models.AIWorkMade},
+		"english-captions":  {OutCaptions: models.AIWorkMade},
+		"freesound-effects": {OutSound: models.AIWorkNone},
+		"open-media":        {OutFootage: models.AIWorkNone, OutSound: models.AIWorkNone, OutPicture: models.AIWorkNone},
+		"pexels-stock":      {OutFootage: models.AIWorkNone, OutPicture: models.AIWorkNone},
+		"linkedin-video":    {OutDocument: models.AIWorkNone},
+		"podcast-episode":   {OutDocument: models.AIWorkNone},
+		"vimeo-upload":      {OutDocument: models.AIWorkNone},
+		"davinci-resolve":   {},
+	}
+	for _, name := range want {
+		// Read loosely: the abilities not runnable yet have fields MetaRush
+		// doesn't take yet (TestStarterNotYetRunnable).
+		var m Manifest
+		if err := yaml.Unmarshal([]byte(mustRead(t, filepath.Join(root, name, ManifestFile))), &m); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if undeclared := m.AIUndeclared(); len(undeclared) > 0 {
+			t.Errorf("%s doesn't say what AI does to its %v", name, undeclared)
+		}
+		if fmt.Sprint(map[string]string(m.AI)) != fmt.Sprint(says[name]) && !(len(m.AI) == 0 && len(says[name]) == 0) {
+			t.Errorf("%s says %v, want %v", name, m.AI, says[name])
+		}
 	}
 }
 

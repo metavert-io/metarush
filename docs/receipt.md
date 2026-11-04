@@ -20,7 +20,9 @@ video's record (`receipt`).
   a Claude plan it counts toward the plan's limits.
 - **Requests the activity log recorded** for the project, counted by service and what they did (failures too): every
   outside request goes to the log, so a service whose records live elsewhere still shows.
-- **Generated media**: generated shots and AI narration lines, marked when the priced version uses them.
+- **Generated media**: generated shots and AI narration lines, marked when the priced version uses them — and what
+  abilities brought in with AI, by what their manifests declare (D460: "a picture the ability “…” made with AI";
+  nothing declared counts as made; stock media an ability found and declares `none` of isn't listed).
 - **What Auto spent by itself**: each change that cost money and ran under Auto, for whom and its estimate.
 - **The samples runs made first** (`samples`): a run of Recipes with an expensive kind of work makes a sample
   first in its project; its requests are listed above like any others, and this says which of them was the sample —

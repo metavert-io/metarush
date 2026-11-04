@@ -6,6 +6,7 @@ runs: python3 run.py
 inputs:
   words: {kind: words, max: 100, says: The sound}
 outputs: [sound]
+ai: {sound: none}
 cost: free
 keys: [{name: sound-library, env: SOUNDS_KEY, hosts: [api.sounds.example], query: token}]
 hosts: [api.sounds.example, cdn.sounds.example]

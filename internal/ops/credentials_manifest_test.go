@@ -328,3 +328,156 @@ func TestPlacedOnlyAsItWasChecked(t *testing.T) {
 		t.Fatal("a file was overwritten")
 	}
 }
+
+// abilityVersion is a delivered version with what abilities brought in
+// (D460): a picture the starter comfyui-local made from words (its manifest
+// says made), a picture from an ability whose manifest says nothing, a
+// stock photo and stock footage an ability found (none), and a sound an
+// ability made whose manifest says nothing — next to plain footage.
+func abilityVersion() *deliveryItem {
+	made := func(name, title, ai string) *models.AbilityMadeWith {
+		return &models.AbilityMadeWith{Ability: name + "@1a2b3c4d", Name: name, Title: title, Hash: strings.Repeat("1a2b3c4d", 8), RunID: "abr_" + name, AI: ai}
+	}
+	pic := func(id, title, sha string, mw *models.AbilityMadeWith) *models.Resource {
+		return &models.Resource{ID: id, Name: id, Title: title, Kind: "image", Versions: []models.ResourceVersion{{SHA256: sha, MIME: "image/png",
+			Source: models.ResourceSource{Kind: models.FromGenerated, Tool: "ability", MadeWith: &models.ResourceMadeWith{Kind: "ability", Ability: mw}}}}}
+	}
+	clip := func(id, kind, mime, sha string, mw *models.AbilityMadeWith) models.Asset {
+		return models.Asset{ID: id, Kind: kind, SHA256: sha, MIME: mime, Name: id,
+			Source: &models.AssetSource{Platform: models.PlatformAbility, Title: id, Tool: "MetaRush ability " + mw.Ability, Method: "ability", MadeWith: mw}}
+	}
+	pics := map[string]*models.Resource{
+		"res_comfy":      pic("res_comfy", "Harbour at dawn", hx(31), made("comfyui-local", "Pictures from ComfyUI on this computer", models.AIWorkMade)),
+		"res_undeclared": pic("res_undeclared", "Lighthouse", hx(32), made("picture-maker", "Picture maker", "")),
+		"res_stock":      pic("res_stock", "Pier photo", hx(33), made("pexels-stock", "Free stock from Pexels", models.AIWorkNone)),
+	}
+	assets := map[string]models.Asset{
+		"ast_footage": {ID: "ast_footage", Kind: "video", Name: "acme-harbour.mov", SHA256: hx(30), MIME: "video/quicktime"},
+		"ast_stock":   clip("ast_stock", "video", "video/mp4", hx(34), made("pexels-stock", "Free stock from Pexels", models.AIWorkNone)),
+		"ast_hum":     clip("ast_hum", "audio", "audio/wav", hx(35), made("sound-maker", "Sound maker", "")),
+	}
+	pinOf := func(r *models.Resource) editspec.ResourcePin {
+		return editspec.ResourcePin{ID: r.ID, SHA256: r.Versions[0].SHA256}
+	}
+	spec := editspec.Spec{
+		Clips: []editspec.Clip{{ID: "c1", AssetID: "ast_footage", In: 0, Out: 2}, {ID: "c2", AssetID: "ast_stock", In: 0, Out: 2}},
+		Audio: []editspec.AudioTrack{{ID: "hum", AssetID: "ast_hum", Role: "effect"}},
+		Resources: map[string]editspec.ResourcePin{"dawn": pinOf(pics["res_comfy"]), "lighthouse": pinOf(pics["res_undeclared"]),
+			"pier": pinOf(pics["res_stock"])},
+	}
+	return &deliveryItem{proj: models.Project{Name: "Acme harbour"}, rev: models.Revision{Spec: spec}, assets: assets,
+		extras: &RenderExtras{res: &resourceFacts{byID: pics}}}
+}
+
+// The reviewer's case (D460): a picture the starter ability comfyui-local
+// made from words (Stable Diffusion in ComfyUI) shown in a cut. Content
+// Credentials call it an AI-generated picture made with that ability and the
+// video compositeSynthetic — never a plain "Picture" in a composite with
+// every action said and no generative AI; an output whose manifest declares
+// nothing counts as made; what an ability found and declares none of stays a
+// plain part.
+func TestAnAbilitysAIPictureIsInContentCredentials(t *testing.T) {
+	it := abilityVersion()
+	// Only the footage and the ComfyUI picture: the reviewer's cut.
+	only := abilityVersion()
+	only.rev.Spec = editspec.Spec{Clips: it.rev.Spec.Clips[:1], Resources: map[string]editspec.ResourcePin{"dawn": it.rev.Spec.Resources["dawn"]}}
+	om := manifestFor(t.Context(), nil, only, &DeliverySidecar{Resources: []DeliveryResource{{Name: "dawn", ResourceID: "res_comfy", Kind: "image", SHA256: hx(31)}}})
+	od, odef := readManifest(t, om)
+	acts := od.Assertions[0].Data.Actions
+	if om.SourceType() != c2pa.SourceSynthetic || acts[0].Action != "c2pa.created" || acts[0].Source != c2pa.SourceSynthetic || !od.Assertions[0].Data.All {
+		t.Fatalf("the reviewer's cut: %s %+v", om.SourceType(), od.Assertions)
+	}
+	got := map[string]string{}
+	for _, ing := range od.Ingredients {
+		got[ing.Title] = ing.Source
+	}
+	if got["AI-generated picture 1"] != c2pa.SourceTrained || got["Footage 1"] != "" || len(got) != 2 {
+		t.Fatalf("the reviewer's cut: %v", got)
+	}
+	if !strings.Contains(odef, "Made with Pictures from ComfyUI on this computer, comfyui-local@1a2b3c4d") {
+		t.Fatalf("what made it: %s", odef)
+	}
+	// Everything: declared made, undeclared (made), declared none.
+	sc := &DeliverySidecar{Resources: []DeliveryResource{{Name: "dawn", ResourceID: "res_comfy", Kind: "image", SHA256: hx(31)},
+		{Name: "lighthouse", ResourceID: "res_undeclared", Kind: "image", SHA256: hx(32)}, {Name: "pier", ResourceID: "res_stock", Kind: "image", SHA256: hx(33)}}}
+	m := manifestFor(t.Context(), nil, it, sc)
+	d, def := readManifest(t, m)
+	want := map[string]string{
+		"AI-generated picture 1": c2pa.SourceTrained, // comfyui-local: made
+		"AI-generated picture 2": c2pa.SourceTrained, // its manifest says nothing: made
+		"AI-generated sound 1":   c2pa.SourceTrained, // a sound whose manifest says nothing: made
+		"Footage 1":              "",
+		"Footage 2":              "", // stock footage an ability found (none)
+		"Picture 1":              "", // a stock photo an ability found (none)
+	}
+	got = map[string]string{}
+	for _, ing := range d.Ingredients {
+		got[ing.Title] = ing.Source
+	}
+	for title, src := range want {
+		if g, ok := got[title]; !ok || g != src {
+			t.Errorf("%s: %q (listed %v), want %q", title, g, ok, src)
+		}
+	}
+	if len(d.Ingredients) != len(want) || m.SourceType() != c2pa.SourceSynthetic {
+		t.Fatalf("%d ingredients (%v), %s", len(d.Ingredients), got, m.SourceType())
+	}
+	if _, generative, _ := m.Counts(); generative != 3 {
+		t.Fatalf("%d generative parts, want 3", generative)
+	}
+	for _, never := range []string{"acme", "harbour at dawn", "lighthouse", "pier photo", "res_", "ast_", "abr_"} {
+		if strings.Contains(strings.ToLower(def), never) {
+			t.Errorf("the manifest says %q", never)
+		}
+	}
+}
+
+// The same case in the delivery's record (D460): the ComfyUI picture, the
+// undeclared picture and the undeclared sound are disclosed as AI-generated
+// with the ability that made them; the stock photo and footage aren't; the
+// record's pictures say what AI did to each; the quality check's answer for
+// them is the same.
+func TestAnAbilitysAIWorkIsInTheDeliveryRecord(t *testing.T) {
+	it := abilityVersion()
+	order := []string{"ast_footage", "ast_stock", "ast_hum"}
+	used := map[string][]string{"ast_footage": {"clip:c1"}, "ast_stock": {"clip:c2"}, "ast_hum": {"track:hum"}}
+	g := aiPictures(nil, it, generatedIn(it, order, used))
+	if g == nil {
+		t.Fatal("nothing disclosed")
+	}
+	byTitle := map[string]DeliveryGeneratedClip{}
+	for _, c := range g.Clips {
+		byTitle[c.Title] = c
+	}
+	comfy, ok := byTitle["Harbour at dawn"]
+	if !ok || comfy.Work != models.AIWorkMade || comfy.Ability != "comfyui-local@1a2b3c4d" || comfy.Provider != "Pictures from ComfyUI on this computer" || comfy.Kind != "picture" {
+		t.Fatalf("the ComfyUI picture: %+v", g.Clips)
+	}
+	if c, ok := byTitle["Lighthouse"]; !ok || c.Work != models.AIWorkMade || c.Ability != "picture-maker@1a2b3c4d" {
+		t.Fatalf("the undeclared picture: %+v", g.Clips)
+	}
+	if c, ok := byTitle["ast_hum"]; !ok || c.Work != models.AIWorkMade || c.Kind != "sound" || c.Ability != "sound-maker@1a2b3c4d" {
+		t.Fatalf("the undeclared sound: %+v", g.Clips)
+	}
+	if _, ok := byTitle["Pier photo"]; ok || len(g.Clips) != 3 {
+		t.Fatalf("disclosed what an ability only found: %+v", g.Clips)
+	}
+	if g.Notice != "This video contains AI-generated material (pictures or sound)." {
+		t.Fatalf("the notice: %q", g.Notice)
+	}
+	for id, want := range map[string]string{"res_comfy": models.AIWorkMade, "res_undeclared": models.AIWorkMade, "res_stock": ""} {
+		r := it.extras.res.byID[id]
+		if got := aiWorkOn(nil, it, id, r.Versions[0].SHA256); got != want {
+			t.Errorf("the record's %s: %q, want %q", id, got, want)
+		}
+		// The quality check asks the same function (internal/worker/qa.go).
+		if disclosed := models.AIDisclosed(models.AIWorkOfMadeWith(r.Versions[0].Source.MadeWith, "")); disclosed != (want != "") {
+			t.Errorf("the quality check's %s: disclosed %v", id, disclosed)
+		}
+	}
+	for id, want := range map[string]string{"ast_stock": "", "ast_hum": models.AIWorkMade, "ast_footage": ""} {
+		if got := models.AIWorkOfSource(it.assets[id].Source); got != want {
+			t.Errorf("%s: %q, want %q", id, got, want)
+		}
+	}
+}

@@ -21,10 +21,13 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/providers"
+	"maps"
 	"net"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -126,6 +129,52 @@ func (y *YesNo) UnmarshalYAML(n *yaml.Node) error {
 // JSONSchema says yes/no or true/false.
 func (YesNo) JSONSchema() *jsonschema.Schema {
 	return &jsonschema.Schema{OneOf: []*jsonschema.Schema{{Type: "boolean"}, {Type: "string", Enum: []any{"yes", "no"}}}}
+}
+
+// AIByOutput says, for each kind of output an ability makes, what AI does to
+// it (D460) — what Content Credentials, the delivery's record, the quality
+// check and the receipt say of what it brings in:
+//   - made: a generative AI model makes it (a picture from words, speech,
+//     music);
+//   - edited: a generative AI model changes captured media by making new
+//     content in it (a mouth matched to new words, a voice changed);
+//   - enhanced: a model changes it without making anything new (made larger,
+//     its background taken away, a voice made clearer);
+//   - none: no AI takes part (stock footage found and downloaded).
+//
+// A kind of output it makes but doesn't name counts as made, and `ability
+// check` asks the author to say.
+type AIByOutput map[string]string
+
+// JSONSchema names the kinds of output, each one of the four answers.
+func (AIByOutput) JSONSchema() *jsonschema.Schema {
+	props := jsonschema.NewProperties()
+	for _, k := range OutputKinds {
+		props.Set(k, &jsonschema.Schema{Type: "string", Enum: []any{"made", "edited", "enhanced", "none"}})
+	}
+	return &jsonschema.Schema{Type: "object", Properties: props, AdditionalProperties: jsonschema.FalseSchema,
+		Description: "What AI does to each kind of output: made (a generative model makes it), edited (a generative model changes captured media), enhanced (changed without making anything new), none. A kind of output not named counts as made."}
+}
+
+// AIOf is what the manifest declares AI does to a kind of output ("" nothing
+// declared, which counts as made).
+func (m *Manifest) AIOf(kind string) string {
+	if m == nil {
+		return ""
+	}
+	return m.AI[kind]
+}
+
+// AIUndeclared are the kinds of output it makes without saying what AI does
+// to them.
+func (m *Manifest) AIUndeclared() []string {
+	var out []string
+	for _, o := range m.Outputs {
+		if _, ok := m.AI[o]; !ok && contains(OutputKinds, o) {
+			out = append(out, o)
+		}
+	}
+	return out
 }
 
 // Input is one thing a run takes.
@@ -343,13 +392,16 @@ type Manifest struct {
 	Does string `yaml:"does" json:"does" jsonschema:"minLength=1,maxLength=300"`
 	// Runs is the program and its fixed arguments: "python3 run.py", "node
 	// run.mjs" or "./tool" (a file in the folder). No shell.
-	Runs     string           `yaml:"runs" json:"runs" jsonschema:"minLength=1,maxLength=300"`
-	Inputs   map[string]Input `yaml:"inputs,omitempty" json:"inputs,omitempty"`
-	Outputs  []string         `yaml:"outputs,omitempty" json:"outputs,omitempty" jsonschema:"uniqueItems=true"`
-	Provides []string         `yaml:"provides,omitempty" json:"provides,omitempty" jsonschema:"maxItems=8,description=Kinds of AI work it does once approved: picture\\, voice\\, voice-change\\, sound-effect\\, music\\, background-removal\\, upscale."`
-	Cost     Cost             `yaml:"cost" json:"cost"`
-	Keys     []Key            `yaml:"keys,omitempty" json:"keys,omitempty" jsonschema:"maxItems=8"`
-	Hosts    []string         `yaml:"hosts,omitempty" json:"hosts,omitempty" jsonschema:"maxItems=32"`
+	Runs    string           `yaml:"runs" json:"runs" jsonschema:"minLength=1,maxLength=300"`
+	Inputs  map[string]Input `yaml:"inputs,omitempty" json:"inputs,omitempty"`
+	Outputs []string         `yaml:"outputs,omitempty" json:"outputs,omitempty" jsonschema:"uniqueItems=true"`
+	// AI says, for each kind of output, what AI does to it (D460); a kind of
+	// output it doesn't name counts as made with AI.
+	AI       AIByOutput `yaml:"ai,omitempty" json:"ai,omitempty"`
+	Provides []string   `yaml:"provides,omitempty" json:"provides,omitempty" jsonschema:"maxItems=8,description=Kinds of AI work it does once approved: picture\\, voice\\, voice-change\\, sound-effect\\, music\\, background-removal\\, upscale."`
+	Cost     Cost       `yaml:"cost" json:"cost"`
+	Keys     []Key      `yaml:"keys,omitempty" json:"keys,omitempty" jsonschema:"maxItems=8"`
+	Hosts    []string   `yaml:"hosts,omitempty" json:"hosts,omitempty" jsonschema:"maxItems=32"`
 	// Network: off (default without hosts), metarush (default with hosts:
 	// HTTP(S) only through MetaRush to the hosts), open (HTTP(S) to any public
 	// host, still through MetaRush, never this computer or a local network;
@@ -645,6 +697,15 @@ func (m *Manifest) Validate(files map[string]bool) []Problem {
 	for _, o := range m.Outputs {
 		if !contains(OutputKinds, o) {
 			add("outputs", "%q isn't something MetaRush takes in: say %s", o, strings.Join(OutputKinds, ", "))
+		}
+	}
+	// What AI does to each kind of output (D460).
+	for _, k := range slices.Sorted(maps.Keys(m.AI)) {
+		switch v := m.AI[k]; {
+		case !contains(m.Outputs, k):
+			add("ai."+k, "it lists no %s output: say what AI does only to what it makes", k)
+		case !contains(models.AIDeclarations, v):
+			add("ai."+k, "say made, edited, enhanced or none, not %q", v)
 		}
 	}
 	if contains(m.Outputs, OutCaptions) {

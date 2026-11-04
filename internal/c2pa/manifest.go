@@ -202,6 +202,10 @@ func partWord(p Part) string {
 			return "Footage edited with AI"
 		case "voice-change":
 			return "Voice changed with AI"
+		case "picture":
+			return "Picture edited with AI"
+		case "sound", "voice":
+			return "Sound edited with AI"
 		}
 		return "Part edited with AI"
 	case AIMade:
@@ -222,6 +226,8 @@ func partWord(p Part) string {
 			return "AI sound effect"
 		case "dubbing":
 			return "AI dub"
+		case "sound":
+			return "AI-generated sound"
 		}
 		return "AI-generated part"
 	}

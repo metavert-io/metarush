@@ -39,7 +39,10 @@ type GeneratedSource struct {
 	// Kind is the kind of AI work that made it (D226): video (or empty, made
 	// before), voice, sound-effect, music, voice-change, dubbing.
 	Kind string `bson:"kind,omitempty" json:"kind,omitempty"`
-	Take int    `bson:"take,omitempty" json:"take,omitempty"`
+	// AIWork is what AI did to it when the one that did the work said so (an
+	// ability providing AI work, by its manifest; D460); "" the kind decides.
+	AIWork string `bson:"aiWork,omitempty" json:"aiWork,omitempty" jsonschema:"enum=made,enum=edited,enum=enhanced,enum="`
+	Take   int    `bson:"take,omitempty" json:"take,omitempty"`
 	// Prompt is the prompt as the person (or Claude) wrote it, shortened.
 	Prompt string `bson:"prompt,omitempty" json:"prompt,omitempty"`
 	// Look names the look it shows (a person's or a character's), when one was used.

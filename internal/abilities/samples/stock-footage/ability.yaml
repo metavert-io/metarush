@@ -7,6 +7,7 @@ inputs:
   words: {kind: words, max: 100, says: What the shot shows}
   count: {kind: number, min: 1, max: 6, default: 3}
 outputs: [footage, picture]
+ai: {footage: none, picture: none}
 cost: free
 keys: [{name: stock-library, env: STOCK_KEY, hosts: [api.stock.example], header: X-Api-Key}]
 hosts: [api.stock.example, media.stock.example]

@@ -98,6 +98,10 @@ func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs 
 	out := map[*deliveryItem]*itemCredentials{}
 	var cred *c2pa.Credential
 	var credErr error
+	// credTried: credErr came from the signing itself — the key couldn't be
+	// read, the timestamp service won't be asked — so it is remembered like a
+	// signing c2patool couldn't do (D461); not a setup that isn't there.
+	credTried := false
 	loaded := false
 	tool := c2pa.NewTool(a.Cfg, a.Tools)
 	toolVersion, tsa := "", ""
@@ -133,6 +137,7 @@ func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs 
 		if !loaded {
 			loaded = true
 			cred, _, credErr = c2pa.Load(a.Cfg)
+			credTried = credErr != nil && !errors.Is(credErr, c2pa.ErrNotSetUp)
 			if credErr == nil {
 				if p := cred.Problems(time.Now()); len(p) > 0 {
 					credErr = apperr.New(apperr.NotConfigured, "%s", p[0])
@@ -146,7 +151,7 @@ func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs 
 			if credErr == nil {
 				var why string
 				if tsa, why = timestampFor(ctx, a); why != "" {
-					credErr = apperr.New(apperr.NotConfigured, "%s", why)
+					credErr, credTried = apperr.New(apperr.NotConfigured, "%s", why), true
 				}
 			}
 			if credErr == nil {
@@ -160,7 +165,7 @@ func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs 
 			rec.Says = "This video went out without Content Credentials: " + why + "."
 			if runtime {
 				// Remembered as what went wrong ("The last signing on this computer failed: …").
-				failed = strings.TrimPrefix(why, "signing it failed: ")
+				failed = strings.TrimPrefix(strings.TrimPrefix(why, "signing it failed: "), "this computer can't sign them: ")
 			}
 			if !rec.Required {
 				return nil
@@ -179,7 +184,7 @@ func signDeliveries(ctx context.Context, a *app.App, items []*deliveryItem, scs 
 			if errors.Is(credErr, c2pa.ErrNotSetUp) {
 				why = "no signing certificate is set up on this computer"
 			}
-			if err := fail(why, false, credErr); err != nil {
+			if err := fail(why, credTried, credErr); err != nil {
 				return nil, err
 			}
 			continue

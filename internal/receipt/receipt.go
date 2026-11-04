@@ -883,12 +883,56 @@ func receiptGenerated(ctx context.Context, a *app.App, projectID string, r *mode
 		}
 		out.Generated = append(out.Generated, g)
 	}
+	// What abilities brought in with AI, as their manifests declare (D460):
+	// clips and pictures, the answer delivery and the quality check give.
+	var byAbility []models.Asset
+	_ = a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), bson.M{"projectIds": projectID, "source.platform": models.PlatformAbility}, &byAbility,
+		options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}).SetLimit(2000))
+	for _, as := range byAbility {
+		work := models.AIWorkOfSource(as.Source)
+		if work == "" {
+			continue
+		}
+		kind, noun := "shot", "footage"
+		if as.Kind != "video" {
+			kind, noun = "sound", "sound"
+		}
+		g := ReceiptGenerated{AssetID: as.ID, Title: firstNonEmpty(as.DisplayTitle(), as.Name), Kind: kind, What: abilityWorkWords(noun, work, as.Source.AbilityTitle()),
+			Service: as.Source.AbilityTitle(), Seconds: math.Round(as.Media.Duration*10) / 10, InVersion: used[as.ID]}
+		if mw := as.Source.MadeWith; mw != nil {
+			g.Model = mw.Ability
+		}
+		out.Generated = append(out.Generated, g)
+	}
+	var abilityPics []models.Resource
+	_ = a.DB.Find(ctx, store.CResources, a.WorkspaceID(), bson.M{"projectId": projectID, "versions.source.madeWith.kind": "ability"}, &abilityPics,
+		options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}).SetLimit(2000))
+	for _, res := range abilityPics {
+		for _, v := range res.Versions {
+			mw := v.Source.MadeWith
+			work := models.AIWorkOfMadeWith(mw, "")
+			if work == "" || mw.Ability == nil {
+				continue
+			}
+			title := firstNonEmpty(mw.Ability.Title, mw.Ability.Name)
+			out.Generated = append(out.Generated, ReceiptGenerated{ResourceID: res.ID, Title: firstNonEmpty(res.Title, res.Name), Kind: "picture",
+				What: abilityWorkWords("a picture", work, title), Service: title, Model: mw.Ability.Ability, InVersion: usedPics[res.ID]})
+			break
+		}
+	}
 	var takes []models.VoiceTake
 	_ = a.DB.Find(ctx, store.CVoiceTakes, a.WorkspaceID(), bson.M{"projectId": projectID, "aiVoice": true}, &takes, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}).SetLimit(5000))
 	for _, t := range takes {
 		out.Generated = append(out.Generated, ReceiptGenerated{AssetID: t.AssetID, Title: theirsLine(t.Text), Kind: "voice", Service: firstNonEmpty(providerTitle(t.Provider), "an outside service"), Model: t.ModelID,
 			Seconds: math.Round(t.Duration*10) / 10, InVersion: usedTakes[t.ID]})
 	}
+}
+
+// abilityWorkWords says what an ability did with AI to something it brought in
+// ("a picture the ability “ComfyUI (local)” made with AI").
+func abilityWorkWords(noun, work, ability string) string {
+	verb := map[string]string{models.AIWorkMade: "made with AI", models.AIWorkEdited: "changed with AI", models.AIWorkEnhanced: "improved with AI, making nothing new"}[work]
+	return noun + " the ability “" + ability + "” " + verb
 }
 
 // VersionCost is what one version uses of the outside AI work, at cost: its

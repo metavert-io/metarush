@@ -2,6 +2,8 @@ package ops
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -85,9 +87,15 @@ type CredentialsHere struct {
 	// Failed is the last signing here that failed, until one works again
 	// (Try it on a sample, or the next delivery that signs).
 	Failed *c2pa.Failure `json:"failed,omitempty"`
+	// keyProblem: the key can't be read (a locked keychain, a key gone or not
+	// the certificate's); timestampProblem: the timestamp service won't be
+	// asked. The ship gate keys its hold by them (D461).
+	keyProblem, timestampProblem bool
 }
 
-// credentialsHere looks at this computer without reading the key.
+// credentialsHere looks at this computer as a signing would, without signing
+// anything (D461): the certificate, the key (read, never shown), c2patool,
+// the timestamp service's name, and the last signing that failed.
 func credentialsHere(ctx context.Context, a *app.App) CredentialsHere {
 	h := CredentialsHere{Machine: a.Cfg.Installation.Name, Problems: []string{}}
 	if a.Tools != nil && a.Tools.Has(tools.C2PATool) {
@@ -104,9 +112,25 @@ func credentialsHere(ctx context.Context, a *app.App) CredentialsHere {
 		at := sv.SetAt
 		h.Certificate, h.SetAt, h.SetBy, h.Kept = &cert, &at, sv.SetBy, sv.Kept
 		h.Problems = append(h.Problems, sv.Problems...)
+		if len(sv.Problems) == 0 {
+			// The key, read as a signing reads it (a locked keychain says so
+			// here, before a delivery tries).
+			if _, _, err := c2pa.Load(a.Cfg); err != nil {
+				e := apperr.From(err)
+				h.Problems = append(h.Problems, strings.TrimSpace(e.Message+" "+e.Hint))
+				h.keyProblem = true
+			}
+		}
 	}
 	if why := c2pa.NewTool(a.Cfg, a.Tools).Ready(ctx); why != "" {
 		h.Problems = append(h.Problems, sentenceStart(why)+".")
+	}
+	if sv != nil {
+		// The timestamp service's name, checked as before each signing.
+		if _, why := timestampFor(ctx, a); why != "" {
+			h.Problems = append(h.Problems, why)
+			h.timestampProblem = true
+		}
 	}
 	if sv != nil && sv.Failed != nil && len(h.Problems) == 0 {
 		// The last signing here failed (D437): it works again once one does.
@@ -312,6 +336,8 @@ func tryCredentials(ctx context.Context, a *app.App) (*CredentialsTestOut, error
 			return nil, apperr.New(apperr.NotConfigured, "No signing certificate is set up on this computer.").
 				WithHint("An owner sets one up: Settings → Delivery, or in their own terminal.").WithCommand("metarush credentials setup")
 		}
+		// A key that can't be read is a signing that failed (D461).
+		_ = c2pa.RecordFailure(a.Cfg, lowerFirst(strings.TrimSuffix(apperr.From(err).Message, ".")), time.Now())
 		return nil, err
 	}
 	tool := c2pa.NewTool(a.Cfg, a.Tools)
@@ -320,6 +346,7 @@ func tryCredentials(ctx context.Context, a *app.App) (*CredentialsTestOut, error
 	}
 	tsa, why := timestampFor(ctx, a)
 	if why != "" {
+		_ = c2pa.RecordFailure(a.Cfg, lowerFirst(strings.TrimSuffix(why, ".")), time.Now()) // D461
 		return nil, apperr.New(apperr.NotConfigured, "%s", why).WithHint("Change the timestamp service in Settings → Delivery, or stop using one.").WithCommand("metarush credentials on --no-timestamp")
 	}
 	dir, err := os.MkdirTemp(tool.Dir, "sample-")
@@ -518,13 +545,26 @@ func credentialsHold(ctx context.Context, a *app.App, p *models.Project) *GateHo
 	key := "credentials:none"
 	paths := []GatePath{{Label: "Set them up", Link: links.Credentials(), Command: "metarush credentials setup", People: true}}
 	if sv, err := c2pa.Public(a.Cfg); err == nil && sv != nil {
+		sample := GatePath{Label: "Try it on a sample", Op: "credentials.test", Input: map[string]any{}, Command: "metarush credentials test"}
 		switch {
 		case len(sv.Problems) > 0:
 			key = "credentials:certificate:" + sv.Certificate.Fingerprint[:12]
 		case h.Failed != nil:
 			// The last signing failed (D437): trying again clears it, or a note covers it.
 			key = fmt.Sprintf("credentials:failed:%s:%d", sv.Certificate.Fingerprint[:12], h.Failed.At.Unix())
-			paths = []GatePath{{Label: "Try it on a sample", Op: "credentials.test", Input: map[string]any{}, Command: "metarush credentials test"}, paths[0]}
+			paths = []GatePath{sample, paths[0]}
+		case h.keyProblem:
+			// The key can't be read now (D461): once it can, the hold goes by itself.
+			key = "credentials:key:" + sv.Certificate.Fingerprint[:12]
+			paths = []GatePath{sample, paths[0]}
+		case h.timestampProblem:
+			// The timestamp service won't be asked (D461): change it or stop using one.
+			key = "credentials:timestamp"
+			if ws := workspaceCredentials(ctx, a); ws != nil {
+				sum := sha256.Sum256([]byte(ws.TimestampURL))
+				key += ":" + hex.EncodeToString(sum[:6])
+			}
+			paths = []GatePath{paths[0], sample}
 		default:
 			key = "credentials:tool"
 		}

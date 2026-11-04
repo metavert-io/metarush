@@ -3,6 +3,67 @@
   "$id": "https://github.com/metavert-io/metarush/internal/abilities/manifest",
   "$ref": "#/$defs/Manifest",
   "$defs": {
+    "AIByOutput": {
+      "properties": {
+        "footage": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "sound": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "picture": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "document": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "font": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "captions": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "What AI does to each kind of output: made (a generative model makes it), edited (a generative model changes captured media), enhanced (changed without making anything new), none. A kind of output not named counts as made."
+    },
     "Cost": {
       "oneOf": [
         {
@@ -232,6 +293,9 @@
           },
           "type": "array",
           "uniqueItems": true
+        },
+        "ai": {
+          "$ref": "#/$defs/AIByOutput"
         },
         "provides": {
           "items": {

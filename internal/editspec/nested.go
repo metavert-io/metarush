@@ -319,6 +319,9 @@ func (f *nestFacts) Resource(id, sha string) (ResourceInfo, bool) {
 	return resourceInfo(f.base, ResourcePin{ID: id, SHA256: sha})
 }
 
+// Matte implements MatteFacts (the outer cut's own cut-outs).
+func (f *nestFacts) Matte(sha string) (MatteInfo, bool) { return matteInfo(f.base, sha) }
+
 // Nested implements NestedFacts.
 func (f *nestFacts) Nested(projectID, revisionID string) (*NestedSource, bool) {
 	if nf, ok := f.base.(NestedFacts); ok {
@@ -611,12 +614,44 @@ func PlanSourceIDs(p *RenderPlan) []string {
 			if c.Audio != nil && c.Audio.Variant != nil {
 				add(c.Audio.Variant.AssetID) // its clearer copy (D88)
 			}
+			if b := c.Background; b != nil && b.Footage != nil {
+				add(b.Footage.AssetID) // a clip shown behind its people (D510)
+			}
 		}
 		conversationTileAssets(p, add) // the recordings a conversation's shots show (D99)
 		for _, a := range p.Audio {
 			add(a.AssetID)
 			if a.Variant != nil {
 				add(a.Variant.AssetID)
+			}
+		}
+		keys := make([]string, 0, len(p.Nested))
+		for k := range p.Nested {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			walk(p.Nested[k].Plan)
+		}
+	}
+	walk(p)
+	return out
+}
+
+// PlanCutOuts lists the cut-out files a plan plays (D510), its nested cuts'
+// included (the callers fill CutOutSources for them).
+func PlanCutOuts(p *RenderPlan) []string {
+	var out []string
+	seen := map[string]bool{}
+	var walk func(p *RenderPlan)
+	walk = func(p *RenderPlan) {
+		if p == nil {
+			return
+		}
+		for _, c := range p.Clips {
+			if b := c.Background; b != nil && b.CutOut != "" && !seen[b.CutOut] {
+				seen[b.CutOut] = true
+				out = append(out, b.CutOut)
 			}
 		}
 		keys := make([]string, 0, len(p.Nested))
@@ -719,6 +754,7 @@ func FillNested(p *RenderPlan) {
 			continue
 		}
 		in.Sources, in.SourceChannels, in.ResourceSources, in.MotionSources, in.MotionStills = p.Sources, p.SourceChannels, p.ResourceSources, p.MotionSources, p.MotionStills
+		in.CutOutSources = p.CutOutSources
 		FillNested(in)
 	}
 }

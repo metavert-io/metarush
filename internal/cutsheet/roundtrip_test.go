@@ -211,7 +211,10 @@ func everyFieldSpec() *editspec.Spec {
 				FadeOut:    0.75, Label: "The question",
 				Rationale: "It opens on the question.", Evidence: ev, Locked: true, Notes: "Keep the breath.\n\nSecond paragraph.",
 				Shots: []editspec.Shot{{At: 1.2, Member: "maya"}}, MutedMembers: []string{"maya", "sam"}},
-			{ID: "broll", AssetID: specgen.Assets[1], In: 0, Out: 2.5, Transition: &editspec.Transition{Type: editspec.TransitionCrossfade, Duration: 0.4}},
+			{ID: "broll", AssetID: specgen.Assets[1], In: 0, Out: 2.5, Transition: &editspec.Transition{Type: editspec.TransitionCrossfade, Duration: 0.4},
+				// The background replaced (D510): every field at once, as only the {…} block spells it.
+				Background: &editspec.ClipBackground{With: editspec.BackgroundFootage, Colour: "#00b140", Blur: 12, Picture: "logo",
+					Footage: &editspec.BackgroundClip{AssetID: specgen.Assets[2], In: 3.5}, Feather: 3, Matte: strings.Repeat("9c", 32)}},
 			{ID: "end", AssetID: specgen.Assets[0], In: 10, Out: 13, Transition: &editspec.Transition{Type: editspec.TransitionDip, Duration: 1}},
 			{ID: "react", AssetID: specgen.Assets[1], In: 3, Out: 5.5, Transition: &editspec.Transition{Type: editspec.TransitionSlide, Duration: 0.4, Direction: editspec.DirRight,
 				Easing: editspec.EaseLinear, Audio: &editspec.SoundTransition{Mode: editspec.SoundCarry, Duration: 0.25}}},

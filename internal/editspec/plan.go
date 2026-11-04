@@ -66,6 +66,9 @@ type RenderPlan struct {
 	// asset ID → the copy's SHA-256. The caller fills Sources with that
 	// copy's file (or its preview copy); footage not listed plays its original.
 	Fixed map[string]string `json:"fixed,omitempty"`
+	// CutOutSources maps a clip's cut-out file (its SHA-256, a clip
+	// background's CutOut) to a URL, filled by the caller like Sources (D510).
+	CutOutSources map[string]string `json:"cutOutSources,omitempty"`
 }
 
 // PlanVoiceover is the resolved narration.
@@ -268,6 +271,9 @@ type PlanClip struct {
 	// tiles. The clip itself plays silently; its sound is the members'
 	// elements in the plan's audio.
 	Conversation *PlanConversation `json:"conversation,omitempty"`
+	// Background is the clip's background replaced (D510): the people from
+	// its cut-out over a colour, a blur of the clip, a picture or another clip.
+	Background *PlanBackground `json:"background,omitempty"`
 }
 
 // Sound returns where a clip's sound plays: its sound window, or its picture
@@ -649,6 +655,16 @@ func resolve(s *Spec, facts Facts, revisionID, projectID, specHash string) *Rend
 		plan.Captions = resolveCaptions(s, plan.Clips, facts, beats, sp)
 	}
 	plan.Resources = planResources(s, facts)
+	for i := range plan.Clips {
+		// Backgrounds replaced (D510): the cut-outs the plan plays, for the caller to give a URL.
+		if pb := planBackground(s, s.Clips[i], &plan.Clips[i], plan, facts); pb != nil {
+			plan.Clips[i].Background = pb
+			if plan.CutOutSources == nil {
+				plan.CutOutSources = map[string]string{}
+			}
+			plan.CutOutSources[pb.CutOut] = ""
+		}
+	}
 	for id, pin := range s.Fixed {
 		if plan.Fixed == nil {
 			plan.Fixed = map[string]string{}

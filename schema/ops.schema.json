@@ -310,7 +310,8 @@
             "presenter-make",
             "background-removal",
             "upscale",
-            "lip-sync"
+            "lip-sync",
+            "video-background"
           ]
         },
         "title": {
@@ -329,7 +330,8 @@
             "transcript",
             "voice",
             "video",
-            "presenter"
+            "presenter",
+            "matte"
           ]
         },
         "tasks": {
@@ -7307,6 +7309,24 @@
         "summary"
       ]
     },
+    "BackgroundClip": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where in that clip the background starts, in seconds."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId"
+      ]
+    },
     "Battery": {
       "properties": {
         "present": {
@@ -11742,6 +11762,9 @@
           "type": "array",
           "maxItems": 16,
           "description": "A conversation clip: members whose sound is left out of this clip."
+        },
+        "background": {
+          "$ref": "#/$defs/ClipBackground"
         }
       },
       "additionalProperties": false,
@@ -11751,6 +11774,57 @@
         "assetId",
         "in",
         "out"
+      ]
+    },
+    "ClipBackground": {
+      "properties": {
+        "with": {
+          "type": "string",
+          "enum": [
+            "colour",
+            "blur",
+            "picture",
+            "footage"
+          ],
+          "description": "What shows behind the people: a colour, a blur of the clip itself, a picture the cut pins, or another clip."
+        },
+        "colour": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "With colour: the colour, #rrggbb."
+        },
+        "blur": {
+          "type": "number",
+          "maximum": 100,
+          "minimum": 0,
+          "description": "With blur: how strong (pixels on a 1080 picture; default 28)."
+        },
+        "picture": {
+          "type": "string",
+          "maxLength": 80,
+          "format": "metarush-resource",
+          "description": "With picture: one of the cut's resources, by its short name (name#3 for a PDF's page)."
+        },
+        "footage": {
+          "$ref": "#/$defs/BackgroundClip"
+        },
+        "feather": {
+          "type": "number",
+          "maximum": 40,
+          "minimum": 0,
+          "description": "How soft the people's edges are (pixels on a 1080 picture; default 2)."
+        },
+        "matte": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The clip's cut-out this cut plays: the SHA-256 of its file (footage cut-out makes it)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "with",
+        "matte"
       ]
     },
     "ClipSound": {
@@ -17773,6 +17847,355 @@
       "type": "object",
       "required": [
         "uses",
+        "summary"
+      ]
+    },
+    "CutoutIn": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "The clip."
+        },
+        "projectId": {
+          "type": "string",
+          "pattern": "^(prj_[0-9a-z]{26})?$",
+          "description": "The project it is for: its Content Settings choose the model and say where footage may go (default: the clip's first project)."
+        },
+        "from": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where the part starts, in seconds of the clip (default: its start)."
+        },
+        "to": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where it ends (default: the clip's end)."
+        },
+        "fixed": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "The clip's media to make it from: original, or a fixed copy's SHA-256 (default: what the clip plays now)."
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "provider/model (local/apple-vision, local/modnet); default: the usual one where it can run."
+        },
+        "maxUsd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "For a service elsewhere: the most you agree to pay, in US dollars."
+        },
+        "dryRun": {
+          "type": "boolean",
+          "description": "Say what it would use and how long it would take; nothing is made."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId"
+      ]
+    },
+    "CutoutOut": {
+      "properties": {
+        "matte": {
+          "$ref": "#/$defs/CutoutView"
+        },
+        "reused": {
+          "type": "boolean"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "seconds": {
+          "type": "number",
+          "description": "About how long making it takes, in seconds."
+        },
+        "here": {
+          "type": "boolean"
+        },
+        "estimate": {
+          "$ref": "#/$defs/AIEstimate"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "matte",
+        "reused",
+        "here",
+        "summary"
+      ]
+    },
+    "CutoutPreviewIn": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "projectId": {
+          "type": "string",
+          "pattern": "^(prj_[0-9a-z]{26})?$",
+          "description": "The project whose pictures a picture is looked up in."
+        },
+        "at": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The moment of the clip, in seconds."
+        },
+        "fixed": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "The clip's media: original, or a fixed copy's SHA-256 (default: what it plays now)."
+        },
+        "with": {
+          "type": "string",
+          "enum": [
+            "colour",
+            "blur",
+            "picture",
+            "footage"
+          ],
+          "description": "What shows behind the people."
+        },
+        "colour": {
+          "type": "string",
+          "pattern": "^(#[0-9a-fA-F]{6})?$"
+        },
+        "blur": {
+          "type": "number",
+          "maximum": 100,
+          "minimum": 0,
+          "description": "How strong the blur is (pixels at 1080; default 28)."
+        },
+        "picture": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "A picture from the resources library (its short name)."
+        },
+        "footage": {
+          "type": "string",
+          "pattern": "^(ast_[0-9a-z]{26})?$",
+          "description": "Another clip to show behind."
+        },
+        "footageAt": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The moment of that clip to show."
+        },
+        "feather": {
+          "type": "number",
+          "maximum": 40,
+          "minimum": 0,
+          "description": "How soft the people's edges are (pixels at 1080)."
+        },
+        "width": {
+          "type": "integer",
+          "maximum": 1920,
+          "minimum": 0,
+          "description": "The preview's width (default 960)."
+        },
+        "out": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "at",
+        "with"
+      ]
+    },
+    "CutoutPreviewOut": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "The still (a JPEG) on this computer."
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "model": {
+          "type": "string",
+          "description": "The model that found the people for it (provider/model)."
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "width",
+        "height",
+        "model",
+        "summary"
+      ]
+    },
+    "CutoutView": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "clip": {
+          "type": "string",
+          "description": "The clip's name."
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "waiting",
+            "making",
+            "ready",
+            "failed",
+            "stopped"
+          ]
+        },
+        "words": {
+          "type": "string"
+        },
+        "part": {
+          "type": "string"
+        },
+        "from": {
+          "type": "number"
+        },
+        "to": {
+          "type": "number"
+        },
+        "frames": {
+          "type": "integer"
+        },
+        "rate": {
+          "type": "string"
+        },
+        "fixed": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "providerTitle": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "modelTitle": {
+          "type": "string"
+        },
+        "choice": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "measures": {
+          "$ref": "#/$defs/MatteMeasures"
+        },
+        "madeOn": {
+          "type": "string",
+          "description": "The computer that made it."
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "pct": {
+          "type": "number"
+        },
+        "error": {
+          "type": "string"
+        },
+        "generationId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "readyAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "assetId",
+        "clip",
+        "state",
+        "words",
+        "part",
+        "from",
+        "to",
+        "provider",
+        "providerTitle",
+        "model",
+        "modelTitle",
+        "createdAt"
+      ]
+    },
+    "CutoutsIn": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$",
+          "description": "The clip."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId"
+      ]
+    },
+    "CutoutsOut": {
+      "properties": {
+        "cutouts": {
+          "items": {
+            "$ref": "#/$defs/CutoutView"
+          },
+          "type": "array"
+        },
+        "here": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "cutouts",
+        "here",
         "summary"
       ]
     },
@@ -34545,6 +34968,34 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "MatteMeasures": {
+      "properties": {
+        "seconds": {
+          "type": "number"
+        },
+        "msPerFrame": {
+          "type": "number"
+        },
+        "people": {
+          "type": "number"
+        },
+        "flickerBefore": {
+          "type": "number"
+        },
+        "flickerAfter": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "seconds",
+        "msPerFrame",
+        "people",
+        "flickerBefore",
+        "flickerAfter"
+      ]
+    },
     "MediaInfo": {
       "properties": {
         "container": {
@@ -39927,6 +40378,76 @@
         "duckDb"
       ]
     },
+    "PlanBackground": {
+      "properties": {
+        "with": {
+          "type": "string",
+          "enum": [
+            "colour",
+            "blur",
+            "picture",
+            "footage"
+          ]
+        },
+        "colour": {
+          "type": "string"
+        },
+        "blur": {
+          "type": "number"
+        },
+        "feather": {
+          "type": "number"
+        },
+        "picture": {
+          "type": "string"
+        },
+        "footage": {
+          "$ref": "#/$defs/PlanBackgroundFootage"
+        },
+        "cutOut": {
+          "type": "string"
+        },
+        "cutOutTrimBefore": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "with",
+        "feather",
+        "cutOut",
+        "cutOutTrimBefore"
+      ]
+    },
+    "PlanBackgroundFootage": {
+      "properties": {
+        "assetId": {
+          "type": "string"
+        },
+        "trimBefore": {
+          "type": "integer"
+        },
+        "playbackRate": {
+          "type": "number"
+        },
+        "sourceWidth": {
+          "type": "integer"
+        },
+        "sourceHeight": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "trimBefore",
+        "playbackRate",
+        "sourceWidth",
+        "sourceHeight"
+      ]
+    },
     "PlanBeat": {
       "properties": {
         "id": {
@@ -40195,6 +40716,9 @@
         },
         "conversation": {
           "$ref": "#/$defs/PlanConversation"
+        },
+        "background": {
+          "$ref": "#/$defs/PlanBackground"
         }
       },
       "additionalProperties": false,
@@ -57312,6 +57836,12 @@
             "type": "string"
           },
           "type": "object"
+        },
+        "cutOutSources": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
         }
       },
       "additionalProperties": false,
@@ -74293,6 +74823,12 @@
             "open-models"
           ]
         },
+        "mattes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "concurrency": {
           "type": "integer"
         },
@@ -78788,6 +79324,57 @@
         "output"
       ],
       "description": "List the captions files kept with a clip (English captions an ability made for a clip in another language, for instance), or give one language's file"
+    },
+    "footage.cutout": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/CutoutIn"
+        },
+        "output": {
+          "$ref": "#/$defs/CutoutOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Cut the people out of a clip, or a part of it, for background removal in video: the people told from their background frame by frame and kept with the clip's picture, made once on a computer of the workspace that can (free; nothing leaves it) and used by every cut that replaces the clip's background"
+    },
+    "footage.cutout.preview": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/CutoutPreviewIn"
+        },
+        "output": {
+          "$ref": "#/$defs/CutoutPreviewOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Show one moment of a clip with its background replaced by a colour, a blur of the clip, a picture or another clip, as a still on this computer (nothing is kept)"
+    },
+    "footage.cutouts": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/CutoutsIn"
+        },
+        "output": {
+          "$ref": "#/$defs/CutoutsOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "List a clip's cut-outs for background removal in video: the part each covers, how far along it is, the model and the computer that made it"
     },
     "footage.describe": {
       "properties": {
@@ -85186,6 +85773,9 @@
     "extension.status",
     "footage.analyze",
     "footage.captions",
+    "footage.cutout",
+    "footage.cutout.preview",
+    "footage.cutouts",
     "footage.describe",
     "footage.describe.configure",
     "footage.describe.settings",

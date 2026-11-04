@@ -12,6 +12,7 @@ import { framingStyle } from './framing';
 import { envelopeGain } from '../audio/AudioLayer';
 import { TransitionFrame, easingFor, isDip, isMoving, isOverlap } from './transitions';
 import { ConversationPicture } from './Conversation';
+import { BehindThePeople, CutOut, blurredStyle, cutOutSrc } from './background';
 
 /**
  * Transition semantics (Go resolved all timing; we only ramp and move):
@@ -163,6 +164,11 @@ const ClipView: React.FC<{
     );
   }
   if (!src) return null;
+  // The background replaced (D510): the people from the clip's cut-out over a
+  // colour, a picture, another clip or a blur of the clip itself.
+  const bg = clip.background ?? undefined;
+  const people = bg ? cutOutSrc(clip, plan) : undefined;
+  const style = framingStyle(clip.framing, clip.sourceWidth, clip.sourceHeight, width, height, frame);
   return (
     <TransitionFrame clip={clip} frame={frame} unit={Math.min(width, height) / 1080}>
       {/* The layer is opaque (plan.background behind the picture) so a fit-mode
@@ -177,8 +183,14 @@ const ClipView: React.FC<{
           // Preview gains above 1 are heard (see AudioLayer); renders ignore it.
           useWebAudioApi
           pauseWhenBuffering
-          style={framingStyle(clip.framing, clip.sourceWidth, clip.sourceHeight, width, height, frame)}
+          style={(bg && people && blurredStyle(bg, clip, width, height, frame)) || style}
         />
+        {bg && people ? (
+          <>
+            <BehindThePeople bg={bg} plan={plan} width={width} height={height} />
+            <CutOut clip={clip} plan={plan} src={people} width={width} height={height} frame={frame} rate={rate} />
+          </>
+        ) : null}
       </AbsoluteFill>
     </TransitionFrame>
   );

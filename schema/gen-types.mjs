@@ -22,8 +22,8 @@ for (const f of files) {
   index.push(`export * as ${camel(base)} from './${outName.replace('.ts', '')}';`);
 }
 // Convenience flat re-exports for the two most used documents.
-index.push("export type { RenderPlan, PlanClip, PlanAudio, PlanOverlay, PlanCaptions, PlanCaptionLine, PlanWord, PlanFraming, PlanTransition, Brand, SafeArea, FrameRange, GainPoint, PlanVoiceover, PlanBeat, PlanMix, PlanClipAudio, PlanVariant, PlanResource, PlanResourcePage, NestedPlan, PlanConversation, PlanShot, PlanTile, PlanRect, PlanTag, PlanCard, PlanSegment, PlanBorder } from './render-plan';");
-index.push("export type { Spec, Clip, Overlay, AudioTrack, Captions, Output, Voiceover, Beat, Anchor, TakeRef, Mix, Bus, ResourcePin, ConversationPin, ConversationMember, Shot, OverlaySpan, OverlayChange, LayoutStyle, PiPStyle, SideBySideStyle } from './edit-spec';");
+index.push("export type { RenderPlan, PlanClip, PlanAudio, PlanOverlay, PlanCaptions, PlanCaptionLine, PlanWord, PlanFraming, PlanTransition, Brand, SafeArea, FrameRange, GainPoint, PlanVoiceover, PlanBeat, PlanMix, PlanClipAudio, PlanVariant, PlanResource, PlanResourcePage, NestedPlan, PlanConversation, PlanShot, PlanTile, PlanRect, PlanTag, PlanCard, PlanSegment, PlanBorder, PlanBackground, PlanBackgroundFootage } from './render-plan';");
+index.push("export type { Spec, Clip, Overlay, AudioTrack, Captions, Output, Voiceover, Beat, Anchor, TakeRef, Mix, Bus, ResourcePin, ConversationPin, ConversationMember, Shot, OverlaySpan, OverlayChange, LayoutStyle, PiPStyle, SideBySideStyle, ClipBackground, BackgroundClip } from './edit-spec';");
 index.push("export type { Ops as OpMap } from './ops';");
 index.push("export type { LowerThirdParams } from './template-lower-third-clean';");
 index.push("export type { QuoteParams } from './template-quote-kinetic';");

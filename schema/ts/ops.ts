@@ -1697,6 +1697,27 @@ input: FootageCaptionsIn
 output: FootageCaptionsOut
 }
 /**
+ * Cut the people out of a clip, or a part of it, for background removal in video: the people told from their background frame by frame and kept with the clip's picture, made once on a computer of the workspace that can (free; nothing leaves it) and used by every cut that replaces the clip's background
+ */
+"footage.cutout": {
+input: CutoutIn
+output: CutoutOut
+}
+/**
+ * Show one moment of a clip with its background replaced by a colour, a blur of the clip, a picture or another clip, as a still on this computer (nothing is kept)
+ */
+"footage.cutout.preview": {
+input: CutoutPreviewIn
+output: CutoutPreviewOut
+}
+/**
+ * List a clip's cut-outs for background removal in video: the part each covers, how far along it is, the model and the computer that made it
+ */
+"footage.cutouts": {
+input: CutoutsIn
+output: CutoutsOut
+}
+/**
  * Have this machine's Claude Code write a sentence or two per scene of a clip (searchable; uses your Claude Code usage; on per project or workspace), or save descriptions Claude wrote in a session
  */
 "footage.describe": {
@@ -6851,13 +6872,13 @@ summary: string
  * via the `definition` "AIKindView".
  */
 export interface AIKindView {
-kind: ("video" | "picture" | "voice" | "voice-copy" | "voice-change" | "sound-effect" | "music" | "dubbing" | "transcription" | "presenter" | "presenter-make" | "background-removal" | "upscale" | "lip-sync")
+kind: ("video" | "picture" | "voice" | "voice-copy" | "voice-change" | "sound-effect" | "music" | "dubbing" | "transcription" | "presenter" | "presenter-make" | "background-removal" | "upscale" | "lip-sync" | "video-background")
 /**
  * The kind of work as people say it: Pictures, Music.
  */
 title: string
 what: string
-output: ("picture" | "audio" | "media" | "transcript" | "voice" | "video" | "presenter")
+output: ("picture" | "audio" | "media" | "transcript" | "voice" | "video" | "presenter" | "matte")
 tasks: string[]
 reuse: boolean
 likeness?: boolean
@@ -8771,6 +8792,7 @@ shots?: Shot[]
  * @maxItems 16
  */
 mutedMembers?: string[]
+background?: ClipBackground
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -8879,6 +8901,48 @@ assetId: string
  * Where in that footage it starts (seconds).
  */
 in: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ClipBackground".
+ */
+export interface ClipBackground {
+/**
+ * What shows behind the people: a colour, a blur of the clip itself, a picture the cut pins, or another clip.
+ */
+with: ("colour" | "blur" | "picture" | "footage")
+/**
+ * With colour: the colour, #rrggbb.
+ */
+colour?: string
+/**
+ * With blur: how strong (pixels on a 1080 picture; default 28).
+ */
+blur?: number
+/**
+ * With picture: one of the cut's resources, by its short name (name#3 for a PDF's page).
+ */
+picture?: string
+footage?: BackgroundClip
+/**
+ * How soft the people's edges are (pixels on a 1080 picture; default 2).
+ */
+feather?: number
+/**
+ * The clip's cut-out this cut plays: the SHA-256 of its file (footage cut-out makes it).
+ */
+matte: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "BackgroundClip".
+ */
+export interface BackgroundClip {
+assetId: string
+/**
+ * Where in that clip the background starts, in seconds.
+ */
+in?: number
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -14643,6 +14707,9 @@ nested?: {
 fixed?: {
 [k: string]: string
 }
+cutOutSources?: {
+[k: string]: string
+}
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -14682,6 +14749,7 @@ audio?: PlanClipAudio
 speechLufs?: number
 levelDb?: number
 conversation?: PlanConversation
+background?: PlanBackground
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -14880,6 +14948,31 @@ box?: PlanRect1
  */
 export interface PlanCard {
 text: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "PlanBackground".
+ */
+export interface PlanBackground {
+with: ("colour" | "blur" | "picture" | "footage")
+colour?: string
+blur?: number
+feather: number
+picture?: string
+footage?: PlanBackgroundFootage
+cutOut: string
+cutOutTrimBefore: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "PlanBackgroundFootage".
+ */
+export interface PlanBackgroundFootage {
+assetId: string
+trimBefore: number
+playbackRate: number
+sourceWidth: number
+sourceHeight: number
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -19633,6 +19726,196 @@ ability?: string
 at: string
 sha256: string
 size: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutoutIn".
+ */
+export interface CutoutIn {
+/**
+ * The clip.
+ */
+assetId: string
+/**
+ * The project it is for: its Content Settings choose the model and say where footage may go (default: the clip's first project).
+ */
+projectId?: string
+/**
+ * Where the part starts, in seconds of the clip (default: its start).
+ */
+from?: number
+/**
+ * Where it ends (default: the clip's end).
+ */
+to?: number
+/**
+ * The clip's media to make it from: original, or a fixed copy's SHA-256 (default: what the clip plays now).
+ */
+fixed?: string
+/**
+ * provider/model (local/apple-vision, local/modnet); default: the usual one where it can run.
+ */
+model?: string
+/**
+ * For a service elsewhere: the most you agree to pay, in US dollars.
+ */
+maxUsd?: number
+/**
+ * Say what it would use and how long it would take; nothing is made.
+ */
+dryRun?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutoutOut".
+ */
+export interface CutoutOut {
+matte: CutoutView
+reused: boolean
+jobId?: string
+dryRun?: boolean
+/**
+ * About how long making it takes, in seconds.
+ */
+seconds?: number
+here: boolean
+estimate?: AIEstimate
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutoutView".
+ */
+export interface CutoutView {
+id: string
+assetId: string
+/**
+ * The clip's name.
+ */
+clip: string
+projectId?: string
+state: ("waiting" | "making" | "ready" | "failed" | "stopped")
+words: string
+part: string
+from: number
+to: number
+frames?: number
+rate?: string
+fixed?: string
+provider: string
+providerTitle: string
+model: string
+modelTitle: string
+choice?: string
+sha256?: string
+size?: number
+measures?: MatteMeasures
+/**
+ * The computer that made it.
+ */
+madeOn?: string
+jobId?: string
+pct?: number
+error?: string
+generationId?: string
+createdAt: string
+readyAt?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "MatteMeasures".
+ */
+export interface MatteMeasures {
+seconds: number
+msPerFrame: number
+people: number
+flickerBefore: number
+flickerAfter: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutoutPreviewIn".
+ */
+export interface CutoutPreviewIn {
+assetId: string
+/**
+ * The project whose pictures a picture is looked up in.
+ */
+projectId?: string
+/**
+ * The moment of the clip, in seconds.
+ */
+at: number
+/**
+ * The clip's media: original, or a fixed copy's SHA-256 (default: what it plays now).
+ */
+fixed?: string
+/**
+ * What shows behind the people.
+ */
+with: ("colour" | "blur" | "picture" | "footage")
+colour?: string
+/**
+ * How strong the blur is (pixels at 1080; default 28).
+ */
+blur?: number
+/**
+ * A picture from the resources library (its short name).
+ */
+picture?: string
+/**
+ * Another clip to show behind.
+ */
+footage?: string
+/**
+ * The moment of that clip to show.
+ */
+footageAt?: number
+/**
+ * How soft the people's edges are (pixels at 1080).
+ */
+feather?: number
+/**
+ * The preview's width (default 960).
+ */
+width?: number
+out?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutoutPreviewOut".
+ */
+export interface CutoutPreviewOut {
+/**
+ * The still (a JPEG) on this computer.
+ */
+path: string
+width: number
+height: number
+/**
+ * The model that found the people for it (provider/model).
+ */
+model: string
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutoutsIn".
+ */
+export interface CutoutsIn {
+/**
+ * The clip.
+ */
+assetId: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutoutsOut".
+ */
+export interface CutoutsOut {
+cutouts: CutoutView[]
+here: string[]
+summary: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -37749,6 +38032,7 @@ tools: {
 jobTypes: string[]
 lacks?: WorkerLack[]
 screenIndex?: ("" | "apple-vision" | "open-models")
+mattes?: string[]
 concurrency: number
 running: number
 acceptsHeavy: boolean

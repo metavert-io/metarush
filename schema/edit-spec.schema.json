@@ -173,6 +173,24 @@
         "at"
       ]
     },
+    "BackgroundClip": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^ast_[0-9a-z]{26}$"
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Where in that clip the background starts, in seconds."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId"
+      ]
+    },
     "Beat": {
       "properties": {
         "id": {
@@ -502,6 +520,9 @@
           "type": "array",
           "maxItems": 16,
           "description": "A conversation clip: members whose sound is left out of this clip."
+        },
+        "background": {
+          "$ref": "#/$defs/ClipBackground"
         }
       },
       "additionalProperties": false,
@@ -511,6 +532,57 @@
         "assetId",
         "in",
         "out"
+      ]
+    },
+    "ClipBackground": {
+      "properties": {
+        "with": {
+          "type": "string",
+          "enum": [
+            "colour",
+            "blur",
+            "picture",
+            "footage"
+          ],
+          "description": "What shows behind the people: a colour, a blur of the clip itself, a picture the cut pins, or another clip."
+        },
+        "colour": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "With colour: the colour, #rrggbb."
+        },
+        "blur": {
+          "type": "number",
+          "maximum": 100,
+          "minimum": 0,
+          "description": "With blur: how strong (pixels on a 1080 picture; default 28)."
+        },
+        "picture": {
+          "type": "string",
+          "maxLength": 80,
+          "format": "metarush-resource",
+          "description": "With picture: one of the cut's resources, by its short name (name#3 for a PDF's page)."
+        },
+        "footage": {
+          "$ref": "#/$defs/BackgroundClip"
+        },
+        "feather": {
+          "type": "number",
+          "maximum": 40,
+          "minimum": 0,
+          "description": "How soft the people's edges are (pixels on a 1080 picture; default 2)."
+        },
+        "matte": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "The clip's cut-out this cut plays: the SHA-256 of its file (footage cut-out makes it)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "with",
+        "matte"
       ]
     },
     "ContinuousVO": {

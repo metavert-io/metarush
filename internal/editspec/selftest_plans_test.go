@@ -100,6 +100,17 @@ func (selftestFacts) Resource(id, sha string) (ResourceInfo, bool) {
 	return r, true
 }
 
+// The mover's cut-out (D510): its red square with the grey see-through, from
+// 0.5 s (frame 15) to its end; the self-test makes the file.
+var selftestCutOutSHA = strings.Repeat("c4", 32)
+
+func (selftestFacts) Matte(sha string) (MatteInfo, bool) {
+	if sha != selftestCutOutSHA {
+		return MatteInfo{}, false
+	}
+	return MatteInfo{AssetID: "mover", From: 0.5, To: 6, Offset: 0.5, Ready: true, Model: "the self-test's own"}, true
+}
+
 // The nested self-test plays "Brand intro" (green 2 s, then blue 2 s, under a
 // lower third) from 1 s in, after 2 s of red.
 const (
@@ -291,6 +302,14 @@ func selftestSpecs() map[string]*Spec {
 	follow.Framing, center.Framing = FramingFollow, FramingCenter
 	out["follow"] = &Spec{Output: follow, Clips: []Clip{clip("walk", "mover", 0, 6, nil)}}
 	out["follow-center"] = &Spec{Output: center, Clips: []Clip{clip("walk", "mover", 0, 6, nil)}}
+	// The background replaced (D510): the mover's red square from its cut-out
+	// (a WebM whose grey is see-through, starting 0.5 s in) over a chroma
+	// green, then over the blue clip, then over the yellow picture.
+	out["background"] = &Spec{Output: out16, Clips: []Clip{
+		{ID: "keyed", AssetID: "mover", In: 0.5, Out: 2, Background: &ClipBackground{With: BackgroundColour, Colour: "#00b140", Matte: selftestCutOutSHA}},
+		{ID: "over", AssetID: "mover", In: 2, Out: 3.5, Background: &ClipBackground{With: BackgroundFootage, Footage: &BackgroundClip{AssetID: "blue", In: 0.5}, Matte: selftestCutOutSHA}},
+		{ID: "pic", AssetID: "mover", In: 3.5, Out: 5, Background: &ClipBackground{With: BackgroundPicture, Picture: "photo", Feather: 6, Matte: selftestCutOutSHA}},
+	}, Resources: map[string]ResourcePin{"photo": {ID: "res_selftestphotoaaaaaaaaaaaaa", SHA256: selftestPhotoSHA}}}
 	hard := []Clip{clip("a", "red", 1, 3, nil), clip("b", "blue", 1, 3, nil)}
 	out["cut-hard"] = &Spec{Output: out16, Clips: append([]Clip(nil), hard...)}
 	blend := DefaultCutBlend
@@ -352,6 +371,7 @@ func TestSelftestPlans(t *testing.T) {
 		"media":       media,
 		"expect":      expect,
 		"driftCopies": drift,
+		"cutOuts":     map[string]string{selftestCutOutSHA: "mover-cutout.webm"},
 		"resources": map[string]string{selftestLogoSHA: "logo.svg", selftestPhotoSHA: "photo.png", selftestFontSHA: "brand.woff2", selftestCodeSHA: "code.png",
 			selftestDiagramSHA: "diagram.svg", selftestSiteSHA: "site-desktop.png", selftestSitePhone: "site-phone.png", selftestSiteFull: "site-full.png"},
 		"plans": plans,

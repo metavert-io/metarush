@@ -148,6 +148,7 @@ shots?: Shot[]
  * @maxItems 16
  */
 mutedMembers?: string[]
+background?: ClipBackground
 }
 /**
  * This interface was referenced by `Plan`'s JSON-Schema
@@ -256,6 +257,48 @@ assetId: string
  * Where in that footage it starts (seconds).
  */
 in: number
+}
+/**
+ * This interface was referenced by `Plan`'s JSON-Schema
+ * via the `definition` "ClipBackground".
+ */
+export interface ClipBackground {
+/**
+ * What shows behind the people: a colour, a blur of the clip itself, a picture the cut pins, or another clip.
+ */
+with: ("colour" | "blur" | "picture" | "footage")
+/**
+ * With colour: the colour, #rrggbb.
+ */
+colour?: string
+/**
+ * With blur: how strong (pixels on a 1080 picture; default 28).
+ */
+blur?: number
+/**
+ * With picture: one of the cut's resources, by its short name (name#3 for a PDF's page).
+ */
+picture?: string
+footage?: BackgroundClip
+/**
+ * How soft the people's edges are (pixels on a 1080 picture; default 2).
+ */
+feather?: number
+/**
+ * The clip's cut-out this cut plays: the SHA-256 of its file (footage cut-out makes it).
+ */
+matte: string
+}
+/**
+ * This interface was referenced by `Plan`'s JSON-Schema
+ * via the `definition` "BackgroundClip".
+ */
+export interface BackgroundClip {
+assetId: string
+/**
+ * Where in that clip the background starts, in seconds.
+ */
+in?: number
 }
 /**
  * This interface was referenced by `Plan`'s JSON-Schema

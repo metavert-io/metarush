@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "E_TOOL_FAILED",
+    "message": "MetaRush did not start again.",
+    "hint": "Its log says why.",
+    "details": {
+      "command": "metarush service logs"
+    }
+  },
+  "ok": false
+}

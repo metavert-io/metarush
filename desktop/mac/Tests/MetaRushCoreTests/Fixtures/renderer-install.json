@@ -1,0 +1,15 @@
+{
+  "data": {
+    "source": "bundled",
+    "state": "ready",
+    "ready": true,
+    "id": "0.2.0-1a2b3c4d",
+    "version": "0.2.0",
+    "remotion": "4.0.380",
+    "dir": "/Users/you/.metarush/renderer/0.2.0-1a2b3c4d",
+    "videoDir": "/Users/you/.metarush/renderer/0.2.0-1a2b3c4d/video",
+    "browser": true,
+    "versions": []
+  },
+  "ok": true
+}

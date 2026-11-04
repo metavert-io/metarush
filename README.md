@@ -74,6 +74,15 @@ Each organization that installs MetaRush is responsible for its own license. Det
 and https://www.remotion.dev/docs/license.
 
 ### 1. Get MetaRush
+**On a Mac: MetaRush.app** (with the releases that carry it). A small menu-bar app: drag it into Applications, open
+it, and its setup panels ask `metarush setup`'s questions with the same suggested answers (step 2 below, done for you)
+and open the dashboard. It carries the `metarush` program, links it for your terminal and Claude Code if you agree,
+keeps itself up to date with signed updates (Sparkle) and brings MetaRush up to date after each one, and its menu has
+Open MetaRush, Check for Updates…, Start/Stop MetaRush, Show Logs and Open at Login. It never asks for a password or a
+key: a cloud bucket or a database you already have is set up in Terminal. Where another copy of MetaRush already runs,
+it asks before taking its place, and never takes a newer copy's. Until releases carry it, `scripts/mac-app.sh build` makes
+it from a checkout. Details: [docs/mac-app.md](docs/mac-app.md).
+
 **From source**: the way to get MetaRush until its first release. You need Git, Go 1.27 or newer and Node.js 22 or
 newer (on a Mac: `brew install go node`):
 ```bash
@@ -190,9 +199,11 @@ See [docs/architecture.md](docs/architecture.md).
   kernels MongoDB 8 refuses (6.19 through 7.0.13; setup says so first, and the upgrade to 8.0 waits for the kernel);
 - the dashboard, the background service and Claude Code's skills.
 
-Every answer is also a flag and `--json` prints the result. It says whether Claude Code is installed and signed in
-(never signing in for you), and Home's **Getting started** lists what works free on this computer and what a key
-adds. MongoDB Atlas or your own server stays a choice. The steps are in the [Install Guide](#install-guide).
+Every answer is also a flag and `--json` prints the result; `metarush setup questions --json` gives the questions with
+their suggested answers without changing anything (MetaRush.app's setup panels show them). It says whether Claude
+Code is installed and signed in (never signing in for you), and Home's **Getting started** lists what works free on
+this computer and what a key adds. MongoDB Atlas or your own server stays a choice. The steps are in the
+[Install Guide](#install-guide).
 
 ### Finding your way
 The top bar has Studio, Library (the Inbox, collections, the Archive and Trash, plus People, Motion, Recipes and
@@ -1396,7 +1407,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 ### Setting up and getting around
 | Command | What it does |
 |---|---|
-| `metarush setup` / `setup --yes --json [--database elsewhere --db-uri …] [--storage s3 …] [--service=false]` / `setup status` | set MetaRush up on this computer with suggested answers (again: checks and fixes what is missing) / unattended / what works now, with no keys and with one |
+| `metarush setup` / `setup --yes --json [--database elsewhere --db-uri …] [--storage s3 …] [--service=false]` / `setup status` / `setup questions --json` | set MetaRush up on this computer with suggested answers (again: checks and fixes what is missing) / unattended / what works now, with no keys and with one / what setup would ask here and its suggested answers, changing nothing |
 | `metarush components` / `components add <name>` / `components remove <name>` | what MetaRush can use on this computer and what each optional component unlocks / add one, with Homebrew or MetaRush's own checked download (a person, in a terminal) / take off one MetaRush added |
 | `metarush database status\|start\|stop` / `database upgrade [--yes]` | the database on this computer: whether it runs, start or stop it (MetaRush starts it by itself when needed; `metarush stop` stops it too) / move it to the version this MetaRush comes with (MetaRush stopped first) |
 | `metarush dashboard` | open the console (the **Ask Claude Code** panel talks to Claude Code on this machine) |
@@ -1680,7 +1691,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush improve signals` → (Claude Code, skill `metarush-improve`) → `improve save --file report.md`; `improve list` / `keep` / `dismiss` / `export` | improvement ideas from the log |
 | `metarush improve report [--dry-run]` / `improve schedule --weekly on` | the whole pipeline now (Claude Code headless, no shell); the weekly report while the daemon runs (off by default, people only) |
 | `metarush renderer status` / `renderer install` / `renderer prune` / `renderer dev <checkout>/video` (`--off`) | this version's own renderer: is it ready, set it up or repair it, remove old ones; developers: render from a live checkout |
-| `metarush service install [--worker-only]` / `service status` / `service logs -f` / `service restart` / `service uninstall` | run MetaRush at login, restarted if it crashes (launchd, systemd); `--worker-only` without the dashboard |
+| `metarush service install [--worker-only]` / `service status` / `service logs -f` / `service restart` / `service uninstall` | run MetaRush at login, restarted if it crashes (launchd, systemd); `--worker-only` without the dashboard; `service status --json` also says which MetaRush runs and the build that answers (`daemon`) |
 | `metarush serve --worker-only` | the daemon without the dashboard (what the worker-only service runs) |
 | `metarush version` / `version --details` / `version --json` | which MetaRush this is; with what's new in it and the version each of your computers runs (older ones flagged); the build alone as JSON |
 | `scripts/bump-version.sh 0.2.0\|patch\|minor\|major [--dry-run]` | cut a release from a checkout: `VERSION`, the changelog's section, a commit and the tag (never pushes) |
@@ -1897,5 +1908,7 @@ checks below in order, log each step and end with a table; [testing](docs/testin
 ## License
 Speech recognition uses NVIDIA Parakeet TDT 0.6B v2 (https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2), licensed under CC BY 4.0, converted to ONNX by the sherpa-onnx project.
 Face recognition uses SFace (Zhong et al., IEEE TIP 2021) as published in OpenCV Zoo (https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface), licensed under Apache 2.0, downloaded on first use and checked against its SHA-256.
+
+MetaRush.app keeps itself up to date with Sparkle (https://sparkle-project.org), MIT-licensed, which it carries with its licence ([desktop/mac/THIRD_PARTY.md](desktop/mac/THIRD_PARTY.md)).
 
 MIT © 2026 Metavert LLC. Remotion and other dependencies have their own licenses — see [docs/licensing.md](docs/licensing.md).

@@ -35,6 +35,7 @@ Check them again before relying on this summary.
 | Resemble Enhance (code and model) | MIT | Clearer voices, studio mode (optional, set up by a person). Installed with pip into its own environment; the model is downloaded from Hugging Face (ResembleAI/resemble-enhance) at a pinned revision. |
 | Studio's Python packages | BSD (PyTorch, torchaudio, NumPy, SciPy, pandas, omegaconf, soundfile), ISC (librosa), MIT (rich, tabulate), MPL-2.0/MIT (tqdm), Matplotlib license | Installed from PyPI on the person's machine at studio setup; MetaRush does not redistribute them. |
 | Fonts in `video/` | SIL Open Font License | Bundled via @fontsource. |
+| Sparkle 2.10.1 (MetaRush.app's updates) | MIT (with bsdiff's BSD, sais-lite's MIT, ed25519's zlib and the signature verifier's BSD licences inside) | Distributed inside MetaRush.app (`Contents/Frameworks/Sparkle.framework`) with its licence: [desktop/mac/THIRD_PARTY.md](../desktop/mac/THIRD_PARTY.md), also in the app. Pinned by version and SHA-256 (`desktop/mac/Package.swift`). |
 | Go/npm dependencies | MIT/BSD/Apache-2.0 | See `go.mod`, `package-lock.json`. |
 
 ## Your media

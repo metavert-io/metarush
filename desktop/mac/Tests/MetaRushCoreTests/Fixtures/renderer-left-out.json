@@ -1,0 +1,19 @@
+{
+  "data": {
+    "status": {
+      "source": "bundled",
+      "state": "left-out",
+      "ready": false,
+      "id": "0.2.0-1a2b3c4d",
+      "version": "0.2.0",
+      "dir": "/Users/you/.metarush/renderer/0.2.0-1a2b3c4d",
+      "videoDir": "/Users/you/.metarush/renderer/0.2.0-1a2b3c4d/video",
+      "browser": false,
+      "versions": []
+    },
+    "setUp": false,
+    "says": "The renderer was left out on this computer, so nothing was set up: a person adds it in Settings → Components.",
+    "command": "metarush renderer install --force"
+  },
+  "ok": true
+}

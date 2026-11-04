@@ -1,0 +1,10 @@
+{
+  "data": {
+    "url": "http://127.0.0.1:4845/auth?t=nonce",
+    "started": false,
+    "expiresInMinutes": 10,
+    "dashboard": "http://127.0.0.1:4845",
+    "remote": false
+  },
+  "ok": true
+}

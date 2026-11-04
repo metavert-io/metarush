@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "E_DATABASE",
+    "message": "MetaRush can't reach its database.",
+    "hint": "Its checkup says why.",
+    "details": {
+      "command": "metarush doctor"
+    }
+  },
+  "ok": false
+}

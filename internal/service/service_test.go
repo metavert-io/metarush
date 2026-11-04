@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -134,6 +135,99 @@ func TestLaunchAgentInstallStatusRestartUninstall(t *testing.T) {
 	}
 	if c := calls(t, dir); c[len(c)-1] != "bootout "+target {
 		t.Fatalf("uninstall: %v", c)
+	}
+}
+
+// The service runs MetaRush.app's own copy where the app is (an update
+// replaces it in place), never the temporary copy macOS makes of an app
+// opened where it was downloaded (D476).
+func TestStableExecutableRefusesATemporaryCopy(t *testing.T) {
+	inApp := "/Applications/MetaRush.app/Contents/Helpers/metarush"
+	if got, err := stableFrom(inApp); err != nil || got != inApp {
+		t.Fatalf("the app's own copy: %q %v", got, err)
+	}
+	moved := "/private/var/folders/q1/x7/T/AppTranslocation/3F2A9C1E-0B1D-4E57-9A43-1C6E7B9D2F10/d/MetaRush.app/Contents/Helpers/metarush"
+	if _, err := stableFrom(moved); !errors.Is(err, ErrTemporaryCopy) {
+		t.Fatalf("a temporary copy: %v", err)
+	}
+}
+
+// A service that starts MetaRush through a link (~/.local/bin/metarush) is
+// the copy the link leads to: this one when it leads to the program asking
+// (setup run from the link's target then fixes a stopped service instead of
+// leaving it as another copy's), another when it leads elsewhere (D473, D475).
+func TestAServiceThroughALink(t *testing.T) {
+	lc, _ := fakeTool(t, "launchctl", fakeLaunchctl)
+	userHome := t.TempDir()
+	exe := exeFile(t)
+	o := Options{Home: filepath.Join(t.TempDir(), "home"), Exe: exe, OS: "darwin", UserHome: userHome, UID: 501, Tools: tools.New(config.Tools{Launchctl: lc})}
+	ctx := context.Background()
+	if _, err := o.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if st := o.Get(ctx); !st.SameBinary || st.OtherCopy {
+		t.Fatalf("its own path: %+v", st)
+	}
+	// The service set up through a link to this program, read by this program.
+	link := filepath.Join(t.TempDir(), "bin", "metarush")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(exe, link); err != nil {
+		t.Fatal(err)
+	}
+	byLink := o
+	byLink.Exe = link
+	if _, err := byLink.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if st := o.Get(ctx); !st.SameBinary || st.OtherCopy || st.Binary != link {
+		t.Fatalf("through a link to this program: %+v", st)
+	}
+	// The link changed to lead to another program: another copy from then on.
+	other := exeFile(t)
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other, link); err != nil {
+		t.Fatal(err)
+	}
+	if st := o.Get(ctx); st.SameBinary || !st.OtherCopy {
+		t.Fatalf("through a link to another program: %+v", st)
+	}
+	// Read by another program altogether.
+	elsewhere := Options{Home: o.Home, Exe: exeFile(t), OS: "darwin", UserHome: userHome, UID: 501, Tools: o.Tools}
+	if st := elsewhere.Get(ctx); st.SameBinary || !st.OtherCopy {
+		t.Fatalf("another copy: %+v", st)
+	}
+}
+
+// ThisProgram is the copy a daemon records: links followed, then the path
+// that lasts (a Homebrew version folder becomes the formula's own path).
+func TestThisProgramFollowsLinks(t *testing.T) {
+	p := ThisProgram()
+	if p == "" || !filepath.IsAbs(p) {
+		t.Fatalf("ThisProgram() = %q", p)
+	}
+	if real, err := filepath.EvalSymlinks(p); err != nil || real != p && !strings.Contains(p, "/opt/") {
+		t.Fatalf("ThisProgram() = %q, links followed %q (%v)", p, real, err)
+	}
+	brew := t.TempDir()
+	cellar := filepath.Join(brew, "Cellar", "metarush", "0.15.0", "bin", "metarush")
+	if err := os.MkdirAll(filepath.Dir(cellar), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cellar, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(brew, "opt", "metarush"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Dir(cellar), filepath.Join(brew, "opt", "metarush", "bin")); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := stableFrom(cellar); err != nil || got != filepath.Join(brew, "opt", "metarush", "bin", "metarush") {
+		t.Fatalf("a Homebrew version folder: %q %v", got, err)
 	}
 }
 

@@ -1,0 +1,117 @@
+{
+  "data": {
+    "home": "/Users/you/.metarush",
+    "fresh": true,
+    "workspace": {
+      "id": "ws_1",
+      "name": "My Studio"
+    },
+    "installation": {
+      "id": "ins_1",
+      "name": "Studio Mac"
+    },
+    "user": {
+      "id": "usr_1",
+      "name": "Sam",
+      "email": ""
+    },
+    "database": {
+      "local": true,
+      "version": "8.0.34",
+      "port": 27150,
+      "running": true,
+      "name": "metarush",
+      "says": "Your projects are kept in a database on this computer; MetaRush keeps it running."
+    },
+    "storage": {
+      "kind": "folder",
+      "shared": false,
+      "folder": "/Users/you/.metarush/media",
+      "says": "Footage and finished videos are kept in a folder on this computer."
+    },
+    "dashboard": "http://127.0.0.1:4845",
+    "service": {
+      "wanted": true,
+      "installed": true,
+      "running": true,
+      "says": "MetaRush starts when you log in, and runs now."
+    },
+    "skills": {
+      "wanted": true,
+      "installed": true,
+      "dir": "/Users/you/.claude/skills",
+      "files": 40,
+      "says": "Claude Code knows MetaRush's video skills."
+    },
+    "components": {
+      "chosen": [
+        "node",
+        "renderer"
+      ],
+      "added": [
+        {
+          "name": "renderer",
+          "title": "The Remotion renderer",
+          "done": true,
+          "how": "metarush",
+          "unlocks": "Finished videos",
+          "licence": "Remotion, which renders your videos, is free for individuals and for companies of up to 3 people; larger companies need a Remotion Company License (remotion.dev/license) before using it.",
+          "says": "The Remotion renderer is added."
+        }
+      ],
+      "ready": [
+        "ffmpeg"
+      ],
+      "leftOut": [
+        "studio-voice"
+      ],
+      "needsYou": [
+        {
+          "name": "node",
+          "title": "Node.js",
+          "says": "Node.js needs you: install it from nodejs.org.",
+          "command": "metarush components add node"
+        }
+      ],
+      "says": "Added 1 optional component."
+    },
+    "whatWorks": {
+      "noKeys": [
+        {
+          "key": "transcripts",
+          "name": "Transcripts and captions",
+          "ready": true,
+          "says": "Made on this computer."
+        },
+        {
+          "key": "renders",
+          "name": "Finished videos",
+          "ready": false,
+          "says": "Rendering needs the Remotion renderer.",
+          "next": "Add it in Settings → Components.",
+          "command": "metarush components add renderer",
+          "component": "renderer"
+        }
+      ],
+      "withKeys": [
+        {
+          "key": "ai-voices",
+          "name": "AI voices",
+          "ready": false,
+          "says": "With an ElevenLabs key."
+        }
+      ],
+      "claude": {
+        "installed": true,
+        "ready": true,
+        "says": "Claude Code is installed and signed in."
+      },
+      "summary": "Most of MetaRush works free on this computer with no keys; what isn't ready yet says what it needs."
+    },
+    "next": [
+      "metarush components add node",
+      "metarush dashboard"
+    ]
+  },
+  "ok": true
+}

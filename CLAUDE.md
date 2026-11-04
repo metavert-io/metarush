@@ -844,6 +844,40 @@ Read `docs/architecture.md` before structural changes.
   the daemon runs catch-up again whenever a component is added. Tests: `internal/testutil/fakebrew`,
   `METARUSH_COMPONENTS_BASE` (loopback), `METARUSH_TOOL_DIRS` (only these folders), stand-in `Env.Steps`; never a
   real download or install. Browser run `scripts/components-e2e.sh` (ports 5650–5659).
+- **MetaRush.app, the Mac app** (D470–D479, `desktop/mac`, `internal/macapp`, `scripts/mac-app.sh`, docs/mac-app.md):
+  a menu-bar app (AppKit status item, SwiftUI windows) built with the Command Line Tools alone (SwiftPM; no Xcode:
+  swift-testing needs the toolchain's `plugins/testing` on the plugin path, and SwiftUI's `@State` is an Xcode-only
+  macro, so views keep state in `ObservableObject` models). It carries `Contents/Helpers/metarush` and does everything
+  through its `--json` commands — never a business rule of its own: every decision lives in `MetaRushCore` (tested
+  headlessly with a stand-in program; its fixtures are written from the Go types by `TestMacAppFixtures`, so change
+  them with the types), the app target is thin. First run = `setup questions` (D473) as panels → `setup` with every
+  answer a flag; secrets only in Terminal; the panels open by themselves only where MetaRush isn't set up. Updates:
+  Sparkle 2.10.1 (MIT, `THIRD_PARTY.md` in the app), a binary target pinned by version and SHA-256, EdDSA archives
+  checked against `SUPublicEDKey` before unpacking (`SUVerifyUpdateBeforeExtraction`; zips only: Sparkle falls back
+  to a same-team Developer ID signature for disk images) and only signed feeds, never relaxed (`SURequireSignedFeed`,
+  `SUSignedFeedFailureExpirationInterval` 0; `mac-app.sh appcast` signs the feed, then checks both signatures against
+  the archive's key;
+  `build` checks a given key against `generate_keys -p`, https feeds only, Info.plist via `plutil`); a placeholder key
+  in the repo, filled at build (no real key → no updates); the private key only in the release Mac's keychain. After
+  an update to a newer build (`FinishMarker`, Sparkle's comparator; tried once, then offered with Try Again) the new
+  app runs deploy.sh's steps through its own program (`Finishing`: skills only where installed, renderer, migrate,
+  restart, then `service status --json`'s `daemon` must be this build, D472/D474). **Another copy is never taken over
+  without a yes, nor ever a newer one, nor one whose version can't be told** (D473): `WhoRuns` (the service starting
+  another copy — `otherCopy`; a link that leads to this copy is this copy — or a daemon whose recorded
+  `program`/`sameCopy` isn't this copy), `setup --take-over-service`, `service install --keep-newer` (asks the running
+  copy and the service's program, keeps the newer; plus `--worker-only` for a worker). `CFBundleVersion` = `macapp.BundleVersion`
+  (Sparkle's order = MetaRush's: `0.2.0-dev.3` → `0.2.0.3`). The terminal link (`~/.local/bin/metarush` → the app's
+  program) only with a yes, another copy kept, both versions shown (`CommandLink.there`: the program asked, ordered by
+  `metarush version --compare`, never by Swift), what it means for a service starting that path said, refused over a
+  newer copy or one that doesn't say its version (D475); a translocated or disk-image app moves itself first (a newer or
+  open copy in Applications asked about), then clears its parts' quarantine (`StableExecutable` refuses
+  `ErrTemporaryCopy`, D476). Open at Login: `LoginItem` (SMAppService in the app, a stand-in in tests). Tests:
+  `scripts/mac-app.sh test` (no UserDefaults, no login items: in-memory stand-ins), `go test ./internal/macapp/` (the
+  real Sparkle on a loopback feed with the shipped Info.plist, a key made at run time; the harness has its own bundle
+  ID, `AppHarness-Info.plist`, and the test cleans both IDs' Sparkle leftovers; the release script's signing and
+  refusals), `TestAppSpeaksPlainly` (the app's strings through
+  plainwords: keep shown text in `Words.swift`); CI `mac-app.yml`. Never run the built app against a real home in
+  tests.
 - **Escape hatches and plumbing** (D92–D95): `export.timeline` writes OTIO / FCPXML 1.8 / FCP7 XML from the resolved RenderPlan (`internal/interchange`; validate with `scripts/interchange-check.sh`, docs/timeline-export.md); the worker keeps Parakeet (and whisper.cpp through `whisper-server` from the same build, loopback under a random
   path, D121) loaded in `transcribe-model-server` (purego, idle stop, memory cap, CLI fallback; transcripts identical); `storage.migrate` (HumanOnly; `storage.plan` is the dry run) copies by content address with SHA-256 checks, resumes, switches config.yaml + the workspace only when verified and never deletes (`internal/storagemove`; a daemon re-executes itself when config.yaml names another store); `metarush mcp serve` exposes non-HumanOnly ops over stdio (the core by default, D222), read-only unless `--allow-changes` (confirm token per change), channel `mcp` (`internal/mcp`, `scripts/mcp-check.sh`, docs/mcp.md).
 
@@ -1305,7 +1339,7 @@ Read `docs/architecture.md` before structural changes.
   dashboard (c8; Chromium's coverage of its pages) goes to Codecov over OIDC; `coverage-baseline.json` is the ratchet.
 
 ## Layout
-`cmd/metarush` (binary) · `internal/*` (Go; see architecture.md) · `skills/` (embedded Claude Code skills) ·
+`cmd/metarush` (binary) · `internal/*` (Go; see architecture.md) · `desktop/mac` (MetaRush.app, Swift) · `skills/` (embedded Claude Code skills) ·
 `plugins/` (generated from `skills/`: the Claude Code plugin and the skills for other apps) ·
 `schema/` (generated JSON Schema + TS — regenerate, don't hand-edit) · `video/` (Remotion package) · `web/` (dashboard).
 
@@ -1342,6 +1376,8 @@ scripts/secret-scan.sh                                    # no likely secrets in
 scripts/interchange-check.sh                              # timeline export vs. OpenTimelineIO and the FCPXML/xmeml DTDs (temp venv)
 scripts/mcp-check.sh --home <test home> [--changes] [--toolset edit]  # `mcp serve` (the core, a toolset, all) vs. the official MCP Python SDK (temp venv)
 scripts/release.sh --snapshot                             # release dry run: every archive built and verified, nothing published
+scripts/mac-app.sh test && go test ./internal/macapp/     # MetaRush.app: its Swift tests, then the update test with the real Sparkle (a Mac with Swift)
+scripts/mac-app.sh build [--arch arm64 --skip-web --no-dmg]  # MetaRush.app, its zip and disk image in dist/mac (nothing published)
 scripts/about-e2e.sh                                      # Settings → General and `metarush version` with an older second computer
 scripts/playback-e2e.sh                                   # players through a database outage (D180); review copies and stills in the Edit tab and on a version's page (D187)
 scripts/accounts-e2e.sh                                   # sign-in methods, invites, sign in/out, reset links, password change (D183)

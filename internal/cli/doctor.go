@@ -34,15 +34,17 @@ import (
 // technical record (doctor --json, --details, bug reports). Say and Do are the
 // same check for people (skills/_shared/voice.md): what it means and what to
 // do next, without paths, versions or commands. A check that is fine and has
-// nothing to tell a person has no Say: it shows only with --details.
+// nothing to tell a person has no Say: it shows only with --details. --json
+// carries them too (D474), Say as people read it (plainSay: a problem always
+// has one), so an app shows doctor's problems in plain words.
 type Check struct {
 	Area   string `json:"area"`
 	Name   string `json:"name"`
 	Status string `json:"status"` // ok | warn | fail | info
 	Detail string `json:"detail"`
 	Fix    string `json:"fix,omitempty"`
-	Say    string `json:"-"`
-	Do     string `json:"-"`
+	Say    string `json:"say,omitempty"`
+	Do     string `json:"do,omitempty"`
 }
 
 // addCheck records one check: its technical detail and fix, then, in plain
@@ -56,10 +58,11 @@ func doctorCmd() *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			checks := runDoctor(c.Context())
 			ok := true
-			for _, ch := range checks {
+			for i, ch := range checks {
 				if ch.Status == "fail" {
 					ok = false
 				}
+				checks[i].Say = plainSay(ch)
 			}
 			err := emit(c, map[string]any{"ok": ok, "version": version.Version, "checks": checks}, func() {
 				printChecks(checks, detailsMode(c))

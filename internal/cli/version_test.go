@@ -89,3 +89,36 @@ func TestVersionCommand(t *testing.T) {
 		}
 	}
 }
+
+// `metarush version --compare <v>` (D475): this build against another
+// version in MetaRush's own order, for MetaRush.app, which asks it before its
+// copy takes the place of another; a pair it can't order says so.
+func TestVersionCompare(t *testing.T) {
+	none := filepath.Join(t.TempDir(), "not-set-up")
+	var out versionOut
+	decodeData(t, runCLI(t, none, "version", "--compare", "99.0.0", "--json"), &out)
+	if c := out.Compared; c == nil || c.Other != "99.0.0" || c.Order != -1 || !c.Known || out.Version != version.Version {
+		t.Fatalf("against a newer version: %+v", out.Compared)
+	}
+	for _, c := range []struct {
+		this, other string
+		order       int
+		known       bool
+	}{
+		{"0.2.0", "0.1.0", 1, true},
+		{"0.2.0", "0.3.0", -1, true},
+		{"0.2.0", "0.2.0", 0, true},
+		{"0.2.0-dev.3", "0.2.0", 1, true}, // a build past a release is newer than it
+		{"0.3.0-rc1", "0.3.0", -1, true},
+		{"0.2.0", "0.2.0-dev", 0, false},
+		{"0.2.0", "not a version", 0, false},
+	} {
+		if got := compareTo(c.this, c.other); got.Order != c.order || got.Known != c.known {
+			t.Errorf("%s against %s: %+v", c.this, c.other, got)
+		}
+	}
+	r := runCLI(t, none, "version", "--compare", "0.0.1")
+	if r.code != 0 || !strings.Contains(r.stdout, "This MetaRush is newer than 0.0.1.") || len(plainwords.CheckShown(r.stdout)) > 0 {
+		t.Errorf("version --compare:\n%s", r.stdout)
+	}
+}

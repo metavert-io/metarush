@@ -1,12 +1,33 @@
 # Installation
 
-Get MetaRush one of three ways, then run **`metarush setup`**: a few questions with suggested answers, about five
-minutes in all, with no accounts or keys needed for MetaRush itself. MetaRush needs only itself, a place for your
-projects and a storage folder to start; setup provides both. Everything else — FFmpeg, Node.js and the Remotion
-renderer, transcription on this computer, the link downloader and more — is an optional **component** that unlocks
-named features: setup offers them as a checklist with the suggested ones ticked, and `metarush components` or
+On a Mac, the simplest way is **MetaRush.app** (below): it sets MetaRush up in a few panels and keeps it up to date.
+Otherwise get MetaRush one of three ways, then run **`metarush setup`**: a few questions with suggested answers,
+about five minutes in all, with no accounts or keys needed for MetaRush itself. MetaRush needs only itself, a place
+for your projects and a storage folder to start; setup provides both. Everything else — FFmpeg, Node.js and the
+Remotion renderer, transcription on this computer, the link downloader and more — is an optional **component** that
+unlocks named features: setup offers them as a checklist with the suggested ones ticked, and `metarush components` or
 Settings → Components adds the rest later (see [Components](#components)). The Homebrew cask and formula bring FFmpeg
 and Node.js along.
+
+## On a Mac: MetaRush.app
+1. Download `MetaRush-<version>.dmg` from a [release](https://github.com/metavert-io/metarush/releases), open it and
+   drag MetaRush into Applications. (The app comes with the releases that carry it; until then, build it from a
+   checkout with `scripts/mac-app.sh build`.)
+2. Open it from Applications. Until releases are signed with a Developer ID, macOS asks once: Control-click MetaRush →
+   Open, or open it, then System Settings → Privacy & Security → **Open Anyway**.
+3. Answer its setup panels: they are `metarush setup`'s questions with the same suggested answers — where footage and
+   projects are kept, MetaRush starting when you log in, the app opening when you log in (it checks for updates while
+   it runs), Claude Code's skills, the components checklist — and setup runs, the background service starts and the
+   dashboard opens. A cloud bucket or a database you already have needs a key or password, which the app never asks
+   for: it hands you over to Terminal for that.
+
+It lives in the menu bar (Open MetaRush, Check for Updates…, Start/Stop MetaRush, Show Logs, Open at Login), carries
+the `metarush` program inside it, and, if you agree, links it as `~/.local/bin/metarush` so your terminal and Claude
+Code's skills find it (another copy already there is kept, after it asks). Updates come with Sparkle, the feed and
+the archive signed and checked, and after each one the app brings MetaRush up to date and restarts it, as
+`scripts/deploy.sh` does. On a Mac where MetaRush already runs from another copy (Homebrew, a script), the app
+doesn't open its setup by itself and never takes that copy's place without asking — nor ever when that copy is newer.
+How it works, its updates, its key and how it is built and released: [mac-app.md](mac-app.md).
 
 ## With Homebrew (macOS and Linux)
 ```bash
@@ -130,6 +151,11 @@ list is Home's Getting started and `metarush setup status`), whether **Claude Co
   that aren't here (a download that failed, say) are added, the ones you left out stay out, and a suggested one
   nobody decided on is added only when you answer the checklist; `--port` moves the
   dashboard. It never changes where things are kept — moving footage is Settings → Storage (`metarush storage migrate`).
+- **Another copy of MetaRush in the background** (Homebrew's, or one a script installed): setup leaves its service as
+  it is unless you say yes to its own question (unattended: `--take-over-service`), and never lets an older copy take
+  a newer one's place. Setting the service up again keeps a worker without the dashboard a worker.
+  `metarush service install --keep-newer` likewise changes nothing when a newer copy runs, or one that doesn't say
+  which version it is.
 - **Run by an AI app** (Claude Code in a terminal, `--agent`): setup does everything else but adds no component;
   it lists them for a person (`components.forAPerson`, `next`). **Without a terminal** (a script, CI) setup installs
   only the components named with `--components`; the suggested ones are listed for a person. Installing programs is
@@ -464,7 +490,8 @@ lists interrupted ingests, queued jobs and whether the database and media store 
 re-verifies every copy if a disk misbehaved.
 
 ## Upgrading
-Replace the binary file rather than overwriting it in place: on macOS, `cp` onto an existing executable can leave a
+MetaRush.app updates itself (Check for Updates…, or by itself once a day) and then finishes the upgrade below for
+you ([mac-app.md](mac-app.md#updates)). Otherwise, replace the binary file rather than overwriting it in place: on macOS, `cp` onto an existing executable can leave a
 stale code-signature cache and the system then kills it on launch (exit 137, no output). Use
 `rm -f ~/.local/bin/metarush && cp bin/metarush ~/.local/bin/` (or `install -m 755`, which also creates a new file).
 `scripts/deploy.sh` does all of this from a checkout. Rebuild or replace the binary; `metarush serve` applies
@@ -475,7 +502,8 @@ install` again — files you edited are kept unless `--force`. A background serv
 
 ## Uninstalling
 `metarush service uninstall` (if you installed the service), then delete the binary and the home directory (the
-renderers live in it). Shared data (database, bucket) is untouched; remove those deliberately with your provider's
+renderers live in it). With MetaRush.app: run `metarush service uninstall` (the app's copy, through its
+`~/.local/bin/metarush` link), quit the app, then delete it and the link. Shared data (database, bucket) is untouched; remove those deliberately with your provider's
 tools if you really mean to. Keychain entries are under the service name "MetaRush". With Homebrew: `brew uninstall
 --cask metarush` (or `brew uninstall metarush`) and `brew untap metavert-io/metarush`.
 

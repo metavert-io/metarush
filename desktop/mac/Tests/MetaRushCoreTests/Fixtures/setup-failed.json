@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "E_DATABASE",
+    "message": "The database on this computer couldn't be set up",
+    "hint": "Run setup again: it carries on where it stopped.",
+    "details": {
+      "command": "metarush setup"
+    }
+  },
+  "ok": false
+}

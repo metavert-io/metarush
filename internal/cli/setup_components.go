@@ -117,6 +117,19 @@ func (s *setupRun) chooseComponents(e *components.Env, again bool) error {
 		s.pick = componentPick{names: ordered(names), decided: true}
 		return nil
 	}
+	s.pick = componentPick{names: suggestedComponents(e, offered, again, s.prompt), decided: !again}
+	if !s.prompt {
+		return nil
+	}
+	return s.componentChecklist(ctx, e, offered)
+}
+
+// suggestedComponents is what setup ticks among the offered components: on a
+// new home the ones suggested on this computer; on a home set up already the
+// ones a person chose before, and — only when a person answers the checklist
+// (forAPerson) — suggested ones nobody decided on yet (setup again never adds
+// those by itself). `setup questions` ticks the same (D473).
+func suggestedComponents(e *components.Env, offered []*components.Component, again, forAPerson bool) []string {
 	var want []string
 	for _, c := range offered {
 		ch, chosen := choice.Of(e.Home(), c.Name)
@@ -125,17 +138,11 @@ func (s *setupRun) chooseComponents(e *components.Env, again bool) error {
 			want = append(want, c.Name)
 		case again && chosen && ch.Wanted:
 			want = append(want, c.Name)
-		case again && (!chosen || ch.Waiting) && c.SuggestedHere(e) && s.prompt:
-			// Suggested and nobody decided yet: only a person's answer to the
-			// checklist adds it (setup again never does by itself).
+		case again && (!chosen || ch.Waiting) && c.SuggestedHere(e) && forAPerson:
 			want = append(want, c.Name)
 		}
 	}
-	s.pick = componentPick{names: want, decided: !again}
-	if !s.prompt {
-		return nil
-	}
-	return s.componentChecklist(ctx, e, offered)
+	return want
 }
 
 func componentNames(cs []*components.Component) []string {

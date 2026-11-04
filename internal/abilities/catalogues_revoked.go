@@ -3,6 +3,7 @@ package abilities
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -109,7 +110,7 @@ func askTakenBack(ctx context.Context, a *app.App, c *models.AbilityCatalogue, v
 		sugs = []models.TodoSuggestion{{Label: "Turn it down", Value: "reject"}, {Label: "Keep it as it is", Value: "keep"}}
 	}
 	detail := "The catalogue doesn't say why."
-	if why != "" {
+	if why = strings.TrimSuffix(strings.TrimSpace(why), "."); why != "" {
 		detail = "The catalogue says: " + their(why) + "."
 	}
 	detail += " Nothing changes here by itself: an owner decides whether it may still run. Its page, a plan of a run and the approval say it was taken back."

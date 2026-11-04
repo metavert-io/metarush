@@ -452,7 +452,7 @@ func TestATakenBackVersionReachesTheOwners(t *testing.T) {
 		t.Fatalf("taken back: %d", n)
 	}
 	ts := openTodosOf(t, a, models.TodoAbilityTakenBack)
-	if len(ts) != 1 || !ts[0].HumanOnly || ts[0].Context.Ability == nil || ts[0].Context.Ability.Version != hash || !strings.Contains(ts[0].Detail, "“It sent words elsewhere.”") ||
+	if len(ts) != 1 || !ts[0].HumanOnly || ts[0].Context.Ability == nil || ts[0].Context.Ability.Version != hash || !strings.Contains(ts[0].Detail, "“It sent words elsewhere”") ||
 		len(ts[0].Suggestions) != 2 || ts[0].Suggestions[0].Value != "reject" {
 		t.Fatalf("the owners' question: %+v", ts)
 	}

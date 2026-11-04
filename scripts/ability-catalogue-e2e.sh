@@ -106,7 +106,7 @@ if [ "${NO_BROWSER:-}" = "1" ]; then
 fi
 step "the browser run"
 METARUSH_DASHBOARD="http://127.0.0.1:$PORT" METARUSH_MINT="./bin/metarush --home $H dashboard --print-link --no-open" \
-METARUSH_CHECK="./bin/metarush --home $H ability check --version" CATALOGUE_URL="https://127.0.0.1:$CPORT/index.json" \
+METARUSH_CHECK="./bin/metarush --home $H ability check --version" CATALOGUE_URL="https://127.0.0.1:$CPORT/index.json" CATALOGUE_INDEX="$SITE/index.json" \
 CATALOGUE_SHOTS="${CATALOGUE_SHOTS:-$BASE/screenshots}" node web/scripts/ability-catalogue-e2e.mjs
 
 step "what the browser did, from the command line"

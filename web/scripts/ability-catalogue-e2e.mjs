@@ -10,16 +10,17 @@
 //      what comes in; it lands as a draft on its page, from the catalogue
 //   D  a terminal checks it here (its test in the sandbox, the network off); the owner approves it
 //   E  the listing whose archive lies is refused in plain words; nothing comes in
-//   F  browse says Title card is here, approved
+//   F  browse says Title card is here, approved; then the catalogue takes it back: after Read again
+//      the owners' question is on To-dos, its page says so, and taking back its approval works
 //   G  phone, dark and light: browse and Settings → Abilities, no sideways scrolling
 //   H  the owner removes the catalogue (a styled question); browse says there is none
 // No native browser dialog may appear; what is shown reads plainly (web/scripts/plainwords.mjs).
 //
 //   METARUSH_DASHBOARD=http://127.0.0.1:5810 METARUSH_MINT="bin/metarush --home <home> dashboard --print-link --no-open" \
 //   METARUSH_CHECK="bin/metarush --home <home> ability check --version" CATALOGUE_URL=https://127.0.0.1:5811/index.json \
-//   CATALOGUE_SHOTS=<dir> node web/scripts/ability-catalogue-e2e.mjs
+//   CATALOGUE_INDEX=<the served index.json> CATALOGUE_SHOTS=<dir> node web/scripts/ability-catalogue-e2e.mjs
 import { execSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -29,8 +30,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../..');
 const base = (process.env.METARUSH_DASHBOARD ?? 'http://127.0.0.1:5810').replace(/\/$/, '');
 const catalogueURL = process.env.CATALOGUE_URL ?? '';
-if (!process.env.METARUSH_MINT || !process.env.METARUSH_CHECK || !catalogueURL) {
-  console.error('set METARUSH_MINT, METARUSH_CHECK, CATALOGUE_URL and METARUSH_DASHBOARD (see the header of this script)');
+const catalogueIndex = process.env.CATALOGUE_INDEX ?? '';
+if (!process.env.METARUSH_MINT || !process.env.METARUSH_CHECK || !catalogueURL || !catalogueIndex) {
+  console.error('set METARUSH_MINT, METARUSH_CHECK, CATALOGUE_URL, CATALOGUE_INDEX and METARUSH_DASHBOARD (see the header of this script)');
   process.exit(2);
 }
 const SHOTS = process.env.CATALOGUE_SHOTS ?? '';
@@ -259,6 +261,33 @@ try {
   await openBrowse(page);
   const hereText = await readText(page, '[data-listing="title-card"]');
   check('F Title card is here, approved', hereText.includes('Here: version 1, approved'), hereText.slice(0, 200));
+
+  // F — the catalogue takes that version back: Read again, and the owners are asked.
+  const ix = JSON.parse(readFileSync(catalogueIndex, 'utf8'));
+  ix.version += 1;
+  ix.revoked = [{ archive: v.ability.hash, name: 'title-card', why: 'It sent words elsewhere.' }];
+  writeFileSync(catalogueIndex, JSON.stringify(ix, null, 2));
+  await page.goto(`${base}/settings/abilities`);
+  await page.locator('[data-catalogue-item="acme"] [data-catalogue-read]').click();
+  const asked = await waitFor(async () => {
+    const l = await api(page, 'todos.list', { kind: 'ability_taken_back' });
+    return l.todos?.length ? l.todos[0] : null;
+  }, 20_000);
+  check('F the owners are asked about the version taken back', !!asked && asked.humanOnly, JSON.stringify(asked ?? {}).slice(0, 200));
+  await page.goto(`${base}/todos?kind=takenBack`);
+  const question = page.locator('[data-todo-kind="ability_taken_back"]').first();
+  await question.waitFor({ timeout: 20_000 });
+  const qText = await plainIn(page, '[data-todo-kind="ability_taken_back"]', 'F the question');
+  check('F it says which version and why, in the catalogue’s words', qText.includes('took back version 1') && qText.includes('It sent words elsewhere'), qText.slice(0, 300));
+  await shot(page, 'F-taken-back-question');
+  await question.getByRole('button', { name: /Take its approval back/ }).click();
+  const revokedNow = await waitFor(async () => (await api(page, 'ability.show', { ref: 'title-card@' + v.ability.hash })).ability.state === 'revoked', 15_000);
+  check('F an owner takes back its approval from To-dos', !!revokedNow);
+  await page.goto(`${base}/library/abilities?ability=title-card`);
+  await page.locator('[data-taken-back]').waitFor({ timeout: 20_000 });
+  const banner = await readText(page, '[data-taken-back]');
+  check('F its page says the catalogue took it back', banner.includes('It sent words elsewhere.'), banner.slice(0, 200));
+  await shot(page, 'F-taken-back-page');
   await page.context().close();
 
   // G — phone, dark and light.
@@ -286,7 +315,7 @@ try {
   await last.locator('[data-no-catalogues]').waitFor({ timeout: 20_000 });
   check('H the catalogue is removed', true);
   const kept = await api(last, 'ability.show', { ref: 'title-card' });
-  check('H what came in from it stays, approved', kept.ability.state === 'approved');
+  check('H what came in from it stays (its approval taken back, as the owner chose)', kept.ability.state === 'revoked', kept.ability.state);
   await openBrowse(last);
   const empty = await readText(last, '[data-browse-catalogues]');
   check('H browse says there is no catalogue', empty.includes('No catalogue yet'), empty.slice(0, 200));

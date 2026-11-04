@@ -79,3 +79,45 @@ func keysOf(m map[string]*models.QAFinding) []string {
 	}
 	return out
 }
+
+// The cuts a cut plays (nested, at any depth) are looked at too: a clip of
+// theirs whose cut-out is gone or not made is an error at the outer clip that
+// plays them, and their replaced backgrounds are part of the video's note,
+// at their time on this timeline.
+func TestNestedCutsBackgroundsAreChecked(t *testing.T) {
+	ok, gone := strings.Repeat("1a", 32), strings.Repeat("2b", 32)
+	mattes := map[string]editspec.MatteInfo{ok: {AssetID: "ast_a", From: 0, To: 10, Ready: true, Model: "MODNet"}}
+	inner := &editspec.RenderPlan{FPS: 30, Clips: []editspec.PlanClip{
+		{ID: "x", AssetID: "ast_a", From: 0, DurationInFrames: 30, Background: &editspec.PlanBackground{With: editspec.BackgroundBlur, CutOut: ok}},
+		{ID: "y", AssetID: "ast_a", From: 30, DurationInFrames: 30, Background: &editspec.PlanBackground{With: editspec.BackgroundBlur, CutOut: gone}},
+		{ID: "z", AssetID: "ast_a", From: 60, DurationInFrames: 30},
+	}}
+	key := editspec.NestedKey("prj_inner", "rev_inner")
+	plan := &editspec.RenderPlan{FPS: 30, DurationInFrames: 150, Clips: []editspec.PlanClip{
+		{ID: "open", AssetID: "ast_b", From: 0, DurationInFrames: 60},
+		{ID: "teaser", AssetID: key, From: 60, DurationInFrames: 90},
+	}, Nested: map[string]*editspec.NestedPlan{key: {ProjectID: "prj_inner", RevisionID: "rev_inner", Title: "Garden teaser", Plan: inner}}}
+	spec := &editspec.Spec{Clips: []editspec.Clip{{ID: "open", AssetID: "ast_b", In: 0, Out: 2}, {ID: "teaser", AssetID: key, In: 0, Out: 3}}}
+	r := &run{in: Input{Spec: spec, Mattes: func(sha string) (editspec.MatteInfo, bool) { m, ok := mattes[sha]; return m, ok }}, plan: plan, fps: 30,
+		rep: &models.QAReport{}}
+	r.backgrounds()
+	var errs, notes []*models.QAFinding
+	for _, f := range r.pend {
+		switch f.Kind {
+		case "background_matte":
+			errs = append(errs, f)
+		case "background_replaced":
+			notes = append(notes, f)
+		}
+	}
+	if len(errs) != 1 || errs[0].Severity != models.QAError || strings.Join(errs[0].ClipIDs, ",") != "teaser" || errs[0].From != 3 || errs[0].To != 4 ||
+		!strings.Contains(errs[0].Message, "“Garden teaser”") || errs[0].Command != "" {
+		t.Fatalf("the nested cut's missing cut-out: %+v", errs)
+	}
+	if len(notes) != 1 || !strings.Contains(notes[0].Message, "2 clips") || !strings.Contains(notes[0].Message, "MODNet") || notes[0].From != 2 || notes[0].To != 4 {
+		t.Fatalf("the note: %+v", notes)
+	}
+	if len(r.rep.Checks) != 1 || r.rep.Checks[0].Status != "fail" {
+		t.Fatalf("the check: %+v", r.rep.Checks)
+	}
+}

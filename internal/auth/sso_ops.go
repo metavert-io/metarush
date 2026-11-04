@@ -335,15 +335,26 @@ func ssoSecretOp(ctx context.Context, a *app.App, in *SSOSecretIn) (*SSOStatusOu
 	if err := hereOnly(ctx, a); err != nil {
 		return nil, err
 	}
+	forgetSettings(a) // the setup as it is now
 	cur := Settings(ctx, a)
+	// Every change here gives the setup a new revision first (only while it
+	// is the one read), then changes the secret: a switch tested before
+	// doesn't go through, and one written first leaves this change undone
+	// (D450).
 	switch {
 	case in.Remove:
 		switch {
 		case cur.SSONext != nil:
+			if err := bumpSetup(ctx, a, "auth.ssoNext", cur.SSONext); err != nil {
+				return nil, err
+			}
 			if err := dropSecret(a.Cfg, secretName(cur.SSONext, true)); err != nil {
 				return nil, err
 			}
 		case cur.SSO != nil && cur.Method != models.AuthSSO:
+			if err := bumpSetup(ctx, a, "auth.sso", cur.SSO); err != nil {
+				return nil, err
+			}
 			if err := dropSecret(a.Cfg, secretName(cur.SSO, false)); err != nil {
 				return nil, err
 			}
@@ -362,18 +373,40 @@ func ssoSecretOp(ctx context.Context, a *app.App, in *SSOSecretIn) (*SSOStatusOu
 		if target == nil {
 			return nil, apperr.New(apperr.Conflict, "Set up the sign-in with your organization's account first.").WithDetails(map[string]any{"reason": "no_setup"}).WithCommand("metarush auth sso set")
 		}
-		// A new secret waits for its test: the sign-in in use keeps the one it
-		// has until an owner switches after a passing test (D450).
-		if err := setNextSecret(a.Cfg, target, in.ClientSecret); err != nil {
+		if err := checkNextSecret(a.Cfg, target, in.ClientSecret); err != nil {
 			return nil, err
 		}
-		if cur.SSONext == nil {
-			next := *cur.SSO
-			next.SetAt, next.SetBy = time.Now().UTC(), a.Actor
-			if _, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID()}, bson.M{"$set": bson.M{"auth.ssoNext": next}}); err != nil {
+		// A new secret waits for its test: the sign-in in use keeps the one it
+		// has until an owner switches after a passing test (D450).
+		created := ""
+		if cur.SSONext != nil {
+			if err := bumpSetup(ctx, a, "auth.ssoNext", cur.SSONext); err != nil {
 				return nil, err
 			}
+		} else {
+			// The app in use (or last used) gets a waiting copy of its setup,
+			// unless something started waiting meanwhile.
+			next := *cur.SSO
+			next.SetAt, next.SetBy, next.Rev = time.Now().UTC(), a.Actor, newRev()
+			f := setupIs("auth.sso", cur.SSO)
+			f["_id"], f["auth.ssoNext"] = a.WorkspaceID(), bson.M{"$exists": false}
+			res, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, f, bson.M{"$set": bson.M{"auth.ssoNext": next}})
 			forgetSettings(a)
+			if err != nil {
+				return nil, err
+			}
+			if res.MatchedCount == 0 {
+				return nil, errSetupChanged()
+			}
+			created = next.Rev
+		}
+		if err := setNextSecret(a.Cfg, target, in.ClientSecret); err != nil {
+			if created != "" {
+				// The waiting copy goes with the secret it was for.
+				_, _ = a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID(), "auth.ssoNext.rev": created}, bson.M{"$unset": bson.M{"auth.ssoNext": ""}})
+				forgetSettings(a)
+			}
+			return nil, err
 		}
 	default:
 		return nil, apperr.New(apperr.InvalidInput, "Give the app's client secret, or remove it.")

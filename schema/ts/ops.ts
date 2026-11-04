@@ -37424,6 +37424,7 @@ alsoPassword?: boolean
 alsoTailscale?: boolean
 setAt: string
 setBy: Actor
+rev?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

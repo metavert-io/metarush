@@ -60127,6 +60127,9 @@
         },
         "setBy": {
           "$ref": "#/$defs/Actor"
+        },
+        "rev": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

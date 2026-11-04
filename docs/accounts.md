@@ -192,7 +192,9 @@ A new secret is kept beside the one in use (never over it) and becomes the one i
 that passed; the one it replaces stays until then, so a mistyped or revoked secret never reaches a sign-in. To renew
 the secret (the provider's secrets expire), give the new one (Change…, or `metarush auth sso secret`), test, switch.
 **Forget the new setup** (Settings, or `metarush auth sso discard`) drops the setup that waits and its new secret;
-nothing about the one in use changes. After a switch to another app, the previous app's secret stays on this computer,
+nothing about the one in use changes. A switch takes effect only if the setup it tested is still exactly the one
+waiting, with the secret it was tested with: if another owner sets it up again, gives it a new secret or forgets it
+in the meantime, the switch changes nothing and says so (test again). After a switch to another app, the previous app's secret stays on this computer,
 so switching back needs no secret the provider showed only once; older apps' secrets are removed. Changes to who may
 join and to the other sign-ins of the app in use apply at once.
 

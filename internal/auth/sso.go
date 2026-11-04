@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -174,16 +175,13 @@ func testSecret(cfg *config.Config, st *models.SSOSettings) string {
 // or waiting for its test): a setup of that app may leave it out.
 func SSOSecretKept(cfg *config.Config, st *models.SSOSettings) bool { return testSecret(cfg, st) != "" }
 
-// setNextSecret keeps an app's new secret, waiting for its test (never in the
-// database, config.yaml, a log or an answer; the one in use is untouched).
-func setNextSecret(cfg *config.Config, st *models.SSOSettings, secret string) error {
-	secret = strings.TrimSpace(secret)
-	if err := providers.ValidateKeyShape(secret); err != nil {
+// checkNextSecret says whether an app's new secret can be kept: its shape,
+// and no variable set outside MetaRush that would win over it.
+func checkNextSecret(cfg *config.Config, st *models.SSOSettings, secret string) error {
+	if err := providers.ValidateKeyShape(strings.TrimSpace(secret)); err != nil {
 		return apperr.New(apperr.InvalidInput, "That doesn't look like a client secret: it is 16 to 512 characters with no spaces, as the provider shows it.")
 	}
-	logbook.RememberSecret(secret)
-	name := secretName(st, true)
-	for _, n := range []string{name, secretName(st, false)} {
+	for _, n := range []string{secretName(st, true), secretName(st, false)} {
 		// A variable set outside MetaRush (not its own secrets file) would
 		// win over the one kept here, now or after the switch.
 		if _, src, _ := readSecret(cfg, n); src == providers.SourceEnvironment {
@@ -191,6 +189,18 @@ func setNextSecret(cfg *config.Config, st *models.SSOSettings, secret string) er
 				WithHint("Change it where it is set instead.").WithDetails(map[string]any{"envVar": providers.EnvVar(n)})
 		}
 	}
+	return nil
+}
+
+// setNextSecret keeps an app's new secret, waiting for its test (never in the
+// database, config.yaml, a log or an answer; the one in use is untouched).
+func setNextSecret(cfg *config.Config, st *models.SSOSettings, secret string) error {
+	secret = strings.TrimSpace(secret)
+	logbook.RememberSecret(secret)
+	if err := checkNextSecret(cfg, st, secret); err != nil {
+		return err
+	}
+	name := secretName(st, true)
 	if _, err := providers.StoreKey(cfg, name, secret, false); err != nil {
 		return apperr.Wrap(apperr.NotConfigured, err, "MetaRush couldn't keep the sign-in app's secret on this computer.").WithHint("Check that this computer's keychain is unlocked.")
 	}
@@ -198,19 +208,49 @@ func setNextSecret(cfg *config.Config, st *models.SSOSettings, secret string) er
 	return nil
 }
 
-// promoteSecret makes an app's next secret the one in use (after a passing
-// test, at the switch); the earlier one is replaced only then. The next one
-// stays until finish (the switch is kept), and undo puts the earlier one
-// back (it wasn't).
-func promoteSecret(cfg *config.Config, st *models.SSOSettings) (undo, finish func(), err error) {
+// bumpSetup gives a stored setup (path auth.sso or auth.ssoNext) a new
+// revision while it is still exactly the one read: a switch tested before
+// doesn't go through (D450).
+func bumpSetup(ctx context.Context, a *app.App, path string, st *models.SSOSettings) error {
+	f := setupIs(path, st)
+	f["_id"] = a.WorkspaceID()
+	res, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, f, bson.M{"$set": bson.M{path + ".rev": newRev(), path + ".setAt": time.Now().UTC(), path + ".setBy": a.Actor}})
+	forgetSettings(a)
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return errSetupChanged()
+	}
+	return nil
+}
+
+// promoteSecret makes the secret a switch tested with the one in use (D450):
+// exactly that secret, never one kept since. A secret tested from the next
+// slot must still be waiting there, else the switch fails plainly; the one
+// it replaces comes back with undo (the switch wasn't kept), and the waiting
+// copy goes with finish (it was).
+func promoteSecret(cfg *config.Config, use *SSOUse) (undo, finish func(), err error) {
 	noop := func() {}
+	st := use.Setup
+	if !use.FromNext {
+		// Tested with the secret in use: nothing to promote, but it must
+		// still be the one there.
+		if cur, _, _ := SSOSecret(cfg, st); subtle.ConstantTimeCompare([]byte(cur), []byte(use.Secret)) != 1 {
+			return noop, noop, errSetupChanged()
+		}
+		return noop, noop, nil
+	}
 	next, _, err := SSONextSecret(cfg, st)
-	if err != nil || next == "" {
+	if err != nil {
 		return noop, noop, err
+	}
+	if next == "" || subtle.ConstantTimeCompare([]byte(next), []byte(use.Secret)) != 1 {
+		return noop, noop, errSetupChanged()
 	}
 	cur := secretName(st, false)
 	prev, _, _ := SSOSecret(cfg, st)
-	if _, err := providers.StoreKey(cfg, cur, next, false); err != nil {
+	if _, err := providers.StoreKey(cfg, cur, use.Secret, false); err != nil {
 		return noop, noop, apperr.Wrap(apperr.NotConfigured, err, "MetaRush couldn't keep the sign-in app's secret on this computer.").WithHint("Check that this computer's keychain is unlocked.")
 	}
 	rememberSecretName(cfg, cur, false)
@@ -221,8 +261,71 @@ func promoteSecret(cfg *config.Config, st *models.SSOSettings) (undo, finish fun
 			_ = dropSecret(cfg, cur)
 		}
 	}
-	finish = func() { _ = dropSecret(cfg, secretName(st, true)) }
+	finish = func() {
+		// The waiting copy goes, unless someone kept another one meanwhile.
+		if n, _, _ := SSONextSecret(cfg, st); n == use.Secret {
+			_ = dropSecret(cfg, secretName(st, true))
+		}
+	}
 	return undo, finish, nil
+}
+
+// errSetupChanged: the setup or its secret changed after it was read, so a
+// switch (or a change) based on it does nothing.
+func errSetupChanged() error {
+	return apperr.New(apperr.Conflict, "The sign-in setup changed meanwhile (someone set it up again, gave it a new secret or forgot it), so nothing changed.").
+		WithHint("Look at the setup again, and test it before switching.").WithDetails(map[string]any{"reason": "setup_changed"})
+}
+
+// newRev is a setup's new revision.
+func newRev() string { return sso.Random(9) }
+
+// setupIs matches a stored setup exactly: its app and revision.
+func setupIs(path string, st *models.SSOSettings) bson.M {
+	return bson.M{path + ".provider": st.Provider, path + ".issuer": st.Issuer, path + ".clientId": st.ClientID, path + ".setAt": st.SetAt,
+		path + ".tenant": orMissing(st.Tenant), path + ".rev": orMissing(st.Rev)}
+}
+
+// orMissing matches a stored string, or a field left out when it is empty.
+func orMissing(v string) any {
+	if v == "" {
+		return bson.M{"$in": bson.A{nil, ""}}
+	}
+	return v
+}
+
+// switchFilter matches the workspace only while the setup tested is exactly
+// the one waiting (with none waiting: the one last used) and the method is
+// as read, so a change by anyone in between makes a switch change nothing.
+func switchFilter(a *app.App, cur models.AuthSettings) bson.M {
+	f := bson.M{"_id": a.WorkspaceID()}
+	if cur.SSONext != nil {
+		for k, v := range setupIs("auth.ssoNext", cur.SSONext) {
+			f[k] = v
+		}
+	} else {
+		f["auth.ssoNext"] = bson.M{"$exists": false}
+		for k, v := range setupIs("auth.sso", cur.SSO) {
+			f[k] = v
+		}
+	}
+	if cur.Method == models.AuthSingle {
+		f["auth.method"] = bson.M{"$in": bson.A{nil, "", models.AuthSingle}}
+	} else {
+		f["auth.method"] = cur.Method
+	}
+	return f
+}
+
+// switchHook runs (in tests) at a stage of the switch — "promote" before the
+// tested secret is kept, "write" before the switch is written, "link" before
+// the owner's account is linked — for another owner to act in between.
+var switchHook func(stage string)
+
+func atSwitchStage(stage string) {
+	if switchHook != nil {
+		switchHook(stage)
+	}
 }
 
 // pruneSecrets forgets every app's secret on this computer but the ones of
@@ -257,6 +360,9 @@ type SSOUse struct {
 	Secret string
 	// Next: the setup waiting for its test (signed in with its next secret).
 	Next bool
+	// FromNext: Secret is the app's next secret (waiting for its test), not
+	// the one in use.
+	FromNext bool
 }
 
 // Client is the provider's client for it.
@@ -293,7 +399,13 @@ func TestUse(cfg *config.Config, cur models.AuthSettings) *SSOUse {
 	if st == nil {
 		return nil
 	}
-	return &SSOUse{Setup: st, Secret: testSecret(cfg, st), Next: cur.SSONext != nil}
+	u := &SSOUse{Setup: st, Next: cur.SSONext != nil}
+	if n, _, _ := SSONextSecret(cfg, st); n != "" {
+		u.Secret, u.FromNext = n, true
+	} else {
+		u.Secret, _, _ = SSOSecret(cfg, st)
+	}
+	return u
 }
 
 // Directory is the Microsoft directory a setup is for: its tenant when that
@@ -411,7 +523,7 @@ func SaveSSO(ctx context.Context, a *app.App, in models.SSOSettings, newSecret b
 	if err != nil {
 		return false, err
 	}
-	st.SetAt, st.SetBy = time.Now().UTC(), a.Actor
+	st.SetAt, st.SetBy, st.Rev = time.Now().UTC(), a.Actor, newRev()
 	cur := Settings(ctx, a)
 	set := bson.M{}
 	if sameSignIn(cur.SSO, st) {
@@ -426,6 +538,7 @@ func SaveSSO(ctx context.Context, a *app.App, in models.SSOSettings, newSecret b
 			// A new secret for the same app waits: it keeps the change too.
 			next := *cur.SSONext
 			next.Domain, next.Label, next.AlsoPassword, next.AlsoTailscale = st.Domain, st.Label, st.AlsoPassword, st.AlsoTailscale
+			next.Rev = newRev()
 			set["auth.ssoNext"] = next
 		}
 	} else {
@@ -448,14 +561,22 @@ func SaveSSO(ctx context.Context, a *app.App, in models.SSOSettings, newSecret b
 // DiscardSSO forgets the setup waiting for its test, and its new secret; the
 // sign-in in use is untouched (D450).
 func DiscardSSO(ctx context.Context, a *app.App) error {
+	forgetSettings(a) // the setup as it is now
 	cur := Settings(ctx, a)
 	if cur.SSONext == nil {
 		return apperr.New(apperr.Conflict, "No new setup is waiting.").WithDetails(map[string]any{"reason": "nothing_waiting"})
 	}
-	if _, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID()}, bson.M{"$unset": bson.M{"auth.ssoNext": ""}}); err != nil {
+	// Only the setup read here: one set up meanwhile isn't forgotten unseen.
+	f := setupIs("auth.ssoNext", cur.SSONext)
+	f["_id"] = a.WorkspaceID()
+	res, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, f, bson.M{"$unset": bson.M{"auth.ssoNext": ""}})
+	if err != nil {
 		return err
 	}
 	forgetSettings(a)
+	if res.MatchedCount == 0 {
+		return errSetupChanged()
+	}
 	if err := dropSecret(a.Cfg, secretName(cur.SSONext, true)); err != nil {
 		return err
 	}
@@ -783,6 +904,7 @@ func errNoTest(msg string) error {
 // owner's test sign-in on this computer just passed, by that owner, linked to
 // them so they keep getting in.
 func SetUpSSO(ctx context.Context, a *app.App, ownerID string, test *sso.TestResult) (*models.User, *models.SSOSettings, error) {
+	forgetSettings(a) // the setup as it is now, not as cached
 	cur := Settings(ctx, a)
 	use := TestUse(a.Cfg, cur)
 	if use == nil {
@@ -815,47 +937,45 @@ func SetUpSSO(ctx context.Context, a *app.App, ownerID string, test *sso.TestRes
 		return nil, nil, apperr.New(apperr.Conflict, "The account you tested with signs %s in already.", firstNonEmpty(other.Name, other.Email)).
 			WithHint("Test again with your own account.").WithDetails(map[string]any{"reason": SSOLinkedElsewhere})
 	}
-	now := time.Now().UTC()
-	set := bson.M{"role": models.RoleOwner, "state": models.UserActive, "updatedAt": now, "updatedBy": a.Actor}
-	if owner.EmailKey == "" && test.Identity.EmailTrusted {
-		if v, _ := byEmailKey(ctx, a, test.Identity.Email); v == nil {
-			set["email"], set["emailKey"] = test.Identity.Email, EmailKey(test.Identity.Email)
-		}
-	}
-	// One account per issuer: an earlier link of the owner's to the same
-	// issuer gives way to the tested one.
-	keep := []models.SSOLink{}
-	for _, l := range owner.SSO {
-		if l.Key == test.Identity.Key || linkScope(l) != test.Identity.Scope {
-			keep = append(keep, l)
-		}
-	}
-	if len(keep) != len(owner.SSO) {
-		if _, err := a.DB.C(store.CUsers).UpdateOne(ctx, bson.M{"_id": ownerID}, bson.M{"$set": bson.M{"sso": keep}}); err != nil {
-			return nil, nil, err
-		}
-	}
-	if err := link(ctx, a, ownerID, test.Identity, set); err != nil {
-		return nil, nil, err
-	}
-	// The tested secret becomes the one in use only now (the earlier one
-	// served every sign-in until this moment, and comes back if the switch
-	// isn't kept, D450).
-	undo, finish, err := promoteSecret(a.Cfg, setup)
+	// The tested secret becomes the one in use only now — exactly the secret
+	// tested, which must still be waiting (D450); the earlier one served every
+	// sign-in until this moment and comes back if the switch isn't kept.
+	atSwitchStage("promote")
+	undo, finish, err := promoteSecret(a.Cfg, use)
 	if err != nil {
 		return nil, nil, err
 	}
+	// The switch is written only while the setup tested is still the one
+	// waiting, exactly (its revision): set up again, given a new secret or
+	// forgotten by anyone meanwhile, nothing changes.
+	atSwitchStage("write")
+	now := time.Now().UTC()
 	live := *setup
-	live.SetAt, live.SetBy = now, a.Actor
-	if _, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID()}, bson.M{
-		"$set":         bson.M{"auth.method": models.AuthSSO, "auth.setAt": now, "auth.setBy": a.Actor, "auth.sso": live},
-		"$unset":       bson.M{"auth.ssoNext": ""},
-		"$setOnInsert": bson.M{"workspaceId": a.WorkspaceID(), "name": a.Cfg.Workspace.Name, "createdAt": now}}, options.UpdateOne().SetUpsert(true)); err != nil {
+	live.SetAt, live.SetBy, live.Rev = now, a.Actor, newRev()
+	res, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, switchFilter(a, cur), bson.M{
+		"$set":   bson.M{"auth.method": models.AuthSSO, "auth.setAt": now, "auth.setBy": a.Actor, "auth.sso": live},
+		"$unset": bson.M{"auth.ssoNext": ""}})
+	if err == nil && res.MatchedCount == 0 {
+		err = errSetupChanged()
+	}
+	if err != nil {
+		undo()
+		forgetSettings(a)
+		return nil, nil, err
+	}
+	forgetSettings(a)
+	// The owner keeps getting in with the account they tested with (linked
+	// only once the switch is kept, so a switch that isn't leaves their
+	// accounts as they were).
+	atSwitchStage("link")
+	if err := linkOwner(ctx, a, owner, test.Identity); err != nil {
+		putBackSwitch(ctx, a, cur, live.Rev)
+		_, _ = a.DB.C(store.CUsers).UpdateOne(ctx, bson.M{"_id": ownerID}, bson.M{"$set": bson.M{"sso": owner.SSO}})
+		forget(ownerID)
 		undo()
 		return nil, nil, err
 	}
 	finish()
-	forgetSettings(a)
 	// This app's secret and the one used before it stay (switching back needs
 	// no secret the provider showed only once); older ones go.
 	pruneSecrets(a.Cfg, &live, cur.SSO)
@@ -863,6 +983,52 @@ func SetUpSSO(ctx context.Context, a *app.App, ownerID string, test *sso.TestRes
 	a.Audit(ctx, "auth.method", "workspace", a.WorkspaceID(), "", map[string]any{"method": models.AuthSSO, "provider": live.Provider})
 	u, err := GetUser(ctx, a, ownerID)
 	return u, &live, err
+}
+
+// linkOwner links the account an owner tested with to them: one account per
+// issuer, so an earlier link of theirs to the same issuer gives way.
+func linkOwner(ctx context.Context, a *app.App, owner *models.User, id *sso.Identity) error {
+	set := bson.M{"role": models.RoleOwner, "state": models.UserActive, "updatedAt": time.Now().UTC(), "updatedBy": a.Actor}
+	if owner.EmailKey == "" && id.EmailTrusted {
+		if v, _ := byEmailKey(ctx, a, id.Email); v == nil {
+			set["email"], set["emailKey"] = id.Email, EmailKey(id.Email)
+		}
+	}
+	keep := []models.SSOLink{}
+	for _, l := range owner.SSO {
+		if l.Key == id.Key || linkScope(l) != id.Scope {
+			keep = append(keep, l)
+		}
+	}
+	if len(keep) != len(owner.SSO) {
+		if _, err := a.DB.C(store.CUsers).UpdateOne(ctx, bson.M{"_id": owner.ID}, bson.M{"$set": bson.M{"sso": keep}}); err != nil {
+			return err
+		}
+	}
+	return link(ctx, a, owner.ID, id, set)
+}
+
+// putBackSwitch undoes a switch that was written but couldn't link the
+// owner, while the setup in use is still the one it wrote.
+func putBackSwitch(ctx context.Context, a *app.App, before models.AuthSettings, rev string) {
+	set := bson.M{"auth.method": before.Method, "auth.setAt": before.SetAt, "auth.setBy": before.SetBy}
+	unset := bson.M{}
+	if before.SSO != nil {
+		set["auth.sso"] = before.SSO
+	} else {
+		unset["auth.sso"] = ""
+	}
+	if before.SSONext != nil {
+		set["auth.ssoNext"] = before.SSONext
+	} else {
+		unset["auth.ssoNext"] = ""
+	}
+	update := bson.M{"$set": set}
+	if len(unset) > 0 {
+		update["$unset"] = unset
+	}
+	_, _ = a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID(), "auth.sso.rev": rev}, update)
+	forgetSettings(a)
 }
 
 // ssoLinked reports a person who signs in with an organization's account.

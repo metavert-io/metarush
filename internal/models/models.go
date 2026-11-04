@@ -305,6 +305,10 @@ type SSOSettings struct {
 	AlsoTailscale bool      `bson:"alsoTailscale,omitempty" json:"alsoTailscale,omitempty"`
 	SetAt         time.Time `bson:"setAt" json:"setAt"`
 	SetBy         Actor     `bson:"setBy" json:"setBy"`
+	// Rev changes with every change to the setup (a new secret for it on a
+	// computer included): a switch takes effect only while the setup it
+	// tested is still the one waiting (D450).
+	Rev string `bson:"rev,omitempty" json:"rev,omitempty"`
 }
 
 // Brief captures the creative intent for a project.

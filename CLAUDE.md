@@ -356,8 +356,10 @@ Read `docs/architecture.md` before structural changes.
   app; times within `sso.Skew`). The setup is the workspace's (`auth.sso`; `auth.ssoNext` until tested,
   `auth.sso.discard` forgets it); the client secret is each computer's and each app's (`providers` keys
   `sso-<auth.AppID>`, and `-next` for a new one waiting for its test: sign-ins only ever read the one in use
-  (`auth.LiveUse`), tests the waiting one (`TestUse`); `SetUpSSO` promotes it at the switch, undone if the switch isn't
-  kept, and keeps the previous app's for switching back; D450). `auth.method.set sso` needs a passing test sign-in on
+  (`auth.LiveUse`), tests the waiting one (`TestUse`); `SetUpSSO` promotes exactly the tested secret, still waiting,
+  writes the switch as a check-and-set on the waiting setup's `rev` (`switchFilter`; every change to a setup or its
+  secret gets a new `rev` first), links the owner only after, undoes it all when not kept, and keeps the previous
+  app's secret for switching back; tests act inside the window through `switchHook`; D450). `auth.method.set sso` needs a passing test sign-in on
   this computer by the switching owner (`sso.TestResult`, 30 min) and links that account. Callbacks are the
   dashboard's own: `http://127.0.0.1:<port>/auth/sso/callback` (never localhost: browsers try `[::1]` first, where any
   program may listen; a sign-in begun or answered at localhost is refused, D451) and the public address;

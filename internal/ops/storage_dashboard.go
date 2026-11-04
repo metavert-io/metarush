@@ -269,7 +269,6 @@ func describeTarget(a *app.App, id string, t StorageTarget) (string, error) {
 		var secret string
 		switch v := strings.TrimSpace(t.SecretVariable); {
 		case t.SecretAccessKey != "" && a.Cfg.SecretMode() == "keychain":
-			logbook.RememberSecret(t.SecretAccessKey)
 			loc := "s3://" + bucket
 			if prefix != "" {
 				loc += "/" + prefix
@@ -281,6 +280,7 @@ func describeTarget(a *app.App, id string, t StorageTarget) (string, error) {
 			if err != nil {
 				return "", apperr.New(apperr.NotConfigured, "This computer's keychain didn't take the secret key: %v.", err)
 			}
+			logbook.RememberSecret(t.SecretAccessKey) // kept: hidden in everything logged from now on (before, only in this call's entries)
 			secret = ref
 		case t.SecretAccessKey != "":
 			return "", bad("This computer keeps MetaRush's keys in its environment file, not the keychain: put the secret key there as a variable and give its name instead.")

@@ -100,6 +100,7 @@ type pending struct {
 	out      any             // operation output, summarized in the background
 	bodies   []spoolBody     // long texts
 	versions string          // a program whose version should be recorded ("" none, "-" just MetaRush)
+	hide     []string        // hidden in this entry only: its call's secret inputs (OpRecord.hide)
 }
 
 // spoolBody is a long text waiting to be stored (redacted before it is spooled).
@@ -388,6 +389,8 @@ func (l *Logger) flushQueue(ctx context.Context) {
 // prepare turns a pending entry into its final, redacted form.
 func (l *Logger) prepare(ctx context.Context, p *pending) *spoolRecord {
 	e := p.e
+	r := l.red.with(p.hide...)
+	p.raw = p.inputHidden()
 	if e.Op != nil && len(p.raw) > 0 {
 		e.Op.Input = ShortenInput(l.red, p.raw, l.Privacy())
 	}
@@ -406,7 +409,7 @@ func (l *Logger) prepare(ctx context.Context, p *pending) *spoolRecord {
 	if p.versions != "" {
 		e.Versions = l.versions(ctx, p.versions)
 	}
-	l.redactEntry(&e)
+	l.redactEntry(r, &e)
 	rec := &spoolRecord{Entry: e}
 	for _, b := range p.bodies {
 		if b.Text == "" {
@@ -416,7 +419,7 @@ func (l *Logger) prepare(ctx context.Context, p *pending) *spoolRecord {
 		if len(t) > maxBodyBytes {
 			t = t[:maxBodyBytes] + "\n… (cut: longer than 1 MB)"
 		}
-		rec.Bodies = append(rec.Bodies, spoolBody{Slot: b.Slot, Text: l.red.String(t)})
+		rec.Bodies = append(rec.Bodies, spoolBody{Slot: b.Slot, Text: r.String(t)})
 	}
 	return rec
 }
@@ -437,10 +440,10 @@ func (l *Logger) versions(ctx context.Context, tool string) map[string]string {
 	return v
 }
 
-// redactEntry hides secrets in every free-text field of an entry. Identifiers,
-// references and body keys are left alone.
-func (l *Logger) redactEntry(e *Entry) {
-	r := l.red
+// redactEntry hides secrets in every free-text field of an entry with r (the
+// logger's redactor, and what the entry's call hides). Identifiers, references
+// and body keys are left alone.
+func (l *Logger) redactEntry(r *Redactor, e *Entry) {
 	e.Summary = r.String(e.Summary)
 	if e.Error != nil {
 		e.Error.Message = Clip(r.String(e.Error.Message), 2000)
@@ -580,10 +583,22 @@ type OpRecord struct {
 	human  bool
 	remote bool
 	parent Scope
+	// hide are the secret values of this call's input (SecretInputs) and of
+	// the calls it runs inside: hidden in what this call logs and nowhere else
+	// (set once, read by every entry the call causes).
+	hide []string
 
 	mu      sync.Mutex
 	actions []string
 	job     string // the job this call is running itself (it leased it)
+}
+
+// hidden are the values hidden in what scope s's call logs (none outside one).
+func (s Scope) hidden() []string {
+	if s.rec == nil {
+		return nil
+	}
+	return s.rec.hide
 }
 
 // setJob notes the job this call runs itself: the programs it runs and the
@@ -627,11 +642,16 @@ func (l *Logger) StartOp(ctx context.Context, name string, raw json.RawMessage, 
 	if l == nil {
 		return nil
 	}
-	// A key being saved or tested is hidden from everything the call logs,
-	// including the requests it makes before its own entry is written.
-	l.red.Add(SecretInputs(raw)...)
+	// A key being saved or tested, a password, a confirm token: hidden in
+	// everything this call logs (the requests it makes and the calls it runs
+	// included), never beyond it. What the call takes — a key it keeps, a
+	// password it sets — it reports itself; a value it was only sent is no
+	// one's secret, and one made up to equal an ordinary word would otherwise
+	// blank that word out of every later entry.
+	parent := ScopeOf(ctx)
+	hide := append(secretInputs(raw, secretFieldsOf(name)), parent.hidden()...)
 	return &OpRecord{l: l, id: ids.New(EntryPrefix), name: name, start: time.Now(), raw: append(json.RawMessage(nil), raw...), actor: actor,
-		human: human, remote: remote, parent: ScopeOf(ctx)}
+		human: human, remote: remote, parent: parent, hide: hide}
 }
 
 // Context returns ctx carrying this call as the scope of what it causes.
@@ -678,7 +698,7 @@ func (r *OpRecord) End(mutating bool, out any, err error) {
 	if cliChannel(ch) && r.parent.EntryID == "" {
 		e.Op.Command = l.command
 	}
-	p := &pending{e: e, raw: r.raw, out: out}
+	p := &pending{e: e, raw: r.raw, out: out, hide: r.hide}
 	if err != nil {
 		p.e.Level = LevelError
 		p.e.Error = errorInfo(err)

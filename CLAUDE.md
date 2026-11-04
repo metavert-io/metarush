@@ -124,7 +124,10 @@ Read `docs/architecture.md` before structural changes.
   job events, `internal/tools` runs, provider requests and Claude turns are recorded in the background and redacted
   before anything is written (new secret kinds: register them, e.g. `logbook.RememberSecret`); prompts follow
   `log.prompts` (workspace | local | off); log data is never written into repos, sync or project folders
-  (`logbook.CheckOutput`); new operations need a plain phrase in `logbook/describe.go` (`opBase`).
+  (`logbook.CheckOutput`); new operations need a plain phrase in `logbook/describe.go` (`opBase`). Secret-named
+  input fields are hidden only in their own call's entries: an operation reports a secret it takes itself, once taken
+  (`providers.StoreKey` does on keeping a key), and an input field holding one under another name is declared with
+  `logbook.SecretFields` (`account.password`'s `current` and `new`).
 
 - **Link imports** (D65–D67): `ingest.url` (`metarush import`, Inbox "Paste a link", ⌘V/drop) queues `import` jobs
   pinned to the asking machine (`Job.Installation`; only its worker leases them) that run yt-dlp (typed args,

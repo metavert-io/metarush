@@ -88,6 +88,23 @@ func (r *Redactor) add(min int, configured bool, values ...string) {
 	}
 }
 
+// with returns a redactor that hides r's values and these too, leaving r as
+// it is (one entry's own: what its call was sent); r itself when there are
+// none.
+func (r *Redactor) with(values ...string) *Redactor {
+	if len(values) == 0 || r == nil {
+		return r
+	}
+	out := NewRedactor()
+	r.mu.RLock()
+	for v := range r.values {
+		out.values[v] = true
+	}
+	r.mu.RUnlock()
+	out.Add(values...)
+	return out
+}
+
 // AddBytes registers a binary secret (such as an HMAC key) in the spellings it
 // can appear in as text: hex and base64.
 func (r *Redactor) AddBytes(b []byte) {

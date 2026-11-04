@@ -49,7 +49,7 @@ func (l *Logger) ProviderCall(ctx context.Context, c ProviderCall, err error) {
 		DurationMs: ms(c.Duration), Summary: c.Title + ": " + c.What,
 		Provider: &ProviderInfo{Name: c.Provider, Title: c.Title, What: c.What, Method: c.Method, Endpoint: c.Endpoint, Status: c.Status, OK: ok,
 			Characters: c.Characters, Bytes: c.Bytes, RequestID: c.RequestID}}
-	p := &pending{e: e}
+	p := &pending{e: e, hide: sc.hidden()}
 	if !ok {
 		p.e.Level = LevelError
 		p.e.Error = errorInfo(err)

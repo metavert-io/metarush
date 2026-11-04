@@ -194,9 +194,10 @@ func checkNextSecret(cfg *config.Config, st *models.SSOSettings, secret string) 
 
 // setNextSecret keeps an app's new secret, waiting for its test (never in the
 // database, config.yaml, a log or an answer; the one in use is untouched).
+// Once kept it is hidden in everything this process logs (StoreKey); one it
+// refuses is hidden only in the call that sent it.
 func setNextSecret(cfg *config.Config, st *models.SSOSettings, secret string) error {
 	secret = strings.TrimSpace(secret)
-	logbook.RememberSecret(secret)
 	if err := checkNextSecret(cfg, st, secret); err != nil {
 		return err
 	}

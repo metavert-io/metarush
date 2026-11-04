@@ -70,6 +70,9 @@ func importListed(ctx context.Context, a *app.App, in *AbilityCatalogueImportIn)
 	if err != nil {
 		return nil, err
 	}
+	if len(cs) == 0 { // removed just now
+		return nil, apperr.New(apperr.NotFound, "This workspace doesn't trust a catalogue called “%s” any more.", clean(key, 120))
+	}
 	c := &cs[0]
 	if c.Index == nil {
 		return nil, apperr.New(apperr.Provider, "MetaRush hasn't read “%s” yet: %s", c.Key, firstNonEmpty(c.Problem, "try again in a moment.")).WithCommand("metarush ability browse --catalogue " + c.Key + " --refresh")

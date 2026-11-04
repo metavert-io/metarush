@@ -147,7 +147,7 @@ func TestReadersWorkOnAnOpenModelsIndex(t *testing.T) {
 // A fixed copy the open models looked at first keeps only the labels of Apple
 // Vision's index of the original (D467): the readout says where its places,
 // things and animals come from, and that gestures weren't looked for.
-func TestTheReadoutSaysAFixedCopyKeptOnlyTheOriginalsLabels(t *testing.T) {
+func TestVisualsSayAFixedCopyKeptOnlyTheOriginalsLabels(t *testing.T) {
 	a := testapp.New(t)
 	ctx := context.Background()
 	p := call[ProjectOut](t, a, "project.create", ProjectCreateIn{Name: "Jetty"})

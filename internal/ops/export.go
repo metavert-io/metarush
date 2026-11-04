@@ -60,8 +60,11 @@ type ExportTimelineOut struct {
 	Markers     int               `json:"markers"`
 	Duration    float64           `json:"duration"`
 	// Notes say, in plain words, what this format could not carry exactly.
-	Notes   []string `json:"notes"`
-	Summary string   `json:"summary"`
+	Notes []string `json:"notes"`
+	// Warnings say what to mind before handing the timeline on: a reference
+	// it plays (someone else's video, D456).
+	Warnings []string `json:"warnings"`
+	Summary  string   `json:"summary"`
 	// Open says how to open the file in the editing app.
 	Open string `json:"open"`
 }
@@ -113,6 +116,16 @@ func ExportTimeline(ctx context.Context, a *app.App, in *ExportTimelineIn, progr
 	rev, proj, err := getRevision(ctx, a, in.RevisionID)
 	if err != nil {
 		return nil, err
+	}
+	// Someone else's video (D456): never copied into a footage folder, wherever
+	// it is; without one the timeline only points at MetaRush's own copy, and
+	// says so.
+	refs, err := ReferencesPlayed(ctx, a, &rev.Spec)
+	if err != nil {
+		return nil, err
+	}
+	if len(refs) > 0 && in.Media != "" {
+		return nil, timelineReferenceRefusal(rev, refs)
 	}
 	// What may leave (D290): a timeline written where a sync service uploads it.
 	for _, dir := range []string{filepath.Dir(out), in.Media} {
@@ -168,7 +181,11 @@ func ExportTimeline(ctx context.Context, a *app.App, in *ExportTimelineIn, progr
 		idsUsed = append(idsUsed, id)
 	}
 	sort.Strings(idsUsed)
-	res := &ExportTimelineOut{Format: in.Format, FormatName: app.Name, App: app.App, AlsoOpens: app.Also, File: out, Media: []ExportMediaFile{}, Open: app.Open}
+	res := &ExportTimelineOut{Format: in.Format, FormatName: app.Name, App: app.App, AlsoOpens: app.Also, File: out, Media: []ExportMediaFile{}, Open: app.Open,
+		Warnings: []string{}}
+	for _, as := range refs {
+		res.Warnings = append(res.Warnings, fmt.Sprintf("Version %d plays “%s”, a reference: someone else's video, kept to learn from. The timeline points at MetaRush's own copy on this computer; don't hand that on. If it's your own video, say so on its page (This is mine).", rev.Number, as.DisplayTitle()))
+	}
 	var mediaDir string
 	if in.Media != "" {
 		if mediaDir, err = filepath.Abs(in.Media); err != nil {
@@ -314,6 +331,24 @@ func ExportTimeline(ctx context.Context, a *app.App, in *ExportTimelineIn, progr
 		}
 	}
 	return res, nil
+}
+
+// timelineReferenceRefusal refuses copying someone else's video into a
+// footage folder (D456).
+func timelineReferenceRefusal(rev *models.Revision, refs []models.Asset) error {
+	titles := make([]string, len(refs))
+	ids := make([]string, len(refs))
+	for i, as := range refs {
+		titles[i], ids[i] = "“"+as.DisplayTitle()+"”", as.ID
+	}
+	what := "a reference"
+	if len(refs) > 1 {
+		what = "references"
+	}
+	return apperr.New(apperr.Conflict, "Version %d plays %s, %s: someone else's video, kept to learn from, so MetaRush doesn't copy it into a footage folder. If it's your own video, say so on its page (This is mine); otherwise take it out and make a new version, or write the timeline without the footage.",
+		rev.Number, joinAnd(titles), what).
+		WithCommand(refs[0].ReferenceMineCommand()).
+		WithDetails(map[string]any{"reason": "reference", "assetId": refs[0].ID, "assets": ids})
 }
 
 // fixedAsAsset is a clip as its fixed copy: the copy's file, size and

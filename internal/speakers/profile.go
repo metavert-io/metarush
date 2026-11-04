@@ -53,7 +53,7 @@ type ClipVoice struct {
 func confirmedVoices(ctx context.Context, a *app.App, personID string) ([]models.AssetSpeaker, error) {
 	var keep []models.AssetSpeaker
 	if err := a.DB.Find(ctx, store.CSpeakers, a.WorkspaceID(), bson.M{"personId": personID, "source": models.SpeakerByPerson,
-		"mergedInto": bson.M{"$in": bson.A{nil, ""}}}, &keep); err != nil {
+		"mergedInto": bson.M{"$in": bson.A{nil, ""}}, "assetId": bson.M{"$nin": referenceIDs(ctx, a)}}, &keep); err != nil { // a reference never teaches (D443)
 		return nil, err
 	}
 	out := append([]models.AssetSpeaker(nil), keep...)

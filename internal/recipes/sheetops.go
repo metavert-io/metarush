@@ -402,6 +402,13 @@ func DocChanges(ctx context.Context, a *app.App, from, to *models.RecipeDoc) []s
 	if from.Settings != to.Settings {
 		add("Runs follow other Content Settings.")
 	}
+	if !sameJSON(from.Reference, to.Reference) { // the video it was drafted from (D400)
+		if to.Reference == nil {
+			add("It no longer says which video it was drafted from.")
+		} else {
+			add("It names another video it was drafted from.")
+		}
+	}
 	// Inputs.
 	was := map[string]models.RecipeInput{}
 	for _, in := range from.Inputs {

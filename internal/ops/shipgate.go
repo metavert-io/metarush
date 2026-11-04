@@ -87,8 +87,12 @@ type GateHold struct {
 	// Covered: a person already sent it out anyway past this (Override).
 	Covered bool `json:"covered,omitempty"`
 	// Anyway: it holds with the gate off too — changed words whose consent
-	// ended (D309), Content Credentials the settings require (D418).
-	Anyway   bool          `json:"anyway,omitempty"`
+	// ended (D309), Content Credentials the settings require (D418), a
+	// reference: someone else's video (D441).
+	Anyway bool `json:"anyway,omitempty"`
+	// Holding: it holds the version now (with the gate off only the approval,
+	// a missing render and what holds anyway do).
+	Holding  bool          `json:"holding"`
 	Problems []GateProblem `json:"problems,omitempty"`
 	Paths    []GatePath    `json:"paths"`
 }
@@ -159,7 +163,14 @@ type ShipGateOut struct {
 
 // gateKinds are the holds the gate is about (a person may send it out past them).
 var gateKinds = map[string]bool{models.HoldQAMissing: true, models.HoldQARunning: true, models.HoldQAFailed: true, models.HoldQAStale: true,
-	models.HoldQAErrors: true, models.HoldSignoff: true, models.HoldCredentials: true}
+	models.HoldQAErrors: true, models.HoldSignoff: true, models.HoldCredentials: true, models.HoldReference: true}
+
+// anywayKinds hold a version with the gate off too: changed words whose
+// consent ended (D309; never sent out anyway), Content Credentials the
+// settings require (D418: "required" is its own choice, apart from the
+// gate's) and a reference, someone else's video (D441). A person may send it
+// out past the last two with a note.
+var anywayKinds = map[string]bool{models.HoldConsent: true, models.HoldCredentials: true, models.HoldReference: true}
 
 // GateFor says whether the gate holds a project's versions: the Content
 // Settings it uses when they say, else the workspace's choice (off while
@@ -176,7 +187,7 @@ func GateFor(ctx context.Context, a *app.App, projectID string) (on bool, why st
 				case models.GateOn:
 					return true, whose + " hold every version until the quality check and the sign-offs are done.", true
 				case models.GateOff:
-					return false, whose + " only remind about the quality check and sign-offs: nothing is held.", true
+					return false, whose + " only remind about the quality check and sign-offs.", true
 				}
 			}
 		}
@@ -465,14 +476,39 @@ func ShipGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Re
 	}
 	out.Holds = append(out.Holds, saidHolds(p, rev, heard)...)
 	out.heard = heard
+	// A reference it plays, someone else's video (D441), or a picture taken
+	// from one that it shows (D457), nested cuts too.
+	refs, err := ReferencesUsed(ctx, a, &rev.Spec)
+	if err != nil {
+		return nil, err
+	}
+	for _, u := range refs {
+		as := u.Asset
+		says := fmt.Sprintf("%s plays “%s”, a reference: someone else's video, kept to learn from. If it's your own video, say so; otherwise take it out and make a new version.", version, as.DisplayTitle())
+		if !u.Plays {
+			says = fmt.Sprintf("%s shows %s, taken from “%s”, a reference: someone else's video, kept to learn from. If it's your own video, say so; otherwise take the picture out and make a new version.",
+				version, quotedList(u.Pictures), as.DisplayTitle())
+		}
+		out.Holds = append(out.Holds, GateHold{ShipHold: models.ShipHold{Key: "reference:" + as.ID + "@" + rev.ID, Kind: models.HoldReference, Says: says},
+			Paths: []GatePath{{Label: "It's mine", Op: "footage.reference.mine", Input: map[string]any{"assetId": as.ID}, Command: "metarush footage reference " + as.ID + " --mine", People: true}}})
+	}
 	// What a person already sent it out past.
 	for i := range out.Holds {
 		h := &out.Holds[i]
 		h.Overridable = gateKinds[h.Kind]
-		h.Anyway = h.Kind == models.HoldConsent || h.Kind == models.HoldCredentials
+		h.Anyway = anywayKinds[h.Kind]
 		for _, o := range rev.ShipOverrides {
 			if h.Overridable && o.Covers(h.Key) {
 				h.Covered = true
+			}
+		}
+		h.Holding = !h.Covered && (!h.Overridable || out.On || h.Anyway)
+	}
+	if !out.On {
+		for _, h := range out.Holds {
+			if h.Holding && h.Kind == models.HoldReference { // the gate's setting isn't all that holds it (D459)
+				out.Why += " Even so, a reference holds this version: someone else's video goes out only when a person says it's theirs, or sends it out anyway with a note."
+				break
 			}
 		}
 	}
@@ -548,7 +584,7 @@ func decide(out *ShipGateOut, rev *models.Revision) {
 			out.Unmeasured++
 		}
 	}
-	// With the gate off only what holds anyway keeps it back (D309, D418).
+	// With the gate off only what holds anyway keeps it back (D309, D418, D441).
 	holding := slices.Clone(blocking)
 	for _, h := range open {
 		if out.On || h.holdsAnyway() {
@@ -661,7 +697,7 @@ func heldError(gates []*ShipGateOut, what string) *apperr.Error {
 	for _, g := range gates {
 		var says []string
 		for _, h := range g.Holds {
-			if (h.Overridable && !h.Covered && (g.On || h.holdsAnyway())) || h.Kind == models.HoldConsent {
+			if (h.Overridable && h.Holding) || h.Kind == models.HoldConsent {
 				says = append(says, lowerFirst(strings.TrimSuffix(h.Says, ".")))
 			}
 			consent = consent || h.Kind == models.HoldConsent
@@ -683,23 +719,15 @@ func heldError(gates []*ShipGateOut, what string) *apperr.Error {
 
 // letsOut reports whether the gate lets a version out (off, nothing holds
 // it, or a person sent it out anyway past everything that holds it); never
-// while it plays changed words whose consent is no longer in force, nor
-// while Content Credentials its settings require can't be signed and nobody
-// sent it out without them.
+// while it plays changed words whose consent is no longer in force, nor,
+// with the gate off too, while Content Credentials its settings require
+// can't be signed or it plays a reference, and nobody sent it out anyway.
 func (g *ShipGateOut) letsOut() bool {
 	for _, h := range g.Holds {
 		if h.Kind == models.HoldConsent {
 			return false // with the gate off too (D309)
 		}
-		if h.holdsAnyway() {
-			return false
-		}
-	}
-	if !g.On {
-		return true
-	}
-	for _, h := range g.Holds {
-		if h.Overridable && !h.Covered {
+		if h.Overridable && h.Holding { // with the gate off only what holds anyway (D418, D441)
 			return false
 		}
 	}
@@ -707,9 +735,7 @@ func (g *ShipGateOut) letsOut() bool {
 }
 
 // holdsAnyway: a hold that keeps the version back with the gate off too
-// until a person covers it with a note, where it can be — Content
-// Credentials the settings require (D418: "required" is its own choice,
-// apart from the gate's).
+// until a person covers it with a note, where it can be (anywayKinds).
 func (h GateHold) holdsAnyway() bool {
 	return h.Anyway && !h.Covered
 }
@@ -729,13 +755,11 @@ type DeliveryGate struct {
 
 func (g *ShipGateOut) record() *DeliveryGate {
 	d := &DeliveryGate{On: g.On, Why: g.Why, Held: []models.ShipHold{}, Promises: g.Promises}
+	anyway := false // a note covers what holds it with the gate off too (D418, D441)
 	for _, h := range g.Holds {
 		if h.Overridable {
 			d.Held = append(d.Held, h.ShipHold)
 		}
-	}
-	anyway := false // a note covers what holds it with the gate off too (D418)
-	for _, h := range g.Holds {
 		anyway = anyway || (h.Covered && h.Anyway)
 	}
 	if (g.On && len(d.Held) > 0) || anyway {
@@ -1067,11 +1091,12 @@ func overrideVersion(ctx context.Context, a *app.App, in *ShipOverrideIn) (*Ship
 	if err != nil {
 		return nil, err
 	}
-	// What holds it now: with the gate off, only what holds anyway (D418:
-	// Content Credentials the settings require), so a note can cover that too.
+	// What holds it now: with the gate off, only what holds anyway (D418,
+	// D441: Content Credentials the settings require, a reference), so a note
+	// can cover that too.
 	var holds []models.ShipHold
 	for _, h := range g.Holds {
-		if h.Overridable && !h.Covered && (g.On || h.holdsAnyway()) {
+		if h.Overridable && h.Holding {
 			holds = append(holds, h.ShipHold)
 		}
 	}

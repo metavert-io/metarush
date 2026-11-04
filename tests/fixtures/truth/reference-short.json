@@ -1,0 +1,38 @@
+{
+  "file": "reference-short.mp4",
+  "duration_s": 26,
+  "width": 720,
+  "height": 1280,
+  "voice": "Samantha",
+  "lines": [
+    {"start_s": 0.40, "end_s": 2.711708, "text": "Why do people stop watching so fast?"},
+    {"start_s": 3.50, "end_s": 5.072646, "text": "Here are three fixes that work."},
+    {"start_s": 6.80, "end_s": 9.071396, "text": "First, lead with your strongest moment."},
+    {"start_s": 10.80, "end_s": 12.735729, "text": "Second, cut every slow pause."},
+    {"start_s": 14.80, "end_s": 17.414125, "text": "Third, add big captions for silent viewers."},
+    {"start_s": 18.80, "end_s": 20.567167, "text": "Follow for more tips every week."}
+  ],
+  "captions": [
+    {"text": "WHY DO PEOPLE", "from_s": 0.40, "to_s": 2.711708},
+    {"text": "THREE FIXES", "from_s": 3.50, "to_s": 5.072646},
+    {"text": "STRONGEST MOMENT", "from_s": 6.80, "to_s": 9.071396},
+    {"text": "CUT EVERY PAUSE", "from_s": 10.80, "to_s": 12.735729},
+    {"text": "BIG CAPTIONS", "from_s": 14.80, "to_s": 17.414125},
+    {"text": "FOLLOW FOR TIPS", "from_s": 18.80, "to_s": 20.567167}
+  ],
+  "cuts_s": [3.2, 6.5, 10.5, 14.5, 18.5, 22],
+  "title": {"text": "STOP SCROLLING", "from_s": 0, "to_s": 3.2},
+  "end_card": {"text": "FOLLOW FOR MORE", "from_s": 22, "to_s": 26},
+  "sections": [
+    {"kind": "hook", "name": "hook", "from_s": 0, "to_s": 3.2},
+    {"kind": "intro", "name": "intro", "from_s": 3.2, "to_s": 6.5},
+    {"kind": "body", "name": "part-1", "from_s": 6.5, "to_s": 10.5},
+    {"kind": "body", "name": "part-2", "from_s": 10.5, "to_s": 14.5},
+    {"kind": "body", "name": "part-3", "from_s": 14.5, "to_s": 18.5},
+    {"kind": "call-to-action", "name": "call-to-action", "from_s": 18.5, "to_s": 22},
+    {"kind": "end-card", "name": "end-card", "from_s": 22, "to_s": 26}
+  ],
+  "music": "a chord bed well under the voice, all the way through (it fades out over the last second)",
+  "images": "tests/fixtures/images (public domain, see SOURCES.md)",
+  "notes": "A short in the usual shape: the hook asks a question (with a title at the top), the intro says what comes, three points of a list, a call to action, then an end card with words in the middle and the music still playing. Each line's first words show as a caption low in the picture while it is said."
+}

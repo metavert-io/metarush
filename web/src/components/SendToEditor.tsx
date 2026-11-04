@@ -71,6 +71,13 @@ function SendForm({ revisionId, label, close }: { revisionId: string; label: str
             ) : null}
           </div>
         </div>
+        {ex.warnings.length > 0 ? (
+          <div className="space-y-1 rounded-[12px] bg-warn/10 px-3.5 py-3 text-[13px] leading-relaxed text-fg" data-send-warnings>
+            {ex.warnings.map((w) => (
+              <p key={w}>{w}</p>
+            ))}
+          </div>
+        ) : null}
         {ex.notes.length > 0 ? (
           <div className="rounded-[12px] bg-panel px-3.5 py-3">
             <div className="text-[12px] font-semibold uppercase tracking-wide text-subtle">What {chosen.name} won't show exactly</div>

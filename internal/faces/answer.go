@@ -91,6 +91,9 @@ func NameGroups(ctx context.Context, a *app.App, assetID string, answers []Group
 
 // nameGroup is NameGroup without re-scoring the library.
 func nameGroup(ctx context.Context, a *app.App, assetID, groupID string, person models.Person) (*GroupNamed, error) {
+	if err := notInReference(ctx, a, assetID); err != nil {
+		return nil, err
+	}
 	fs, err := GroupMembers(ctx, a, assetID, groupID)
 	if err != nil {
 		return nil, err

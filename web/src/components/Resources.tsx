@@ -306,6 +306,11 @@ function DetailsBody({ id, projectId, close }: { id: string; projectId?: string;
             </p>
           ) : null}
           {!r.stored ? <p className="mt-2 text-[12.5px] text-muted">Only on the computer with its folder; it uploads when a cut first uses it.</p> : null}
+          {r.reference ? (
+            <p className="mt-2 flex items-start gap-1.5 text-[12.5px] text-fg" data-resource-reference>
+              <Warning size={13} className="mt-0.5 shrink-0" /> {r.reference}
+            </p>
+          ) : null}
         </div>
         {r.kind === 'repo' ? <RepoOverview data={q.data} /> : null}
         {r.kind === 'repo' ? <RepoPicturesPanel data={q.data} projectId={projectId} own={own} /> : null}
@@ -412,6 +417,7 @@ export function ResourceGrid({ rows, onOpen, empty = 'Nothing matches.' }: { row
                 {r.from ? <Badge tone="info">from {r.from}</Badge> : r.origin === 'workspace' ? <Badge>workspace</Badge> : null}
                 {r.missing ? <Badge tone="danger">{r.source.kind === 'repo' ? 'not in the repository' : 'missing from folder'}</Badge> : null}
                 {!r.stored ? <Badge>on one computer</Badge> : null}
+                {r.reference ? <Badge tone="info">from a reference</Badge> : null}
                 {(r.tags ?? []).slice(0, 2).map((t) => (
                   <Badge key={t} tone="accent">
                     {t}

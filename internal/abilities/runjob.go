@@ -21,6 +21,7 @@ import (
 	"github.com/metavert-io/metarush/internal/media"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/notify"
+	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/providers"
 	"github.com/metavert-io/metarush/internal/resources"
 	"github.com/metavert-io/metarush/internal/sandbox"
@@ -122,6 +123,9 @@ func RunJob(ctx context.Context, a *app.App, j *models.Job, report func(pct floa
 			continue
 		}
 		fi, err := resolveFile(ctx, a, in.Kind, in.Ref, r.ProjectID, nil)
+		if ops.RefusedAsReference(err) { // marked a reference since the plan (D456)
+			return fail(apperr.From(err).Message)
+		}
 		if err != nil || fi.SHA256 != in.SHA256 {
 			return fail(fmt.Sprintf("“%s” changed since the run was planned.", in.Title))
 		}

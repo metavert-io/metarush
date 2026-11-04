@@ -20,6 +20,9 @@
 //
 // Playlist lookups (--flat-playlist) list three videos. METARUSH_FAKE_YTDLP_LOG
 // names a file that gets every call's arguments (one JSON array per line).
+// METARUSH_FAKE_YTDLP_MEDIA names a video file every download hands over in
+// place of the test clip — its own picture and sound, copied as they are, with
+// bytes unique to the video ID (a browser run brings in a real video that way).
 package fakeytdlp
 
 import (
@@ -366,6 +369,9 @@ func download(c call, link, id string, stdout, stderr io.Writer) int {
 	cmd := exec.Command(ff, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25:duration=2",
 		"-f", "lavfi", "-i", fmt.Sprintf("sine=frequency=%d:duration=2", freq), "-metadata", "comment=fake-ytdlp "+id,
 		"-c:v", "mpeg4", "-q:v", "6", "-c:a", "aac", "-shortest", out+".tmp.mp4")
+	if media := os.Getenv("METARUSH_FAKE_YTDLP_MEDIA"); media != "" {
+		cmd = exec.Command(ff, "-hide_banner", "-loglevel", "error", "-y", "-i", media, "-map", "0", "-c", "copy", "-metadata", "comment=fake-ytdlp "+id, out+".tmp.mp4")
+	}
 	if b, err := cmd.CombinedOutput(); err != nil {
 		fmt.Fprintf(stderr, "ERROR: Postprocessing: ffmpeg failed: %v %s\n", err, b)
 		return 1

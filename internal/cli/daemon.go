@@ -267,6 +267,9 @@ func serveCmd() *cobra.Command {
 			// Recipes that plan by themselves (D218): new files or a weekly time
 			// make a plan and ring the bell; a person starts the run, never this loop.
 			go recipes.RunTriggers(ctx, a, srv.Log)
+			// Drafts from videos someone liked that no computer finished (its
+			// claim gone stale, or the last look's news missed) are made (D444).
+			go recipes.RunDraftSweep(ctx, a, srv.Log)
 			st := daemonState{PID: os.Getpid(), Port: a.Cfg.Dashboard.Port, StartedAt: time.Now().UTC(), Version: versionString(), Mode: "full", Service: os.Getenv("METARUSH_SERVICE")}
 			if workerOnly {
 				st.Mode, st.Port = "worker-only", 0

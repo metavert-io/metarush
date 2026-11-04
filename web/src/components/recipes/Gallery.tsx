@@ -8,6 +8,7 @@ import { Badge, Button, cx, EmptyState, ErrorPanel, Freshness, Skeleton, Theirs,
 import { recipesLink, runTone, stateShort, type RecipeInputRow, type RecipeRow, type RecipeRunBrief } from './api';
 import { exportRecipeFile, ImportButton } from './Files';
 import { StarterRecipes } from './Starters';
+import { StartFromVideo } from './StartFromVideo';
 import { useRunDialog } from './RunDialog';
 
 /*
@@ -52,6 +53,7 @@ export function RecipesGallery() {
         <ImportButton />
         <Freshness at={list.dataUpdatedAt || undefined} fetching={list.isFetching} onRefresh={() => void list.refetch()} className="max-sm:hidden" />
       </div>
+      {!archived ? <StartFromVideo className="mb-4" /> : null}
       {!archived ? <StarterRecipes className="mb-5" /> : null}
       {list.isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

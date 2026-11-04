@@ -6,6 +6,8 @@ import (
 	"sort"
 	"time"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/models"
@@ -57,6 +59,9 @@ type carried struct {
 	confirmed []models.TimeSpan
 	rejected  []string
 	naming    *models.Naming // who gave the name (D274), carried with it
+	// dismissed is the question about the voice it mostly is that a person
+	// dismissed (D458): never asked again, under the new voice's key too.
+	dismissed *models.Todo
 }
 
 // Carry-over shares: a confirmed name moves to a new voice when most of that
@@ -116,12 +121,16 @@ func carryOver(ctx context.Context, a *app.App, prev *Previous, segs []models.Tr
 	for _, v := range prev.Voices {
 		byLabel[v.Label] = v
 	}
+	dismissed := dismissedQuestions(ctx, a, prev.Voices)
 	for nl, olds := range overlap {
 		k := carried{}
 		for ol, sec := range olds {
 			v, ok := byLabel[ol]
 			if !ok {
 				continue
+			}
+			if t, ok := dismissed[VoiceKey(v)]; ok && newTotal[nl] > 0 && sec/newTotal[nl] >= carryName {
+				k.dismissed = &t
 			}
 			if newTotal[nl] > 0 && sec/newTotal[nl] >= carryReject {
 				for _, r := range v.Rejected {
@@ -143,6 +152,44 @@ func carryOver(ctx context.Context, a *app.App, prev *Previous, segs []models.Tr
 		out[nl] = k
 	}
 	return out
+}
+
+// dismissedQuestions are the questions about these voices a person
+// dismissed, by key.
+func dismissedQuestions(ctx context.Context, a *app.App, vs []models.AssetSpeaker) map[string]models.Todo {
+	out := map[string]models.Todo{}
+	keys := bson.A{}
+	for _, v := range vs {
+		keys = append(keys, VoiceKey(v))
+	}
+	if len(keys) == 0 {
+		return out
+	}
+	var ts []models.Todo
+	if err := a.DB.Find(ctx, store.CTodos, a.WorkspaceID(), bson.M{"groupKey": bson.M{"$in": keys}, "state": models.TodoDismissed,
+		"resolution": models.ResolvedDismissed}, &ts); err != nil {
+		return out
+	}
+	for _, t := range ts {
+		out[t.GroupKey] = t
+	}
+	return out
+}
+
+// keepDismissed records a dismissal a new voice inherits under its own key,
+// so the question about it is never asked (D458): the person's own dismissal
+// (who, when, their note), carried to the voice found again.
+func keepDismissed(ctx context.Context, a *app.App, sp models.AssetSpeaker, was *models.Todo) error {
+	key := VoiceKey(sp)
+	n, err := a.DB.C(store.CTodos).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "groupKey": key})
+	if err != nil || n > 0 {
+		return err
+	}
+	t := *was
+	now := time.Now().UTC()
+	t.ID, t.GroupKey, t.CreatedAt, t.UpdatedAt = ids.New(ids.Todo), key, now, now
+	t.Context.Label, t.Context.Speaker = sp.Label, sp.DisplayName()
+	return a.DB.Insert(ctx, store.CTodos, t)
 }
 
 // reapplyConfirmed gives every line a person fixed back to that person after

@@ -345,6 +345,57 @@ type RecipeDoc struct {
 	// Pack are the other videos every run makes besides its main one (D214):
 	// shorts of a conversation the video plays, each its own project.
 	Pack []RecipeOutput `bson:"pack,omitempty" json:"pack,omitempty" jsonschema:"maxItems=10"`
+	// Reference is the video the recipe was drafted from (D400): a video
+	// someone liked, kept as a reference clip. The recipe never plays it: its
+	// sections only describe what that video does.
+	Reference *RecipeReference `bson:"reference,omitempty" json:"reference,omitempty"`
+}
+
+// RecipeReference is the video a recipe was drafted from (D400): the reference
+// clip here, the link it came from, the site and who posted it. Provenance
+// only: the document never holds its footage, words or pictures.
+type RecipeReference struct {
+	// AssetID is the reference clip in this workspace ("" once it left: an
+	// imported recipe keeps only the link).
+	AssetID string `bson:"assetId,omitempty" json:"assetId,omitempty"`
+	// URL is the original post's address; Platform the site (youtube, tiktok,
+	// x, web); Who the account that posted it (@handle).
+	URL      string `bson:"url,omitempty" json:"url,omitempty" jsonschema:"maxLength=2000"`
+	Platform string `bson:"platform,omitempty" json:"platform,omitempty" jsonschema:"maxLength=20"`
+	Who      string `bson:"who,omitempty" json:"who,omitempty" jsonschema:"maxLength=200"`
+}
+
+// States of a draft asked for from a video (StartFromVideo.State, D401).
+const (
+	StartFromWaiting = "waiting" // for MetaRush's first look at the video
+	StartFromMaking  = "making"  // a computer is drafting it now
+	StartFromMade    = "made"    // the draft is saved
+	StartFromFailed  = "failed"  // it couldn't be drafted (Problem says why)
+)
+
+// StartFromVideo is a recipe draft asked for from a video ("Start from a video
+// you like", D401), kept on the clip: made once MetaRush has looked at the
+// video — by whichever computer finishes the last look, as the person who
+// asked — and only once (claimed waiting → making by check-and-set).
+type StartFromVideo struct {
+	// For is the person who asked: the draft is theirs.
+	For Actor `bson:"for" json:"for"`
+	// ProjectID is where its runs make new cuts ("" a new project each time);
+	// Name and Title what the person asked the recipe to be called ("" MetaRush's).
+	ProjectID string    `bson:"projectId,omitempty" json:"projectId,omitempty"`
+	Name      string    `bson:"name,omitempty" json:"name,omitempty"`
+	Title     string    `bson:"title,omitempty" json:"title,omitempty"`
+	At        time.Time `bson:"at" json:"at"`
+	State     string    `bson:"state" json:"state" jsonschema:"enum=waiting,enum=making,enum=made,enum=failed"`
+	// MakingAt is when a computer took it on (a stale claim is taken again).
+	MakingAt *time.Time `bson:"makingAt,omitempty" json:"makingAt,omitempty"`
+	// The draft once made: the recipe, its short name and the version's number.
+	RecipeID string     `bson:"recipeId,omitempty" json:"recipeId,omitempty"`
+	Recipe   string     `bson:"recipe,omitempty" json:"recipe,omitempty"`
+	Version  int        `bson:"version,omitempty" json:"version,omitempty"`
+	MadeAt   *time.Time `bson:"madeAt,omitempty" json:"madeAt,omitempty"`
+	// Problem says plainly why it couldn't be drafted.
+	Problem string `bson:"problem,omitempty" json:"problem,omitempty"`
 }
 
 // Pack output kinds (RecipeOutput.Kind, D214).

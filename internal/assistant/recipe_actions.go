@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"github.com/metavert-io/metarush/internal/links"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
+	"github.com/metavert-io/metarush/internal/resources"
 )
 
 // Recipes in the Claude panel (D211, docs/recipes.md): Claude's refused
@@ -43,7 +45,8 @@ import (
 // recipeCommands are the commands handled here.
 var recipeCommands = map[string]bool{"recipe run": true, "recipe again": true, "recipe save": true, "recipe update": true, "recipe publish": true,
 	"recipe archive": true, "recipe continue": true, "recipe stop": true,
-	"recipe picks": true, "recipe check": true, "recipe suggestions": true, "recipe triggers": true}
+	"recipe picks": true, "recipe check": true, "recipe suggestions": true, "recipe triggers": true,
+	"recipe from-video": true} // start from a video someone liked (D402)
 
 // recipeNever are what a person does on the recipe's or the run's page.
 var recipeNever = map[string]string{
@@ -57,7 +60,7 @@ var recipeNever = map[string]string{
 // own card only (a run's estimate, a version made current).
 var (
 	recipeOps = map[string]bool{"recipe.run": true, "recipe.again": true, "recipe.save": true, "recipe.update": true, "recipe.publish": true,
-		"recipe.picks": true, "recipe.write": true, "recipe.suggestions.save": true}
+		"recipe.picks": true, "recipe.write": true, "recipe.suggestions.save": true, "recipe.fromVideo": true}
 	recipeAloneOps = map[string]bool{"recipe.run": true, "recipe.again": true, "recipe.publish": true}
 )
 
@@ -73,6 +76,9 @@ const (
 	recipeCardPicks     = "picks"
 	recipeCardSheet     = "sheet"
 	recipeCardSuggested = "suggested"
+	// A recipe drafted from a video someone liked (D402): the video comes in
+	// as a reference, the draft follows once MetaRush has looked at it.
+	recipeCardFromVideo = "fromvideo"
 )
 
 // maxRecipePatch bounds a change Claude wrote to the proposals folder.
@@ -80,7 +86,7 @@ const maxRecipePatch = 1 << 20
 
 // RecipeCardView is what a card about a recipe shows (D211).
 type RecipeCardView struct {
-	Kind string `bson:"kind" json:"kind" jsonschema:"enum=run,enum=again,enum=save,enum=update,enum=publish,enum=picks,enum=sheet,enum=suggested"`
+	Kind string `bson:"kind" json:"kind" jsonschema:"enum=run,enum=again,enum=save,enum=update,enum=publish,enum=picks,enum=sheet,enum=suggested,enum=fromvideo"`
 	// Recipe is its short name ("" for a save not made yet); Title its title.
 	Recipe string `bson:"recipe,omitempty" json:"recipe,omitempty"`
 	Title  string `bson:"title" json:"title"`
@@ -125,6 +131,11 @@ type RecipeCardView struct {
 	Reasons []string `bson:"reasons,omitempty" json:"reasons,omitempty"`
 	// New: a sheet that makes a new recipe (sheet).
 	New bool `bson:"new,omitempty" json:"new,omitempty"`
+	// From a video (fromvideo): the video, where it came from, and what it
+	// does (its card's lines, when MetaRush has looked at it already).
+	Video     string   `bson:"video,omitempty" json:"video,omitempty" jsonschema:"description=The video it starts from\\, as people name it."`
+	VideoFrom string   `bson:"videoFrom,omitempty" json:"videoFrom,omitempty" jsonschema:"description=Where the video came from (its link)."`
+	Does      []string `bson:"does,omitempty" json:"does,omitempty" jsonschema:"description=What the video does\\, in plain words."`
 }
 
 // RecipeCardPick is one of a run's first picks as a picks card shows it.
@@ -504,6 +515,8 @@ func (m *Manager) describeRecipe(ctx context.Context, c *conv, call *cliCall, a 
 		m.describeRecipeSheet(ctx, c, call, a)
 	case "recipe suggestions":
 		m.describeRecipeSuggestions(ctx, call, a)
+	case "recipe from-video":
+		m.describeRecipeFromVideo(ctx, call, a)
 	}
 }
 
@@ -990,6 +1003,16 @@ func recipeResult(op string, res any) (result, link, forClaude string, ok bool) 
 		}
 		return plainSummary(o.Message), links.Recipe(o.Recipe.Name) + "&version=" + strconv.Itoa(o.Version.Number),
 			fmt.Sprintf(" (recipe %s, version %d, %s)", o.Recipe.Name, o.Version.Number, o.Version.State), true
+	case "recipe.fromVideo":
+		o, err := asRecipe[recipeFromVideoSeen](res)
+		if err != nil {
+			return "", "", "", false
+		}
+		if o.Recipe != nil && o.Version != nil {
+			return plainSummary(o.Message), links.Recipe(o.Recipe.Name) + "&version=" + strconv.Itoa(o.Version.Number),
+				fmt.Sprintf(" (recipe %s, version %d, %s; read its sheet with `metarush recipe checkout %s -`)", o.Recipe.Name, o.Version.Number, o.Version.State, o.Recipe.Name), true
+		}
+		return plainSummary(o.Message), links.Recipe(""), " (the video comes in as a reference and the draft follows by itself; you hear when it is saved)", true
 	}
 	return "", "", "", false
 }
@@ -999,6 +1022,9 @@ func recipeResult(op string, res any) (result, link, forClaude string, ok bool) 
 func recipeWork(res any) *ActionWork {
 	if res == nil {
 		return nil
+	}
+	if w := draftWork(res); w != nil {
+		return w // a draft from a video, still coming (D402)
 	}
 	o, err := asRecipe[recipeRunOutSeen](res)
 	if err != nil || !ids.Valid(ids.RecipeRun, o.Run.ID) {
@@ -1122,6 +1148,8 @@ func recipeLabel(c *cliCall) string {
 		return "Asked for something only a person does with a recipe"
 	case "recipe export": // D219: a person exports and brings in recipe files
 		return "Asked to export a recipe to a file"
+	case "recipe from-video": // D402
+		return "Asked to start a recipe from a video"
 	case "recipe import":
 		return "Asked to bring in a recipe file"
 	}
@@ -1387,4 +1415,203 @@ func (m *Manager) describeRecipeSuggestions(ctx context.Context, call *cliCall, 
 		a.Details = append(a.Details, "Its check finds "+pluralize(n, "problem")+" to fix before it can be made current.")
 	}
 	setInput(a, "recipe.suggestions.save", in)
+}
+
+// ---- a recipe from a video someone liked (D400–D402) ----
+
+type (
+	recipeFromVideoIn struct {
+		From      string `json:"from"`
+		ProjectID string `json:"projectId,omitempty"`
+		Name      string `json:"name,omitempty"`
+		Title     string `json:"title,omitempty"`
+		Reference bool   `json:"reference,omitempty"`
+	}
+	videoClipSeen struct {
+		ID        string `json:"id"`
+		Title     string `json:"title"`
+		Reference bool   `json:"reference"`
+		Link      string `json:"link"`
+		Who       string `json:"who"`
+		StartFrom *struct {
+			State    string `json:"state"`
+			RecipeID string `json:"recipeId"`
+			Recipe   string `json:"recipe"`
+			Version  int    `json:"version"`
+			Problem  string `json:"problem"`
+		} `json:"startFrom"`
+	}
+	videoCardSeen struct {
+		Clip videoClipSeen `json:"clip"`
+		Card struct {
+			Ready   bool     `json:"ready"`
+			Summary string   `json:"summary"`
+			Lines   []string `json:"lines"`
+		} `json:"card"`
+	}
+	recipeFromVideoSeen struct {
+		State   string             `json:"state"`
+		Clip    *videoClipSeen     `json:"clip"`
+		Recipe  *recipeSeen        `json:"recipe"`
+		Version *recipeVersionSeen `json:"version"`
+		Waiting []string           `json:"waiting"`
+		JobIDs  []string           `json:"jobIds"`
+		Import  *struct {
+			JobIDs []string `json:"jobIds"`
+		} `json:"import"`
+		Message string `json:"message"`
+	}
+)
+
+// describeRecipeFromVideo is the card for starting a recipe from a video
+// someone liked (D402): what comes in (a reference no cut plays), what the
+// draft will be, and — when MetaRush has looked at the video already — what it
+// does. Clicking it runs recipe.fromVideo as the person; it never runs by
+// itself, a person's browser sign-in is never lent from the panel, and the
+// draft stays a draft until a person makes it current.
+func (m *Manager) describeRecipeFromVideo(ctx context.Context, call *cliCall, a *AssistantAction) {
+	what := "Start a recipe from a video"
+	from := strings.TrimSpace(first(call.Args))
+	switch {
+	case from == "":
+		incomplete(a, what, "Claude did not say which video: a link to it, or a clip in MetaRush.")
+		return
+	case call.Flags["browser-signin"] != "" || hasBool(call, "browser-signin"):
+		incomplete(a, what, "Using your browser's sign-in is your own choice: paste the link in the Add box yourself.")
+		return
+	case strings.HasPrefix(from, "/") || strings.HasPrefix(from, "~") || strings.HasPrefix(from, "./"):
+		incomplete(a, what, "A video file on this computer is added by a person: drop it on the Add box (Start from a video you like).")
+		return
+	}
+	in := recipeFromVideoIn{From: from, ProjectID: call.Flags["project"], Name: call.Flags["name"], Title: clip(strings.TrimSpace(call.Flags["title"]), 120), Reference: hasBool(call, "reference")}
+	view := &RecipeCardView{Kind: recipeCardFromVideo, Title: "a video"}
+	link := strings.Contains(from, "://") || strings.HasPrefix(strings.ToLower(from), "www.")
+	host := ""
+	if link {
+		// A web address, as the link import takes it (the import itself checks it again).
+		addr := from
+		if !strings.Contains(addr, "://") {
+			addr = "https://" + addr
+		}
+		u, err := url.Parse(addr)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil {
+			incomplete(a, what, "That isn't a web address MetaRush can use.")
+			return
+		}
+		if !resources.AllowLocalPages() && resources.LocalAddress(u.Hostname()) {
+			unavailable(a, what, "That address is on this computer or a local network, so MetaRush won't download from it.")
+			return
+		}
+		host = strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+		in.From, view.VideoFrom, view.Title = addr, addr, "the video at "+host
+	}
+	// A clip already here (or the clip a link already became): read its card, nothing changes.
+	ref, isRef := from, false
+	if !link {
+		if card, err := recipeOp[videoCardSeen](ctx, m, "footage.whatItDoes", map[string]string{"assetId": ref}); err == nil {
+			view.Video, view.VideoFrom, view.Title, isRef = card.Clip.Title, card.Clip.Link, card.Clip.Title, card.Clip.Reference
+			a.Title = clip("Start a recipe from "+quoted(clip(card.Clip.Title, 80)), 160)
+			if card.Card.Ready {
+				view.Does = card.Card.Lines
+			}
+		} else {
+			incomplete(a, what, "MetaRush couldn't find that video: "+firstLine(apperr.From(err).Message))
+			return
+		}
+	}
+	a.Recipe = view
+	if link {
+		a.Title = "Start a recipe from the video at " + host
+		a.Details = append(a.Details, "It comes in as a reference: someone else's video, kept to learn from, that no cut plays.")
+	} else if isRef {
+		a.Details = append(a.Details, "It is a reference: someone else's video, kept to learn from, that no cut plays.")
+	} else if in.Reference {
+		a.Details = append(a.Details, "It becomes a reference: someone else's video, kept to learn from, that no cut plays.")
+	}
+	a.Details = append(a.Details, "Once MetaRush has looked at it, what it does becomes a recipe draft: your own footage in sections shaped like its sections, with their lengths, its captions, rules and hints.",
+		"Nothing of the video goes into the draft: not its footage, its words or its pictures.",
+		"A draft: a person makes it current before it runs.")
+	if len(view.Does) > 0 {
+		a.Details = append(a.Details, "What it does: "+view.Does[0])
+	}
+	setInput(a, "recipe.fromVideo", in)
+}
+
+// draftWork follows a draft asked for from a video until it is saved (D402):
+// the import first (its job), then the clip's draft.
+func draftWork(res any) *ActionWork {
+	b, err := json.Marshal(res)
+	if err != nil || !strings.Contains(string(b), `"waiting"`) {
+		return nil
+	}
+	var o recipeFromVideoSeen
+	if json.Unmarshal(b, &o) != nil || (o.State != "importing" && o.State != "looking") || (o.Import == nil && o.Clip == nil) {
+		return nil
+	}
+	w := &ActionWork{Kind: WorkDraft, What: "the draft from the video", State: WorkRunning, StartedAt: time.Now().UTC(), Link: links.Recipe("")}
+	if o.Import != nil {
+		w.JobIDs = append([]string(nil), o.Import.JobIDs...)
+	}
+	if o.Clip != nil {
+		w.AssetID = o.Clip.ID
+		w.What = "the draft from “" + clip(o.Clip.Title, 60) + "”"
+	}
+	return w
+}
+
+// checkDraftWork follows a draft from a video: the import (a failure ends it
+// with the import's own words), then the clip until its draft is saved.
+func (m *Manager) checkDraftWork(ctx context.Context, w ActionWork, end ender) (ActionWork, bool) {
+	assetID := w.AssetID
+	for _, id := range w.JobIDs {
+		if assetID != "" {
+			break
+		}
+		j, err := m.App.Queue.Get(ctx, id)
+		if err != nil {
+			continue
+		}
+		switch j.State {
+		case models.JobSucceeded:
+			assetID, _ = j.Result["assetId"].(string)
+		case models.JobFailed, models.JobCanceled:
+			why := "the video couldn't be brought in"
+			if j.Error != "" {
+				why += ": " + firstLine(j.Error)
+			}
+			return end(WorkFailed, upperFirst(why), "The import of the video failed ("+j.ID+"): "+j.Error+" No draft was made.")
+		default:
+			return w, false
+		}
+	}
+	if assetID == "" {
+		return w, false
+	}
+	card, err := recipeOp[videoCardSeen](ctx, m, "footage.whatItDoes", map[string]string{"assetId": assetID})
+	if err != nil {
+		if apperr.From(err).Code == apperr.NotFound {
+			return end(WorkGone, "The video is gone", "The clip "+assetID+" is gone.")
+		}
+		return w, false
+	}
+	sf := card.Clip.StartFrom
+	switch {
+	case sf == nil:
+		return w, false
+	case sf.State == "made":
+		title := sf.Recipe
+		if r, err := recipeOp[struct {
+			Recipe recipeSeen `json:"recipe"`
+		}](ctx, m, "recipe.show", map[string]string{"recipe": sf.Recipe}); err == nil && r.Recipe.Title != "" {
+			title = r.Recipe.Title
+		}
+		done, ended := end(WorkFinished, fmt.Sprintf("The draft %s is saved, made from what %s does", quoted(title), quoted(card.Clip.Title)),
+			fmt.Sprintf("The draft recipe %s (version %d, a draft) is saved from the video %s (%s). Read its sheet with `metarush recipe checkout %s -`; to refine it, write the changed sheet to the proposals folder and run `metarush recipe check <file> --save` (a card the person saves). Only a person makes it current.",
+				sf.Recipe, sf.Version, card.Clip.Title, assetID, sf.Recipe))
+		done.Link, done.AssetID = links.Recipe(sf.Recipe)+"&version="+strconv.Itoa(sf.Version), assetID // end keeps the work as it started
+		return done, ended
+	case sf.State == "failed":
+		return end(WorkFailed, "The draft couldn't be made: "+strings.TrimSuffix(sf.Problem, "."), "Drafting from the video "+assetID+" failed: "+sf.Problem)
+	}
+	return w, false
 }

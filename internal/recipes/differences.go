@@ -782,6 +782,9 @@ func otherChanges(was, now *models.RecipeDoc) []string {
 	if strings.TrimSpace(was.Cut.Notes) != strings.TrimSpace(now.Cut.Notes) {
 		out = append(out, "The cut's notes are different now")
 	}
+	if !jsonEqual(was.Reference, now.Reference) {
+		out = append(out, "The video it was drafted from is different now")
+	}
 	if len(out) == 0 {
 		out = append(out, "Details MetaRush keeps for the cut are different now (what it pins, where it came from)")
 	}

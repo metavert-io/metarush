@@ -69,6 +69,15 @@ type ResourceInfo struct {
 	Available bool
 	// Latest is the resource's newest version ("a newer version is available").
 	Latest string
+	// Reference is set when the version is a picture taken from a reference
+	// (a still frame of someone else's video, D457): no cut shows it until a
+	// person says the video is theirs.
+	Reference *ReferenceClip
+}
+
+// ReferenceClip is the reference a picture was taken from.
+type ReferenceClip struct {
+	ID, Name string
 }
 
 // ResourceFacts is optionally implemented by Facts: the resources a spec pins.

@@ -80,6 +80,8 @@ export function sourceWords(r: ResourceRow): string {
   if (s.kind === 'generated' && r.provenance) return `Made from ${r.provenance}`;
   // A picture kept from a repository's folder (D216): the file at its commit.
   if (s.kind === 'repo' && r.provenance) return `From ${r.provenance}`;
+  // A still frame of a clip (D457): which clip, and when.
+  if (s.frameOf && r.provenance) return r.provenance.charAt(0).toUpperCase() + r.provenance.slice(1);
   return '';
 }
 

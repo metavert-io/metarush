@@ -227,6 +227,8 @@ var opBase = map[string]string{
 	"footage.speakers.assign": "fix who said a line in {a}", "footage.speakers.unmerge": "separate two voices in {a}",
 	"footage.speakers.detect": "listen for the voices in the footage",
 	"footage.keyframes":       "choose frames to show from {a}", "footage.visuals": "read what's on screen in {a}",
+	// What a video does, and references (D398, D399).
+	"footage.whatItDoes": "read what {a} does", "footage.reference": "mark {a} as a reference", "footage.reference.mine": "say {a} is their own video",
 	"footage.visuals.status": "check whether clips get looked at for what's on screen",
 	"footage.faces":          "look at the faces in {a}", "footage.faces.name": "name a face in {a}", "footage.faces.reject": "correct a face in {a}",
 	"footage.describe": "describe the scenes of {a}", "footage.describe.settings": "check the scene description settings",

@@ -28,6 +28,10 @@ type ImportIn struct {
 	BrowserSignIn string `json:"browserSignIn,omitempty" jsonschema:"enum=chrome,enum=safari,enum=firefox,enum=brave,enum=edge,description=Download with this browser's sign-in (for a bot check or sign-in wall). The downloader reads the browser's cookies itself for this run; MetaRush never copies or keeps them."`
 	Playlist      int    `json:"playlist,omitempty" jsonschema:"minimum=0,maximum=200,description=For a playlist or channel link: import its first N videos. Without it such links import nothing."`
 	DryRun        bool   `json:"dryRun,omitempty" jsonschema:"description=Look the links up (title\\, account\\, length\\, license) without importing anything."`
+	// Reference brings new videos in as references (D398): someone else's
+	// video, kept to learn from, that no cut plays. A video already in
+	// MetaRush stays what it is.
+	Reference bool `json:"reference,omitempty" jsonschema:"description=Bring new videos in as references: someone else's videos\\, kept to learn from\\, that no cut plays. A video already in MetaRush stays what it is."`
 }
 
 // ImportRow is the outcome for one link.
@@ -108,6 +112,29 @@ func refusal(code string, err error) (string, string) {
 
 func init() {
 	ops.Def("ingest.url", "Import videos from links (YouTube, TikTok, X): looked up, downloaded on this machine, then added like dropped files (dedupe, preview, transcript, speakers), with the original post recorded on the clip", ops.Flags{Mutating: true}, func(ctx context.Context, a *app.App, in *ImportIn) (*ImportOut, error) {
+		return importLinks(ctx, a, in, nil)
+	})
+	ops.Def("ingest.url.tools", "Check the downloader link imports use on this machine: yt-dlp version and age, how it updates, its JavaScript runtime for YouTube, PO-token plugins", ops.Flags{}, func(ctx context.Context, a *app.App, _ *ImportToolsIn) (*ImportTools, error) {
+		st := Probe(ctx, a)
+		return &st, nil
+	})
+	defConfigure()
+}
+
+// StartFrom imports a link to start from (D401): the video comes in as a
+// reference and the draft asked for is recorded on the import, then on the
+// clip it makes, for MetaRush to make once it has looked at the video. It is
+// the link import's own path (ingest.url), with the person who asked as the
+// draft's.
+func StartFrom(ctx context.Context, a *app.App, in ImportIn, sf models.StartFromVideo) (*ImportOut, error) {
+	in.Reference = true
+	sf.For = a.Actor
+	return importLinks(ctx, a, &in, &sf)
+}
+
+// importLinks is ingest.url: start carries a draft asked for from the videos.
+func importLinks(ctx context.Context, a *app.App, in *ImportIn, start *models.StartFromVideo) (*ImportOut, error) {
+	{
 		if len(in.URLs) == 0 {
 			return nil, apperr.New(apperr.InvalidInput, "Paste at least one link.")
 		}
@@ -221,7 +248,8 @@ func init() {
 					continue
 				}
 			}
-			p := Payload{URL: l.URL, Input: row.Input, Platform: l.Platform, Kind: l.Kind, VideoID: l.VideoID, ListID: l.ListID, Browser: in.BrowserSignIn, Via: via, Limit: in.Playlist}
+			p := Payload{URL: l.URL, Input: row.Input, Platform: l.Platform, Kind: l.Kind, VideoID: l.VideoID, ListID: l.ListID, Browser: in.BrowserSignIn, Via: via, Limit: in.Playlist,
+				Reference: in.Reference, StartFrom: start}
 			j, created, err := a.Queue.Enqueue(ctx, jobs.EnqueueOptions{Type: jobs.TypeImport, Payload: p.asMap(), IdempotencyKey: IdempotencyKey(host.ID, l, in.ProjectID),
 				Priority: 9, MaxAttempts: 3, ProjectID: in.ProjectID, Actor: a.Actor, Installation: host.ID})
 			if err != nil {
@@ -236,10 +264,18 @@ func init() {
 				if in.BrowserSignIn != "" && j.State == models.JobQueued {
 					_ = a.DB.Update(ctx, store.CJobs, a.WorkspaceID(), j.ID, bson.M{"$set": bson.M{"payload.browser": in.BrowserSignIn, "updatedAt": time.Now().UTC()}})
 				}
+				// The import running reads these when its clip is in (afterAdding).
+				if set := askedOf(in, start); len(set) > 0 {
+					set["updatedAt"] = time.Now().UTC()
+					_ = a.DB.Update(ctx, store.CJobs, a.WorkspaceID(), j.ID, bson.M{"$set": set})
+				}
 			case j.State == models.JobFailed || j.State == models.JobCanceled:
 				// The same import again (perhaps with the browser sign-in now): it
 				// continues where it stopped.
 				set := bson.M{"payload.browser": in.BrowserSignIn, "payload.via": via, "payload.limit": in.Playlist, "updatedAt": time.Now().UTC()}
+				for k, v := range askedOf(in, start) {
+					set[k] = v
+				}
 				_ = a.DB.Update(ctx, store.CJobs, a.WorkspaceID(), j.ID, bson.M{"$set": set, "$unset": bson.M{"payload.advice": "", "payload.detail": ""}})
 				if _, err := a.Queue.Retry(ctx, j.ID); err != nil {
 					return nil, err
@@ -289,14 +325,26 @@ func init() {
 		}
 		if out.Queued+out.Already > 0 {
 			a.Audit(ctx, "import.url", "workspace", a.WorkspaceID(), in.ProjectID, map[string]any{"queued": out.Queued, "already": out.Already, "refused": out.Refused,
-				"jobIds": out.JobIDs, "browserSignIn": in.BrowserSignIn, "via": via})
+				"jobIds": out.JobIDs, "browserSignIn": in.BrowserSignIn, "via": via, "reference": in.Reference, "startFrom": start != nil})
 		}
 		return out, nil
-	})
-	ops.Def("ingest.url.tools", "Check the downloader link imports use on this machine: yt-dlp version and age, how it updates, its JavaScript runtime for YouTube, PO-token plugins", ops.Flags{}, func(ctx context.Context, a *app.App, _ *ImportToolsIn) (*ImportTools, error) {
-		st := Probe(ctx, a)
-		return &st, nil
-	})
+	}
+}
+
+// askedOf is what an import of a link carries beyond the video (D398, D401):
+// that new clips are references, and a draft asked for from them.
+func askedOf(in *ImportIn, start *models.StartFromVideo) bson.M {
+	set := bson.M{}
+	if in.Reference {
+		set["payload.reference"] = true
+	}
+	if start != nil {
+		set["payload.startFrom"] = start
+	}
+	return set
+}
+
+func defConfigure() {
 	ops.Def("ingest.url.update", "Update the downloader (yt-dlp) the way it was installed: brew upgrade, or yt-dlp -U for the self-contained build; owners", ops.Flags{Mutating: true, OwnerOnly: true}, func(ctx context.Context, a *app.App, _ *ImportToolsIn) (*ImportToolsUpdate, error) {
 		res, err := Update(ctx, a)
 		if errors.Is(err, ErrSelfUpdateUnsupported) {

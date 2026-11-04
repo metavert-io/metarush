@@ -5,6 +5,7 @@ import type { AssistantAction } from '../../api/types';
 import { money } from '../../lib/costs';
 import { useDialog } from '../../ui/Dialog';
 import { cx, Theirs } from '../../ui/primitives';
+import { webLink } from '../WhatItDoes';
 import type { RecipeCardView } from './api';
 import { Differences } from './Differences';
 import { RunSteps, whoElse } from './RunSteps';
@@ -42,6 +43,7 @@ export function RecipeCardBody({ action, onOpen }: { action: AssistantAction; on
       {card.kind === 'save' ? <SavePlan card={card} /> : null}
       {card.kind === 'update' || card.kind === 'publish' || card.kind === 'sheet' || card.kind === 'suggested' ? <Changes card={card} /> : null}
       {card.kind === 'picks' ? <PicksPlan card={card} /> : null}
+      {card.kind === 'fromvideo' ? <FromVideoPlan card={card} details={action.details ?? []} /> : null}
       {card.problems?.length ? (
         <ul className="space-y-0.5" data-card-problems>
           {card.problems.map((p, i) => (
@@ -69,6 +71,75 @@ export function RecipeCardBody({ action, onOpen }: { action: AssistantAction; on
         </button>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Starting from a video someone liked (D402): the video and where it came
+ * from, what comes of it (a reference no cut plays, a draft shaped like it)
+ * and, when MetaRush has looked at it already, what it does.
+ */
+function FromVideoPlan({ card, details }: { card: RecipeCardView; details: string[] }) {
+  const [open, setOpen] = useState(false);
+  const does = card.does ?? [];
+  const original = webLink(card.videoFrom);
+  return (
+    <>
+      <p className="text-[12.5px] leading-relaxed text-muted" data-card-video>
+        {card.video ? (
+          <>
+            From <Theirs>{card.video}</Theirs>
+            {original ? (
+              <>
+                {' '}
+                (
+                <a href={original} target="_blank" rel="noreferrer noopener" className="text-accent-text hover:underline">
+                  the original
+                </a>
+                )
+              </>
+            ) : null}
+            .
+          </>
+        ) : original ? (
+          <>
+            From the video at{' '}
+            <a href={original} target="_blank" rel="noreferrer noopener" className="break-all text-accent-text hover:underline">
+              <Theirs>{original}</Theirs>
+            </a>
+            .
+          </>
+        ) : null}
+      </p>
+      <ul className="space-y-0.5 text-[12.5px] leading-relaxed text-muted" data-card-lines>
+        {details
+          .filter((d) => !d.startsWith('What it does: '))
+          .map((d, i) => (
+            <li key={i}>{d}</li>
+          ))}
+      </ul>
+      {does.length ? (
+        <div>
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className="inline-flex items-center gap-1 text-[12px] font-medium text-accent-text hover:underline"
+            data-card-does-toggle
+          >
+            {open ? <CaretDown size={12} aria-hidden /> : <CaretRight size={12} aria-hidden />}
+            What the video does
+          </button>
+          {open ? (
+            <ul className="mt-1 space-y-0.5 text-[12px] leading-relaxed text-muted" data-card-does>
+              {does.map((l, i) => (
+                <li key={i}>{l}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </>
   );
 }
 

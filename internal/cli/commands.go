@@ -602,6 +602,7 @@ func footageCmd() *cobra.Command {
 	cmd.AddCommand(visualsCmd())
 	cmd.AddCommand(facesCmd())
 	cmd.AddCommand(describeCmd())
+	cmd.AddCommand(footageWhatItDoesCmd(), footageReferenceCmd()) // what a video does, reference clips (whatitdoes.go, D398, D399)
 	cmd.AddCommand(&cobra.Command{
 		Use: "evidence <asset-id>", Short: "What MetaRush measured in a clip: pauses, cuts and picture changes, black or frozen picture, loudness", Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {

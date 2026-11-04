@@ -112,7 +112,10 @@ func exemplars(f models.FaceTrack) []faceid.Exemplar {
 func loadRecognizer(ctx context.Context, a *app.App) (*recognizer, error) {
 	r := &recognizer{th: Thresholds, conflict: map[string]string{}, conflictScore: map[string]float64{}}
 	var all []models.FaceTrack
-	if err := a.DB.Find(ctx, store.CFaces, a.WorkspaceID(), bson.M{"personId": bson.M{"$nin": bson.A{nil, ""}}, "confirmedBy": bson.M{"$ne": nil}, "printModel": faceid.ModelName}, &all,
+	// A reference's faces never teach (D443, D455), even if a fingerprint
+	// were left on one.
+	if err := a.DB.Find(ctx, store.CFaces, a.WorkspaceID(), bson.M{"personId": bson.M{"$nin": bson.A{nil, ""}}, "confirmedBy": bson.M{"$ne": nil}, "printModel": faceid.ModelName,
+		"assetId": bson.M{"$nin": referenceIDs(ctx, a)}}, &all,
 		options.Find().SetSort(bson.D{{Key: "confirmedAt", Value: 1}, {Key: "_id", Value: 1}}).SetProjection(bson.M{"personId": 1, "name": 1, "prints": 1, "printModel": 1, "checked": 1,
 			"confirmedBy": 1, "confirmedGroup": 1, "quality": 1})); err != nil {
 		return nil, err
@@ -220,7 +223,7 @@ func Refresh(ctx context.Context, a *app.App, also string) (*Change, error) {
 		return nil, err
 	}
 	var fs []models.FaceTrack
-	if err := a.DB.Find(ctx, store.CFaces, a.WorkspaceID(), bson.M{"$or": bson.A{
+	if err := a.DB.Find(ctx, store.CFaces, a.WorkspaceID(), bson.M{"assetId": bson.M{"$nin": referenceIDs(ctx, a)}, "$or": bson.A{
 		bson.M{"printModel": faceid.ModelName},
 		bson.M{"recognized": bson.M{"$ne": nil}},
 		bson.M{"candidate.by": bson.M{"$in": bson.A{"looks", "both"}}},

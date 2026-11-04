@@ -122,7 +122,7 @@ first-party abilities were added after the original 166 (every third held out, w
 
 Generated from `firstparty.json` (a test keeps this list naming every ID).
 
-### Understand footage (10)
+### Understand footage (11)
 
 | ID | Ability | Runs | Needs | What leaves |
 |---|---|---|---|---|
@@ -134,6 +134,7 @@ Generated from `firstparty.json` (a test keeps this list naming every ID).
 | `call-switches` | Picture switches in calls | `footage.switches.find` | FFmpeg | — |
 | `scene-descriptions` | Scene descriptions | `footage.describe` | Claude Code | pictures of each scene leave this computer, for Claude |
 | `transcripts` | Transcripts and captions | `footage.analyze` | the transcriber, FFmpeg | — |
+| `what-a-video-does` | What a video does | `footage.whatItDoes` | the transcriber, FFmpeg | — |
 | `whats-on-screen` | What's on screen | `footage.visuals` | a Mac, the on-screen helper | — |
 | `who-speaks` | Who speaks | `footage.speakers.detect` | the transcriber, FFmpeg | — |
 
@@ -154,7 +155,7 @@ Generated from `firstparty.json` (a test keeps this list naming every ID).
 | `trim-silent-ends` | Trim silent ends | `asset.fixes.set` `tick: ["ends"]` | FFmpeg | — |
 | `cloud-voices` | Voices cleaned in the cloud | `sound.enhance` `mode: "cloud"` | ElevenLabs key, priced first | the voices' sound leaves this computer |
 
-### Make media (24)
+### Make media (25)
 
 | ID | Ability | Runs | Needs | What leaves |
 |---|---|---|---|---|
@@ -181,6 +182,7 @@ Generated from `firstparty.json` (a test keeps this list naming every ID).
 | `remotion-refreshes` | Remotion refreshes | `remotion.refresh.start` | Node.js and FFmpeg | — |
 | `repository-cards` | Repository cards | `resources.make` `kind: "stats"` | Node.js and FFmpeg | — |
 | `stand-in-narration` | Stand-in narration | `voiceover.scratch` | a system voice | — |
+| `start-from-a-video` | Start from a video you like | `recipe.fromVideo` | the transcriber, FFmpeg | — |
 | `voice-copies` | Voice copies | `ai.voices.copy` | ElevenLabs or Google Gemini key, priced first | a recording of the person's voice leaves this computer |
 
 ### Bring things in (10)

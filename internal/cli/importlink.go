@@ -174,6 +174,7 @@ A timeline exported from another editing app becomes a cut with: metarush import
 	cmd.Flags().Lookup("browser-signin").NoOptDefVal = rememberedBrowser
 	cmd.Flags().IntVar(&in.Playlist, "playlist", 0, "for a playlist or channel link: import its first N videos (without it such links import nothing)")
 	cmd.Flags().BoolVar(&in.DryRun, "dry-run", false, "look the links up (title, account, length, license) without importing")
+	cmd.Flags().BoolVar(&in.Reference, "reference", false, "bring new videos in as references: someone else's videos, kept to learn from, that no cut plays")
 	cmd.Flags().BoolVar(&wait, "wait", false, "import here and wait for the preview and transcript too")
 	cmd.Flags().BoolVar(&updateTools, "update-tools", false, "update the downloader (yt-dlp) the way it was installed")
 	cmd.Flags().BoolVar(&checkTools, "check-tools", false, "show the downloader on this machine: version, age, JavaScript runtime")

@@ -217,9 +217,9 @@ func planMake(ctx context.Context, a *app.App, in *MakeIn) (*plan, error) {
 			return nil, err
 		}
 		for _, ref := range in.Pictures {
-			name := ref
+			name, version := ref, ""
 			if i := strings.LastIndex(ref, "@"); i > 0 {
-				name = ref[:i]
+				name, version = ref[:i], ref[i+1:]
 			}
 			e, err := resources.Find(ctx, a, p.projectID, view, name)
 			if err != nil {
@@ -227,6 +227,9 @@ func planMake(ctx context.Context, a *app.App, in *MakeIn) (*plan, error) {
 			}
 			if e.Resource.Kind != models.ResourceImage {
 				return nil, apperr.New(apperr.InvalidInput, "“%s” isn't a photo or picture file, so it can't be sent with the request.", e.Resource.Title)
+			}
+			if err := resources.RefuseFrameOfReference(ctx, a, &e.Resource, version, "send it to an AI service or make anything from it"); err != nil { // D457
+				return nil, err
 			}
 			p.inputs = append(p.inputs, input{role: aiservices.RolePicture, picture: ref, title: e.Resource.Title})
 			p.touched = append(p.touched, e.Resource.ProjectID)
@@ -310,9 +313,9 @@ func (p *plan) onePicture(ctx context.Context, a *app.App, pictures []string) er
 		return apperr.New(apperr.InvalidInput, "Choose one picture from the resources library.")
 	}
 	ref := pictures[0]
-	name := ref
+	name, version := ref, ""
 	if i := strings.LastIndex(ref, "@"); i > 0 {
-		name = ref[:i]
+		name, version = ref[:i], ref[i+1:]
 	}
 	view, err := projectlinks.Load(ctx, a, p.projectID)
 	if err != nil {
@@ -325,6 +328,9 @@ func (p *plan) onePicture(ctx context.Context, a *app.App, pictures []string) er
 	r := e.Resource
 	if r.Kind != models.ResourceImage {
 		return apperr.New(apperr.InvalidInput, "“%s” isn't a photo or picture file.", r.Title)
+	}
+	if err := resources.RefuseFrameOfReference(ctx, a, &r, version, "send it to an AI service or make anything from it"); err != nil { // D457
+		return err
 	}
 	mime, w, h := "image/png", 0, 0
 	if len(r.Versions) > 0 {
@@ -869,6 +875,9 @@ func clipPart(ctx context.Context, a *app.App, id string, from, to *float64) (*m
 	var as models.Asset
 	if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), id, &as); err != nil {
 		return nil, 0, 0, apperr.New(apperr.NotFound, "That clip isn't in this workspace.").WithDetails(map[string]any{"assetId": id})
+	}
+	if as.IsReference() {
+		return nil, 0, 0, ops.RefuseReference(&as, "send it to an AI service or make anything from it") // D441
 	}
 	if !as.Media.HasAudio {
 		return nil, 0, 0, apperr.New(apperr.UnsupportedMedia, "“%s” has no sound.", as.DisplayTitle())

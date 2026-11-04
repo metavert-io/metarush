@@ -121,7 +121,7 @@ func visualHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 	report(0.05, "looking at what's on screen")
 	idx, err := visual.Run(ctx, a.Tools, src, as.Media.Duration, extra, cuts, srcName, dir, func(done, total int) {
 		report(0.05+0.85*float64(done)/float64(max(1, total)), fmt.Sprintf("looked at %d of %d frames", done, total))
-	}, visual.RunOptions{Prints: facePrinter(ctx, w)})
+	}, visual.RunOptions{Prints: printerFor(ctx, w, as)})
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +153,16 @@ func visualHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 	res = map[string]any{"insightId": ins.ID, "frames": idx.Frames, "faces": len(idx.Tracks), "text": len(idx.Text), "labels": len(idx.Labels),
 		"summary": idx.Summary, "questions": asked, "recognized": len(recognized), "fingerprints": printed(idx)}
 	return res, nil
+}
+
+// printerFor fingerprints a clip's faces, never a reference's (someone else's
+// video, D443): its faces are found, not fingerprinted, so they never match or
+// teach anyone's face.
+func printerFor(ctx context.Context, w *Worker, as *models.Asset) visual.Printer {
+	if as.IsReference() {
+		return nil
+	}
+	return facePrinter(ctx, w)
 }
 
 // facePrinter is this machine's face fingerprinting (D114): onnxruntime from

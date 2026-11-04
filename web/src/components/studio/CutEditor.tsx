@@ -17,7 +17,8 @@ import { loadPref, savePref } from '../../lib/theme';
 import { CropFraming, Layers, ReviewPanel } from '../CutReview';
 import { SourceInspector } from '../SourceInspector';
 import { ClipDetail, transitionWords } from '../Timeline';
-import { BackgroundDialog, backgroundWords, canReplaceBackground } from './BackgroundDialog';
+import { seeThroughHere } from '@metarush/video/seethrough';
+import { BackgroundDialog, SEE_THROUGH_NOTE, backgroundWords, canReplaceBackground } from './BackgroundDialog';
 import { CallFixes } from './CallFixes';
 import { CutTranscript } from './CutTranscript';
 import { CopyStatus, PreviewSwitch, useCutCopies } from './ReviewCopy';
@@ -277,6 +278,11 @@ export function CutEditor({ data, onOpenSource, workspaceInstallations }: { data
           <ShapeSkeleton shape={shape} tall="max-w-[380px]" square="max-w-[480px]" className="rounded-[14px]" />
         )}
         <CopyStatus copies={copies} head={headRev} showing={showing} dirty={editor.dirty} onWatch={(r) => setChoice(r.id)} />
+        {!showing && spec?.clips?.some((c) => c.background) && !seeThroughHere() ? (
+          <p className="mt-2 text-center text-[12px] text-subtle" data-see-through-note>
+            {SEE_THROUGH_NOTE}
+          </p>
+        ) : null}
         <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px] text-subtle">
           <span className="tc">{timecode(time)}</span>
           <span aria-hidden>/</span>

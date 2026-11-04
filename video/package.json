@@ -6,6 +6,7 @@
   "description": "MetaRush Remotion package: renders a Go-resolved RenderPlan verbatim (dashboard preview via @remotion/player, final renders via render/render.mjs).",
   "exports": {
     "./lib": "./src/lib.ts",
+    "./seethrough": "./src/clips/seethrough.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

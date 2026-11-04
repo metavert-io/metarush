@@ -5,6 +5,7 @@ import { useOp } from '../../api/queries';
 import type { AssetSummary, Clip } from '../../api/types';
 import { timecode } from '../../lib/format';
 import { Button, cx, Segmented, Spinner } from '../../ui/primitives';
+import { seeThroughHere } from '@metarush/video/seethrough';
 
 type With = 'colour' | 'blur' | 'picture' | 'footage';
 
@@ -40,7 +41,14 @@ export function canReplaceBackground(clip: Clip, asset: AssetSummary | undefined
   return !!asset && asset.kind === 'video' && !asset.reference;
 }
 
-const safari = () => typeof navigator !== 'undefined' && /^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
+
+/**
+ * What the preview does where the browser can't show see-through video
+ * (Safari, every browser on an iPhone or iPad): said in the dialog and under
+ * the Edit tab's preview.
+ */
+export const SEE_THROUGH_NOTE =
+  "This browser can't show see-through video, so its preview plays clips with a new background as recorded; the review copy and the final video show the new background, as Chrome, Edge and Firefox on a computer do.";
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -169,10 +177,9 @@ export function BackgroundDialog({
         this workspace: free, and nothing leaves it.
       </p>
       <Segmented<With> label="What goes behind the people" value={kind} onChange={setKind} items={KINDS} />
-      {safari() ? (
+      {!seeThroughHere() ? (
         <p className="text-[12.5px] text-subtle" data-safari-note>
-          Safari can't show a video's see-through parts, so its preview plays this clip as recorded; the review copy, the final render, Chrome, Edge
-          and Firefox show the new background.
+          {SEE_THROUGH_NOTE}
         </p>
       ) : null}
 

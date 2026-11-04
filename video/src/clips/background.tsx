@@ -3,6 +3,7 @@ import React, { useState, type CSSProperties } from 'react';
 import { AbsoluteFill, Img, OffthreadVideo, getRemotionEnvironment } from 'remotion';
 import { safeColor } from '../theme/brand';
 import { framingStyle } from './framing';
+import { seeThroughHere } from './seethrough';
 
 /**
  * A clip's background replaced (D510). Go resolved what goes behind the
@@ -16,14 +17,12 @@ import { framingStyle } from './framing';
  */
 
 /**
- * Whether this browser shows a video's see-through parts: Safari plays VP9
- * but not its alpha channel, so there the preview plays the clip as recorded
- * (renders draw in Chrome, the review copy shows the new background).
+ * Whether this browser shows a video's see-through parts (seethrough.ts:
+ * not Safari, nor any browser on an iPhone or iPad); where it can't, the
+ * preview plays the clip as recorded (renders draw in Chrome, the review copy
+ * shows the new background).
  */
-export const seeThroughVideo = (): boolean => {
-  if (getRemotionEnvironment().isRendering || typeof navigator === 'undefined') return true;
-  return !/^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
-};
+export const seeThroughVideo = (): boolean => getRemotionEnvironment().isRendering || seeThroughHere();
 
 /** The clip's cut-out file, when the plan has its URL (the preview may not yet). */
 export const cutOutSrc = (clip: PlanClip, plan: RenderPlan): string | undefined => {

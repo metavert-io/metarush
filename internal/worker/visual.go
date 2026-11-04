@@ -88,8 +88,8 @@ func visualHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 				return nil, wait
 			}
 		} else if wait := macFirst(ctx, w, j); wait != nil {
-			// A Mac in the workspace sees more (D410): it gets the first go, at a
-			// fixed copy only the original of which Apple Vision looked at too.
+			// A Mac in the workspace sees more (D410): it gets the first go, also
+			// at a fixed copy whose original Apple Vision looked at (D467).
 			return nil, wait
 		}
 		if mine != nil {

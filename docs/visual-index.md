@@ -566,11 +566,11 @@ looks was seen in the last day; with none, the clip fails as before, with the on
 person asking, or catch-up after an upgrade) only by a Mac while one that looks was seen in the last 30 days — the
 computer with the open models puts it back, waiting longer each time, at most three hours. After 30 days without one
 it looks itself and keeps what Apple Vision saw that the open models don't look for: the places, things, animals and
-gestures (`kept` in the index, said in the readout's note); looking again later keeps what that look kept (D468). It is the
-index of the media the clip plays now that counts: a fixed copy nothing looked at yet gets a first look like any new
-clip (a Mac about now gets it first), even when Apple Vision looked at the original, and keeps the original's places,
-things and animals but not its gestures — where a hand was in the original's picture says nothing about a steadied
-copy's. The original's index stays as it was.
+gestures (`kept` in the index, said in the readout's note); looking again later keeps what that look kept (D468). It
+is the index of the media the clip plays now that counts: a fixed copy nothing looked at yet gets a first look like
+any new clip (a Mac about now gets it first), even when Apple Vision looked at the original, and keeps the original's
+places, things and animals but not its gestures — where a hand was in the original's picture says nothing about a
+steadied copy's. The original's index stays as it was.
 
 **Fingerprints say what found the face** (D448, `printsBy`): `apple-vision` or `open-models` (older ones are Apple
 Vision's). Matching treats both alike — one library can hold both, where a workspace has a Mac and a computer without

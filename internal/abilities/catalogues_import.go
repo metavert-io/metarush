@@ -219,14 +219,24 @@ var fetchedKeep = 10 * time.Minute
 // be the version they name (D485): a person's Bring it in (a look first, then
 // bringing it in) fetches once. Keyed by the workspace, where the files came
 // from and the version, so a listing elsewhere naming the same version is
-// fetched from there all the same; a few at a time, each for fetchedKeep.
+// fetched from there all the same; a few at a time (fetchedMax, and
+// fetchedMaxBytes of memory in all), each for fetchedKeep.
 var fetched = struct {
 	sync.Mutex
 	m     map[string]*Archive
 	order []string
+	bytes int64
 }{m: map[string]*Archive{}}
 
+// At most fetchedMax archives, and fetchedMaxBytes of memory, are kept (a
+// variable only for tests).
 const fetchedMax = 4
+
+var fetchedMaxBytes int64 = 96 << 20
+
+// fetchedWeight is about what an archive holds in memory: its canonical
+// bytes and its files' (both base64 for files that aren't text).
+func fetchedWeight(arc *Archive) int64 { return 2 * int64(len(arc.Bytes)) }
 
 func fetchedKey(ws string, e models.CatalogueEntry) string {
 	if g := e.Source.Git; g != nil {
@@ -238,27 +248,34 @@ func fetchedKey(ws string, e models.CatalogueEntry) string {
 	return ""
 }
 
+// dropFetched lets go of a kept archive (fetched is locked).
+func dropFetched(k string) {
+	if arc, ok := fetched.m[k]; ok {
+		fetched.bytes -= fetchedWeight(arc)
+		delete(fetched.m, k)
+	}
+	fetched.order = slices.DeleteFunc(fetched.order, func(x string) bool { return x == k })
+}
+
 func keepFetched(ws string, e models.CatalogueEntry, arc *Archive) {
 	k := fetchedKey(ws, e)
-	if k == "" || arc.Hash != e.Archive {
+	if k == "" || arc.Hash != e.Archive || fetchedWeight(arc) > fetchedMaxBytes {
 		return
 	}
 	fetched.Lock()
 	defer fetched.Unlock()
-	if _, ok := fetched.m[k]; !ok {
-		fetched.order = append(fetched.order, k)
-	}
+	dropFetched(k)
 	fetched.m[k] = arc
-	for len(fetched.order) > fetchedMax {
-		delete(fetched.m, fetched.order[0])
-		fetched.order = fetched.order[1:]
+	fetched.order = append(fetched.order, k)
+	fetched.bytes += fetchedWeight(arc)
+	for len(fetched.order) > fetchedMax || fetched.bytes > fetchedMaxBytes {
+		dropFetched(fetched.order[0]) // the oldest first
 	}
 	time.AfterFunc(fetchedKeep, func() {
 		fetched.Lock()
 		defer fetched.Unlock()
 		if fetched.m[k] == arc {
-			delete(fetched.m, k)
-			fetched.order = slices.DeleteFunc(fetched.order, func(x string) bool { return x == k })
+			dropFetched(k)
 		}
 	})
 }

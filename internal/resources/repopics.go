@@ -436,7 +436,7 @@ func keepRepoPictures(ctx context.Context, a *app.App, bare string, r RepoRef, r
 	// limits, so the scratch folder holds at most what one fetch keeps.
 	var written int
 	var writtenBytes int64
-	if err := readBlobs(ctx, a.Tools, bare, shas, func(sha string, data []byte) error {
+	if err := readBlobs(ctx, a.Tools, bare, shas, BlobLimits{Each: lim.fileBytes, Total: budget}, func(sha string, data []byte) error {
 		f := ""
 		for _, i := range byBlob[sha] {
 			ext, no := classifyPicture(path.Base(want[i].path), data)

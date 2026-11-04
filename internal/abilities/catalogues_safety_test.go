@@ -562,3 +562,49 @@ func openTodosOf(t *testing.T, a *app.App, kind string) []models.Todo {
 	}
 	return open
 }
+
+// What a look fetched is kept by workspace, within a count and a size in
+// memory, and for a while (D485).
+func TestFetchedArchivesAreBounded(t *testing.T) {
+	reset := func() {
+		fetched.Lock()
+		fetched.m, fetched.order, fetched.bytes = map[string]*Archive{}, nil, 0
+		fetched.Unlock()
+	}
+	oldMax, oldKeep := fetchedMaxBytes, fetchedKeep
+	t.Cleanup(func() { fetchedMaxBytes, fetchedKeep = oldMax, oldKeep; reset() })
+	reset()
+	archive := func(n int, i int) (*Archive, models.CatalogueEntry) {
+		h := strings.Repeat(string("0123456789abcdef"[i]), 64)
+		return &Archive{Hash: h, Bytes: make([]byte, n)},
+			models.CatalogueEntry{Archive: h, Source: models.CatalogueSource{File: &models.CatalogueFileSource{URL: "https://x.example/" + h, SHA256: h}}}
+	}
+	fetchedMaxBytes = 1000
+	big, be := archive(600, 0) // about 1,200 bytes in memory: past the limit
+	keepFetched("ws", be, big)
+	if fetchedBefore("ws", be) != nil {
+		t.Fatal("an archive past the limit is kept")
+	}
+	a1, e1 := archive(200, 1)
+	a2, e2 := archive(200, 2)
+	a3, e3 := archive(200, 3)
+	keepFetched("ws", e1, a1)
+	keepFetched("ws", e2, a2)
+	keepFetched("ws", e3, a3) // 1,200 in all: the oldest goes
+	if fetchedBefore("ws", e1) != nil || fetchedBefore("ws", e2) != a2 || fetchedBefore("ws", e3) != a3 || fetched.bytes != 800 {
+		t.Fatalf("kept within the size: %d bytes", fetched.bytes)
+	}
+	if fetchedBefore("another", e2) != nil {
+		t.Fatal("another workspace's look")
+	}
+	fetchedKeep = 20 * time.Millisecond
+	a4, e4 := archive(10, 4)
+	keepFetched("ws", e4, a4)
+	deadline := time.Now().Add(5 * time.Second)
+	for fetchedBefore("ws", e4) != nil && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if fetchedBefore("ws", e4) != nil {
+		t.Fatal("kept past its time")
+	}
+}

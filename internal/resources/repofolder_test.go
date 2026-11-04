@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -122,5 +123,75 @@ func TestFolderAtFetchesOnlyTheRepositorysOwnFolder(t *testing.T) {
 	}
 	if err := fetchWithin(withoutLazyFetch(ctx), ts, partial, 1, nil, "fetch", "--quiet", "--no-tags", "--depth=1", "origin", commit); err != ErrFetchTooLarge {
 		t.Fatalf("a fetch past its limit: %v", err)
+	}
+}
+
+// Files that pack small but are large are refused by their sizes, which git
+// tells before anything of them is read: memory stays small (a fetch's limit
+// counts packed bytes, so it can't tell).
+func TestFolderAtSizesFilesBeforeReadingThem(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git isn't installed")
+	}
+	base := t.TempDir()
+	bare := filepath.Join(base, "acme", "widget.git")
+	g := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-c", "user.name=Ada", "-c", "user.email=ada@example.invalid", "-c", "commit.gpgsign=false",
+			"-c", "core.hooksPath=/dev/null", "-c", "protocol.file.allow=always", "-c", "init.defaultBranch=main"}, args...)...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	if err := os.MkdirAll(filepath.Dir(bare), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	g(base, "init", "-q", "--bare", bare)
+	g(bare, "config", "uploadpack.allowFilter", "true")
+	g(bare, "config", "uploadpack.allowAnySHA1InWant", "true")
+	work := filepath.Join(t.TempDir(), "w")
+	g(filepath.Dir(work), "init", "-q", work)
+	dir := filepath.Join(work, "abilities", "card")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ability.yaml"), []byte("ability: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	zeros := make([]byte, 6<<20)
+	for i := 0; i < 3; i++ { // 3 × 6 MB of zeros: a few KB each, packed
+		zeros[0] = byte('a' + i)
+		if err := os.WriteFile(filepath.Join(dir, "data"+string(rune('a'+i))+".bin"), zeros, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g(work, "add", "-A")
+	g(work, "commit", "-qm", "large files that pack small")
+	g(work, "push", "-q", bare, "HEAD:refs/heads/main")
+	commit := g(work, "rev-parse", "HEAD")
+	t.Setenv("METARUSH_GIT_BASE", base)
+	ts := tools.New(config.Tools{})
+	ctx := context.Background()
+	for what, c := range map[string]struct {
+		lim  FolderLimits
+		want string
+	}{
+		"one file past its limit": {FolderLimits{Files: 256, FileBytes: 1 << 20, TotalBytes: 64 << 20}, "is 6.0 MB"},
+		"the files past theirs":   {FolderLimits{Files: 256, FileBytes: 8 << 20, TotalBytes: 10 << 20}, "add up to more than 10.0 MB"},
+	} {
+		runtime.GC()
+		var m0, m1 runtime.MemStats
+		runtime.ReadMemStats(&m0)
+		_, err := FolderAt(ctx, ts, t.TempDir(), "https://github.com/acme/widget", commit, "abilities/card", c.lim)
+		runtime.ReadMemStats(&m1)
+		if err == nil || !strings.Contains(apperr.From(err).Message, c.want) {
+			t.Errorf("%s: %v", what, err)
+		}
+		if grew := int64(m1.TotalAlloc - m0.TotalAlloc); grew > 4<<20 {
+			t.Errorf("%s: %d MB read into memory (a file is 6 MB)", what, grew>>20)
+		}
 	}
 }

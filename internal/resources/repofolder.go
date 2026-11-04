@@ -336,21 +336,59 @@ func filesAt(ctx context.Context, ts *tools.Set, repo, commit, folder string, li
 		}
 		files = append(files, f)
 	}
+	bySha := map[string]string{}
+	for _, e := range entries {
+		bySha[e.path] = e.sha
+	}
+	fullPath := func(rel string) string {
+		if folder == "" {
+			return rel
+		}
+		return folder + "/" + rel
+	}
 	if fetch != nil && len(shas) > 0 {
 		if err := fetch(shas); err != nil {
 			return nil, err
 		}
+		// A partial copy's files are sized now, from git's index of them,
+		// before any is read: a fetch is limited by its packed bytes, and
+		// files that pack small may be large.
+		sizes, err := blobSizes(ctx, ts, repo, shas)
+		if err != nil {
+			return nil, fmt.Errorf("MetaRush couldn't size the files of %s at %s: %w", name, commit[:12], err)
+		}
+		total = 0
+		for i := range files {
+			f := &files[i]
+			if f.Link() || f.Submodule() {
+				continue
+			}
+			size, ok := sizes[bySha[fullPath(f.Path)]]
+			if !ok {
+				return nil, errors.New("a file of the folder was missing from what the repository sent")
+			}
+			f.Size = size
+			if lim.FileBytes > 0 && size > lim.FileBytes {
+				return nil, tooLarge(f.Path, size)
+			}
+			if total += size; lim.TotalBytes > 0 && total > lim.TotalBytes {
+				return nil, tooMuch()
+			}
+		}
 	}
 	blobs := map[string][]byte{}
-	if err := readBlobs(ctx, ts, repo, shas, func(sha string, data []byte) error {
+	err := readBlobs(ctx, ts, repo, shas, BlobLimits{Each: lim.FileBytes, Total: lim.TotalBytes}, func(sha string, data []byte) error {
 		blobs[sha] = data
 		return nil
-	}); err != nil {
+	})
+	var limit *ErrBlobLimit
+	switch {
+	case errors.As(err, &limit) && limit.Total:
+		return nil, tooMuch()
+	case errors.As(err, &limit):
+		return nil, apperr.New(apperr.InvalidInput, "A file of the folder is %s; a file of an ability may be at most %s.", humanBytes(limit.Size), humanBytes(lim.FileBytes))
+	case err != nil:
 		return nil, err
-	}
-	bySha := map[string]string{}
-	for _, e := range entries {
-		bySha[e.path] = e.sha
 	}
 	total = 0
 	for i := range files {
@@ -358,15 +396,11 @@ func filesAt(ctx context.Context, ts *tools.Set, repo, commit, folder string, li
 		if f.Link() || f.Submodule() {
 			continue
 		}
-		full := f.Path
-		if folder != "" {
-			full = folder + "/" + f.Path
-		}
-		data, ok := blobs[bySha[full]]
+		data, ok := blobs[bySha[fullPath(f.Path)]]
 		if !ok {
 			return nil, errors.New("a file of the folder was missing from what the repository sent")
 		}
-		// Sizes again, as read: a partial copy didn't know them before.
+		// Sizes again, as read.
 		f.Data, f.Size = data, int64(len(data))
 		if lim.FileBytes > 0 && f.Size > lim.FileBytes {
 			return nil, tooLarge(f.Path, f.Size)

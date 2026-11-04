@@ -1107,12 +1107,14 @@ Read `docs/architecture.md` before structural changes.
   repository's own (a branch's or a tag's tip by `ls-remote`, else in their history fetched without folders or files,
   `--filter=tree:0`, never refs/pull/*; GitHub serves a fork network's commits under every copy's address), then the
   commit's folders (`--filter=blob:none --depth=1`) and the folder's own files by name, each fetch within a size limit
-  (`fetchWithin`), no lazy fetch (`withoutLazyFetch`), blobs raw — or an ability file by SHA-256 → `archiveOfFolder`
+  (`fetchWithin`: packed bytes), each file sized by `cat-file --batch-check` (`blobSizes`) before any is read, no lazy
+  fetch (`withoutLazyFetch`), blobs raw (`readBlobs` caps each blob and the total for every caller, `BlobLimits`,
+  before allocating) — or an ability file by SHA-256 → `archiveOfFolder`
   (Build's rules) → refused unless the archive's SHA-256 is the listing's and `listingDiffers` finds nothing (hosts,
   keys, network, sends, outputs, what AI does to them (D460's `ai:`), provides, cost, licence, programs, OS, files,
   likeness, terms, local, changes-outside) → `recordImported` with `imported.catalogue`; the same name from the same
   catalogue is the next version, else `--as-version`. What a look fetched is kept in memory ten minutes by workspace,
-  source and version (`fetched`), so Bring it in fetches once. Browse's `Ref` and every confirmation pin the version
+  source and version (`fetched`: at most 4 and 96 MB), so Bring it in fetches once. Browse's `Ref` and every confirmation pin the version
   in full (`PinListedRef`). The panel's Claude browses (`ability browse`, `ability catalogues list` are read-only
   commands) and its refused import is a HumanOnly card pinned to the version it saw, saying when it comes in as another
   version, never Auto. CLI: `metarush ability catalogues [list|add|remove|make]`, `ability browse`, `ability import

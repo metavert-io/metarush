@@ -47,12 +47,13 @@ func TestFirstPartyCatalogue(t *testing.T) {
 	}
 }
 
-// About fifty to eighty (the AI kinds, presenters, connections, sharing for
-// review and changed words grew it), in every group, each operation once as
-// it is, words people read in plain words.
+// About fifty to eighty-five (the AI kinds, presenters, connections, sharing
+// for review, changed words, Content Credentials, starting from a video and
+// cut-outs off the Mac grew it), in every group, each operation once as it
+// is, words people read in plain words.
 func TestFirstPartyCatalogueIsAMenu(t *testing.T) {
 	fps := catalog.FirstParty()
-	if n := len(fps); n < 45 || n > 80 {
+	if n := len(fps); n < 45 || n > 85 {
 		t.Errorf("%d first-party abilities; the starter catalogue is about fifty", n)
 	}
 	groups := map[string]int{}

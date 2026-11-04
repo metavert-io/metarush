@@ -347,6 +347,34 @@ func TestPersonFor(t *testing.T) {
 	}
 }
 
+// A Tailscale account matches a person like an email does (emailkey): any
+// case, letters beyond A–Z too, so émile@… is the Émile already here; but the
+// Kelvin sign's "Kate" is someone new, never kate@….
+func TestTailscaleAccountsMatchLikeEmails(t *testing.T) {
+	a, _ := testApp(t, faketailscale.Default())
+	ctx := context.Background()
+	now := time.Now().UTC()
+	for _, u := range []models.User{
+		{ID: ids.New(ids.User), WorkspaceID: a.WorkspaceID(), Name: "\u00c9mile", Email: "\u00c9mile@Studio.example", EmailKey: "\u00e9mile@studio.example", CreatedAt: now},
+		{ID: ids.New(ids.User), WorkspaceID: a.WorkspaceID(), Name: "Kate", Email: "kate@client.example", CreatedAt: now}, // from before keys
+	} {
+		if err := a.DB.Insert(ctx, store.CUsers, u); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, login := range []string{"\u00e9mile@studio.example", "\u00c9MILE@STUDIO.EXAMPLE"} {
+		if u, created, err := PersonFor(ctx, a, login, ""); err != nil || created || u.Name != "\u00c9mile" {
+			t.Fatalf("%q: %+v %v %v", login, u, created, err)
+		}
+	}
+	if u, created, err := PersonFor(ctx, a, "KATE@client.example", ""); err != nil || created || u.Name != "Kate" {
+		t.Fatalf("kate: %+v %v %v", u, created, err)
+	}
+	if u, created, err := PersonFor(ctx, a, "\u212Aate@client.example", "Not Kate"); err != nil || !created || u.Name == "Kate" {
+		t.Fatalf("the Kelvin sign found kate: %+v %v %v", u, created, err)
+	}
+}
+
 // Remote access needs no Tailscale (D183): an HTTPS address from any proxy on
 // this computer turns it on; without one, the advice says both ways.
 func TestEnableWithoutTailscale(t *testing.T) {

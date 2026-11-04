@@ -16,6 +16,7 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/auth"
 	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/emailkey"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/remote"
 	"github.com/metavert-io/metarush/internal/sessions"
@@ -218,7 +219,7 @@ func (s *Server) hostGuard(next http.Handler) http.Handler {
 		acc := access{public: true, secure: strings.EqualFold(strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0]), "https")}
 		from, onTailnet := tailnetAddress(r.Header.Get("X-Forwarded-For"))
 		acc.from = from
-		if login := strings.ToLower(remote.DecodeHeader(r.Header.Get("Tailscale-User-Login"))); login != "" && onTailnet {
+		if login := emailkey.Of(remote.DecodeHeader(r.Header.Get("Tailscale-User-Login"))); login != "" && onTailnet {
 			acc.login, acc.name = login, remote.DecodeHeader(r.Header.Get("Tailscale-User-Name"))
 		}
 		if rm.IdentitySignIn() && acc.login != "" && !rm.Allowed(acc.login) && auth.Method(r.Context(), s.App) == models.AuthTailscale {

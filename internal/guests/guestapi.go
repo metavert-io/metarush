@@ -373,18 +373,56 @@ func mayShow(ctx context.Context, a *app.App, v *seen) error {
 		return apperr.New(apperr.Held, "Version %d can't be shown to guests.", v.rev.Number).WithHint("Ask whoever shared it with you for another version.").
 			WithDetails(map[string]any{"reason": ReasonHeld})
 	}
-	if _, bad, err := withdrawn.Version(ctx, a, v.rev.ID); err != nil {
+	if who, bad, err := withdrawn.Version(ctx, a, v.rev.ID); err != nil {
 		return couldntCheck(v.rev.Number, err)
+	} else if bad && who == "" {
+		return tooLarge(v.rev.Number, nestsTooMany(), askForAnother, "")
 	} else if bad {
-		return apperr.New(apperr.ConsentRequired, "Version %d can't be shown to guests.", v.rev.Number).WithHint("Ask whoever shared it with you for another version.").
+		return apperr.New(apperr.ConsentRequired, "Version %d can't be shown to guests.", v.rev.Number).WithHint(askForAnother).
 			WithDetails(map[string]any{"reason": ReasonConsent})
 	}
 	return nil
 }
 
-// couldntCheck is a check that couldn't be made, so nothing is shown.
+const askForAnother = "Ask whoever shared it with you for another version."
+
+// couldntCheck is a check that couldn't be made, so nothing is shown: a
+// lookup that didn't answer (try again), or a version with more in it than
+// the check looks through, which no second try changes.
 func couldntCheck(number int, err error) error {
+	if errors.Is(err, leave.ErrTooMany) {
+		return tooLarge(number, "", askForAnother, "")
+	}
 	return apperr.Wrap(apperr.Database, err, "MetaRush couldn't check version %d just now.", number).WithHint("Try again in a moment.")
+}
+
+// tooLarge refuses a version with more in it than the checks look through
+// (leave.MaxThings things, or withdrawn.MaxNested nested cuts): too large to
+// share with a guest, however often it is asked. why says what (none: how
+// many things it plays); revisionID names it in the details (a share).
+func tooLarge(number int, why, hint, revisionID string) *apperr.Error {
+	if why == "" {
+		why = fmt.Sprintf("it plays more than %s clips, pictures and nested cuts, more than MetaRush checks", commas(leave.MaxThings))
+	}
+	d := map[string]any{"reason": ReasonTooLarge}
+	if revisionID != "" {
+		d["revisionId"] = revisionID
+	}
+	return apperr.New(apperr.Conflict, "Version %d is too large to share with a guest: %s.", number, why).WithHint(hint).WithDetails(d)
+}
+
+// nestsTooMany says why a version past withdrawn.MaxNested nested cuts can't
+// be checked.
+func nestsTooMany() string {
+	return fmt.Sprintf("it nests more than %s, too many to check against consents that were withdrawn", plural(withdrawn.MaxNested, "cut"))
+}
+
+func commas(n int) string {
+	s := fmt.Sprint(n)
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
 }
 
 /* ---------- Watching ---------- */

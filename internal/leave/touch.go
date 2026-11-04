@@ -62,13 +62,18 @@ type toucher struct {
 	out      []string
 	seen     map[string]bool
 	expanded map[string]bool
-	// err is the first lookup that didn't answer (or errTooMany): a walk that
+	// err is the first lookup that didn't answer (or ErrTooMany): a walk that
 	// returns it can't say the list is whole (RevisionTouchesChecked).
 	err error
 }
 
-// errTooMany: more things than one walk looks at.
-var errTooMany = errors.New("it uses too many things to look through")
+// ErrTooMany is a walk that met more things than one walk looks at
+// (MaxThings): its list can't be said to be whole, however often it is asked.
+var ErrTooMany = errors.New("it uses too many things to look through")
+
+// MaxThings is how many things (clips, versions, pictures…) one walk looks
+// at (a variable for tests).
+var MaxThings = 5000
 
 // fail keeps the first lookup that didn't answer; a record that isn't there
 // (deleted since) is no error.
@@ -98,8 +103,8 @@ func (t *toucher) once(key string) bool {
 		return false
 	}
 	t.seen[key] = true
-	if len(t.seen) >= 5000 {
-		t.fail(errTooMany)
+	if len(t.seen) >= MaxThings {
+		t.fail(ErrTooMany)
 		return false
 	}
 	return true

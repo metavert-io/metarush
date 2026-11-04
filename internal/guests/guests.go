@@ -46,10 +46,13 @@ const (
 	// guest's last grant).
 	LinkLife = 24 * time.Hour
 	// MediaLife is how long a signed link to a review copy in the bucket
-	// works: the page asks for a new one when it ends, and each new one asks
-	// the grant again. A link handed out can't be called back, so a video
-	// from the bucket stops within MediaLife of being taken back.
-	MediaLife = 2 * time.Minute
+	// works: the page asks for a new one when it stops working, and each new
+	// one asks the grant again. A link handed out can't be called back, so a
+	// video from the bucket stops within MediaLife of being taken back (a
+	// request already streaming goes on: the bucket checks a link only when a
+	// request starts). Links are signed by this computer's clock and checked
+	// by the bucket's, so a few minutes leave room for clocks that differ.
+	MediaLife = 5 * time.Minute
 	// KeepActivity is how long guests' requests are kept.
 	KeepActivity = 90 * 24 * time.Hour
 	// MaxComment, MaxName and MaxMessage are lengths in characters;
@@ -125,6 +128,7 @@ const (
 	ReasonNotReady   = "not_ready"         // no review copy yet
 	ReasonHeld       = "held"              // it plays someone else's video or changed words
 	ReasonConsent    = "consent_withdrawn" // it plays something made with a consent that was withdrawn
+	ReasonTooLarge   = "too_large"         // more in it than the checks look through
 	ReasonViewer     = "viewer"            // a viewer can't comment
 	ReasonTooMany    = "too_many"          // too many comments
 	ReasonLinkGone   = "link_gone"         // a link used, ended or taken back

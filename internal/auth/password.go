@@ -159,9 +159,10 @@ func CheckPassword(pw, email, name string) error {
 	return nil
 }
 
-// EmailKey is how emails are compared: trimmed, with only the ASCII letters
-// in lower case (emailkey: Unicode's lower case would let another address,
-// written with a character that folds onto an ASCII letter, match).
+// EmailKey is how emails (and Tailscale accounts) are compared: trimmed and
+// in lower case, except the two characters whose lower case is an ASCII
+// letter, which keep their own key (emailkey: else another address, written
+// with one of them, would match).
 func EmailKey(email string) string { return emailkey.Of(email) }
 
 // ValidEmail is a light check that an email looks like one.

@@ -255,6 +255,15 @@ func share(ctx context.Context, a *app.App, in *GuestsShareIn) (*GuestsShareOut,
 			kinds = append(kinds, models.LeaveWords)
 		}
 		touched, err := leave.RevisionTouchesChecked(ctx, a, shown[i].ID)
+		if errors.Is(err, leave.ErrTooMany) {
+			if len(revs) > 0 {
+				return stop(tooLarge(shown[i].Number, "", "Share a version that plays fewer of them.", shown[i].ID))
+			}
+			// One of a project's versions: never shown to guests (mayShow
+			// refuses it the same way), so the rest can still be shared.
+			out.Warnings = append(out.Warnings, fmt.Sprintf("Version %d is too large to share with a guest, so the guest won't see it.", shown[i].Number))
+			continue
+		}
 		if err != nil {
 			return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't check version %d just now.", shown[i].Number).WithHint("Try again in a moment.")
 		}
@@ -328,12 +337,12 @@ func share(ctx context.Context, a *app.App, in *GuestsShareIn) (*GuestsShareOut,
 		if err != nil {
 			return nil, err
 		}
+		if bad && who == "" {
+			return stop(tooLarge(revs[i].Number, nestsTooMany(), "Make a version that nests fewer cuts first.", revs[i].ID))
+		}
 		if bad {
-			e := apperr.New(apperr.ConsentRequired, "Version %d can't be shared with guests: it plays something made with the consent %s withdrew.", revs[i].Number, ops.Quote(who))
-			if who == "" {
-				e = apperr.New(apperr.ConsentRequired, "Version %d can't be shared with guests: it nests more than %s, too many to check against consents that were withdrawn.", revs[i].Number, plural(withdrawn.MaxNested, "cut"))
-			}
-			return stop(e.WithHint("Make a version without it first.").WithDetails(map[string]any{"reason": ReasonConsent, "revisionId": revs[i].ID}))
+			return stop(apperr.New(apperr.ConsentRequired, "Version %d can't be shared with guests: it plays something made with the consent %s withdrew.", revs[i].Number, ops.Quote(who)).
+				WithHint("Make a version without it first.").WithDetails(map[string]any{"reason": ReasonConsent, "revisionId": revs[i].ID}))
 		}
 	}
 	if !On(ctx, a) {

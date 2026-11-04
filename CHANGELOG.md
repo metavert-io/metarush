@@ -13,10 +13,11 @@
   version that plays someone else's video or anything made with a consent that was withdrawn is never shown to them.
   **Nothing is reachable from the internet yet**: the guest address is this computer's own (`http://127.0.0.1:4846`),
   served by a web server of its own on 127.0.0.1 only; a later release gives guests a public address.
-- **Look-alike letters in an email no longer match**. People's sign-ins, invites, guests and the email an organization's
-  sign-in vouches for are matched ignoring the case of A–Z only. A character that merely looks like one (the Kelvin
-  sign K, which other software turns into k) no longer matches, and letters beyond A–Z match as written; the
-  database's stored keys are brought in line when this version updates it.
+- **Look-alike letters in an email no longer match**. People's sign-ins, invites, guests, Tailscale accounts and the
+  email an organization's sign-in vouches for still match in any case (Émile@… is émile@…), but the two characters
+  that only look like a plain letter — the Kelvin sign K and the capital I with a dot, which other software turns into
+  k and i — no longer match it. The database's stored keys for emails written with them are brought in line when this
+  version updates it.
 - **Made-up sign-in values can't hide words in the activity log**. A sign-in link, an organization sign-in's answer,
   a browser extension's pairing code or token, or a password that someone sends MetaRush is kept out of the activity
   log only once it turns out to be real. Before, whatever a visitor sent there was taken for a secret, so a made-up

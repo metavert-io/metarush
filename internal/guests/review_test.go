@@ -9,9 +9,11 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
+	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/guests"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/leave"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/sso"
@@ -79,8 +81,36 @@ func TestGuestsNeverSeeWhatAWithdrawnConsentMade(t *testing.T) {
 	if err := w.a.DB.Update(ctx, store.CRevisions, w.a.WorkspaceID(), w.revs[0], bson.M{"$push": bson.M{"spec.clips": nested}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := w.asGuest(s, "guest.watch", guests.GuestWatchIn{Version: w.revs[0]}); reason(err) != guests.ReasonConsent {
+	if _, err := w.asGuest(s, "guest.watch", guests.GuestWatchIn{Version: w.revs[0]}); reason(err) != guests.ReasonTooLarge ||
+		!strings.Contains(apperr.From(err).Message, "too large to share with a guest") {
 		t.Fatalf("a version nesting too many cuts to look through: %v", err)
+	}
+}
+
+// A version with more in it than the checks look through is too large to
+// share with a guest: said plainly, every time — never "try again in a
+// moment" — to the guest and to an owner sharing it. Sharing the whole
+// project still works; the guest just never sees that version.
+func TestTooLargeToShareWithAGuest(t *testing.T) {
+	w := newWorld(t, testapp.Options{})
+	ctx := context.Background()
+	w.share(t, "dana@client.example", models.GuestViewer)
+	s, _ := w.signIn(t, "dana@client.example")
+	old := leave.MaxThings
+	leave.MaxThings = 2
+	t.Cleanup(func() { leave.MaxThings = old })
+	for i := 0; i < 2; i++ {
+		_, err := w.asGuest(s, "guest.watch", guests.GuestWatchIn{Version: w.revs[0]})
+		if e := apperr.From(err); reason(err) != guests.ReasonTooLarge || !strings.Contains(e.Message, "too large to share with a guest") || strings.Contains(e.Hint, "Try again") {
+			t.Fatalf("watching a version too large to check: %v", err)
+		}
+	}
+	if _, err := callErr(ctx, w.a, "guests.share", guests.GuestsShareIn{Email: "vic@client.example", ProjectID: w.p.ID, Versions: []string{w.revs[0]}, Role: models.GuestViewer, Days: 7}, owner); reason(err) != guests.ReasonTooLarge {
+		t.Fatalf("shared by name: %v", err)
+	}
+	out := w.share(t, "vic@client.example", models.GuestViewer)
+	if !strings.Contains(strings.Join(out.Warnings, " "), "too large to share with a guest") {
+		t.Fatalf("the project's share doesn't say a version is too large: %+v", out.Warnings)
 	}
 }
 
@@ -203,13 +233,14 @@ func TestAGuestsWordsStayOutOfTheActivityLog(t *testing.T) {
 	}
 }
 
-// A provider's vouched-for email matches a guest's only as written, ASCII
-// letters in either case: the Kelvin sign, which Unicode's lower case turns
-// into k, doesn't sign in as kate@….
+// A provider's vouched-for email matches a guest's in any case, letters beyond
+// A–Z too, but the Kelvin sign, which Unicode's lower case turns into k,
+// doesn't sign in as kate@….
 func TestLookAlikeLettersDontMatchAGuest(t *testing.T) {
 	w := newWorld(t, testapp.Options{})
 	ctx := context.Background()
 	w.share(t, "kate@client.example", models.GuestViewer)
+	w.share(t, "\u00c9mile@Client.example", models.GuestViewer)
 	id := func(email, key string) *sso.Identity {
 		return &sso.Identity{Provider: sso.OIDC, Issuer: "https://login.example", Subject: key, Key: key, Email: email, EmailTrusted: true, Scope: "oidc:https://login.example"}
 	}
@@ -218,5 +249,13 @@ func TestLookAlikeLettersDontMatchAGuest(t *testing.T) {
 	}
 	if g, err := guests.ForSSO(ctx, w.a, sso.OIDC, id("KATE@Client.example", "k2")); err != nil || g.Email != "kate@client.example" {
 		t.Fatalf("ASCII capitals: %v %+v", err, g)
+	}
+	if g, err := guests.ForSSO(ctx, w.a, sso.OIDC, id("\u00e9mile@client.example", "e1")); err != nil || g.Email != "\u00c9mile@Client.example" {
+		t.Fatalf("a letter beyond A–Z in another case: %v %+v", err, g)
+	}
+	// Shared again, the email in another case: the same guest.
+	w.share(t, "\u00c9MILE@client.example", models.GuestViewer)
+	if n, _ := w.a.DB.C(store.CGuests).CountDocuments(ctx, bson.M{"workspaceId": w.a.WorkspaceID(), "emailKey": "\u00e9mile@client.example"}); n != 1 {
+		t.Fatalf("%d guests for one email", n)
 	}
 }

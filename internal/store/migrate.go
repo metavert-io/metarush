@@ -227,7 +227,7 @@ var Migrations = []Migration{
 	}},
 	// v67 belongs to a build merged in parallel.
 	{Version: 68, Name: "guests: people outside the workspace an owner shares with, what they may see, their sign-in links and browsers", Up: migrateGuests},
-	{Version: 69, Name: "guests' requests, and the comments they leave; emails matched with only their ASCII letters folded", Up: migrateGuestActivity},
+	{Version: 69, Name: "guests' requests, and the comments they leave; look-alike letters in emails keep their own key", Up: migrateGuestActivity},
 }
 
 // migrateGuests indexes guests (D490: one per email in a workspace), their
@@ -271,19 +271,22 @@ func migrateGuestActivity(ctx context.Context, d *DB) error {
 			options.Index().SetPartialFilterExpression(bson.M{"guest.id": bson.M{"$exists": true}}))); err != nil {
 		return err
 	}
-	return asciiEmailKeys(ctx, d)
+	return lookAlikeEmailKeys(ctx, d)
 }
 
-// asciiEmailKeys keeps people's and guests' email keys in step with how
-// emails are matched now (emailkey: only the ASCII letters folded, D496).
-// Emails written in ASCII keep their key; one with other capitals (Émile@…)
-// gets its key as written. Only records that have a key are looked at, from
-// the email (else the first login) a key is made from; a key that another
-// record holds already is left as it was — which can't happen, as keys that
-// differed before still differ.
-func asciiEmailKeys(ctx context.Context, d *DB) error {
+// lookAlikeEmailKeys keeps people's and guests' email keys in step with how
+// emails are matched now (emailkey, D496): Unicode's lower case as before,
+// except the two characters whose lower case is an ASCII letter (the Kelvin
+// sign, the capital I with a dot), which keep their own key. Only an email
+// written with one of them gets a new key; every other key is what it was.
+// Only records that have a key are looked at, from the email (else the first
+// login) a key is made from; a key that another record holds already is left
+// as it was — which can't happen, as keys that differed before still differ.
+func lookAlikeEmailKeys(ctx context.Context, d *DB) error {
 	for _, coll := range []string{CUsers, CGuests} {
-		cur, err := d.C(coll).Find(ctx, bson.M{"emailKey": bson.M{"$type": "string", "$gt": ""}}, options.Find().SetProjection(bson.M{"email": 1, "emailKey": 1, "logins": 1}))
+		lookAlike := bson.M{"$regex": "[\u0130\u212A]"}
+		cur, err := d.C(coll).Find(ctx, bson.M{"emailKey": bson.M{"$type": "string", "$gt": ""}, "$or": bson.A{bson.M{"email": lookAlike}, bson.M{"logins": lookAlike}}},
+			options.Find().SetProjection(bson.M{"email": 1, "emailKey": 1, "logins": 1}))
 		if err != nil {
 			return fmt.Errorf("%s email keys: %w", coll, err)
 		}

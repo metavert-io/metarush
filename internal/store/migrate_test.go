@@ -62,27 +62,33 @@ func TestGenerationsAreFoundByTheirJob(t *testing.T) {
 	t.Fatalf("no (workspaceId, jobId) index on generations: %+v", ixs)
 }
 
-// Emails are matched with only their ASCII letters folded (emailkey): the
-// guests' second migration gives people's and guests' records the key of
-// their email as it is matched now. ASCII emails keep theirs; one written
-// with other capitals gets its key as written, so it is still found; records
-// without a key are left alone.
-func TestEmailKeysFoldOnlyASCII(t *testing.T) {
+// Emails are matched with Unicode's lower case except the two characters
+// whose lower case is an ASCII letter (emailkey): the guests' second migration
+// gives a record whose email (else first login) has one of them the key it is
+// matched by now, its own; every other key stays as it was — Émile@… is still
+// found as émile@… — and records without a key are left alone.
+func TestEmailKeysKeepLookAlikesApart(t *testing.T) {
 	db := testutil.DB(t)
 	ctx := context.Background()
 	ws := "ws_emailkeys"
 	for _, d := range []bson.M{
 		{"_id": "usr_ascii", "workspaceId": ws, "email": "Kate@Client.example", "emailKey": "kate@client.example"},
-		{"_id": "usr_other", "workspaceId": ws, "email": "Émile@Studio.example", "emailKey": "émile@studio.example"},
-		{"_id": "usr_login", "workspaceId": ws, "logins": []string{"Øle@Example.com"}, "emailKey": "øle@example.com"},
-		{"_id": "usr_nokey", "workspaceId": ws, "email": "Ölaf@Example.com"},
+		{"_id": "usr_other", "workspaceId": ws, "email": "\u00c9mile@Studio.example", "emailKey": "\u00e9mile@studio.example"},
+		{"_id": "usr_kelvin", "workspaceId": ws, "email": "\u212aate@Studio.example", "emailKey": "kate@studio.example"},
+		{"_id": "usr_login", "workspaceId": ws, "logins": []string{"\u0130van@Example.com"}, "emailKey": "ivan@example.com"},
+		{"_id": "usr_nokey", "workspaceId": ws, "email": "\u212aim@Example.com"},
 	} {
 		if _, err := db.C(store.CUsers).InsertOne(ctx, d); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := db.C(store.CGuests).InsertOne(ctx, bson.M{"_id": "gst_other", "workspaceId": ws, "email": "Ännie@Client.example", "emailKey": "ännie@client.example"}); err != nil {
-		t.Fatal(err)
+	for _, d := range []bson.M{
+		{"_id": "gst_other", "workspaceId": ws, "email": "\u00c4nnie@Client.example", "emailKey": "\u00e4nnie@client.example"},
+		{"_id": "gst_kelvin", "workspaceId": ws, "email": "\u212aate@Client.example", "emailKey": "kate@client.example"},
+	} {
+		if _, err := db.C(store.CGuests).InsertOne(ctx, d); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := db.C(store.CMigrations).DeleteOne(ctx, bson.M{"_id": 69}); err != nil {
 		t.Fatal(err)
@@ -91,8 +97,9 @@ func TestEmailKeysFoldOnlyASCII(t *testing.T) {
 		t.Fatal(err)
 	}
 	for coll, want := range map[string]map[string]any{
-		store.CUsers:  {"usr_ascii": "kate@client.example", "usr_other": "Émile@studio.example", "usr_login": "Øle@example.com", "usr_nokey": nil},
-		store.CGuests: {"gst_other": "Ännie@client.example"},
+		store.CUsers: {"usr_ascii": "kate@client.example", "usr_other": "\u00e9mile@studio.example", "usr_kelvin": "\u212aate@studio.example",
+			"usr_login": "\u0130van@example.com", "usr_nokey": nil},
+		store.CGuests: {"gst_other": "\u00e4nnie@client.example", "gst_kelvin": "\u212aate@client.example"},
 	} {
 		for id, key := range want {
 			var d bson.M

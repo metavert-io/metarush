@@ -1162,7 +1162,7 @@ Read `docs/architecture.md` before structural changes.
   `Caller.Guest`; dispatch refuses a guest caller on any other op and members on mutating guest ops (owners read
   with `as`); `guests.Check` re-reads session, guest, live grants and the switch on every request; anything not
   named is `notShared` (a project's grant names only versions with a finished review copy, as its page lists).
-  The log keeps a guest op's input as IDs and sizes only (`logbook.GuestInput`, channel `guest`). Video: bucket → `PresignGet` 2 min, renewed by the page (never through the host; a store that can't sign
+  The log keeps a guest op's input as IDs and sizes only (`logbook.GuestInput`, channel `guest`). Video: bucket → `PresignGet` 5 min, renewed by the page (never through the host; a store that can't sign
   refuses); folder store → `/guest/media/<rev>/<render>` with ranges, `MediaFor` per request, `whileShown` cuts a
   stream within `guestRecheck` once its version isn't the guest's to watch (`StillShown`); only tokens found are
   kept out of the log (`logbook.RememberSecret` after the lookup, never what a visitor sent). Sign-in: `mr_guest`
@@ -1174,7 +1174,8 @@ Read `docs/architecture.md` before structural changes.
   `guests.Record` (`guest_activity`, the log's `guest` channel, phrases in `logbook/describe_guests.go`; ranges and
   anonymous requests once a minute per address and kind; `VolumePerHour` → `guest_volume` to owners; `guests.Run` tidies, honouring
   `DeletionsPaused`). Emails match through
-  `internal/emailkey` (ASCII letters folded only; migration 69 recomputes stored keys). Browser run
+  `internal/emailkey` — Tailscale accounts too (Unicode's lower case except the Kelvin sign and the capital I with a
+  dot, which keep their own key; migration 69 gives emails with them theirs). Browser run
   `scripts/guests-e2e.sh` (ports 5820–5829, `scripts/guestseed`).
 - **Exporting and restoring a workspace** (D329–D333, `internal/wsarchive`, `internal/ops/workspacearchive.go`,
   `internal/cli/workspace_archive.go`, `web/src/screens/settings/WorkspaceExport.tsx`, docs/workspace-export.md): an

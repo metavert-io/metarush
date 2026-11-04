@@ -40,7 +40,7 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
   Guest operations (`ops.Flags.Guest`) answer only for the checked guest and hold every request to grants that work
   now by the database server's clock; members never act as a guest; anything not shared gets the one "not shared"
   answer. What guests may see fails closed (What may leave's checked walk, `internal/withdrawn`, references whatever
-  the note); emails match through `internal/emailkey` (ASCII letters only), never `strings.ToLower`. Guest links and cookies are 256 random bits kept only as SHA-256, links used once; no passwords for guests.
+  the note); emails and Tailscale accounts match through `internal/emailkey` (lower case, but the two characters whose lower case is ASCII keep their own key), never `strings.ToLower`. Guest links and cookies are 256 random bits kept only as SHA-256, links used once; no passwords for guests.
   A value a visitor sends becomes a log secret (`logbook.RememberSecret`, `Log.Secret`) only once it is found to be ours.
 - Paid AI work is priced first, held to budgets, daily limits and consent, saves its ticket before waiting, and never
   runs twice. Auto spends only within limits a person set.

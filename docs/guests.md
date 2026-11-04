@@ -35,12 +35,14 @@ A guest can't:
 - approve a version or upload anything (approvals by guests come later, behind a grant of their own);
 - keep going once something is taken back: taking back a grant, everything shared with a guest, or turning guests
   off counts on their very next request; a video playing from this computer stops within seconds, one playing from a
-  cloud bucket within two minutes (see below).
+  cloud bucket within five minutes, or once the browser has the part it already asked for (see below).
 
 A version that plays someone else's video (a reference), anything made with a consent that was withdrawn, or words
 changed in someone's voice whose consent is gone is never shown to guests — even where someone sent it out anyway
-with a note. When MetaRush can't check that (a lookup that didn't answer, or more nested cuts than it looks
-through), the version isn't shown either. What may leave decides too: a client's Content Settings can keep their things from **guests**
+with a note. When MetaRush can't check that, the version isn't shown either: a lookup that didn't answer is asked
+again on the guest's next request, and a version with more in it than the checks look through (more than 5,000
+clips, pictures and nested cuts, or 500 nested cuts while a consent is withdrawn) is too large to share with a guest —
+MetaRush says so when you share it, and the guest's page says so too. What may leave decides too: a client's Content Settings can keep their things from **guests**
 (a place of its own), and a guest then can't open their versions — checked when you share and again whenever a guest
 opens a version ([what may leave](what-may-leave.md)).
 
@@ -117,10 +119,14 @@ records every guest request under its own channel; the project's receipt lists w
 ## Where the video comes from
 
 - **Media kept in a cloud bucket**: the guest's browser plays the review copy straight from the bucket, through a
-  link signed for 2 minutes; the page asks for a new one when it ends, and each new one checks what was shared again.
-  The video never goes through this computer. A link already handed out can't be called back, so a video from the
-  bucket stops within two minutes of being taken back. A bucket whose key can't sign links can't be watched by
-  guests.
+  link signed for 5 minutes; the page asks for a new one when it stops working, and each new one checks what was
+  shared again. The video never goes through this computer. A link already handed out can't be called back, so a
+  video from the bucket stops within five minutes of being taken back — with one exception: the bucket checks a link
+  only when a request starts, so a request that began before the link ended goes on streaming until it ends (a
+  browser may ask for the rest of the video in one request). Links are signed with this computer's clock and checked
+  against the bucket's own: a clock that is off makes them work that much less or more, which the five minutes leave
+  room for (if this computer's clock is behind by more than that, every link has ended on arrival and the page says the
+  video stopped loading). A bucket whose key can't sign links can't be watched by guests.
 - **Media kept on this computer**: the guest listener plays it, with ranges, checking the guest's sign-in and grant on
   every request.
 

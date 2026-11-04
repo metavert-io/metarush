@@ -11,6 +11,8 @@ import (
 	"unicode"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/metavert-io/metarush/internal/emailkey"
 )
 
 // Remote access over Tailscale (D128, D129): the public address people use
@@ -43,9 +45,10 @@ func (r Remote) On() bool { return r.PublicURL != "" }
 // themselves when they come through the public address.
 func (r Remote) IdentitySignIn() bool { return r.On() && len(r.Logins) > 0 }
 
-// Allowed reports whether a Tailscale account may sign in by itself.
+// Allowed reports whether a Tailscale account may sign in by itself (matched
+// like an email: emailkey).
 func (r Remote) Allowed(login string) bool {
-	login = strings.ToLower(strings.TrimSpace(login))
+	login = emailkey.Of(login)
 	if login == "" {
 		return false
 	}
@@ -259,10 +262,10 @@ func dnsName(s string) bool {
 }
 
 // NormalizeLogin checks a Tailscale account name (as Tailscale shows it:
-// name@example.com, or name@github for GitHub sign-ins) and returns it in
-// lower case.
+// name@example.com, or name@github for GitHub sign-ins) and returns its key,
+// as emails are matched (emailkey: in lower case, look-alike letters kept).
 func NormalizeLogin(s string) (string, error) {
-	l := strings.ToLower(strings.TrimSpace(s))
+	l := emailkey.Of(s)
 	at := strings.LastIndexByte(l, '@')
 	ok := len(l) >= 3 && len(l) <= 254 && at > 0 && at < len(l)-1
 	for _, c := range l {

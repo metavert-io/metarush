@@ -201,7 +201,7 @@
     }).catch(fail);
   }
 
-  // A signed link ends after two minutes: ask again (the grant is checked
+  // A signed link ends after five minutes: ask again (the grant is checked
   // each time) and go on where it was. Three tries in a row without the video
   // playing on in between, and it stops.
   $('video').addEventListener('playing', function () { refreshed = 0; });

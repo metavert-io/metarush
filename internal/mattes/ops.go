@@ -33,7 +33,7 @@ func init() {
 		func(ctx context.Context, a *app.App, in *CutoutsIn) (*CutoutsOut, error) {
 			return list(ctx, a, in.AssetID)
 		})
-	ops.Def("footage.cutout.preview", "Show one moment of a clip with its background replaced by a colour, a blur of the clip, a picture or another clip, as a still on this computer (nothing is kept)", ops.Flags{LocalOnly: true},
+	ops.Def("footage.cutout.preview", "Show one moment of a clip with its background replaced by a colour, a blur of the clip, a picture or another clip, as a still on this computer: a new JPEG, never over a file already there (nothing is kept)", ops.Flags{LocalOnly: true},
 		func(ctx context.Context, a *app.App, in *CutoutPreviewIn) (*CutoutPreviewOut, error) {
 			return PreviewFile(ctx, a, in)
 		})

@@ -425,3 +425,70 @@ func TestPreview(t *testing.T) {
 		t.Fatalf("no still: %v", err)
 	}
 }
+
+// The preview is a read, which AI apps may run (MCP's read-only tools, apps
+// that only propose), so its still only ever adds a new JPEG: never over a
+// file already there — through a link or not — and never under a name that
+// isn't a picture's; a folder gets a name of its own there, a new one each
+// time.
+func TestThePreviewNeverWritesOverAFile(t *testing.T) {
+	e := setup(t)
+	dir := t.TempDir()
+	mine := filepath.Join(dir, "profile")
+	if err := os.WriteFile(mine, []byte("export PATH=…\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	still := func(out string) (*mattes.CutoutPreviewOut, error) {
+		return ops.CallTyped[mattes.CutoutPreviewOut](context.Background(), e.a, "footage.cutout.preview",
+			mattes.CutoutPreviewIn{AssetID: e.clip.ID, At: 1, With: mattes.WithColour, Colour: "#00b140", Out: out}, ops.Caller{})
+	}
+	taken := filepath.Join(dir, "taken.jpg")
+	if err := os.WriteFile(taken, []byte("mine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link, dangling := filepath.Join(dir, "link.jpg"), filepath.Join(dir, "dangling.jpg")
+	if err := os.Symlink(mine, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "made-by-the-link"), dangling); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		out  string
+		code string
+	}{
+		{mine, apperr.InvalidInput},
+		{filepath.Join(dir, "new.zshrc"), apperr.InvalidInput},
+		{taken, apperr.Conflict},
+		{link, apperr.Conflict},
+		{dangling, apperr.Conflict},
+	} {
+		if _, err := still(c.out); apperr.From(err) == nil || apperr.From(err).Code != c.code {
+			t.Errorf("%s: %v, want %s", filepath.Base(c.out), err, c.code)
+		}
+	}
+	for path, want := range map[string]string{mine: "export PATH=…\n", taken: "mine"} {
+		if b, err := os.ReadFile(path); err != nil || string(b) != want {
+			t.Errorf("%s changed: %q %v", filepath.Base(path), b, err)
+		}
+	}
+	for _, gone := range []string{filepath.Join(dir, "new.zshrc"), filepath.Join(dir, "made-by-the-link")} {
+		if _, err := os.Lstat(gone); err == nil {
+			t.Errorf("%s was made", filepath.Base(gone))
+		}
+	}
+	// A folder: a still of its own there, and another beside it the next time.
+	first, err := still(dir)
+	if err != nil || filepath.Dir(first.Path) != dir || !strings.HasSuffix(first.Path, ".jpg") {
+		t.Fatalf("into a folder: %+v %v", first, err)
+	}
+	second, err := still(dir)
+	if err != nil || second.Path == first.Path || !strings.HasSuffix(second.Path, "-2.jpg") {
+		t.Fatalf("again into the folder: %+v %v", second, err)
+	}
+	for _, p := range []string{first.Path, second.Path} {
+		if b, err := os.ReadFile(p); err != nil || !bytes.HasPrefix(b, []byte{0xff, 0xd8}) {
+			t.Fatalf("%s isn't the still: %v", p, err)
+		}
+	}
+}

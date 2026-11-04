@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -12,6 +13,7 @@ import (
 	"image/jpeg"
 	_ "image/png" // pictures may be PNGs
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -52,8 +54,9 @@ type CutoutPreviewIn struct {
 	FootageAt float64 `json:"footageAt,omitempty" jsonschema:"minimum=0,description=The moment of that clip to show."`
 	Feather   float64 `json:"feather,omitempty" jsonschema:"minimum=0,maximum=40,description=How soft the people's edges are (pixels at 1080)."`
 	Width     int     `json:"width,omitempty" jsonschema:"minimum=0,maximum=1920,description=The preview's width (default 960)."`
-	// Out is where the CLI writes the still (default: a folder of its own).
-	Out string `json:"out,omitempty" jsonschema:"maxLength=1024"`
+	// Out is where the still goes: a new .jpg file, or a folder for it —
+	// never over a file already there (default: a folder of its own).
+	Out string `json:"out,omitempty" jsonschema:"maxLength=1024,description=Where the still goes on this computer: a new .jpg file or a folder for one; never over a file already there (default: MetaRush's own folder)."`
 }
 
 // CutoutPreviewOut is a still of a clip with its background replaced.
@@ -422,29 +425,103 @@ func previewKey(in *CutoutPreviewIn, media, model string) string {
 	return hex.EncodeToString(sum[:16])
 }
 
-// PreviewFile writes a preview still to a file (the CLI's; out "" a file of
-// its own in this computer's scratch folder).
+// PreviewFile writes a preview still to a file: out "" a file of its own in
+// this computer's scratch folder; else a new JPEG (a .jpg or .jpeg name, or
+// a folder to put one in) that MetaRush makes, never over a file already
+// there — the op is a read, which AI apps may run, so it can only add a
+// picture, as render.fetch only adds a video.
 func PreviewFile(ctx context.Context, a *app.App, in *CutoutPreviewIn) (*CutoutPreviewOut, error) {
+	out := strings.TrimSpace(in.Out)
+	folder := false // out is a folder: the still gets a name of its own there
+	if out != "" {
+		if !filepath.IsAbs(out) {
+			if abs, err := filepath.Abs(out); err == nil {
+				out = abs
+			}
+		}
+		if st, err := os.Stat(out); err == nil && st.IsDir() {
+			folder = true
+		} else if ext := strings.ToLower(filepath.Ext(out)); ext != ".jpg" && ext != ".jpeg" {
+			return nil, apperr.New(apperr.InvalidInput, "The still is a JPEG, so its file name ends in .jpg.").
+				WithHint("Choose a name like still.jpg, or a folder to put it in.").WithDetails(map[string]any{"out": out})
+		} else if _, err := os.Lstat(out); err == nil {
+			return nil, refuseOverwrite(out)
+		}
+	}
 	b, info, err := Preview(ctx, a, in)
 	if err != nil {
 		return nil, err
 	}
-	out := strings.TrimSpace(in.Out)
 	if out == "" {
 		dir := filepath.Join(a.Cfg.Scratch.Dir, "cut-out-previews")
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, err
 		}
-		out = filepath.Join(dir, previewKey(in, "", info.Model)+".jpg")
-	}
-	if !filepath.IsAbs(out) {
-		if abs, err := filepath.Abs(out); err == nil {
-			out = abs
+		p := filepath.Join(dir, previewKey(in, "", info.Model)+".jpg")
+		if err := writeScratch(p, b); err != nil {
+			return nil, apperr.Wrap(apperr.Internal, err, "MetaRush couldn't write the still.")
 		}
+		info.Path = p
+		return info, nil
 	}
-	if err := os.WriteFile(out, b, 0o644); err != nil {
-		return nil, apperr.Wrap(apperr.Internal, err, "MetaRush couldn't write the still.")
+	if folder {
+		// A name of its own there: the next free one.
+		dir, base := out, "cut-out-preview-"+previewKey(in, "", info.Model)[:12]
+		for n := 1; ; n++ {
+			out = filepath.Join(dir, base+".jpg")
+			if n > 1 {
+				out = filepath.Join(dir, fmt.Sprintf("%s-%d.jpg", base, n))
+			}
+			err := writeNew(out, b)
+			if err == nil {
+				break
+			}
+			if !errors.Is(err, fs.ErrExist) || n >= 100 {
+				return nil, apperr.Wrap(apperr.Internal, err, "MetaRush couldn't write the still.").WithDetails(map[string]any{"out": out})
+			}
+		}
+	} else if err := writeNew(out, b); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return nil, refuseOverwrite(out)
+		}
+		return nil, apperr.Wrap(apperr.Internal, err, "MetaRush couldn't write the still.").WithDetails(map[string]any{"out": out})
 	}
 	info.Path = out
 	return info, nil
+}
+
+func refuseOverwrite(path string) error {
+	return apperr.New(apperr.Conflict, "There's already a file named %s, and MetaRush never overwrites files.", filepath.Base(path)).
+		WithHint("Choose another name, or move that file first.").WithDetails(map[string]any{"existing": path})
+}
+
+// writeNew makes a file that wasn't there (O_EXCL: never through a link,
+// never over anything) and takes it away again if writing fails.
+func writeNew(path string, b []byte) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(b)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = os.Remove(path)
+	}
+	return err
+}
+
+// writeScratch puts a still in MetaRush's own scratch folder, named by what
+// it shows: one already there is the same still.
+func writeScratch(path string, b []byte) error {
+	if st, err := os.Lstat(path); err == nil && st.Mode().IsRegular() {
+		return nil
+	}
+	tmp := fmt.Sprintf("%s.%d.part", path, os.Getpid())
+	_ = os.Remove(tmp)
+	if err := writeNew(tmp, b); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }

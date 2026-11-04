@@ -1711,7 +1711,7 @@ input: CutoutIn
 output: CutoutOut
 }
 /**
- * Show one moment of a clip with its background replaced by a colour, a blur of the clip, a picture or another clip, as a still on this computer (nothing is kept)
+ * Show one moment of a clip with its background replaced by a colour, a blur of the clip, a picture or another clip, as a still on this computer: a new JPEG, never over a file already there (nothing is kept)
  */
 "footage.cutout.preview": {
 input: CutoutPreviewIn
@@ -20011,6 +20011,9 @@ feather?: number
  * The preview's width (default 960).
  */
 width?: number
+/**
+ * Where the still goes on this computer: a new .jpg file or a folder for one; never over a file already there (default: MetaRush's own folder).
+ */
 out?: string
 }
 /**

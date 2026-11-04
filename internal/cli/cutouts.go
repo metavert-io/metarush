@@ -217,7 +217,7 @@ func footageCutoutPreviewCmd() *cobra.Command {
 	f.StringVar(&in.ProjectID, "project", "", "the project whose pictures a picture is looked up in")
 	f.StringVar(&in.Fixed, "fixed", "", "the clip's media: original, or a fixed copy's SHA-256")
 	f.IntVar(&in.Width, "width", 0, "the still's width (default 960)")
-	f.StringVar(&in.Out, "out", "", "where to write the still (default: a folder of its own)")
+	f.StringVar(&in.Out, "out", "", "a new .jpg file for the still, or a folder for it (never over a file already there; default: a folder of its own)")
 	addDetails(c, &details)
 	return c
 }

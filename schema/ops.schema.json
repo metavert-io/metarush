@@ -18200,7 +18200,8 @@
         },
         "out": {
           "type": "string",
-          "maxLength": 1024
+          "maxLength": 1024,
+          "description": "Where the still goes on this computer: a new .jpg file or a folder for one; never over a file already there (default: MetaRush's own folder)."
         }
       },
       "additionalProperties": false,
@@ -79570,7 +79571,7 @@
         "input",
         "output"
       ],
-      "description": "Show one moment of a clip with its background replaced by a colour, a blur of the clip, a picture or another clip, as a still on this computer (nothing is kept)"
+      "description": "Show one moment of a clip with its background replaced by a colour, a blur of the clip, a picture or another clip, as a still on this computer: a new JPEG, never over a file already there (nothing is kept)"
     },
     "footage.cutouts": {
       "properties": {

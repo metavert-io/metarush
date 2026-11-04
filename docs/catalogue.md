@@ -214,7 +214,7 @@ Generated from `firstparty.json` (a test keeps this list naming every ID).
 | `tighten-pauses` | Tighten pauses | `cut.pauses` | the transcriber, FFmpeg | — |
 | `trim-flashes` | Trim flashes | `cut.flashes` | FFmpeg | — |
 
-### Check and deliver (9)
+### Check and deliver (12)
 
 | ID | Ability | Runs | Needs | What leaves |
 |---|---|---|---|---|
@@ -222,6 +222,7 @@ Generated from `firstparty.json` (a test keeps this list naming every ID).
 | `captions-files` | Captions files | `captions.file` | — | — |
 | `translated-captions` | Captions in other languages | `captions.translate` | Claude Code | the captions' words leave this computer, for Claude |
 | `changes-as-pull-request` | Changes back as a pull request | `remotion.push.start` | git, gh | the version's changes leave this computer, for its repository |
+| `content-credentials` | Content Credentials | `credentials.set` `mode: "on"` | c2patool, a signing certificate set up once by an owner on this computer | nothing (with a timestamp service an owner chose, a fingerprint of each manifest) |
 | `delivery` | Delivery | `deliver.export` | — | — |
 | `post-to-youtube` | Post to YouTube | `publish.send` | — | the version's video, title, description and captions leave this computer, for YouTube |
 | `quality-check` | Quality check | `qa.run` | FFmpeg | — |

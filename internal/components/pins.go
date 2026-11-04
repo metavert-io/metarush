@@ -69,6 +69,7 @@ func (p Pin) For(goos, goarch string) bool {
 //     the file bootstrap pins).
 //   - whisper.cpp's large-v3-turbo model: Hugging Face's LFS checksum at
 //     revision 5359861c.
+//   - c2patool 0.28.3: the digests GitHub states for its release files.
 //   - FFmpeg for Macs without Homebrew: the builds the stabilizer pins
 //     (osxexperts for Apple silicon, by the programs' published checksums;
 //     evermeet for Intel, its sizes as its info API states them, FFprobe's
@@ -138,6 +139,16 @@ var pins = []Pin{
 	{ID: "speaker-voices", Title: "TitaNet small", URL: "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_small.onnx",
 		SHA256: "ad4a1802485d8b34c722d2a9d04249662f2ece5d28a7a039063ca22f515a789e", Bytes: 40257283,
 		To: "models/diarization/nemo_en_titanet_small.onnx", Licence: "CC-BY-4.0 (NVIDIA)", Hosts: githubAssets},
+
+	// c2patool 0.28.3, the C2PA project's own tool (MIT OR Apache-2.0, its Cargo.toml at the tag v0.28.3; both licence
+	// files in its repository): the digests GitHub states for the release files, checked against downloads on 3 Nov 2026.
+	// The Mac zip is one universal program for both kinds of Mac.
+	{ID: "c2patool", Title: "c2patool 0.28.3", URL: "https://github.com/contentauth/c2patool/releases/download/v0.28.3/v0.28.3-universal-apple-darwin.zip",
+		SHA256: "12db3a9b454e2ce23f8701b74bca88ebd3dd4f0b9e5468f4dfda1810ee1d2787", Bytes: 23108255, Platforms: []string{"darwin/arm64", "darwin/amd64"},
+		Take: "c2patool/c2patool", To: "tools/c2patool/c2patool", Exec: true, Config: "c2patool", Licence: "MIT OR Apache-2.0", Hosts: githubAssets},
+	{ID: "c2patool", Title: "c2patool 0.28.3", URL: "https://github.com/contentauth/c2patool/releases/download/v0.28.3/v0.28.3-x86_64-unknown-linux-gnu.tar.gz",
+		SHA256: "74f9d5c599b05345fdd0de8c7b3ee347960f1d24352d030d36a2a1de33c99600", Bytes: 12782187, Platforms: []string{"linux/amd64"},
+		Take: "c2patool/c2patool", To: "tools/c2patool/c2patool", Exec: true, Config: "c2patool", Licence: "MIT OR Apache-2.0", Hosts: githubAssets},
 
 	// whisper.cpp's model for other languages (MIT).
 	{ID: "whisper-model", Title: "whisper large-v3-turbo", URL: "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo.bin",

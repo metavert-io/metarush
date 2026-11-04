@@ -7,6 +7,7 @@ inputs:
   clip: {kind: footage, optional: true, says: The clip (video or sound) whose speech to translate}
   language: {kind: words, max: 12, optional: true, says: "The language spoken, as a code like es (default: whisper.cpp listens)"}
 outputs: [captions]
+ai: {captions: made}
 cost: free
 changes-outside: no
 likeness: no

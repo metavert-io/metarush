@@ -425,6 +425,79 @@ func TestReceiptShowsEveryAIKind(t *testing.T) {
 	}
 }
 
+// What abilities brought in with AI is on the receipt (D460), by what their
+// manifests declare — the answer delivery, Content Credentials and the
+// quality check give: the reviewer's ComfyUI picture (made), a sound from an
+// ability that says nothing (counted as made); never a stock photo or stock
+// footage an ability found (none).
+func TestReceiptListsWhatAbilitiesMadeWithAI(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	ws := a.WorkspaceID()
+	p := models.Project{ID: ids.New(ids.Project), WorkspaceID: ws, Name: "Harbour", Branches: map[string]models.BranchHead{}, CreatedAt: now, UpdatedAt: now}
+	insert(t, a, store.CProjects, p)
+	made := func(name, title, ai string) *models.AbilityMadeWith {
+		return &models.AbilityMadeWith{Ability: name + "@1a2b3c4d", Name: name, Title: title, Hash: strings.Repeat("1a2b3c4d", 8), RunID: "abr_" + name, AI: ai}
+	}
+	picture := func(name, title, sha string, mw *models.AbilityMadeWith) models.Resource {
+		r := models.Resource{ID: ids.New("res"), WorkspaceID: ws, Name: name, Title: title, Kind: models.ResourceImage, Scope: "project", ProjectID: p.ID,
+			Current: sha, CreatedAt: now, UpdatedAt: now, Versions: []models.ResourceVersion{{SHA256: sha, MIME: "image/png", Ext: "png", CreatedAt: now,
+				Source: models.ResourceSource{Kind: models.FromGenerated, Tool: "ability", MadeWith: &models.ResourceMadeWith{Kind: "ability", Ability: mw}}}}}
+		insert(t, a, store.CResources, r)
+		return r
+	}
+	clip := func(kind, title, sha string, mw *models.AbilityMadeWith) models.Asset {
+		as := models.Asset{ID: ids.New(ids.Asset), WorkspaceID: ws, ProjectIDs: []string{p.ID}, Kind: kind, Name: title, Title: title, SHA256: sha,
+			State: models.AssetAvailable, Media: models.MediaInfo{Duration: 4, HasAudio: true, HasVideo: kind == "video"}, CreatedAt: now, UpdatedAt: now,
+			Source: &models.AssetSource{Platform: models.PlatformAbility, Method: "ability", MadeWith: mw}}
+		insert(t, a, store.CAssets, as)
+		return as
+	}
+	comfy := picture("dawn", "Harbour at dawn", strings.Repeat("c", 64), made("comfyui-local", "Pictures from ComfyUI on this computer", models.AIWorkMade))
+	picture("pier", "Pier photo", strings.Repeat("d", 64), made("pexels-stock", "Free stock from Pexels", models.AIWorkNone))
+	hum := clip("audio", "Hum", strings.Repeat("e", 64), made("sound-maker", "Sound maker", ""))
+	stock := clip("video", "Waves", strings.Repeat("f", 64), made("pexels-stock", "Free stock from Pexels", models.AIWorkNone))
+	spec := editspec.Spec{SchemaVersion: 1, Title: "Harbour", Output: editspec.Output{Preset: "vertical-1080p", Width: 1080, Height: 1920, FPS: 30},
+		Clips:     []editspec.Clip{{ID: "waves", AssetID: stock.ID, In: 0, Out: 4}},
+		Resources: map[string]editspec.ResourcePin{"dawn": {ID: comfy.ID, SHA256: comfy.Current}}}
+	rev := models.Revision{ID: ids.New(ids.Revision), WorkspaceID: ws, ProjectID: p.ID, Branch: "main", Number: 1, Spec: spec, SpecHash: "h", Duration: 4, CreatedAt: now}
+	insert(t, a, store.CRevisions, rev)
+	if err := a.DB.Update(ctx, store.CProjects, ws, p.ID, bson.M{"$set": bson.M{"branches.main": models.BranchHead{Head: rev.ID}}}); err != nil {
+		t.Fatal(err)
+	}
+	out, err := ops.CallTyped[receipt.ProjectReceiptOut](ctx, a, "project.receipt", receipt.ProjectReceiptIn{ProjectID: p.ID}, ops.Caller{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byTitle := map[string]receipt.ReceiptGenerated{}
+	for _, g := range out.Generated {
+		byTitle[g.Title] = g
+	}
+	if g, ok := byTitle["Harbour at dawn"]; !ok || g.Kind != "picture" || !g.InVersion || g.Model != "comfyui-local@1a2b3c4d" ||
+		g.What != "a picture the ability “Pictures from ComfyUI on this computer” made with AI" {
+		t.Fatalf("the ComfyUI picture: %+v", out.Generated)
+	}
+	if g, ok := byTitle["Hum"]; !ok || g.Kind != "sound" || g.InVersion || g.AssetID != hum.ID || g.What != "sound the ability “Sound maker” made with AI" {
+		t.Fatalf("the undeclared sound: %+v", out.Generated)
+	}
+	if _, ok := byTitle["Pier photo"]; ok || len(out.Generated) != 2 {
+		t.Fatalf("what an ability only found is on the receipt: %+v", out.Generated)
+	}
+	if _, ok := byTitle["Waves"]; ok {
+		t.Fatal("stock footage is on the receipt as AI work")
+	}
+	lines := strings.Join(out.Lines, " ")
+	if !strings.Contains(lines, "Generated media in it: 1 AI picture and 1 AI sound clip.") {
+		t.Fatalf("lines %v", out.Lines)
+	}
+	for _, l := range out.Lines {
+		if err := plainwords.CheckShown(l); err != nil {
+			t.Errorf("%q: %v", l, err)
+		}
+	}
+}
+
 // What left this computer (D291) counts Vertex AI and sync. like any AI
 // service — lip sync's part of a clip as footage with faces and voices —
 // and never work done here: a model on this computer, or an ability (the

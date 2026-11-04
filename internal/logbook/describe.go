@@ -416,7 +416,11 @@ var opBase = map[string]string{
 	// The ship gate and promises made to the client (D298–D300).
 	"delivery.ready": "check whether a version of {p} can go out", "delivery.override": "send a version of {p} out anyway",
 	"delivery.gate": "read whether versions wait for the quality check", "delivery.gate.set": "change whether versions wait for the quality check",
-	"content.gate.set": "change whether the settings' videos wait for the quality check",
+	"credentials.status": "check Content Credentials", "credentials.setup": "set up this computer's signing certificate",
+	"credentials.test": "try Content Credentials on a sample", "credentials.check": "check a video's Content Credentials",
+	"credentials.remove": "remove this computer's signing certificate", "credentials.set": "change whether delivered videos carry Content Credentials",
+	"content.credentials.set": "change whether the settings' videos carry Content Credentials",
+	"content.gate.set":        "change whether the settings' videos wait for the quality check",
 	// A review copy follows the latest version; what waits for review (D187, D188).
 	"render.follow.show": "check whether review copies follow the latest versions", "render.follow.set": "turn review copies of the latest versions on or off",
 	"review.waiting": "list the versions awaiting review", "revision.askReview": "ask for a review of version {r} of {p}",

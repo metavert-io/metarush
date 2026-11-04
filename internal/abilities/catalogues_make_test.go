@@ -219,8 +219,7 @@ func TestTheSampleCatalogueIsSound(t *testing.T) {
 			continue
 		}
 		m, _ := arc.Manifest()
-		manifest, _ := arc.File(ManifestFile)
-		if diffs := listingDiffers(e, m, manifest); len(diffs) > 0 {
+		if diffs := listingDiffers(e, m); len(diffs) > 0 {
 			t.Errorf("%s: the listing differs from its manifest: %v", e.Name, diffs)
 		}
 	}

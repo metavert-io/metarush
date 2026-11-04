@@ -47,6 +47,7 @@ func TestDeliveryDisclosesAIPicturesAndMusicLicence(t *testing.T) {
 		t.Fatal(err)
 	}
 	it.rev.Spec.Resources["ada"] = editspec.ResourcePin{ID: ada.ID, SHA256: sha2}
+	it.aiDone = false // the cut changed: what AI did is worked out again
 	g = aiPictures(a, it, nil)
 	if g == nil || len(g.Clips) != 2 || !g.Likeness || !strings.Contains(g.Notice, "likeness") {
 		t.Fatalf("likeness %+v", g)

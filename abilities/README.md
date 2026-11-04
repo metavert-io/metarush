@@ -1,4 +1,4 @@
-# The starter pack: seven abilities
+# The starter pack: six abilities
 
 Each folder here is an ability (docs/abilities.md): an `ability.yaml` that says what it does, what it reaches and
 what leaves this computer, the script or program it runs, and `notes.md` on how to use it well, its licences, cost,
@@ -22,13 +22,12 @@ real services: `go test ./internal/abilities/ -run Starter` plays each service w
 | `freesound-effects` | Sound effects from Freesound, CC0 and CC BY, with the credit (Freesound's API is free for non-commercial use only) | free | a free Freesound key | the words you search for | a person |
 | `english-captions` | English captions for a clip in another language, translated on this computer by whisper.cpp, kept with the clip | free, local | none (a whisper.cpp model a person sets up) | nothing | anyone, Claude too |
 | `comfyui-local` | Pictures from the ComfyUI server on this computer, the one local service an owner allows | free, local | none | nothing through MetaRush (ComfyUI runs outside the sandbox) | a person |
-| `content-credentials` | Content Credentials (C2PA) on a delivered video with c2patool — **not yet runnable** | free | a signing key MetaRush would keep | nothing | a person |
 | `davinci-resolve` | DaVinci Resolve Studio through its community MCP server — **not yet runnable** | free | none | nothing | a person, each step |
 | `vimeo-upload` | Posts an approved version to your Vimeo account, with the title and description from its delivery notes — **not yet runnable** | free | your own Vimeo access token | the video, its title and description, to Vimeo | a person, every run |
 | `linkedin-video` | Posts an approved version to your LinkedIn as you — **not yet runnable** | free | your own LinkedIn sign-in, kept the way YouTube's is | the video and its words, to LinkedIn | a person, every run |
 | `podcast-episode` | Posts a version's sound as an episode on your podcast host (Buzzsprout first), with the title, show notes and chapters from its delivery notes — **not yet runnable** | free | your own Buzzsprout token | the sound and its words, to the host | a person, every run |
 
-The five marked "not yet runnable" are written in the shape they need; their first line says so, `ability check`
+The four marked "not yet runnable" are written in the shape they need; their first line says so, `ability check`
 refuses them for exactly what MetaRush doesn't do yet, and their `notes.md` says what that is: the
 three that post wait for a version's final render and delivery notes as inputs (people only; LinkedIn also for a
 person's own kept sign-in).

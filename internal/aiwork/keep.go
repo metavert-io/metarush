@@ -160,11 +160,14 @@ func (r *runner) keepPicture(ctx context.Context, path string, size int64, mime 
 		return nil, err
 	}
 	src := models.ResourceSource{Kind: "generated", Tool: g.ProviderTitle + " · " + g.ModelTitle, At: time.Now().UTC(), Machine: r.a.Cfg.Installation.Name,
-		MadeWith: &models.ResourceMadeWith{Kind: resources.MakeAI, GenerationID: g.ID, Provider: g.Provider, ProviderTitle: g.ProviderTitle, Model: g.Model,
+		MadeWith: &models.ResourceMadeWith{Kind: resources.MakeAI, AIKind: g.Kind, GenerationID: g.ID, Provider: g.Provider, ProviderTitle: g.ProviderTitle, Model: g.Model,
 			Prompt: generate.Clip(g.Prompt, 300), Likeness: len(g.ConsentIDs) > 0}}
 	if m, err := aiservices.ModelFor(g.Provider, g.Kind, g.Model); err == nil {
 		src.MadeWith.Watermark = m.Watermark
 	}
+	// What AI did, when the provider says more than the kind does (an
+	// ability, by its manifest; D460).
+	src.MadeWith.AIWork = o.Work
 	step := "changed by " + g.ProviderTitle
 	if aiservices.OnePicture(g.Kind) {
 		step = pictureStep(g)
@@ -183,9 +186,10 @@ func (r *runner) keepPicture(ctx context.Context, path string, size int64, mime 
 	about := "Made by " + g.ProviderTitle + " from: “" + generate.Clip(g.Prompt, 200) + "”"
 	if aiservices.OnePicture(g.Kind) {
 		about = upperFirst(step) + ", from “" + r.sourceTitle() + "”."
-		if r.kind.Edit {
+		if r.kind.Edit && !models.AIDisclosed(o.Work) {
 			// The person's own picture with its background taken away: nothing
-			// new was made, so it isn't marked as AI-generated (D279).
+			// new was made, so it isn't marked as AI-generated (D279) — unless
+			// the ability that did it says it makes something new (D460).
 			tags, src.MadeWith.Edit = nil, true
 		}
 	}
@@ -245,7 +249,8 @@ func (r *runner) keepClip(ctx context.Context, path string, size int64, mime str
 	src := &models.AssetSource{Platform: models.PlatformGenerated, Title: generate.Clip(firstNonEmpty(g.Prompt, title), 200), Duration: mi.Duration, DownloadedAt: time.Now().UTC(),
 		Tool: g.ProviderTitle, ToolVersion: g.Model, Method: models.SourceGenerated,
 		Generated: &models.GeneratedSource{GenerationID: g.ID, Kind: g.Kind, Provider: g.Provider, ProviderTitle: g.ProviderTitle, Model: g.Model, ModelTitle: g.ModelTitle,
-			Operation: g.Operation, Take: g.Take, Prompt: generate.Clip(g.Prompt, 300), Likeness: len(g.ConsentIDs) > 0 || g.Kind == aiservices.KindLipSync}}
+			Operation: g.Operation, Take: g.Take, Prompt: generate.Clip(g.Prompt, 300), Likeness: len(g.ConsentIDs) > 0 || g.Kind == aiservices.KindLipSync,
+			AIWork: o.Work}}
 	if m, err := aiservices.ModelFor(g.Provider, g.Kind, g.Model); err == nil {
 		src.Generated.Watermark = m.Watermark
 	}

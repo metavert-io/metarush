@@ -78,6 +78,26 @@ func TestProvidesIsChecked(t *testing.T) {
 	if ps := m.Validate(growFiles); len(ps) > 0 {
 		t.Fatalf("a good manifest: %v", ps)
 	}
+	// What it says AI does to what it brings back can't be less than the work
+	// is (D460): making a picture larger is at least enhanced; making one from
+	// words is made.
+	for line, want := range map[string]string{
+		"ai: {picture: none}":     "providing upscale, what AI does to its picture output is at least enhanced",
+		"ai: {picture: enhanced}": "",
+		"ai: {picture: made}":     "",
+	} {
+		m, _ := ParseManifest([]byte(strings.Replace(growManifest, "provides: [upscale]", "provides: [upscale]\n"+line, 1)))
+		if got := strings.Join(problemTexts(m.Validate(growFiles)), "; "); (want == "" && got != "") || !strings.Contains(got, want) {
+			t.Errorf("%s: %q, want %q", line, got, want)
+		}
+	}
+	pic := strings.Replace(strings.Replace(growManifest, "provides: [upscale]", "provides: [picture]\nai: {picture: enhanced}", 1),
+		"  picture: {kind: picture, optional: true, says: The picture}\n  scale: {kind: number, min: 2, max: 4, default: 2, says: How many times larger}",
+		"  prompt: {kind: words, says: What it shows}", 1)
+	m, _ = ParseManifest([]byte(pic))
+	if got := strings.Join(problemTexts(m.Validate(growFiles)), "; "); !strings.Contains(got, "providing picture, what AI does to its picture output is at least made") {
+		t.Errorf("a picture from words said to be enhanced: %q", got)
+	}
 }
 
 // An approved ability that provides a kind is a provider of it: in the
@@ -117,7 +137,9 @@ func TestApprovedAbilityProvides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tk.Ready.Outputs) != 1 || tk.Ready.Outputs[0].MIME != "image/png" {
+	// Its manifest says nothing about what AI does to its pictures, so what it
+	// brings back counts as made, more than an upscale (D460).
+	if len(tk.Ready.Outputs) != 1 || tk.Ready.Outputs[0].MIME != "image/png" || tk.Ready.Outputs[0].Work != models.AIWorkMade {
 		t.Fatalf("outputs %+v", tk.Ready.Outputs)
 	}
 	want, _ := os.ReadFile(req.Inputs[0].Path)

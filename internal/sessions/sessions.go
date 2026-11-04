@@ -44,9 +44,12 @@ type Session struct {
 	// the owner, for a lost device).
 	From string `json:"from,omitempty"`
 	// Method is how it signed in (D183): link (a one-time link on this
-	// computer: the owner), password or tailscale. Empty: an older link or
-	// Tailscale session (Login says which).
+	// computer: the owner), password, tailscale or sso (D425). Empty: an older
+	// link or Tailscale session (Login says which).
 	Method string `json:"method,omitempty"`
+	// Provider is the organization's sign-in it came through (google,
+	// microsoft, oidc) for an sso session.
+	Provider string `json:"provider,omitempty"`
 	// LastUsed is when it was last used (written at most hourly): a password
 	// session unused for SessionIdle ends.
 	LastUsed time.Time `json:"used,omitzero"`

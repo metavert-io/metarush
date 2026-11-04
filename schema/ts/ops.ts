@@ -629,7 +629,42 @@ input: EmptyIn
 output: AuthResetOut
 }
 /**
- * How people sign in to this MetaRush (just you on this computer, email and password, or Tailscale accounts) and who you are
+ * Forget the new sign-in setup waiting for its test, and its new secret; the sign-in in use stays as it is (owners, on this computer)
+ */
+"auth.sso.discard": {
+input: EmptyIn
+output: SSOStatusOut
+}
+/**
+ * Keep or remove the sign-in app's client secret on this computer (owners, on this computer)
+ */
+"auth.sso.secret": {
+input: SSOSecretIn
+output: SSOStatusOut
+}
+/**
+ * Set up signing in with your organization's account: the provider, the app, who may join by themselves and whether passwords or Tailscale still work (owners, on this computer)
+ */
+"auth.sso.set": {
+input: SSOSetIn
+output: SSOStatusOut
+}
+/**
+ * Signing in with your organization's account (Google, Microsoft or another provider): the setup, this computer's app secret, the addresses to register and the last test sign-in
+ */
+"auth.sso.status": {
+input: EmptyIn
+output: SSOStatusOut
+}
+/**
+ * Start a test sign-in with your organization's account in a browser on this computer, before switching to it (owners)
+ */
+"auth.sso.test": {
+input: EmptyIn
+output: SSOTestOut
+}
+/**
+ * How people sign in to this MetaRush (just you on this computer, email and password, Tailscale accounts, or their organization's account) and who you are
  */
 "auth.status": {
 input: EmptyIn
@@ -872,6 +907,13 @@ output: ConsentOut
 "consent.show": {
 input: ConsentIDIn
 output: ConsentView
+}
+/**
+ * Owners: say for a project's own Content Settings whether its delivered videos carry Content Credentials (on, required or off; asking less is people only), or follow the workspace
+ */
+"content.credentials.set": {
+input: ContentCredentialsSetIn
+output: CredentialsStatusOut
 }
 /**
  * Make a project use another project's Content Settings (live: later changes there show up here; chains are followed, circles refused), or the default's
@@ -1173,6 +1215,52 @@ output: CallOut
 "conversation.update": {
 input: CallUpdateIn
 output: CallOut
+}
+/**
+ * Read a video file's Content Credentials on this computer: whether it carries them, whether they check out, who signed them and what they say
+ */
+"credentials.check": {
+input: CredentialsCheckIn
+output: CredentialsCheckOut
+}
+/**
+ * Owners, people only: remove this computer's signing certificate and its key (videos delivered here then go out without Content Credentials, or wait where they are required)
+ */
+"credentials.remove": {
+input: {
+
+}
+output: CredentialsStatusOut
+}
+/**
+ * Owners: whether delivered videos carry Content Credentials — off, on (every final delivery signed) or required (a version this computer can't sign waits) — and a timestamp service; asking less is people only
+ */
+"credentials.set": {
+input: CredentialsSetIn
+output: CredentialsStatusOut
+}
+/**
+ * Owners, people only: set up this computer's signing certificate for Content Credentials — a test certificate made here, or a certificate chain and its private key, read once (the key goes into this computer's keychain and is never shown again)
+ */
+"credentials.setup": {
+input: CredentialsSetupIn
+output: CredentialsSetupOut
+}
+/**
+ * Content Credentials: whether delivered videos carry them (the workspace's choice, and what a project's Content Settings say) and whether this computer can sign them, with its certificate (never its key)
+ */
+"credentials.status": {
+input: CredentialsStatusIn
+output: CredentialsStatusOut
+}
+/**
+ * Sign MetaRush's one-second sample with this computer's certificate and read it back: whether Content Credentials work here
+ */
+"credentials.test": {
+input: {
+
+}
+output: CredentialsTestOut
 }
 /**
  * Put footage into the latest cut as a new clip (all of it, or from a time or words to another), at the end, the start or next to a clip; dryRun checks it and gives a confirm token
@@ -4611,6 +4699,9 @@ terms?: string
 minutes: number
 mb: number
 provides?: string[]
+ai?: {
+[k: string]: string
+}
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -5572,6 +5663,11 @@ you: boolean
  * Tailscale logins linked to them (owners see them).
  */
 logins?: string[]
+signsInWith?: string[]
+/**
+ * They sign in with an organization's account.
+ */
+hasSso: boolean
 lastSignIn?: string
 /**
  * When their invite link stops working (an invite not yet accepted).
@@ -6238,6 +6334,7 @@ model: string
 modelTitle?: string
 operation: ("shot" | "again" | "variation" | "extend" | "edit" | "look-test" | "make")
 kind?: string
+aiWork?: ("made" | "edited" | "enhanced" | "")
 take?: number
 prompt?: string
 look?: string
@@ -6323,6 +6420,10 @@ licence?: string
 source?: string
 credit?: string
 author?: string
+/**
+ * What the ability's manifest declares AI did to this kind of output; empty: nothing declared, counted as made.
+ */
+ai?: ("made" | "edited" | "enhanced" | "none" | "")
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -11893,7 +11994,7 @@ details?: {
  * via the `definition` "AuthMethodIn".
  */
 export interface AuthMethodIn {
-method: ("single" | "password" | "tailscale")
+method: ("single" | "password" | "tailscale" | "sso")
 /**
  * Email and password: your email.
  */
@@ -11916,7 +12017,7 @@ tailscaleLogin?: string
  * via the `definition` "AuthStatusOut".
  */
 export interface AuthStatusOut {
-method: ("single" | "password" | "tailscale")
+method: ("single" | "password" | "tailscale" | "sso")
 you?: Account
 /**
  * The person asking is an owner.
@@ -11936,6 +12037,11 @@ publicHttps: boolean
  */
 here: boolean
 people: number
+password: boolean
+/**
+ * The organization's sign-in by name (Google)
+ */
+sso?: string
 summary: string
 }
 /**
@@ -11951,6 +12057,146 @@ earlier: number
  * Browser sessions signed out on this computer.
  */
 signedOut: number
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOStatusOut".
+ */
+export interface SSOStatusOut {
+method: ("single" | "password" | "tailscale" | "sso")
+live?: SSOSetup
+next?: SSOSetup
+/**
+ * People sign in with their organization's account now.
+ */
+inUse: boolean
+secret: SSOSecretState
+nextSecret?: SSOSecretState
+callbacks: SSOCallbacksOut
+earlier: number
+test?: SSOTestView
+canSwitch: boolean
+/**
+ * Why it can't be switched to yet.
+ */
+switchWhy?: string
+owner: boolean
+here: boolean
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOSetup".
+ */
+export interface SSOSetup {
+provider: ("google" | "microsoft" | "oidc")
+title: string
+label?: string
+issuer: string
+tenant?: string
+clientId: string
+domain?: string
+alsoPassword: boolean
+alsoTailscale: boolean
+setAt: string
+setBy?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOSecretState".
+ */
+export interface SSOSecretState {
+set: boolean
+/**
+ * The last four characters
+ */
+masked?: string
+source?: ("keychain" | "file" | "environment")
+envVar: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOCallbacksOut".
+ */
+export interface SSOCallbacksOut {
+local: string
+public?: string
+publicHttps: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOTestView".
+ */
+export interface SSOTestView {
+ok: boolean
+at: string
+/**
+ * Recent enough to switch with (30 minutes).
+ */
+fresh: boolean
+/**
+ * Done by the person asking.
+ */
+mine: boolean
+/**
+ * Which setup it tested: the one waiting
+ */
+forSetup: ("next" | "live" | "other")
+/**
+ * Who signed in.
+ */
+email?: string
+name?: string
+provider?: string
+reason?: string
+message: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOSecretIn".
+ */
+export interface SSOSecretIn {
+clientSecret?: string
+remove?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOSetIn".
+ */
+export interface SSOSetIn {
+provider: ("google" | "microsoft" | "oidc")
+/**
+ * Another provider: its address (its issuer
+ */
+issuer?: string
+/**
+ * Microsoft: your directory (tenant) ID
+ */
+tenant?: string
+clientId: string
+/**
+ * Another provider: its name on the button.
+ */
+label?: string
+/**
+ * Who may join without an invite: a Google Workspace domain
+ */
+domain?: string
+alsoPassword?: boolean
+alsoTailscale?: boolean
+clientSecret?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOTestOut".
+ */
+export interface SSOTestOut {
+/**
+ * Open it in a browser on this computer: it goes to the provider and comes back here.
+ */
+url: string
+expiresAt: string
 summary: string
 }
 /**
@@ -12320,6 +12566,8 @@ prompt?: string
 watermark?: string
 likeness?: boolean
 edit?: boolean
+aiKind?: string
+aiWork?: ("made" | "edited" | "enhanced" | "")
 ability?: AbilityMadeWith
 repoId?: string
 repoSha?: string
@@ -13847,6 +14095,95 @@ id: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ContentCredentialsSetIn".
+ */
+export interface ContentCredentialsSetIn {
+/**
+ * A project with its own settings (default: the default's).
+ */
+projectId?: string
+/**
+ * on
+ */
+mode: ("on" | "off" | "required" | "workspace")
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsStatusOut".
+ */
+export interface CredentialsStatusOut {
+workspace?: ContentCredentialsSettings
+settings?: CredentialsSetting
+of?: string
+mode: ("off" | "on" | "required")
+means: string
+whose: string
+here: CredentialsHere
+summary: string
+lines: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ContentCredentialsSettings".
+ */
+export interface ContentCredentialsSettings {
+mode: ("off" | "on" | "required")
+timestampUrl?: string
+updatedAt: string
+updatedBy: Actor
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsSetting".
+ */
+export interface CredentialsSetting {
+mode: ("off" | "on" | "required")
+updatedAt: string
+updatedBy: Actor
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsHere".
+ */
+export interface CredentialsHere {
+machine: string
+certificate?: SigningCertificate
+setAt?: string
+setBy?: string
+kept?: ("" | "keychain" | "file")
+tool?: string
+ready: boolean
+problems: string[]
+says: string
+failed?: Failure
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SigningCertificate".
+ */
+export interface SigningCertificate {
+signer: string
+name: string
+organisation?: string
+issuer: string
+fingerprint: string
+serial: string
+validFrom: string
+validUntil: string
+alg: ("es256" | "es384" | "es512" | "ps256" | "ed25519")
+test: boolean
+certificates: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "Failure".
+ */
+export interface Failure {
+at: string
+why: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "ContentFollowIn".
  */
 export interface ContentFollowIn {
@@ -13920,6 +14257,7 @@ packDraft?: PackDraft
 signoffs?: Signoff[]
 aiServices?: AIServiceRules
 gate?: GateSetting
+credentials?: CredentialsSetting
 leave?: LeaveRules
 createdAt: string
 createdBy: Actor
@@ -16201,6 +16539,86 @@ layout?: ("side-by-side" | "stacked" | "pip" | "grid")
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsCheckIn".
+ */
+export interface CredentialsCheckIn {
+/**
+ * A video file on this computer (a delivered one
+ */
+path: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsCheckOut".
+ */
+export interface CredentialsCheckOut {
+carries: boolean
+verified: boolean
+problem?: string
+signer?: string
+generator?: string
+manifestHash?: string
+parts: number
+sourceTypes?: string[]
+ours: boolean
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsSetIn".
+ */
+export interface CredentialsSetIn {
+/**
+ * off: delivered videos carry none; on: every final delivery is signed; required: and a version this computer can't sign waits.
+ */
+mode: ("off" | "on" | "required")
+timestampUrl?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsSetupIn".
+ */
+export interface CredentialsSetupIn {
+test?: boolean
+organisation?: string
+certificate?: string
+privateKey?: string
+replace?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsSetupOut".
+ */
+export interface CredentialsSetupOut {
+status: CredentialsStatusOut
+summary: string
+tried?: CredentialsTestOut
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsTestOut".
+ */
+export interface CredentialsTestOut {
+verified: boolean
+signer: string
+test: boolean
+manifestHash?: string
+problem?: string
+tool?: string
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsStatusIn".
+ */
+export interface CredentialsStatusIn {
+/**
+ * A project: also what its Content Settings say.
+ */
+projectId?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "CutAddIn".
  */
 export interface CutAddIn {
@@ -18400,6 +18818,7 @@ size: number
 sha256: string
 qaVerdict?: string
 sentAnyway?: ShipOverride[]
+contentCredentials?: DeliveryCredentials
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -18418,8 +18837,32 @@ holds: ShipHold[]
  */
 export interface ShipHold {
 key: string
-kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent")
+kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent" | "credentials")
 says: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DeliveryCredentials".
+ */
+export interface DeliveryCredentials {
+signed: boolean
+signer?: string
+verified: boolean
+manifestHash?: string
+testCertificate?: boolean
+issuer?: string
+fingerprint?: string
+timestamped?: boolean
+sha256?: string
+size?: number
+parts?: number
+aiParts?: number
+changedParts?: number
+sourceType?: string
+required?: boolean
+says: string
+problem?: string
+tool?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -18460,6 +18903,8 @@ provider: string
 model: string
 look?: string
 likeness?: boolean
+work?: ("made" | "edited" | "")
+ability?: string
 presenter?: string
 consent?: string
 presenterWatermark?: string
@@ -18694,10 +19139,11 @@ lines: string[]
  */
 export interface GateHold {
 key: string
-kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent")
+kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent" | "credentials")
 says: string
 overridable: boolean
 covered?: boolean
+anyway?: boolean
 problems?: GateProblem[]
 paths: GatePath[]
 }
@@ -24657,7 +25103,7 @@ export interface NotificationRow {
 id: string
 workspaceId: string
 userId: string
-kind: ("file_ready" | "render_finished" | "render_failed" | "qa_done" | "assistant_proposal" | "duplicate_skipped" | "battery_paused" | "upload_interrupted" | "speakers" | "speakers_recognized" | "narration_ready" | "narration_failed" | "import_failed" | "on_screen" | "scenes_described" | "generation_ready" | "generation_failed" | "fixes_missed" | "remotion_waiting" | "signin_locked" | "content_settings" | "recipe_run" | "recipe_planned" | "ability_waiting" | "ability_run" | "auto_spent" | "recording_expiring" | "publish_stopped" | "outside_comments" | "review_link_ended" | "late_writes")
+kind: ("file_ready" | "render_finished" | "render_failed" | "qa_done" | "assistant_proposal" | "duplicate_skipped" | "battery_paused" | "upload_interrupted" | "speakers" | "speakers_recognized" | "narration_ready" | "narration_failed" | "import_failed" | "on_screen" | "scenes_described" | "generation_ready" | "generation_failed" | "fixes_missed" | "remotion_waiting" | "signin_locked" | "content_settings" | "recipe_run" | "recipe_planned" | "ability_waiting" | "ability_run" | "auto_spent" | "recording_expiring" | "publish_stopped" | "outside_comments" | "review_link_ended" | "late_writes" | "person_joined")
 groupKey: string
 tone: ("success" | "error" | "warning" | "info")
 title: string
@@ -26186,6 +26632,7 @@ auto: ReceiptAuto[]
 posted: ReceiptPosted[]
 samples: ReceiptSample[]
 sentAnyway: ReceiptSentAnyway[]
+signed: ReceiptSigned[]
 cost: ReceiptCost
 left: ReceiptLeft
 lines: string[]
@@ -26403,6 +26850,33 @@ note: string
  */
 held: string[]
 wentOut: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ReceiptSigned".
+ */
+export interface ReceiptSigned {
+revisionId: string
+number: number
+delivery: SignedDelivery
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SignedDelivery".
+ */
+export interface SignedDelivery {
+at: string
+by: Actor
+file: string
+folder?: string
+preset?: string
+signer: string
+test?: boolean
+verified: boolean
+manifestHash: string
+sha256: string
+fingerprint?: string
+timestamped?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -37581,6 +38055,7 @@ reviewFollow?: ReviewFollowSettings
 estimates?: EstimateSettings
 shipGate?: ShipGateSettings
 reviewLinks?: ReviewLinkSettings
+contentCredentials?: ContentCredentialsSettings
 deletionsPaused?: DeletionsPause
 }
 /**
@@ -37606,9 +38081,28 @@ updatedBy: Actor
  * via the `definition` "AuthSettings".
  */
 export interface AuthSettings {
-method: ("single" | "password" | "tailscale")
+method: ("single" | "password" | "tailscale" | "sso")
 setAt: string
 setBy: Actor
+sso?: SSOSettings
+ssoNext?: SSOSettings
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SSOSettings".
+ */
+export interface SSOSettings {
+provider: ("google" | "microsoft" | "oidc")
+label?: string
+issuer: string
+tenant?: string
+clientId: string
+domain?: string
+alsoPassword?: boolean
+alsoTailscale?: boolean
+setAt: string
+setBy: Actor
+rev?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

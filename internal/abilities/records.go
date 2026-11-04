@@ -123,6 +123,12 @@ func factsOf(m *Manifest) models.AbilityFacts {
 		Hosts: append([]string{}, m.Hosts...), Network: m.NetworkMode(), Sends: m.Sending(), Outside: bool(m.ChangesOutside), Likeness: bool(m.Likeness),
 		Programs: append([]string{}, m.Needs.Programs...), OS: m.Needs.OS, Licence: m.Licence, Terms: strings.TrimSpace(m.Terms), Minutes: m.MinutesLimit(), MB: int(m.BytesLimit() >> 20),
 		Provides: append([]string(nil), m.Provides...)}
+	for k, v := range m.AI {
+		if f.AI == nil {
+			f.AI = map[string]string{}
+		}
+		f.AI[k] = v
+	}
 	for _, nf := range m.Needs.Files {
 		f.Files = append(f.Files, models.AbilityNeededFile{Name: nf.Name, Says: strings.TrimSpace(nf.Says), Kind: nf.Kind, Env: FileEnv(nf.Name)})
 	}

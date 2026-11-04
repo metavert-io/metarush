@@ -357,9 +357,13 @@ func publishPlan(ctx context.Context, a *app.App, in *PublishIn, sending bool) (
 	if r := out.renderPreset(); r != "" {
 		presets = []string{r}
 	}
+	if mode, _ := CredentialsFor(ctx, a, p.ID); mode != models.CredentialsOff {
+		// Only delivered files carry Content Credentials (D418): a post sends the render as it is.
+		out.Notes = append(out.Notes, "The post sends the video without Content Credentials: only the files MetaRush delivers carry them.")
+	}
 	if gate, err := ShipGate(ctx, a, p, rev, "final", presets); err != nil {
 		return nil, nil, nil, err
-	} else if !gate.letsOut() {
+	} else if gate = withoutKind(gate, rev, models.HoldCredentials); !gate.letsOut() {
 		for _, h := range gate.Holds {
 			switch {
 			case h.Kind == models.HoldConsent: // changed words whose consent no longer holds: never posted (D309)

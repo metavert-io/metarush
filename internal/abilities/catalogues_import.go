@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/links"
@@ -154,8 +152,7 @@ func importListed(ctx context.Context, a *app.App, in *AbilityCatalogueImportIn)
 		}
 		return nil, apperr.New(apperr.Validation, "The ability “%s” lists has problems MetaRush won't bring in: %s", c.Index.Title, strings.Join(words, "; ")).WithDetails(map[string]any{"problems": words})
 	}
-	manifest, _ := arc.File(ManifestFile)
-	if diffs := listingDiffers(e, m, manifest); len(diffs) > 0 {
+	if diffs := listingDiffers(e, m); len(diffs) > 0 {
 		return nil, apperr.New(apperr.Integrity, "“%s” describes %s differently from what it is: %s. Nothing came in.", c.Index.Title, name, strings.Join(diffs, "; ")).
 			WithHint("Tell whoever keeps the catalogue; what an ability may do is what its own manifest says.").WithDetails(map[string]any{"differences": diffs})
 	}
@@ -283,25 +280,12 @@ func archiveOfFolder(files []resources.FolderFile) (*Archive, error) {
 	return FromFiles(in)
 }
 
-// declaredAI is what a manifest says AI does to each kind of output (its
-// `ai:` part, read as written: D460's manifests have it), nil when it says
-// nothing.
-func declaredAI(manifest []byte) map[string]string {
-	var raw struct {
-		AI map[string]string `yaml:"ai"`
-	}
-	if err := yaml.Unmarshal(manifest, &raw); err != nil || len(raw.AI) == 0 {
-		return nil
-	}
-	return raw.AI
-}
-
 // listingDiffers says how a listing differs from the manifest of what it
 // lists, in what a person decides by: the places it reaches, its keys, its
 // network, what leaves, what it brings back and what AI does to it, what it
 // provides, its cost, licence, programs and systems, the service it reaches
 // on the computer and whether it changes things outside.
-func listingDiffers(e models.CatalogueEntry, m *Manifest, manifest []byte) []string {
+func listingDiffers(e models.CatalogueEntry, m *Manifest) []string {
 	f := factsOf(m)
 	var out []string
 	differ := func(what string, listed, is []string) {
@@ -336,7 +320,7 @@ func listingDiffers(e models.CatalogueEntry, m *Manifest, manifest []byte) []str
 	differ("the AI work it provides", e.Provides, f.Provides)
 	differ("the programs it needs", e.Programs, f.Programs)
 	differ("the systems it runs on", e.OS, f.OS)
-	if listed, is := aiPairs(e.AI), aiPairs(declaredAI(manifest)); !sameSet(listed, is) {
+	if listed, is := aiPairs(e.AI), aiPairs(m.AI); !sameSet(listed, is) {
 		out = append(out, fmt.Sprintf("what AI does to what it brings back: the listing says %s, the ability %s", listWords(listed), listWords(is)))
 	}
 	if e.Cost != costClass(f) {

@@ -45,14 +45,14 @@ func TestContentSettingsResolution(t *testing.T) {
 	if s := show(b.ID); s.Uses != models.ContentDefault || s.From == nil || s.From.ID != fernbrook.ID || !s.ReadOnly || !strings.Contains(s.Summary, "uses the default settings") {
 		t.Fatalf("Bee uses the default: %+v", s)
 	}
-	if s := do[ops.ContentShowOut](t, a, "content.show", ops.ContentShowIn{}); s.Project != nil || s.From == nil || s.From.ID != fernbrook.ID || len(s.Parts) != 10 {
+	if s := do[ops.ContentShowOut](t, a, "content.show", ops.ContentShowIn{}); s.Project != nil || s.From == nil || s.From.ID != fernbrook.ID || len(s.Parts) != 11 {
 		t.Fatalf("the default's: %+v", s)
 	}
 	names := []string{}
 	for _, p := range content.Parts() {
 		names = append(names, p.Name)
 	}
-	if strings.Join(names, ",") != "brand,spelling,voice,rules,style,signoffs,pack,gate,leave,aiServices" { // the layout pack (D263), before it goes out (D298), What may leave (D288), AI services (D225)
+	if strings.Join(names, ",") != "brand,spelling,voice,rules,style,signoffs,pack,gate,credentials,leave,aiServices" { // the layout pack (D263), before it goes out (D298), Content Credentials (D418), What may leave (D288), AI services (D225)
 		t.Fatalf("parts %v", names)
 	}
 

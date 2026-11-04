@@ -12,7 +12,7 @@ aren't in MetaRush yet:
    YouTube posting uses: the owner registers MetaRush with their own LinkedIn app once per computer; each person signs in in
    their browser on this computer; MetaRush keeps the lasting permission in the keychain under that person and puts
    a short-lived token into the run's requests to LinkedIn's hosts, never into the program.
-2. **A version's final render as an input** (`kind: delivered`), as Content Credentials needs.
+2. **A version's final render as an input** (`kind: delivered`).
 3. **The version's delivery notes as an input** (`kind: delivery-notes`).
 
 - **LinkedIn's side:** an app in LinkedIn's developer portal with the "Share on LinkedIn" product (and "Sign In with

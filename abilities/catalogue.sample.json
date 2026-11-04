@@ -6,7 +6,7 @@
   "maintainer": {
     "github": "metavert-io"
   },
-  "version": 1,
+  "version": 2,
   "date": "2026-11-04",
   "abilities": [
     {
@@ -20,16 +20,19 @@
       "source": {
         "git": {
           "repository": "https://github.com/metavert-io/metarush",
-          "commit": "4dc6854cb97d3807cb56427bfb5bc94b9473dd15",
+          "commit": "968fa087c4c5084df6fa83913d9d0a0b751d3b94",
           "path": "abilities/comfyui-local"
         }
       },
-      "archive": "b291ead405a17f47d84e2d7ecbb51feae3a8561ac70664fcf1bd02607c71799c",
+      "archive": "ed7639a84b5135b99f9652ef10f9bd01a3fc029ef656498d2e89b1ceaa9d4163",
       "licence": "MIT",
       "outputs": [
         "picture"
       ],
       "network": "metarush",
+      "ai": {
+        "picture": "made"
+      },
       "cost": "free",
       "local": {
         "port": 8188,
@@ -64,16 +67,19 @@
       "source": {
         "git": {
           "repository": "https://github.com/metavert-io/metarush",
-          "commit": "4dc6854cb97d3807cb56427bfb5bc94b9473dd15",
+          "commit": "968fa087c4c5084df6fa83913d9d0a0b751d3b94",
           "path": "abilities/english-captions"
         }
       },
-      "archive": "2cb2a9e5309decf30371aa234c41b76bbdcea6ceba3908ebefdc778f4eb7624a",
+      "archive": "a84ab8ceb0d23de1dbabddb0bfea9f3cb446630decd7287ded43da37e91d30dd",
       "licence": "MIT",
       "outputs": [
         "captions"
       ],
       "network": "off",
+      "ai": {
+        "captions": "made"
+      },
       "cost": "free",
       "programs": [
         "python3",
@@ -106,11 +112,11 @@
       "source": {
         "git": {
           "repository": "https://github.com/metavert-io/metarush",
-          "commit": "4dc6854cb97d3807cb56427bfb5bc94b9473dd15",
+          "commit": "968fa087c4c5084df6fa83913d9d0a0b751d3b94",
           "path": "abilities/freesound-effects"
         }
       },
-      "archive": "31cff2792a7bda4a315e2c62dfce6ff1d3ba67a0da3e8f8430fc1be13ee1b65f",
+      "archive": "d6fd50801e7edbc4b0901c44933b38f08cdfe6f3bc80afa6cff765afe183324c",
       "licence": "MIT",
       "outputs": [
         "sound"
@@ -131,6 +137,9 @@
       "sends": [
         "words"
       ],
+      "ai": {
+        "sound": "none"
+      },
       "cost": "keyed",
       "programs": [
         "python3"
@@ -161,11 +170,11 @@
       "source": {
         "git": {
           "repository": "https://github.com/metavert-io/metarush",
-          "commit": "4dc6854cb97d3807cb56427bfb5bc94b9473dd15",
+          "commit": "968fa087c4c5084df6fa83913d9d0a0b751d3b94",
           "path": "abilities/open-media"
         }
       },
-      "archive": "d6257ddc552476405911f7fcb129b04a025b34a5a0a4ad192dfe3e1db42b7e51",
+      "archive": "ee4b29b07fe3aa9eb8de7f02428b789e5cc8e241faca5658c6cb6f6732caf0d4",
       "licence": "MIT",
       "outputs": [
         "footage",
@@ -182,6 +191,11 @@
       "sends": [
         "words"
       ],
+      "ai": {
+        "footage": "none",
+        "picture": "none",
+        "sound": "none"
+      },
       "cost": "free",
       "programs": [
         "python3"
@@ -214,11 +228,11 @@
       "source": {
         "git": {
           "repository": "https://github.com/metavert-io/metarush",
-          "commit": "4dc6854cb97d3807cb56427bfb5bc94b9473dd15",
+          "commit": "968fa087c4c5084df6fa83913d9d0a0b751d3b94",
           "path": "abilities/pexels-stock"
         }
       },
-      "archive": "72cac58e1baa28c181ef9e6f105c3dab017eb28ff259be6e49ec35b5fcda1a00",
+      "archive": "2041f188024e52443012e37994ca63ba52fcf0485b9718a5f2c4aad95d40a5ee",
       "licence": "MIT",
       "outputs": [
         "footage",
@@ -241,6 +255,10 @@
       "sends": [
         "words"
       ],
+      "ai": {
+        "footage": "none",
+        "picture": "none"
+      },
       "cost": "keyed",
       "programs": [
         "python3"

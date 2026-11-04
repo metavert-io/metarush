@@ -9,6 +9,7 @@ inputs:
   count: {kind: number, min: 1, max: 6, default: 3, says: How many to bring in}
   orientation: {kind: choice, options: [any, landscape, portrait, square], default: any, says: Which way up}
 outputs: [footage, picture]
+ai: {footage: none, picture: none}
 cost: free
 keys: [{name: pexels, env: PEXELS_API_KEY, hosts: [api.pexels.com]}]
 hosts: [api.pexels.com, images.pexels.com, videos.pexels.com]

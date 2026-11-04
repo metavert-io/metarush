@@ -58,6 +58,7 @@ inputs?: {
 [k: string]: Input
 }
 outputs?: string[]
+ai?: AIByOutput
 /**
  * Kinds of AI work it does once approved: picture, voice, voice-change, sound-effect, music, background-removal, upscale.
  * 
@@ -112,6 +113,20 @@ default?: unknown
  */
 options?: string[]
 optional?: boolean
+}
+/**
+ * What AI does to each kind of output: made (a generative model makes it), edited (a generative model changes captured media), enhanced (changed without making anything new), none. A kind of output not named counts as made.
+ * 
+ * This interface was referenced by `Manifest`'s JSON-Schema
+ * via the `definition` "AIByOutput".
+ */
+export interface AIByOutput {
+footage?: ("made" | "edited" | "enhanced" | "none")
+sound?: ("made" | "edited" | "enhanced" | "none")
+picture?: ("made" | "edited" | "enhanced" | "none")
+document?: ("made" | "edited" | "enhanced" | "none")
+font?: ("made" | "edited" | "enhanced" | "none")
+captions?: ("made" | "edited" | "enhanced" | "none")
 }
 /**
  * This interface was referenced by `Manifest`'s JSON-Schema

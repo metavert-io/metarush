@@ -99,6 +99,9 @@ type AbilityFacts struct {
 	// Provides are the kinds of AI work it does (D281): once approved, it is
 	// a provider of each, priced, consented and recorded like any other.
 	Provides []string `bson:"provides,omitempty" json:"provides,omitempty"`
+	// AI is what it declares AI does to each kind of output it makes (made,
+	// edited, enhanced, none; D460). A kind it doesn't name counts as made.
+	AI map[string]string `bson:"ai,omitempty" json:"ai,omitempty"`
 }
 
 // AbilityNeededFile is a file a version reads that a person sets up on each
@@ -382,6 +385,10 @@ type AbilityMadeWith struct {
 	// it ("Photo by … on Pexels"); Author is who made the file (D283).
 	Credit string `bson:"credit,omitempty" json:"credit,omitempty"`
 	Author string `bson:"author,omitempty" json:"author,omitempty"`
+	// AI is what the ability's manifest declares AI did to this kind of output
+	// (made, edited, enhanced or none; D460): "" when it declared nothing,
+	// which counts as made (AIWorkDeclared).
+	AI string `bson:"ai,omitempty" json:"ai,omitempty" jsonschema:"enum=made,enum=edited,enum=enhanced,enum=none,enum=,description=What the ability's manifest declares AI did to this kind of output; empty: nothing declared\\, counted as made."`
 }
 
 // CreditLine is the credit for a file an ability brought in, for deliveries
@@ -544,17 +551,15 @@ type CatalogueEntry struct {
 // manifest says it): made, edited, enhanced or none.
 type CatalogueAI map[string]string
 
-// CatalogueAIWords are the four answers, CatalogueAIKinds the kinds of output.
-var (
-	CatalogueAIWords = []string{"made", "edited", "enhanced", "none"}
-	CatalogueAIKinds = []string{"footage", "sound", "picture", "document", "font", "captions"}
-)
+// CatalogueAIKinds are the kinds of output an index may say AI did something
+// to; the words are D460's (AIDeclarations).
+var CatalogueAIKinds = []string{"footage", "sound", "picture", "document", "font", "captions"}
 
 // JSONSchema names the kinds of output, each one of the four answers.
 func (CatalogueAI) JSONSchema() *jsonschema.Schema {
 	props := jsonschema.NewProperties()
-	words := make([]any, 0, len(CatalogueAIWords))
-	for _, w := range CatalogueAIWords {
+	words := make([]any, 0, len(AIDeclarations))
+	for _, w := range AIDeclarations {
 		words = append(words, w)
 	}
 	for _, k := range CatalogueAIKinds {

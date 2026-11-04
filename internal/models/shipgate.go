@@ -42,6 +42,10 @@ const (
 	// matched to them) whose consent is no longer in force (D309): never
 	// overridden, the words come out of the cut first.
 	HoldConsent = "consent"
+	// HoldCredentials: Content Credentials are required and this computer
+	// can't sign the delivery (D418): no certificate, one that ran out, no
+	// c2patool. A person may send it out without them, with a note.
+	HoldCredentials = "credentials"
 )
 
 // ShipHold is one thing holding a version back, in plain words.
@@ -49,7 +53,7 @@ type ShipHold struct {
 	// Key names exactly what holds it (the report, the render, the sign-off),
 	// so a note sending it out anyway covers only what the person saw.
 	Key  string `bson:"key" json:"key"`
-	Kind string `bson:"kind" json:"kind" jsonschema:"enum=approval,enum=render,enum=qa-missing,enum=qa-running,enum=qa-failed,enum=qa-stale,enum=qa-errors,enum=signoff,enum=consent"`
+	Kind string `bson:"kind" json:"kind" jsonschema:"enum=approval,enum=render,enum=qa-missing,enum=qa-running,enum=qa-failed,enum=qa-stale,enum=qa-errors,enum=signoff,enum=consent,enum=credentials"`
 	// Says what holds it, in plain words.
 	Says string `bson:"says" json:"says"`
 }

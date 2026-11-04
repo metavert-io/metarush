@@ -172,7 +172,7 @@ async function makePicture(page, w = 400, h = 300) {
 }
 
 /** The open menu's settings sections, in order. */
-const SECTION_IDS = ['general', 'people', 'preferences', 'claude', 'footage', 'extension', 'storage', 'components', 'integrations', 'abilities', 'log', 'cli']; // Brand is a project's Content Settings now (D193); Preferences after People (D208); Components after Storage (D324); Abilities after Integrations (D481)
+const SECTION_IDS = ['general', 'people', 'preferences', 'claude', 'footage', 'extension', 'storage', 'delivery', 'components', 'integrations', 'abilities', 'log', 'cli']; // Brand is a project's Content Settings now (D193); Preferences after People (D208); Components after Storage (D324); Delivery after Storage (Content Credentials); Abilities after Integrations (D481)
 
 /** The text a person reads in an element, people's own words (<Theirs>) in curly quotes. */
 async function readText(page, selector) {

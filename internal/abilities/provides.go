@@ -128,6 +128,14 @@ func providesProblems(m *Manifest) []string {
 		if !contains(m.Outputs, rule.output) {
 			out = append(out, fmt.Sprintf("providing %s brings back %s: list it in outputs", k, rule.output))
 		}
+		// What it declares AI does to that output can't say less than the work
+		// is (D460): a picture made from words is made with AI.
+		if d, ok := m.AI[rule.output]; ok && contains(models.AIDeclarations, d) {
+			need, have := models.AIWorkOf(k, false), models.AIWorkDeclared(d)
+			if models.AIWorkStronger(have, need) != have {
+				out = append(out, fmt.Sprintf("providing %s, what AI does to its %s output is at least %s: say so in ai (%s, or more)", k, rule.output, need, need))
+			}
+		}
 	}
 	sort.Strings(out)
 	return out
@@ -574,6 +582,9 @@ func runFor(ctx context.Context, a *app.App, p *provider, req *aiservices.Reques
 			Hint: "Its run's log says more (Library → Abilities)."}
 	}
 	st := &aiservices.Status{State: aiservices.StateDone}
+	// What AI did to what it brings back (D460): the kind of work, or more
+	// when its manifest says more (nothing said counts as made).
+	aiWork := models.AIWorkStronger(models.AIWorkOf(req.Kind, false), models.AIWorkDeclared(m.AIOf(rule.output)))
 	for _, o := range res.Outputs {
 		ao := models.AbilityOutput{Path: o.Rel, Kind: o.Kind, Size: o.Size, SHA256: o.SHA256, Title: o.Title}
 		switch {
@@ -587,7 +598,7 @@ func runFor(ctx context.Context, a *app.App, p *provider, req *aiservices.Reques
 				ao.Status, ao.Why = "left out", "it couldn't be read"
 				break
 			}
-			st.Outputs = append(st.Outputs, aiservices.Output{MIME: aiservices.Sniff(b), Data: b})
+			st.Outputs = append(st.Outputs, aiservices.Output{MIME: aiservices.Sniff(b), Data: b, Work: aiWork})
 			ao.Status = "to the AI work"
 		}
 		r.Outputs = append(r.Outputs, ao)

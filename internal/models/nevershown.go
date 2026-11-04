@@ -17,7 +17,7 @@ var NeverShown = map[string]bool{
 	// Capabilities and where files are kept.
 	"key": true, "storageKey": true, "sessionUri": true, "store": true,
 	// Sign-in state.
-	"emailKey": true, "sessionsValidAfter": true, "sessions": true, "sessionTokens": true, "sessionStarted": true,
+	"emailKey": true, "sessionsValidAfter": true, "sessions": true, "sessionTokens": true, "sessionStarted": true, "sso": true,
 	"hash": true, "tokenHash": true, "secret": true, "password": true, "refreshToken": true, "accessToken": true,
 	// A review link's readers and its own bookkeeping.
 	"writer": true, "seen": true, "taken": true, "owners": true, "seatSize": true, "hour": true, "inHour": true,

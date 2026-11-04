@@ -73,34 +73,66 @@ func tooSoon(wait time.Duration, locked bool) error {
 var methodCache sync.Map // workspace ID → cachedMethod
 
 type cachedMethod struct {
-	method string
-	at     time.Time
+	settings models.AuthSettings
+	at       time.Time
 }
 
-// Method is the workspace's sign-in method: single (the default), password or
-// tailscale. It is read at most every few seconds per workspace.
-func Method(ctx context.Context, a *app.App) string {
+// Method is the workspace's sign-in method: single (the default), password,
+// tailscale or sso. It is read at most every few seconds per workspace.
+func Method(ctx context.Context, a *app.App) string { return Settings(ctx, a).Method }
+
+// Settings is the workspace's sign-in: the method and, with sso, its setup
+// (D425). Read like Method: at most every few seconds, and when the database
+// doesn't answer, the last answer (D180).
+func Settings(ctx context.Context, a *app.App) models.AuthSettings {
 	if v, ok := methodCache.Load(a.WorkspaceID()); ok {
 		if c := v.(cachedMethod); time.Since(c.at) < 5*time.Second {
-			return c.method
+			return c.settings
 		}
 	}
 	var ws models.Workspace
-	m := models.AuthSingle
+	st := models.AuthSettings{Method: models.AuthSingle}
 	qctx, cancel := context.WithTimeout(ctx, lookupWait)
 	defer cancel()
-	if err := a.DB.GetByIDAnyMember(qctx, store.CWorkspaces, a.WorkspaceID(), a.WorkspaceID(), &ws); err == nil && ws.Auth != nil && ws.Auth.Method != "" {
-		m = ws.Auth.Method
+	if err := a.DB.GetByIDAnyMember(qctx, store.CWorkspaces, a.WorkspaceID(), a.WorkspaceID(), &ws); err == nil && ws.Auth != nil {
+		st = *ws.Auth
+		if st.Method == "" {
+			st.Method = models.AuthSingle // a setup saved before any method was chosen
+		}
 	} else if err != nil && !errors.Is(err, store.ErrNotFound) {
 		if v, ok := methodCache.Load(a.WorkspaceID()); ok {
 			c := v.(cachedMethod)
-			methodCache.Store(a.WorkspaceID(), cachedMethod{method: c.method, at: time.Now()}) // ask again in a few seconds, not on every request
-			return c.method                                                                    // the database didn't answer: the last known method
+			methodCache.Store(a.WorkspaceID(), cachedMethod{settings: c.settings, at: time.Now()}) // ask again in a few seconds, not on every request
+			return c.settings                                                                      // the database didn't answer: the last known method
 		}
 	}
-	methodCache.Store(a.WorkspaceID(), cachedMethod{method: m, at: time.Now()})
-	return m
+	if st.Method == models.AuthSSO && st.SSO == nil {
+		st.Method = models.AuthSingle // a setup that vanished signs nobody in by it
+	}
+	methodCache.Store(a.WorkspaceID(), cachedMethod{settings: st, at: time.Now()})
+	return st
 }
+
+// PasswordOn reports whether email and password sign people in: the method,
+// or kept beside an organization's sign-in (D431).
+func PasswordOn(ctx context.Context, a *app.App) bool {
+	st := Settings(ctx, a)
+	return st.Method == models.AuthPassword || (st.Method == models.AuthSSO && st.SSO != nil && st.SSO.AlsoPassword)
+}
+
+// TailscaleOn reports whether Tailscale accounts sign people in: the method,
+// or kept beside an organization's sign-in (D431).
+func TailscaleOn(ctx context.Context, a *app.App) bool {
+	st := Settings(ctx, a)
+	return st.Method == models.AuthTailscale || (st.Method == models.AuthSSO && st.SSO != nil && st.SSO.AlsoTailscale)
+}
+
+// forgetSettings drops the cached sign-in (it changed here).
+func forgetSettings(a *app.App) { methodCache.Delete(a.WorkspaceID()) }
+
+// ForgetSettings drops the cached sign-in so the next request reads it
+// (tests; another process changed it).
+func ForgetSettings(a *app.App) { forgetSettings(a) }
 
 // SetMethod sets the sign-in method alone (tests and repairs; people use the
 // SetUp… steps, which also set up the owner's own sign-in).
@@ -108,11 +140,13 @@ func SetMethod(ctx context.Context, a *app.App, method string) error {
 	return setMethod(ctx, a, method)
 }
 
+// setMethod sets the method; the organization sign-in's setup stays where
+// it is (going back to it later needs its test again, D430).
 func setMethod(ctx context.Context, a *app.App, method string) error {
 	_, err := a.DB.C(store.CWorkspaces).UpdateOne(ctx, bson.M{"_id": a.WorkspaceID()}, bson.M{
-		"$set":         bson.M{"auth": models.AuthSettings{Method: method, SetAt: time.Now().UTC(), SetBy: a.Actor}},
+		"$set":         bson.M{"auth.method": method, "auth.setAt": time.Now().UTC(), "auth.setBy": a.Actor},
 		"$setOnInsert": bson.M{"workspaceId": a.WorkspaceID(), "name": a.Cfg.Workspace.Name, "createdAt": time.Now().UTC()}}, options.UpdateOne().SetUpsert(true))
-	methodCache.Delete(a.WorkspaceID())
+	forgetSettings(a)
 	return err
 }
 
@@ -325,13 +359,23 @@ func signOutNow() bson.M { return bson.M{"sessionsValidAfter": true} }
 // everywhere" pressed on any computer (this computer's clock when the
 // database doesn't answer: serverNow). u is the person as read for this
 // sign-in (nil: not read): the session starts after a sign-out recorded just
-// before even when the measured time is a moment behind the server's (it
-// keeps milliseconds). It is moved a second at most, so a sign-out an older
+// before even when the measured time is behind the server's. A moment behind
+// (it keeps milliseconds) is moved past; a second or more — under load a slow
+// round trip can put the measured offset that far off, and a new password
+// signs out everywhere just before this browser's new session — asks the
+// server itself first. It is moved a second at most, so a sign-out an older
 // MetaRush wrote ahead of the server's time can't carry the session past a
 // later one.
 func SessionStart(ctx context.Context, a *app.App, u *models.User) time.Time {
 	now := serverNow(ctx, a)
 	if u != nil && u.SessionsValidAfter != nil {
+		if u.SessionsValidAfter.Sub(now) >= time.Second {
+			qctx, cancel := context.WithTimeout(ctx, lookupWait)
+			if asked, err := a.DB.ServerNow(qctx); err == nil {
+				now = asked
+			}
+			cancel()
+		}
 		if behind := u.SessionsValidAfter.Sub(now); behind >= 0 && behind < time.Second {
 			now = u.SessionsValidAfter.Add(time.Millisecond).UTC()
 		}
@@ -599,6 +643,19 @@ func LookupLink(ctx context.Context, a *app.App, token string) (*LinkRecord, *mo
 	return &rec, u, nil
 }
 
+// LinkByHash is an invite or reset link that still works, by its token's
+// SHA-256 (a sign-in in progress keeps only that, D428).
+func LinkByHash(ctx context.Context, a *app.App, hash string) *LinkRecord {
+	if len(hash) != 64 {
+		return nil
+	}
+	var rec LinkRecord
+	if err := a.DB.C(store.CAuthTokens).FindOne(ctx, bson.M{"_id": hash, "workspaceId": a.WorkspaceID(), "usedAt": nil, "revokedAt": nil, "$expr": notExpired}).Decode(&rec); err != nil {
+		return nil
+	}
+	return &rec
+}
+
 // UseLink accepts an invite (a name and a password) or a reset (a new
 // password). The password is checked before the link is used up; the link
 // works once. The person is signed out everywhere else.
@@ -656,7 +713,7 @@ var ErrNoMethod = apperr.New(apperr.Conflict, "Choose how people sign in before 
 // with that email — or the one given in linkTo — becomes the account, so what
 // they did before is theirs.
 func Invite(ctx context.Context, a *app.App, email, name, role, linkTo string) (*models.User, string, time.Time, error) {
-	if Method(ctx, a) != models.AuthPassword {
+	if m := Method(ctx, a); m != models.AuthPassword && m != models.AuthSSO {
 		return nil, "", time.Time{}, ErrNoMethod
 	}
 	key := EmailKey(email)
@@ -705,7 +762,9 @@ func Invite(ctx context.Context, a *app.App, email, name, role, linkTo string) (
 		if name != "" {
 			set["name"] = name
 		}
-		if err := a.DB.Update(ctx, store.CUsers, a.WorkspaceID(), u.ID, bson.M{"$set": set}); err != nil {
+		// Invited again: the provider account they sign in with is linked
+		// afresh at their first sign-in (D429).
+		if err := a.DB.Update(ctx, store.CUsers, a.WorkspaceID(), u.ID, bson.M{"$set": set, "$unset": bson.M{"sso": ""}}); err != nil {
 			if store.IsDuplicateKey(err) {
 				return nil, "", time.Time{}, apperr.New(apperr.Conflict, "Someone else already has that email.")
 			}
@@ -731,7 +790,7 @@ func orEmail(u *models.User) string {
 // ResetLink makes a link a person follows to choose a new password (an
 // invite again for someone who hasn't accepted theirs).
 func ResetLink(ctx context.Context, a *app.App, userID string) (*models.User, string, time.Time, string, error) {
-	if Method(ctx, a) != models.AuthPassword {
+	if !PasswordOn(ctx, a) && Method(ctx, a) != models.AuthSSO {
 		return nil, "", time.Time{}, "", apperr.New(apperr.Conflict, "People sign in without passwords here, so there is nothing to reset.").WithDetails(map[string]any{"reason": "no_passwords"})
 	}
 	u, err := GetUser(ctx, a, userID)
@@ -742,9 +801,12 @@ func ResetLink(ctx context.Context, a *app.App, userID string) (*models.User, st
 	switch u.State {
 	case models.UserInvited:
 		kind, ttl = LinkInvite, InviteTTL
+	case models.UserActive:
+		if !PasswordOn(ctx, a) {
+			return nil, "", time.Time{}, "", apperr.New(apperr.Conflict, "People sign in with their organization's account here, so there is no password to reset.").WithDetails(map[string]any{"reason": "no_passwords"})
+		}
 	case models.UserDisabled:
 		return nil, "", time.Time{}, "", apperr.New(apperr.Conflict, "%s's account is turned off.", orEmail(u)).WithHint("Turn it back on first.")
-	case models.UserActive:
 	default:
 		return nil, "", time.Time{}, "", apperr.New(apperr.Conflict, "%s has no account yet.", orEmail(u)).WithHint("Invite them instead.")
 	}
@@ -787,7 +849,7 @@ func SetState(ctx context.Context, a *app.App, userID, state string) (*models.Us
 		if u.State != models.UserDisabled {
 			return u, nil
 		}
-		if !HasPassword(ctx, a, u.ID) && Method(ctx, a) == models.AuthPassword {
+		if m := Method(ctx, a); !HasPassword(ctx, a, u.ID) && !ssoLinked(u) && (m == models.AuthPassword || m == models.AuthSSO) {
 			set["state"] = models.UserInvited // never accepted: they need an invite link
 		}
 	case models.UserDisabled:
@@ -795,6 +857,7 @@ func SetState(ctx context.Context, a *app.App, userID, state string) (*models.Us
 		revokeLinks(ctx, a, userID, "")
 	case models.UserEarlier:
 		update["$currentDate"] = signOutNow()
+		update["$unset"] = bson.M{"sso": ""} // their provider accounts no longer sign anyone in (D429)
 		set["role"] = models.RoleMember
 		revokeLinks(ctx, a, userID, "")
 		_, _ = a.DB.C(store.CUserCredentials).DeleteOne(ctx, bson.M{"_id": userID, "workspaceId": a.WorkspaceID()})
@@ -985,7 +1048,7 @@ func Reset(ctx context.Context, a *app.App) (earlier int, err error) {
 		switch {
 		case u.ID == owner:
 			set["role"], set["state"] = models.RoleOwner, models.UserActive
-		case !HasPassword(ctx, a, u.ID):
+		case !HasPassword(ctx, a, u.ID) && !ssoLinked(&u):
 			set["state"] = models.UserEarlier
 			if u.EmailKey == "" {
 				if k := EmailKey(firstNonEmpty(u.Email, firstLogin(u))); ValidEmail(k) {

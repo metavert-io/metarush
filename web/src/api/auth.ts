@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, request, toApiError } from './client';
-import type { AuthMethod, AuthState, LinkAccept, LinkInfo, SignInRequest, SignInResult } from './types';
+import type { AuthMethod, AuthState, LinkAccept, LinkInfo, SignInRequest, SignInResult, SSOStart, SSOStartResult } from './types';
 
 /*
  * Signing in (D183, docs/accounts.md). These endpoints work without a session,
@@ -27,6 +27,50 @@ export function useAuthState(enabled = true) {
 /** POST /api/auth/login with an email and password. */
 export function signIn(input: SignInRequest): Promise<SignInResult> {
   return request<SignInResult>('POST', '/api/auth/login', { json: input });
+}
+
+/**
+ * POST /api/auth/sso/start: a sign-in with the organization's account (D425)
+ * for this browser. It answers with the address to open next (on the address
+ * the provider sends people back to); the browser goes there, then to the
+ * provider, then back.
+ */
+export function startSSO(input: SSOStart): Promise<SSOStartResult> {
+  return request<SSOStartResult>('POST', '/api/auth/sso/start', { json: input });
+}
+
+/** Why a sign-in with the organization's account didn't work, from /signin?sso=<reason>&as=<email>. */
+export function ssoProblem(reason: string | null, email: string | null, provider: string): string | null {
+  if (!reason) return null;
+  const as = email ? ` as ${email}` : '';
+  switch (reason) {
+    case 'not_member':
+      return `You signed in with ${provider}${as}, but there's no account for you here yet. Ask an owner of this MetaRush to invite you.`;
+    case 'disabled':
+      return 'Your account here is turned off. Ask an owner of this MetaRush to turn it back on.';
+    case 'removed':
+      return 'Your account here was removed. Ask an owner of this MetaRush to invite you again.';
+    case 'linked_elsewhere':
+      return `You signed in with ${provider}${as}, but your account here signs in with another ${provider} account. Sign in with that one, or ask an owner.`;
+    case 'invite_email':
+      return `This invite is for another email than the one you signed in with${as}. Choose the right account at ${provider}, or ask the owner to invite the email you use.`;
+    case 'invite_gone':
+      return "This invite doesn't work any more. Ask an owner of this MetaRush for a new one.";
+    case 'guest':
+      return `You signed in with ${provider}${as} as a guest or a personal account, which can't sign in here. Sign in with an account of the organization itself, or ask an owner to let you sign in with a password.`;
+    case 'cancelled':
+      return `You didn't finish signing in at ${provider}, so nothing changed.`;
+    case 'setup_changed':
+      return 'An owner changed how people sign in while you were away. Sign in again.';
+    case 'no_answer':
+    case 'no_secret':
+    case 'bad_client':
+      return `MetaRush couldn't finish signing you in with ${provider} on this computer. Try again; if it happens again, tell an owner.`;
+    case 'bad_time':
+      return `${provider}'s answer looked like it came at the wrong time: this computer's clock may be off. Try again, or tell an owner.`;
+    default:
+      return `${provider}'s answer didn't pass MetaRush's checks, so nobody was signed in. Sign in again.`;
+  }
 }
 
 /** POST /api/auth/logout: this browser only. */
@@ -61,7 +105,7 @@ export function signedOutWay(err: ApiError | null | undefined): { method?: AuthM
   const m = (d as { method?: unknown }).method;
   const r = (d as { remote?: unknown }).remote;
   return {
-    method: m === 'single' || m === 'password' || m === 'tailscale' ? m : undefined,
+    method: m === 'single' || m === 'password' || m === 'tailscale' || m === 'sso' ? m : undefined,
     remote: typeof r === 'boolean' ? r : undefined,
   };
 }
@@ -118,4 +162,5 @@ export const METHOD_LABEL: Record<AuthMethod, string> = {
   single: 'Just me on this computer',
   password: 'Email and password',
   tailscale: 'Tailscale accounts',
+  sso: "Your organization's account",
 };

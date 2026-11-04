@@ -783,7 +783,7 @@ func aiWords(e models.CatalogueEntry) string {
 		return "No AI is in anything it makes: it brings nothing back."
 	}
 	if len(e.AI) == 0 {
-		return "It doesn't say what AI does to what it brings back."
+		return "It doesn't say what AI does to what it brings back, so MetaRush counts all of it as made with AI."
 	}
 	by := map[string][]string{}
 	for _, o := range e.Outputs {
@@ -794,7 +794,7 @@ func aiWords(e models.CatalogueEntry) string {
 	}
 	var parts []string
 	for _, w := range []struct{ word, says string }{{"made", "AI makes the %s"}, {"edited", "AI changes the %s"},
-		{"enhanced", "a model improves the %s without making anything new"}, {"none", "no AI is in the %s"}, {"", "it doesn't say what AI does to the %s"}} {
+		{"enhanced", "a model improves the %s without making anything new"}, {"none", "no AI is in the %s"}, {"", "it doesn't say what AI does to the %s, so MetaRush counts them as made with AI"}} {
 		if ks := by[w.word]; len(ks) > 0 {
 			parts = append(parts, fmt.Sprintf(w.says, joinAnd(ks)))
 		}

@@ -74,6 +74,9 @@ type Workspace struct {
 	// ReviewLinks is the owners' word on links for people outside the
 	// workspace (D314): nil means anyone may share, for up to 7 days.
 	ReviewLinks *ReviewLinkSettings `bson:"reviewLinks,omitempty" json:"reviewLinks,omitempty"`
+	// ContentCredentials is whether delivered videos carry Content
+	// Credentials (D418; owners): nil means off.
+	ContentCredentials *ContentCredentialsSettings `bson:"contentCredentials,omitempty" json:"contentCredentials,omitempty"`
 	// DeletionsPaused is set on a restored copy (D333): nothing deletes by
 	// itself there — the Trash on its schedule, review links ending and their
 	// pages going, old activity cleared out — while the original may still use
@@ -193,6 +196,11 @@ type User struct {
 	Logins []string `bson:"logins,omitempty" json:"logins,omitempty"`
 	// LastSignedInAt is when this person last signed in with Tailscale.
 	LastSignedInAt *time.Time `bson:"lastSignedInAt,omitempty" json:"lastSignedInAt,omitempty"`
+	// SSO are the accounts at the organization's sign-in provider that are
+	// this person (D429): linked at their first sign-in, by an invite, their
+	// email the provider vouches for, or the owner's test sign-in. Only who
+	// they are is kept — never a token.
+	SSO []SSOLink `bson:"sso,omitempty" json:"-"`
 	// Source says how the person was added: "" (set up MetaRush on a
 	// computer), "tailscale" (first signed in through remote access) or
 	// "invite" (D183).
@@ -235,6 +243,22 @@ type Avatar struct {
 	UpdatedAt time.Time `bson:"updatedAt" json:"updatedAt"`
 }
 
+// SSOLink is one account at the organization's sign-in provider (D429): the
+// stable account (Key: a hash of Google's account ID, Microsoft's directory
+// and person ID, or another provider's issuer and subject — unique in the
+// workspace, migration 66) and what it said when it was linked.
+type SSOLink struct {
+	Key      string `bson:"key" json:"-"`
+	Provider string `bson:"provider"`
+	Issuer   string `bson:"issuer"`
+	// Scope is the issuer the account belongs to: google, microsoft:<tid>,
+	// oidc:<issuer> (D453).
+	Scope    string    `bson:"scope,omitempty"`
+	Subject  string    `bson:"subject"`
+	Email    string    `bson:"email,omitempty"`
+	LinkedAt time.Time `bson:"linkedAt"`
+}
+
 // User roles and states (D183).
 const (
 	RoleOwner     = "owner"
@@ -246,14 +270,48 @@ const (
 	AuthSingle    = "single"
 	AuthPassword  = "password"
 	AuthTailscale = "tailscale"
+	// AuthSSO: people sign in with their organization's account (D425).
+	AuthSSO = "sso"
 )
 
 // AuthSettings is a workspace's sign-in method (D183): single (just the owner
-// on their computer, the default), password or tailscale.
+// on their computer, the default), password, tailscale or sso (D425).
 type AuthSettings struct {
-	Method string    `bson:"method" json:"method" jsonschema:"enum=single,enum=password,enum=tailscale"`
+	Method string    `bson:"method" json:"method" jsonschema:"enum=single,enum=password,enum=tailscale,enum=sso"`
 	SetAt  time.Time `bson:"setAt" json:"setAt"`
 	SetBy  Actor     `bson:"setBy" json:"setBy"`
+	// SSO is the organization sign-in people use (method sso); SSONext is a
+	// setup that waits for an owner's test sign-in before it is used (D430).
+	SSO     *SSOSettings `bson:"sso,omitempty" json:"sso,omitempty"`
+	SSONext *SSOSettings `bson:"ssoNext,omitempty" json:"ssoNext,omitempty"`
+}
+
+// SSOSettings is a workspace's sign-in with an organization's provider
+// (D425): which provider and app, who may join by themselves, and whether
+// passwords and Tailscale accounts still sign people in. The app's client
+// secret is each computer's own (its keychain), never here.
+type SSOSettings struct {
+	Provider string `bson:"provider" json:"provider" jsonschema:"enum=google,enum=microsoft,enum=oidc"`
+	// Label is the provider's name on the button (another provider: "Okta").
+	Label string `bson:"label,omitempty" json:"label,omitempty" jsonschema:"maxLength=40"`
+	// Issuer is the provider's address (Google's and Microsoft's are set from
+	// the provider and directory).
+	Issuer string `bson:"issuer" json:"issuer"`
+	// Tenant is Microsoft's directory: its ID, or organizations / common.
+	Tenant   string `bson:"tenant,omitempty" json:"tenant,omitempty"`
+	ClientID string `bson:"clientId" json:"clientId"`
+	// Domain is who may join without an invite (D429): a Google Workspace
+	// domain, a Microsoft directory ID, or another provider's email domain.
+	Domain string `bson:"domain,omitempty" json:"domain,omitempty"`
+	// AlsoPassword and AlsoTailscale keep those sign-ins working beside it.
+	AlsoPassword  bool      `bson:"alsoPassword,omitempty" json:"alsoPassword,omitempty"`
+	AlsoTailscale bool      `bson:"alsoTailscale,omitempty" json:"alsoTailscale,omitempty"`
+	SetAt         time.Time `bson:"setAt" json:"setAt"`
+	SetBy         Actor     `bson:"setBy" json:"setBy"`
+	// Rev changes with every change to the setup (a new secret for it on a
+	// computer included): a switch takes effect only while the setup it
+	// tested is still the one waiting (D450).
+	Rev string `bson:"rev,omitempty" json:"rev,omitempty"`
 }
 
 // Brief captures the creative intent for a project.
@@ -863,6 +921,10 @@ type Revision struct {
 	// that let it out (D299): the receipt says "went out" only for these.
 	// Both lists only grow.
 	SentOut []ShipSent `bson:"sentOut,omitempty" json:"sentOut,omitempty"`
+	// ContentCredentials are the delivered videos of this version that carry
+	// Content Credentials (D420): who signed, whether they checked out, the
+	// manifest's hash. Outside the spec and its hash; it only grows.
+	ContentCredentials []SignedDelivery `bson:"contentCredentials,omitempty" json:"contentCredentials,omitempty"`
 }
 
 // How a version was asked to be reviewed (ReviewAsk.How).

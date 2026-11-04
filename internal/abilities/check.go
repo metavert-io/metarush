@@ -67,6 +67,12 @@ func checkArchive(ctx context.Context, a *app.App, arc *Archive) (*checkResult, 
 	if _, ok := arc.File(NotesFile); !ok {
 		res.Warnings = append(res.Warnings, "It has no notes.md: Claude learns how to use it well from one.")
 	}
+	if m != nil {
+		// What AI does to each kind of output it makes (D460): undeclared counts as made.
+		for _, k := range m.AIUndeclared() {
+			res.Warnings = append(res.Warnings, fmt.Sprintf("Its manifest doesn't say what AI does to its %s (ai in ability.yaml: made, edited, enhanced or none), so MetaRush counts them as made with AI.", kindWords(k)))
+		}
+	}
 	if len(arc.Ignored) > 0 {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("%d hidden files or folders were left out of the version (%s).", len(arc.Ignored), strings.Join(firstN(arc.Ignored, 3), ", ")))
 	}

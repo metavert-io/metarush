@@ -304,8 +304,8 @@ func makeEntry(ctx context.Context, ts *tools.Set, dir string, in MakeIn) (model
 	for _, k := range f.Keys {
 		e.Keys = append(e.Keys, models.CatalogueKey{Name: k.Name, Hosts: k.Hosts})
 	}
-	if ai := declaredAI(mustManifest(arc)); len(ai) > 0 {
-		e.AI = ai
+	if len(m.AI) > 0 {
+		e.AI = models.CatalogueAI(m.AI)
 	}
 	if l := f.Local; l != nil {
 		e.Local = &models.CatalogueLocal{Port: l.Port, Service: l.Service}
@@ -327,11 +327,6 @@ func makeEntry(ctx context.Context, ts *tools.Set, dir string, in MakeIn) (model
 		return models.CatalogueEntry{}, MadeListing{}, why, warn
 	}
 	return e, MadeListing{Name: e.Name, Source: r.Owner + "/" + r.Name + "@" + commit[:12] + ":" + firstNonEmpty(prefix, "."), Archive: arc.Hash}, "", warn
-}
-
-func mustManifest(arc *Archive) []byte {
-	b, _ := arc.File(ManifestFile)
-	return b
 }
 
 // gitOut runs git (the fetching rules) and returns what it printed.

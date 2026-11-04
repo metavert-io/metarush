@@ -368,7 +368,7 @@ func cleanEntry(e models.CatalogueEntry) (models.CatalogueEntry, string) {
 		switch {
 		case !slices.Contains(e.Outputs, k):
 			return e, fmt.Sprintf("it says what AI does to %s, which it doesn't list among what it brings back", clean(k, 20))
-		case !slices.Contains(models.CatalogueAIWords, v):
+		case !slices.Contains(models.AIDeclarations, v):
 			return e, "what AI does to what it brings back should be made, edited, enhanced or none"
 		}
 	}

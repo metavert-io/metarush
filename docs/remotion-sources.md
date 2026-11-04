@@ -362,9 +362,11 @@ but in **a separate, minimal process environment**:
 - **Kept apart from MetaRush and the person's files** (fail closed): on a Mac every step runs under `sandbox-exec`
   with a profile MetaRush writes per run — no reading or writing in MetaRush's home, cache, scratch and media
   folders, the person's home folder (except Node.js's own installation) or the project's original folder; writing
-  only in its copy, its temporary folders and its cache; the keychain out of reach (MetaRush's provider keys live
-  there). On Linux the same with bubblewrap (`bwrap`): the home folders hidden behind empty folders, MetaRush's
-  folders not there at all. A computer that can't keep a refresh apart refuses it plainly (install bubblewrap).
+  only in its copy, its temporary folders and its cache; nothing inside the temporary folders other programs use
+  (`$TMPDIR`, `/tmp`, and the person's other folders beside `$TMPDIR` under `/var/folders`) — no file read, written or
+  socket reached there — apart from its own copy and cache; the keychain out of reach (MetaRush's provider keys live
+  there). On Linux the same with bubblewrap (`bwrap`): the home folders, `/tmp` and `/run/user/<uid>` hidden behind
+  empty folders, MetaRush's folders not there at all. A computer that can't keep a refresh apart refuses it plainly (install bubblewrap).
 - **Never this computer's services**: the network stays on for the internet, but a step
   reaches nothing on this computer — on a Mac no loopback address at all (MetaRush's database, dashboard and its
   media, model and bundle servers listen there, some on ports chosen as they start), MetaRush's own ports (the

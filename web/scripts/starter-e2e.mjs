@@ -201,7 +201,7 @@ try {
   const listed = await api(page, 'ability.list', {});
   const names = listed.abilities.map((r) => r.name).sort();
   check('A the starter abilities that passed their check are listed', ['comfyui-local', 'freesound-effects', 'open-media', 'pexels-stock'].every((n) => names.includes(n)), names.join(', '));
-  check('A the two not yet runnable aren’t', !names.includes('content-credentials') && !names.includes('davinci-resolve'), names.join(', '));
+  check('A the one not yet runnable isn’t', !names.includes('davinci-resolve'), names.join(', '));
   check('A they wait for an owner', listed.waiting === names.length, `${listed.waiting} waiting`);
   await plainIn(page, '[data-ability-list]', 'A the list');
   await shot(page, 'A-list-light');

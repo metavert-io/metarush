@@ -20,7 +20,9 @@ video's record (`receipt`).
   a Claude plan it counts toward the plan's limits.
 - **Requests the activity log recorded** for the project, counted by service and what they did (failures too): every
   outside request goes to the log, so a service whose records live elsewhere still shows.
-- **Generated media**: generated shots and AI narration lines, marked when the priced version uses them.
+- **Generated media**: generated shots and AI narration lines, marked when the priced version uses them — and what
+  abilities brought in with AI, by what their manifests declare (D460: "a picture the ability “…” made with AI";
+  nothing declared counts as made; stock media an ability found and declares `none` of isn't listed).
 - **What Auto spent by itself**: each change that cost money and ran under Auto, for whom and its estimate.
 - **The samples runs made first** (`samples`): a run of Recipes with an expensive kind of work makes a sample
   first in its project; its requests are listed above like any others, and this says which of them was the sample —
@@ -28,6 +30,11 @@ video's record (`receipt`).
 - **Sent out anyway** (`sentAnyway`): each version a person sent out although the quality check or a sign-off
   held it ([ship-gate.md](ship-gate.md)) — who, when, their note in their words, and what held it; one line each
   ("was allowed to go out" until it went out with that note, `wentOut`), also in the delivered video's record.
+- **Content Credentials** (`signed`): each delivered video that carries them — the version, when, who delivered it,
+  whom the certificate names (or that it was a test certificate), whether MetaRush read the file back and they
+  checked out, the manifest's SHA-256 and the file's ([content-credentials.md](content-credentials.md)); one line per
+  version: "Version 3 went out with Content Credentials on 3 Nov 2026, signed by “Example Studio”: 2 files, checked
+  after signing."
 - **What left this computer** (`left`; also `metarush project leaves`): each receiver things of the project
   went to — AI services with what each request sent, what Claude and AI apps were shown (the activity log's record of
   the operations that show words or pictures, on their channels) and the panel's conversations, the hosts ability runs

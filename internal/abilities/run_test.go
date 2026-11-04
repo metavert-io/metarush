@@ -323,3 +323,50 @@ func TestWhoDecides(t *testing.T) {
 		t.Fatal("Claude in the dashboard can't start a run")
 	}
 }
+
+// Each output an ability brings in carries what its manifest declares AI did
+// to that kind of output (D460) — the answer delivery, Content Credentials,
+// the quality check and the receipt read — and an output its manifest says
+// nothing about counts as made, after the check asked the author to say.
+func TestAnAbilitysOutputsCarryWhatItsManifestSays(t *testing.T) {
+	a := newApp(t)
+	needSandbox(t, a)
+	runOne := func(name, manifest string) (*AbilityCheckOut, models.ResourceSource) {
+		t.Helper()
+		yml := strings.Replace(manifest, "name: title-card", "name: "+name, 1)
+		v := approved(t, a, map[string]string{ManifestFile: yml, "make.py": cardScript})
+		in := AbilityPlanIn{Ref: name, Inputs: map[string]any{"words": "Spring launch by " + name}} // other bytes for each: a picture already kept isn't kept again
+		p := mustCall[AbilityPlanOut](t, a, "ability.plan", in, ops.Caller{})
+		run := mustCall[AbilityRunOut](t, a, "ability.run", AbilityRunIn{AbilityPlanIn: in, Plan: p.Fingerprint}, ops.Caller{})
+		if _, err := runJob(t, a, run.JobID); err != nil {
+			t.Fatal(err)
+		}
+		r := mustCall[AbilityRunsOut](t, a, "ability.runs", AbilityRunsIn{ID: run.ID}, ops.Caller{}).Run
+		if len(r.Outputs) != 1 || r.Outputs[0].ResourceID == "" {
+			t.Fatalf("%s's run: %+v", name, r)
+		}
+		var res models.Resource
+		if err := a.DB.GetByID(context.Background(), store.CResources, a.WorkspaceID(), r.Outputs[0].ResourceID, &res); err != nil {
+			t.Fatal(err)
+		}
+		return v, res.Latest().Source
+	}
+	asks := func(v *AbilityCheckOut) bool {
+		return strings.Contains(strings.Join(v.Warnings, " "), "doesn't say what AI does to its pictures")
+	}
+	// It says no AI takes part: nothing to disclose.
+	v, src := runOne("plain-card", strings.Replace(cardManifest, "outputs: [picture]", "outputs: [picture]\nai: {picture: none}", 1))
+	if asks(v) || src.MadeWith == nil || src.MadeWith.Ability == nil || src.MadeWith.Ability.AI != models.AIWorkNone || models.AIWorkOfMadeWith(src.MadeWith, "") != "" {
+		t.Fatalf("declared none: %v %+v", v.Warnings, src.MadeWith)
+	}
+	// It says a generative model makes them: made.
+	v, src = runOne("dream-card", strings.Replace(cardManifest, "outputs: [picture]", "outputs: [picture]\nai: {picture: made}", 1))
+	if asks(v) || src.MadeWith.Ability.AI != models.AIWorkMade || models.AIWorkOfMadeWith(src.MadeWith, "") != models.AIWorkMade {
+		t.Fatalf("declared made: %v %+v", v.Warnings, src.MadeWith.Ability)
+	}
+	// It says nothing: the check asks, and what it makes counts as made.
+	v, src = runOne("quiet-card", cardManifest)
+	if !asks(v) || src.MadeWith.Ability.AI != "" || models.AIWorkOfMadeWith(src.MadeWith, "") != models.AIWorkMade {
+		t.Fatalf("declared nothing: %v %+v", v.Warnings, src.MadeWith.Ability)
+	}
+}

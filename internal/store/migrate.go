@@ -214,6 +214,13 @@ var Migrations = []Migration{
 			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "move", Value: 1}, {Key: "n", Value: 1}}),
 			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "state", Value: 1}}))
 	}},
+	// v63–v66 belong to builds merged in parallel.
+	{Version: 67, Name: "community catalogues of abilities an owner trusts", Up: func(ctx context.Context, d *DB) error {
+		// One record per catalogue and workspace (D481): an address is trusted
+		// once, whatever its short name here.
+		return createIndexes(ctx, d, CAbilityCatalogues,
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "url", Value: 1}}, options.Index().SetUnique(true)))
+	}},
 }
 
 // migratePresenters indexes people's own presenters (D273: one per short

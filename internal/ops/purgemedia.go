@@ -90,6 +90,7 @@ var purgeCatalogue = map[string]purgeEntry{
 	store.CAbilities:              {Purge: "kept (abilities are the workspace's)", Media: mediaScan},
 	store.CAbilitySetups:          {Purge: "kept (what each computer set up)", Media: mediaNone},
 	store.CAbilityRuns:            {Purge: "kept (what each run sent, made and cost); what it made stays like any footage or picture", Media: mediaScan},
+	store.CAbilityCatalogues:      {Purge: "kept (the catalogues owners trust are the workspace's)", Media: mediaNone},
 	store.CUserCredentials:        {Purge: "kept", Media: mediaNone},
 	store.CAuthTokens:             {Purge: "kept", Media: mediaNone},
 	store.CAuthFailures:           {Purge: "kept", Media: mediaNone},

@@ -9,12 +9,14 @@
 # a commit with character art under art/characters (pictures kept from a
 # repository's folders, D216: tests/fixtures/repo-art, and files that show what
 # is left out and why); "art-second" then changes alice.png, removes bob.jpg and
-# adds frank.png.
-#   scripts/make-fixture-repo.sh <dest> [second | art | art-second]
+# adds frank.png. With "ability" it adds a commit with an ability folder,
+# abilities/title-card (tests/fixtures/ability-repo, plus a hidden file a
+# version leaves out), for a community catalogue to list (D485).
+#   scripts/make-fixture-repo.sh <dest> [second | art | art-second | ability]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$ROOT/scripts/lib/status.sh" # an unset variable fails the script on macOS's bash 3.2 too; it ends with `exit 0`
-DEST="${1:?usage: make-fixture-repo.sh <dest> [second | art | art-second]}"
+DEST="${1:?usage: make-fixture-repo.sh <dest> [second | art | art-second | ability]}"
 STEP="${2:-}"
 BARE="$DEST/acme/widget.git"
 W="$(mktemp -d)"
@@ -38,6 +40,20 @@ if [ "$STEP" = "second" ]; then
   g commit -qam "Name the authors in the queue"
   g push -q origin main
   echo "added a commit to $BARE"
+  exit 0
+fi
+
+if [ "$STEP" = "ability" ]; then
+  g clone -q "$BARE" "$W/src"
+  cd "$W/src"
+  mkdir -p abilities/title-card
+  cp "$ROOT/tests/fixtures/ability-repo/title-card/"* abilities/title-card/
+  printf 'kept out of the version\n' > abilities/title-card/.scratch   # hidden: left out, as a folder on a computer would
+  g add -A
+  at "2026-10-16T09:00:00Z"
+  g commit -qm "Add the title card ability"
+  g push -q origin main
+  echo "added the ability to $BARE"
   exit 0
 fi
 

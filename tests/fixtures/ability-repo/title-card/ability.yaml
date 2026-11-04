@@ -1,0 +1,13 @@
+ability: 1
+name: title-card
+title: Title card
+does: Makes a plain title card picture from a few words.
+runs: python3 make.py
+inputs:
+  words: {kind: words, max: 80, says: The words on the card}
+outputs: [picture]
+cost: free
+needs: {programs: [python3]}
+licence: MIT
+search: [title, card, picture]
+test: {inputs: {words: Hello}}

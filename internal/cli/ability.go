@@ -20,8 +20,9 @@ import (
 
 func abilityCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "ability",
-		Short: "Abilities: capabilities added without a new MetaRush, checked in a sandbox, approved by an owner, set up on each computer",
+		Use:     "ability",
+		Aliases: []string{"abilities"},
+		Short:   "Abilities: capabilities added without a new MetaRush, checked in a sandbox, approved by an owner, set up on each computer",
 		Long: `An ability is a folder with an ability.yaml (what it does, what it runs, its inputs and outputs, its cost,
 the keys and places it uses and what leaves this computer) and the script or program it runs. Its version is a
 fingerprint of the folder. A check runs it once in the sandbox with the network off; an owner approves each
@@ -36,10 +37,13 @@ sandbox, its network only through MetaRush, which adds its keys so the code neve
   metarush ability plan stock-footage --input words="ocean waves"
   metarush ability run stock-footage --input words="ocean waves"
   metarush ability export stock-footage           (a file another workspace brings in)
-  metarush ability import stock-footage.ability.zip (a draft: check it here, an owner approves it)`,
+  metarush ability import stock-footage.ability.zip (a draft: check it here, an owner approves it)
+  metarush ability browse stock                    (what the community catalogues this workspace trusts list)
+  metarush ability import --from-catalogue acme:stock-footage (a draft too: a person brings it in)
+  metarush ability catalogues list|add|remove|make (owners trust catalogues; maintainers make their index)`,
 	}
 	cmd.AddCommand(abilityListCmd(), abilityFindCmd(), abilityShowCmd(), abilityCheckCmd(), abilityApproveCmd(), abilityRevokeCmd(), abilitySetupCmd(),
-		abilityExportCmd(), abilityImportCmd())
+		abilityExportCmd(), abilityImportCmd(), abilityBrowseCmd(), abilityCataloguesCmd())
 	cmd.AddCommand(abilityRunCmds()...)
 	return cmd
 }
@@ -453,11 +457,21 @@ func abilityExportCmd() *cobra.Command {
 
 func abilityImportCmd() *cobra.Command {
 	var in abilities.AbilityImportIn
+	var from string
+	var yes bool
 	c := &cobra.Command{
-		Use:   "import <file>",
-		Short: "Bring in an ability file from another workspace as a draft: never approved or set up here; check it on this computer, then an owner approves it",
-		Args:  cobra.ExactArgs(1),
+		Use:   "import <file> | --from-catalogue <catalogue>:<name>[@version]",
+		Short: "Bring in an ability as a draft — from another workspace's ability file, or from a community catalogue this workspace trusts (a person's step): never approved or set up here; check it on this computer, then an owner approves it",
+		Args:  cobra.RangeArgs(0, 1),
 		RunE: func(c *cobra.Command, args []string) error {
+			switch {
+			case from != "" && len(args) > 0:
+				return fail(c, apperr.InvalidInput, "Bring in an ability file or a catalogue's ability, not both.", "")
+			case from != "":
+				return abilityImportFromCatalogue(c, abilities.AbilityCatalogueImportIn{From: from, AsVersion: in.AsVersion, DryRun: in.DryRun}, yes)
+			case len(args) == 0:
+				return fail(c, apperr.InvalidInput, "Say which ability file to bring in, or --from-catalogue <catalogue>:<name>.", "")
+			}
 			in.File = args[0]
 			return runOp(c, "ability.import", in, func(o any) {
 				out := o.(*abilities.AbilityImportOut)
@@ -474,6 +488,8 @@ func abilityImportCmd() *cobra.Command {
 		},
 	}
 	c.Flags().BoolVar(&in.AsVersion, "as-version", false, "bring it in as a new version of the ability of the same name here, though they share no version")
-	c.Flags().BoolVar(&in.DryRun, "dry-run", false, "read and check the file and say what would come in; keep nothing")
+	c.Flags().BoolVar(&in.DryRun, "dry-run", false, "read and check the file (or fetch the catalogue's version) and say what would come in; keep nothing")
+	c.Flags().StringVar(&from, "from-catalogue", "", "an ability a trusted catalogue lists: catalogue:name, or catalogue:name@version for exactly that version")
+	c.Flags().BoolVar(&yes, "yes", false, "with --from-catalogue: don't ask first (it still takes a person at a terminal)")
 	return c
 }

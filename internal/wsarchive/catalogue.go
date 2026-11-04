@@ -94,6 +94,7 @@ var Catalogue = map[string]Entry{
 	store.CAbilities:              {How: AsIs, Why: "abilities, their checks and owners' approvals"},
 	store.CAbilitySetups:          {How: LeftOut, Why: "what each computer set up for an ability (programs and files on that computer, pinned there): set up again on the new computer"},
 	store.CAbilityRuns:            {How: AsIs, Why: "abilities' runs: what each sent, made and cost"},
+	store.CAbilityCatalogues:      {How: AsIs, Why: "the community catalogues of abilities owners trust, each with the last copy MetaRush read"},
 	store.CUserCredentials:        {How: LeftOut, Why: "passwords (kept as hashes): credentials never go into an archive; people set a password again", Secret: true},
 	store.CAuthTokens:             {How: LeftOut, Why: "invitation and password-reset links: credentials; owners send new ones", Secret: true},
 	store.CAuthFailures:           {How: LeftOut, Why: "counts of wrong passwords, kept a short while to slow guessing: about sign-ins to this database only", Secret: true},

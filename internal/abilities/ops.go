@@ -825,7 +825,7 @@ func approve(ctx context.Context, a *app.App, in *AbilityApproveIn) (*AbilityDec
 	case v.State == models.AbilityApproved:
 		return decisionOut(v, fmt.Sprintf("Version %d of “%s” is already approved.", v.Number, v.Title)), nil
 	case v.State == models.AbilityImported:
-		return nil, apperr.New(apperr.Validation, "Version %d of “%s” came from another workspace and hasn't been checked on a computer here yet, so it can't be approved.", v.Number, v.Title).
+		return nil, apperr.New(apperr.Validation, "Version %d of “%s” was brought in and hasn't been checked on a computer here yet, so it can't be approved.", v.Number, v.Title).
 			WithHint("Check it here first: its test runs in the sandbox with the network off.").WithCommand("metarush ability check --version " + v.Name + "@" + Short(v.Hash))
 	case v.State == models.AbilityFailed || !v.Check.OK:
 		return nil, apperr.New(apperr.Validation, "Version %d of “%s” didn't pass its check, so it can't be approved.", v.Number, v.Title).

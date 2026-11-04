@@ -546,6 +546,10 @@ func recordImported(ctx context.Context, a *app.App, arc *Archive, m *Manifest, 
 	if search == nil {
 		search = []string{}
 	}
+	why := "It came from another workspace and hasn't been checked on a computer here yet."
+	if from.Catalogue != nil {
+		why = fmt.Sprintf("It came from the catalogue “%s” and hasn't been checked on a computer here yet.", from.Catalogue.Title)
+	}
 	ctx = context.WithoutCancel(ctx)
 	for attempt := 0; attempt < 5; attempt++ {
 		n, err := nextNumber(ctx, a, m.Name)
@@ -556,7 +560,7 @@ func recordImported(ctx context.Context, a *app.App, arc *Archive, m *Manifest, 
 			"decisions": []models.AbilityDecision{}, "by": a.Actor, "createdAt": now(), "updatedAt": now(), "title": m.Title, "does": m.Does, "search": search,
 			"facts": factsOf(m), "manifest": string(manifest), "notes": arc.Notes(), "files": files, "ignored": arc.Ignored,
 			"archive": models.AbilityObject{Key: key, SHA256: arc.Hash, Size: info.Size}, "imported": from,
-			"check": models.AbilityCheck{Problems: []string{"It came from another workspace and hasn't been checked on a computer here yet."}, Warnings: []string{}, By: a.Actor, Machine: a.Cfg.Installation.Name}}
+			"check": models.AbilityCheck{Problems: []string{why}, Warnings: []string{}, By: a.Actor, Machine: a.Cfg.Installation.Name}}
 		_, err = a.DB.C(store.CAbilities).InsertOne(ctx, doc)
 		if mongo.IsDuplicateKeyError(err) {
 			if got, gerr := getVersion(ctx, a, arc.Hash); gerr == nil {

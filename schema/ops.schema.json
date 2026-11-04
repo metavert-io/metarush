@@ -4013,6 +4013,26 @@
         "startedAt"
       ]
     },
+    "ActivityRow": {
+      "properties": {
+        "activity": {
+          "$ref": "#/$defs/GuestActivity"
+        },
+        "who": {
+          "type": "string"
+        },
+        "says": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "activity",
+        "who",
+        "says"
+      ]
+    },
     "Actor": {
       "properties": {
         "userId": {
@@ -12292,6 +12312,9 @@
         "outside": {
           "$ref": "#/$defs/CommentOutside"
         },
+        "guest": {
+          "$ref": "#/$defs/CommentGuest"
+        },
         "quoted": {
           "type": "string"
         }
@@ -12333,6 +12356,29 @@
       "required": [
         "projectId",
         "body"
+      ]
+    },
+    "CommentGuest": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "grantId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "grantId",
+        "email"
       ]
     },
     "CommentListIn": {
@@ -20995,7 +21041,8 @@
             "skill-eval",
             "claude-terminal",
             "mcp",
-            "recipe"
+            "recipe",
+            "guest"
           ]
         },
         "userId": {
@@ -26239,6 +26286,992 @@
         "word"
       ]
     },
+    "GrantVersion": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "cut": {
+          "type": "string"
+        },
+        "ready": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "number",
+        "ready"
+      ]
+    },
+    "GrantView": {
+      "properties": {
+        "grant": {
+          "$ref": "#/$defs/GuestGrant"
+        },
+        "projectName": {
+          "type": "string"
+        },
+        "versions": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "stateWords": {
+          "type": "string"
+        },
+        "ends": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "grant",
+        "projectName",
+        "versions",
+        "live",
+        "stateWords",
+        "ends",
+        "summary"
+      ]
+    },
+    "Guest": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "active",
+            "revoked"
+          ]
+        },
+        "createdBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revokedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revokedBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "lastSeenAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "signedInWith": {
+          "type": "string",
+          "enum": [
+            "",
+            "link",
+            "sso"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "workspaceId",
+        "email",
+        "state",
+        "createdBy",
+        "createdAt"
+      ]
+    },
+    "GuestActivity": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string"
+        },
+        "guestId": {
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "revisionId": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "integer"
+        },
+        "refused": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "computer": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "workspaceId",
+        "what",
+        "at"
+      ]
+    },
+    "GuestComment": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "at": {
+          "type": "number"
+        },
+        "body": {
+          "type": "string"
+        },
+        "made": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "body",
+        "made"
+      ]
+    },
+    "GuestCommentIn": {
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "version",
+        "body"
+      ]
+    },
+    "GuestCommentOut": {
+      "properties": {
+        "comment": {
+          "$ref": "#/$defs/GuestComment"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "comment",
+        "summary"
+      ]
+    },
+    "GuestCommentsIn": {
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "as": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "version"
+      ]
+    },
+    "GuestCommentsOut": {
+      "properties": {
+        "comments": {
+          "items": {
+            "$ref": "#/$defs/GuestComment"
+          },
+          "type": "array"
+        },
+        "canComment": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "comments",
+        "canComment",
+        "summary"
+      ]
+    },
+    "GuestGrant": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "workspaceId": {
+          "type": "string"
+        },
+        "guestId": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "revisionIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "viewer",
+            "commenter"
+          ]
+        },
+        "endsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "projects": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "exposes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "createdBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revokedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revokedBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "endReason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "workspaceId",
+        "guestId",
+        "projectId",
+        "revisionIds",
+        "role",
+        "endsAt",
+        "kinds",
+        "projects",
+        "exposes",
+        "createdBy",
+        "createdAt"
+      ]
+    },
+    "GuestSelf": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "email"
+      ]
+    },
+    "GuestSettings": {
+      "properties": {
+        "on": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedBy": {
+          "$ref": "#/$defs/Actor"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "on",
+        "updatedAt",
+        "updatedBy"
+      ]
+    },
+    "GuestShare": {
+      "properties": {
+        "project": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "canComment": {
+          "type": "boolean"
+        },
+        "ends": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endsWords": {
+          "type": "string"
+        },
+        "from": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "kept": {
+          "type": "boolean"
+        },
+        "versions": {
+          "items": {
+            "$ref": "#/$defs/GuestVersion"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "project",
+        "role",
+        "canComment",
+        "ends",
+        "endsWords",
+        "versions"
+      ]
+    },
+    "GuestSharedIn": {
+      "properties": {
+        "as": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GuestSharedOut": {
+      "properties": {
+        "guest": {
+          "$ref": "#/$defs/GuestSelf"
+        },
+        "shares": {
+          "items": {
+            "$ref": "#/$defs/GuestShare"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "guest",
+        "shares",
+        "summary"
+      ]
+    },
+    "GuestVersion": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "cut": {
+          "type": "string"
+        },
+        "made": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "shape": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "number",
+        "made",
+        "duration",
+        "ready"
+      ]
+    },
+    "GuestView": {
+      "properties": {
+        "guest": {
+          "$ref": "#/$defs/Guest"
+        },
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/GrantView"
+          },
+          "type": "array"
+        },
+        "live": {
+          "type": "integer"
+        },
+        "signedIn": {
+          "type": "integer"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "guest",
+        "grants",
+        "live",
+        "signedIn",
+        "summary"
+      ]
+    },
+    "GuestWatchIn": {
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "as": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "version"
+      ]
+    },
+    "GuestWatchOut": {
+      "properties": {
+        "version": {
+          "$ref": "#/$defs/GuestVersion"
+        },
+        "project": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "poster": {
+          "type": "string"
+        },
+        "until": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "canComment": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "version",
+        "project",
+        "url",
+        "type",
+        "canComment",
+        "summary"
+      ]
+    },
+    "GuestsActivityIn": {
+      "properties": {
+        "guest": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "refused": {
+          "type": "boolean"
+        },
+        "limit": {
+          "type": "integer",
+          "maximum": 500,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GuestsActivityOut": {
+      "properties": {
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/ActivityRow"
+          },
+          "type": "array"
+        },
+        "unusual": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "rows",
+        "unusual",
+        "summary"
+      ]
+    },
+    "GuestsLinkIn": {
+      "properties": {
+        "guest": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "guest"
+      ]
+    },
+    "GuestsLinkOut": {
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ends": {
+          "type": "string"
+        },
+        "guest": {
+          "$ref": "#/$defs/Guest"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url",
+        "expiresAt",
+        "ends",
+        "guest",
+        "warnings",
+        "summary"
+      ]
+    },
+    "GuestsListIn": {
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "all": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GuestsListOut": {
+      "properties": {
+        "guests": {
+          "items": {
+            "$ref": "#/$defs/GuestView"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "guests",
+        "summary"
+      ]
+    },
+    "GuestsRevokeIn": {
+      "properties": {
+        "grant": {
+          "type": "string"
+        },
+        "guest": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GuestsRevokeOut": {
+      "properties": {
+        "guest": {
+          "$ref": "#/$defs/Guest"
+        },
+        "ended": {
+          "type": "integer"
+        },
+        "signedOut": {
+          "type": "integer"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "guest",
+        "ended",
+        "signedOut",
+        "summary"
+      ]
+    },
+    "GuestsSettingsSetIn": {
+      "properties": {
+        "on": {
+          "type": "boolean"
+        },
+        "port": {
+          "type": "integer",
+          "maximum": 65535,
+          "minimum": 1024
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GuestsShareIn": {
+      "properties": {
+        "email": {
+          "type": "string",
+          "maxLength": 254
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "versions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 50
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "viewer",
+            "commenter",
+            "approver"
+          ]
+        },
+        "days": {
+          "type": "integer",
+          "maximum": 90,
+          "minimum": 0
+        },
+        "until": {
+          "type": "string",
+          "maxLength": 10
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "dryRun": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "email",
+        "projectId",
+        "role"
+      ]
+    },
+    "GuestsShareOut": {
+      "properties": {
+        "may": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "hint": {
+          "type": "string"
+        },
+        "shared": {
+          "type": "boolean"
+        },
+        "projectName": {
+          "type": "string"
+        },
+        "versions": {
+          "items": {
+            "$ref": "#/$defs/GrantVersion"
+          },
+          "type": "array"
+        },
+        "role": {
+          "type": "string"
+        },
+        "roleWords": {
+          "type": "string"
+        },
+        "endsAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ends": {
+          "type": "string"
+        },
+        "exposes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "guest": {
+          "$ref": "#/$defs/Guest"
+        },
+        "grant": {
+          "$ref": "#/$defs/GuestGrant"
+        },
+        "newGuest": {
+          "type": "boolean"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "may",
+        "shared",
+        "projectName",
+        "versions",
+        "role",
+        "roleWords",
+        "endsAt",
+        "ends",
+        "exposes",
+        "kinds",
+        "warnings",
+        "summary"
+      ]
+    },
+    "GuestsStatusIn": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "GuestsStatusOut": {
+      "properties": {
+        "on": {
+          "type": "boolean"
+        },
+        "listening": {
+          "type": "boolean"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "address": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "internet": {
+          "type": "boolean"
+        },
+        "signIn": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sso": {
+          "type": "string"
+        },
+        "ssoCallback": {
+          "type": "string"
+        },
+        "guests": {
+          "type": "integer"
+        },
+        "grants": {
+          "type": "integer"
+        },
+        "signedIn": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "lines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "on",
+        "listening",
+        "running",
+        "address",
+        "port",
+        "internet",
+        "signIn",
+        "guests",
+        "grants",
+        "signedIn",
+        "lines",
+        "summary"
+      ]
+    },
     "HandoverAbandonIn": {
       "properties": {
         "id": {
@@ -30545,7 +31578,9 @@
             "abilities",
             "claude",
             "storage",
-            "delivery"
+            "delivery",
+            "reviewers",
+            "guests"
           ]
         },
         "title": {
@@ -32511,7 +33546,8 @@
             "skill-eval",
             "claude-terminal",
             "mcp",
-            "recipe"
+            "recipe",
+            "guest"
           ]
         },
         "userId": {
@@ -32676,7 +33712,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "cli, dashboard, assistant, worker, watch, skill-eval, claude-terminal, mcp."
+          "description": "cli, dashboard, assistant, worker, watch, skill-eval, claude-terminal, mcp, guest."
         },
         "op": {
           "type": "string",
@@ -32855,7 +33891,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "cli, dashboard, assistant, worker, watch, skill-eval, claude-terminal, mcp."
+          "description": "cli, dashboard, assistant, worker, watch, skill-eval, claude-terminal, mcp, guest."
         },
         "op": {
           "type": "string",
@@ -33137,7 +34173,8 @@
             "skill-eval",
             "claude-terminal",
             "mcp",
-            "recipe"
+            "recipe",
+            "guest"
           ]
         },
         "userId": {
@@ -37388,7 +38425,9 @@
             "outside_comments",
             "review_link_ended",
             "late_writes",
-            "person_joined"
+            "person_joined",
+            "guest_comments",
+            "guest_volume"
           ]
         },
         "groupKey": {
@@ -45684,7 +46723,8 @@
             "claude",
             "storage",
             "delivery",
-            "reviewers"
+            "reviewers",
+            "guests"
           ]
         },
         "to": {
@@ -74537,6 +75577,9 @@
         "contentCredentials": {
           "$ref": "#/$defs/ContentCredentialsSettings"
         },
+        "guests": {
+          "$ref": "#/$defs/GuestSettings"
+        },
         "deletionsPaused": {
           "$ref": "#/$defs/DeletionsPause"
         }
@@ -79485,6 +80528,193 @@
         "output"
       ],
       "description": "Show how a generated video was made: prompt, look, pictures, settings, cost, safety, lineage and where it is used"
+    },
+    "guest.comment": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuestCommentIn"
+        },
+        "output": {
+          "$ref": "#/$defs/GuestCommentOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Leave a comment on a version shared with this guest as a commenter, pinned to a time or not (the guest page only; it comes back to the version)"
+    },
+    "guest.comments": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuestCommentsIn"
+        },
+        "output": {
+          "$ref": "#/$defs/GuestCommentsOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "This guest's comments on a version shared with them (the guest page; owners may look at what a guest sees)"
+    },
+    "guest.shared": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuestSharedIn"
+        },
+        "output": {
+          "$ref": "#/$defs/GuestSharedOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "What was shared with this guest: the projects and versions they may watch, until when, and whether they may comment (the guest page; owners may look at what a guest sees)"
+    },
+    "guest.watch": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuestWatchIn"
+        },
+        "output": {
+          "$ref": "#/$defs/GuestWatchOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Watch a version shared with this guest: its review copy, through a short-lived link (the guest page; owners may look at what a guest sees)"
+    },
+    "guests.activity": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuestsActivityIn"
+        },
+        "output": {
+          "$ref": "#/$defs/GuestsActivityOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "What guests did, newest first: who, from which address, what they opened, watched or wrote, and what was turned away; and who asked unusually often (owners)"
+    },
+    "guests.link": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuestsLinkIn"
+        },
+        "output": {
+          "$ref": "#/$defs/GuestsLinkOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Make a one-time sign-in link for a guest to send them yourself (it works once, for a day at most, in the browser that opens it; earlier unused links stop working); owners, people only"
+    },
+    "guests.list": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuestsListIn"
+        },
+        "output": {
+          "$ref": "#/$defs/GuestsListOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Guests outside the workspace and what each may see: the projects or versions, as a viewer or a commenter, until when, and whether they are signed in"
+    },
+    "guests.revoke": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuestsRevokeIn"
+        },
+        "output": {
+          "$ref": "#/$defs/GuestsRevokeOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Take back one thing shared with a guest, or everything shared with them: it stops at once and, with nothing left, they are signed out; owners, people only"
+    },
+    "guests.settings.set": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuestsSettingsSetIn"
+        },
+        "output": {
+          "$ref": "#/$defs/GuestsStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Turn guests on or off (off signs every guest out at once), or move where this computer's guest listener answers (owners, people only)"
+    },
+    "guests.share": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuestsShareIn"
+        },
+        "output": {
+          "$ref": "#/$defs/GuestsShareOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Share a project (every version with a review copy) or some of its versions with a guest outside the workspace, as a viewer or a commenter, until a day you choose (at most 90 days; What may leave is asked); owners, people only"
+    },
+    "guests.status": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/GuestsStatusIn"
+        },
+        "output": {
+          "$ref": "#/$defs/GuestsStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Whether guests (people outside the workspace you share versions with) are let in, where this computer answers them, how they sign in, and how many have something shared now"
     },
     "improve.add": {
       "properties": {
@@ -85227,6 +86457,17 @@
     "generate.settings",
     "generate.shot",
     "generate.show",
+    "guest.comment",
+    "guest.comments",
+    "guest.shared",
+    "guest.watch",
+    "guests.activity",
+    "guests.link",
+    "guests.list",
+    "guests.revoke",
+    "guests.settings.set",
+    "guests.share",
+    "guests.status",
     "improve.add",
     "improve.dismiss",
     "improve.export",

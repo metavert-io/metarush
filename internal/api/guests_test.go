@@ -24,6 +24,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/assistant/fakeclaude"
 	"github.com/metavert-io/metarush/internal/auth"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/guests"
@@ -34,7 +35,6 @@ import (
 	"github.com/metavert-io/metarush/internal/providers"
 	"github.com/metavert-io/metarush/internal/sso"
 	"github.com/metavert-io/metarush/internal/store"
-	"github.com/metavert-io/metarush/internal/assistant/fakeclaude"
 	"github.com/metavert-io/metarush/internal/testutil/fakeoidc"
 )
 

@@ -29,7 +29,7 @@ type LogListIn struct {
 	Kind         []string `json:"kind,omitempty" jsonschema:"description=Entry kinds: op\\, op_summary\\, job\\, tool\\, claude\\, action\\, event\\, provider."`
 	Level        []string `json:"level,omitempty" jsonschema:"description=info\\, warn\\, error."`
 	Problems     bool     `json:"problems,omitempty" jsonschema:"description=Only errors and warnings."`
-	Channel      []string `json:"channel,omitempty" jsonschema:"description=cli\\, dashboard\\, assistant\\, worker\\, watch\\, skill-eval\\, claude-terminal\\, mcp\\, recipe\\, guest."`
+	Channel      []string `json:"channel,omitempty" jsonschema:"description=cli\\, dashboard\\, assistant\\, worker\\, watch\\, skill-eval\\, claude-terminal\\, mcp\\, guest."`
 	Op           string   `json:"op,omitempty" jsonschema:"maxLength=80"`
 	Project      string   `json:"project,omitempty" jsonschema:"description=Project ID."`
 	Asset        string   `json:"asset,omitempty" jsonschema:"description=Clip (asset) ID."`

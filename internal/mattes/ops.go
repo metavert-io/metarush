@@ -37,6 +37,10 @@ func init() {
 		func(ctx context.Context, a *app.App, in *CutoutPreviewIn) (*CutoutPreviewOut, error) {
 			return PreviewFile(ctx, a, in)
 		})
+	ops.Def("footage.cutout.delete", "Delete a clip's cut-out for good (background removal in video): its file goes for every computer of the workspace and it can be made again; refused while the latest version of a cut plays it, and older versions that play it are named; people only", ops.Flags{Mutating: true, HumanOnly: true},
+		func(ctx context.Context, a *app.App, in *CutoutDeleteIn) (*CutoutDeleteOut, error) {
+			return Delete(ctx, a, in)
+		})
 	ops.RegisterReady(ReadyCheck, func(ctx context.Context, a *app.App) (bool, string) {
 		if len(LocalModels(a)) > 0 {
 			return true, ""

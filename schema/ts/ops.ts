@@ -1711,6 +1711,13 @@ input: CutoutIn
 output: CutoutOut
 }
 /**
+ * Delete a clip's cut-out for good (background removal in video): its file goes for every computer of the workspace and it can be made again; refused while the latest version of a cut plays it, and older versions that play it are named; people only
+ */
+"footage.cutout.delete": {
+input: CutoutDeleteIn
+output: CutoutDeleteOut
+}
+/**
  * Show one moment of a clip with its background replaced by a colour, a blur of the clip, a picture or another clip, as a still on this computer: a new JPEG, never over a file already there (nothing is kept)
  */
 "footage.cutout.preview": {
@@ -19963,6 +19970,36 @@ maxUsd?: number
  * Say what it would use and how long it would take; nothing is made.
  */
 dryRun?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutoutDeleteIn".
+ */
+export interface CutoutDeleteIn {
+/**
+ * The cut-out (footage cut-outs lists a clip's).
+ */
+id: string
+/**
+ * Must be true: the cut-out's file is deleted for every computer of the workspace (it can be made again, as a new file).
+ */
+forever?: boolean
+/**
+ * Only say whether it can be deleted and which versions play it.
+ */
+dryRun?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutoutDeleteOut".
+ */
+export interface CutoutDeleteOut {
+allowed: boolean
+deleted: boolean
+cutout: CutoutView
+blockers: string[]
+older: string[]
+summary: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

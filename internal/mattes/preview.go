@@ -304,12 +304,28 @@ func pictureNamed(ctx context.Context, a *app.App, projectID, ref string) (image
 		return nil, err
 	}
 	defer f.Close()
+	// A picture's file says little of what it takes decoded: its size first.
+	cfg, _, err := image.DecodeConfig(io.LimitReader(f, 256<<20))
+	if err != nil {
+		return nil, apperr.New(apperr.UnsupportedMedia, "“%s” can't be read as a picture here.", r.Title)
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > maxPicturePixels {
+		return nil, apperr.New(apperr.InvalidInput, "“%s” is %d × %d, too large a picture to show behind the people here.", r.Title, cfg.Width, cfg.Height).
+			WithHint("Use a smaller copy of it (up to about 60 million pixels).")
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
 	img, _, err := image.Decode(io.LimitReader(f, 256<<20))
 	if err != nil {
 		return nil, apperr.New(apperr.UnsupportedMedia, "“%s” can't be read as a picture here.", r.Title)
 	}
 	return img, nil
 }
+
+// maxPicturePixels is the largest picture the preview decodes, as resources
+// read pictures (width × height).
+const maxPicturePixels = 60_000_000
 
 // parseColour reads #rrggbb (black otherwise).
 func parseColour(s string) color.RGBA {

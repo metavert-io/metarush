@@ -118,6 +118,14 @@ func Run(ctx context.Context, a *app.App, j *models.Job, report func(pct float64
 		"madeOn": a.Cfg.Installation.ID, "madeOnName": a.Cfg.Installation.Name}, "$unset": bson.M{"error": ""}, "$currentDate": bson.M{"updatedAt": true}}); err != nil {
 		return nil, err
 	}
+	// Room for it here first: another computer that makes cut-outs may have it.
+	if err := roomCheck(a, m); err != nil {
+		if madeElsewhere(ctx, a, ref) {
+			after := min(waitMost, waitFirst<<min(jobs.Postponed(j), 4))
+			return nil, &Wait{After: after, Why: "Waiting for a computer of this workspace with room to make the cut-out; this one hasn't."}
+		}
+		return nil, &Final{Err: err}
+	}
 	report(0.01, "Getting the clip")
 	src, err := a.Cache.Ensure(ctx, a.Media, m.MediaKey, m.Media, m.MediaSize, nil)
 	if err != nil {

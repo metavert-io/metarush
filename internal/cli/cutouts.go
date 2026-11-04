@@ -16,12 +16,68 @@ import (
 
 // Background removal for video (D505–D514): a clip's cut-out — the people in
 // it told from their background, kept once — and a cut's clip with its
-// background replaced. `metarush footage cut-out|cut-outs|cut-out-preview`
-// and `metarush cut background`.
+// background replaced. `metarush footage cut-out|cut-outs|cut-out-preview|
+// cut-out-delete` and `metarush cut background`.
 
 // footageCutoutCmds are the footage commands for clips' cut-outs.
 func footageCutoutCmds() []*cobra.Command {
-	return []*cobra.Command{footageCutoutCmd(), footageCutoutsCmd(), footageCutoutPreviewCmd()}
+	return []*cobra.Command{footageCutoutCmd(), footageCutoutsCmd(), footageCutoutPreviewCmd(), footageCutoutDeleteCmd()}
+}
+
+// footageCutoutDeleteCmd deletes a cut-out for good: a person in their own
+// terminal, who sees first which versions play it and types "delete".
+func footageCutoutDeleteCmd() *cobra.Command {
+	var in mattes.CutoutDeleteIn
+	c := &cobra.Command{
+		Use:   "cut-out-delete <cut-out> --forever [--dry-run]",
+		Short: "Delete a clip's cut-out for good (it can be made again) — people only, in their own terminal; refused while a cut's latest version plays it",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(c *cobra.Command, args []string) error {
+			in.ID = args[0]
+			if assistantMode() || !interactive() {
+				return fail(c, apperr.HumanOnly, "Only a person can delete a cut-out, in their own terminal.", "Run this yourself in a terminal (agents and the dashboard assistant can't delete).")
+			}
+			a, err := openApp(c, "cli")
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+			check := in
+			check.DryRun = true
+			res, err := ops.CallTyped[mattes.CutoutDeleteOut](c.Context(), a, "footage.cutout.delete", check, ops.Caller{Human: true})
+			if err != nil {
+				return failErr(c, err)
+			}
+			if in.DryRun || !res.Allowed {
+				if jsonMode(c) {
+					if err := emit(c, res, func() {}); err != nil || res.Allowed {
+						return err
+					}
+					return &exitError{code: 4}
+				}
+				fmt.Println(res.Summary)
+				if !res.Allowed {
+					return &exitError{code: 4}
+				}
+				return nil
+			}
+			if !jsonMode(c) {
+				fmt.Println(res.Summary)
+			}
+			if !in.Forever {
+				return fail(c, apperr.InvalidInput, "Add --forever to delete it for good.", "")
+			}
+			if ask(fmt.Sprintf("Type %q to delete the cut-out of “%s” for good", "delete", res.Cutout.Clip), "") != "delete" {
+				return fail(c, apperr.Canceled, "nothing was deleted", "")
+			}
+			return runOpWith(c, a, "footage.cutout.delete", in, ops.Caller{Human: true}, func(o any) {
+				fmt.Println(o.(*mattes.CutoutDeleteOut).Summary)
+			})
+		},
+	}
+	c.Flags().BoolVar(&in.Forever, "forever", false, "yes, for good (it can be made again, as a new file)")
+	c.Flags().BoolVar(&in.DryRun, "dry-run", false, "only say whether it can be deleted and which versions play it")
+	return c
 }
 
 // parseRange reads 0:12-0:40 (or 12-40) into from and to.

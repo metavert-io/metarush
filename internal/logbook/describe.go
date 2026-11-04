@@ -410,7 +410,7 @@ var opBase = map[string]string{
 	"asset.card": "look at the info card of {a}", "asset.fixes": "look at the fixes for {a}",
 	"asset.fixes.set": "change the fixes of {a}", "asset.fixes.look": "measure {a} for its fixes",
 	"cut.rename": "rename the cut of {p}", "cut.useFixed": "switch footage in {p} to a fixed copy",
-	"footage.cutout": "cut the people out of {a}", "footage.cutouts": "look at the cut-outs of {a}", "footage.cutout.preview": "preview {a} with its background replaced",
+	"footage.cutout": "cut the people out of {a}", "footage.cutouts": "look at the cut-outs of {a}", "footage.cutout.preview": "preview {a} with its background replaced", "footage.cutout.delete": "delete a cut-out of {a}",
 	"cut.background": "replace the background behind the people in {p}",
 	"revision.note":  "write a note on a version of {p}",
 	"delivery.notes": "read the delivery notes of {p}", "delivery.notes.set": "write the delivery notes of {p}",

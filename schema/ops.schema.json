@@ -18045,6 +18045,66 @@
         "summary"
       ]
     },
+    "CutoutDeleteIn": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^mte_[0-9a-z]{26}$",
+          "description": "The cut-out (footage cut-outs lists a clip's)."
+        },
+        "forever": {
+          "type": "boolean",
+          "description": "Must be true: the cut-out's file is deleted for every computer of the workspace (it can be made again, as a new file)."
+        },
+        "dryRun": {
+          "type": "boolean",
+          "description": "Only say whether it can be deleted and which versions play it."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id"
+      ]
+    },
+    "CutoutDeleteOut": {
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "deleted": {
+          "type": "boolean"
+        },
+        "cutout": {
+          "$ref": "#/$defs/CutoutView"
+        },
+        "blockers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "older": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "allowed",
+        "deleted",
+        "cutout",
+        "blockers",
+        "older",
+        "summary"
+      ]
+    },
     "CutoutIn": {
       "properties": {
         "assetId": {
@@ -79556,6 +79616,23 @@
       ],
       "description": "Cut the people out of a clip, or a part of it, for background removal in video: the people told from their background frame by frame and kept with the clip's picture, made once on a computer of the workspace that can (free; nothing leaves it) and used by every cut that replaces the clip's background"
     },
+    "footage.cutout.delete": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/CutoutDeleteIn"
+        },
+        "output": {
+          "$ref": "#/$defs/CutoutDeleteOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Delete a clip's cut-out for good (background removal in video): its file goes for every computer of the workspace and it can be made again; refused while the latest version of a cut plays it, and older versions that play it are named; people only"
+    },
     "footage.cutout.preview": {
       "properties": {
         "input": {
@@ -85989,6 +86066,7 @@
     "footage.analyze",
     "footage.captions",
     "footage.cutout",
+    "footage.cutout.delete",
     "footage.cutout.preview",
     "footage.cutouts",
     "footage.describe",

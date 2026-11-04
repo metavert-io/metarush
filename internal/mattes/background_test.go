@@ -16,6 +16,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/editspec"
+	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/mattes"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
@@ -197,5 +198,102 @@ func TestDeletingFootageDeletesItsCutOuts(t *testing.T) {
 	}
 	if _, err := e.a.Media.Stat(ctx, m.File.Key); err == nil {
 		t.Fatal("the cut-out's file is still in the media store")
+	}
+}
+
+// A person deletes a cut-out for good (it can be made again): not while the
+// latest version of a cut plays it, itself or in a cut that nests it; older
+// versions that play it are named, since they can't show it again; never by
+// an agent, never without "forever".
+func TestDeletingACutOut(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	out, err := e.cutout(t, mattes.CutoutIn{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.run(t, out.JobID); err != nil {
+		t.Fatal(err)
+	}
+	m := e.matte(t, out.Matte.ID)
+	del := func(in mattes.CutoutDeleteIn, c ops.Caller) (*mattes.CutoutDeleteOut, error) {
+		in.ID = m.ID
+		return ops.CallTyped[mattes.CutoutDeleteOut](ctx, e.a, "footage.cutout.delete", in, c)
+	}
+	if d, err := del(mattes.CutoutDeleteIn{DryRun: true}, ops.Caller{Human: true}); err != nil || !d.Allowed || len(d.Blockers) != 0 || len(d.Older) != 0 ||
+		!strings.Contains(d.Summary, "can be deleted") {
+		t.Fatalf("nothing plays it: %+v %v", d, err)
+	}
+	// The cut's latest version plays it.
+	apply := func(in mattes.CutBackgroundIn) {
+		t.Helper()
+		chk, err := e.background(t, in)
+		if err != nil || chk.Check == nil || chk.Check.ConfirmToken == "" {
+			t.Fatalf("checked: %+v %v", chk, err)
+		}
+		in.ConfirmToken = chk.Check.ConfirmToken
+		if out, err := e.background(t, in); err != nil || !out.Saved {
+			t.Fatalf("saved: %+v %v", out, err)
+		}
+	}
+	e.saveCut(t)
+	apply(mattes.CutBackgroundIn{With: mattes.WithBlur})
+	first := e.head(t)
+	if first.Spec.Clips[0].Background == nil || first.Spec.Clips[0].Background.Matte != m.File.SHA256 {
+		t.Fatalf("the cut plays it: %+v", first.Spec.Clips[0].Background)
+	}
+	d, err := del(mattes.CutoutDeleteIn{DryRun: true}, ops.Caller{Human: true})
+	if err != nil || d.Allowed || len(d.Blockers) != 1 || !strings.Contains(d.Blockers[0], "“Garden film”'s cut (version") || !strings.Contains(d.Summary, "Take the background out") {
+		t.Fatalf("its latest version plays it: %+v %v", d, err)
+	}
+	if _, err := del(mattes.CutoutDeleteIn{Forever: true}, ops.Caller{Human: true}); apperr.From(err) == nil || apperr.From(err).Code != apperr.Conflict {
+		t.Fatalf("refused: %v", err)
+	}
+	// A cut of another project nests that version: once the cut itself moves on, the nesting cut still plays it.
+	outer := ids.New(ids.Project)
+	now := time.Now().UTC()
+	nest := models.Revision{ID: ids.New(ids.Revision), WorkspaceID: e.a.WorkspaceID(), ProjectID: outer, Branch: "main", Number: 1, SpecHash: "h", CreatedAt: now,
+		Spec: editspec.Spec{SchemaVersion: 1, Clips: []editspec.Clip{{ID: "teaser", AssetID: editspec.NestedKey(e.project, first.ID), In: 0, Out: 1}}}}
+	if err := e.a.DB.Insert(ctx, store.CRevisions, nest); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.a.DB.Insert(ctx, store.CProjects, models.Project{ID: outer, WorkspaceID: e.a.WorkspaceID(), Name: "Showreel",
+		Branches: map[string]models.BranchHead{"main": {Head: nest.ID, UpdatedAt: now}}, CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	apply(mattes.CutBackgroundIn{Off: true})
+	d, err = del(mattes.CutoutDeleteIn{DryRun: true}, ops.Caller{Human: true})
+	if err != nil || d.Allowed || len(d.Blockers) != 1 || !strings.Contains(d.Blockers[0], "“Showreel”'s cut (version 1)") || len(d.Older) != 1 {
+		t.Fatalf("a cut that nests it: %+v %v", d, err)
+	}
+	// Only older versions play it now: allowed, and they are named.
+	if _, err := e.a.DB.C(store.CProjects).UpdateOne(ctx, bson.M{"_id": outer}, bson.M{"$set": bson.M{"archived": true}}); err != nil {
+		t.Fatal(err)
+	}
+	d, err = del(mattes.CutoutDeleteIn{DryRun: true}, ops.Caller{Human: true})
+	if err != nil || !d.Allowed || len(d.Older) != 2 || !strings.Contains(d.Summary, "can't show their new background again") {
+		t.Fatalf("only older versions: %+v %v", d, err)
+	}
+	// People only, and for good only when they say so.
+	if _, err := del(mattes.CutoutDeleteIn{Forever: true}, ops.Caller{}); apperr.From(err) == nil || apperr.From(err).Code != apperr.HumanOnly {
+		t.Fatalf("an agent: %v", err)
+	}
+	if _, err := del(mattes.CutoutDeleteIn{}, ops.Caller{Human: true}); apperr.From(err) == nil || apperr.From(err).Code != apperr.ConfirmRequired {
+		t.Fatalf("without forever: %v", err)
+	}
+	d, err = del(mattes.CutoutDeleteIn{Forever: true}, ops.Caller{Human: true})
+	if err != nil || !d.Deleted {
+		t.Fatalf("deleted: %+v %v", d, err)
+	}
+	if n, _ := e.a.DB.C(store.CMattes).CountDocuments(ctx, bson.M{"_id": m.ID}); n != 0 {
+		t.Fatal("the record is still there")
+	}
+	if _, err := e.a.Media.Stat(ctx, m.File.Key); err == nil {
+		t.Fatal("the cut-out's file is still in the media store")
+	}
+	// It can be made again.
+	again, err := e.cutout(t, mattes.CutoutIn{})
+	if err != nil || again.Reused || again.JobID == "" {
+		t.Fatalf("made again: %+v %v", again, err)
 	}
 }

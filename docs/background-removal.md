@@ -22,6 +22,7 @@ Undo. A clip with a new background shows **Background: …** and **Take the back
 metarush footage cut-out <clip> [--range 0:12-0:40] [--model local/modnet] [--wait] [--dry-run]
 metarush footage cut-outs <clip>                         # the clip's cut-outs: the part, how far along, the model, where made
 metarush footage cut-out-preview <clip> --at 0:03 --with colour --colour '#00b140' [--out still.jpg]
+metarush footage cut-out-delete <cut-out> --forever [--dry-run]   # people only, in their own terminal
 metarush cut background <project> --clip <name or number> --with blur|colour|picture|footage \
     [--colour '#00b140'] [--blur 28] [--picture <name>] [--footage <clip> --footage-at 0:04] [--edges 2] [--wait]
 metarush cut background <project> --clip 2 --off        # the clip as recorded again
@@ -30,6 +31,10 @@ metarush cut background <project> --clip 2 --off        # the clip as recorded a
 `cut background` is a checked change like every editing verb: it shows the change and asks in a terminal, or gives a
 confirm token (`--confirm <token>` saves it). When the clip has no cut-out yet it starts one and says so; `--wait`
 waits for it here and then checks (or saves) the change.
+
+The preview's still is a new JPEG: `--out` names a new `.jpg` file or a folder for one, and a file already there is
+never written over (the preview is a read, which AI apps may run). It follows the project's Content Settings like the
+cut-out does: where they rule background removal out, or this computer's models, no still is made.
 
 **In Claude's panel**, Claude's `metarush cut background …` and `metarush footage cut-out …` become cards a person
 runs. Auto runs them by itself only when the cut-out is made on a computer of the workspace (never a service
@@ -55,8 +60,20 @@ described as the clip's. It is derived media, like a fixed copy:
 - **never of someone else's video**: a reference (a video kept to learn from) is never cut out, and never shown behind
   people; neither is a picture taken from one.
 
+- **made where there is room**: before anything is made the job checks the computer has about 1.6 MB free for every
+  second of the stretch, the clip when it isn't there yet, and half a gigabyte to spare; without it, another computer
+  that makes cut-outs takes it, else it ends saying how much it needs and how much is free.
+- **paired frame for frame**: the matte's model and the cut-out's picture read the clip on its own frame rate's grid
+  (the frame showing at each tick, the last held where the sound runs on), and both are timed by frame number before
+  they meet, so every frame wears its own frame's matte whatever times the file gives its frames (a millisecond time
+  base, a variable rate).
+
 `metarush footage cut-outs <clip>` lists them; Settings → Storage's export keeps them (`mattes`), clearing a
-project out leaves them with the footage, and deleting the footage for good deletes them too.
+project out leaves them with the footage, and deleting the footage for good deletes them too. A person deletes one
+with `metarush footage cut-out-delete` (it can be made again): refused while the latest version of a cut plays it,
+itself or in a cut it nests; older versions that play it are named first, since they can't show their new background
+again. A recipe file never carries a clip's background (its cut-out is made again where it comes in), and a run that
+gives a clip other footage leaves its background out, with a note.
 
 ## In the cut
 
@@ -86,8 +103,11 @@ frames, a fraction of a frame when the cut-out starts between them) — its edge
 blurs the cut-out's own alpha and keeps the cut-out only where that is (so edges fade inward, never into a dark rim).
 Renders read the cut-out with Remotion's `OffthreadVideo transparent` (frames as PNG, alpha kept), which the
 renderer refuses without the cut-out's file (`checkMedia`); the preview plays it in the browser's own video, which
-shows VP9's alpha in Chrome, Edge and Firefox. **Safari plays VP9 without its alpha**, so there the preview plays the
-clip as recorded (the dialog says so); the review copy and the final render always show the new background. The
+shows VP9's alpha in Chrome, Edge and Firefox. **Safari plays VP9 without its alpha**, and every browser on an iPhone
+or iPad is Safari's engine (Chrome, Firefox and Edge there included; `video/src/clips/seethrough.ts`), so there the
+preview plays the clip as recorded — the dialog and the Edit tab under the player say so; the review copy and the
+final render always show the new background. A timeline exported for another editor shows such clips as recorded,
+with a marker saying what goes behind the people. The
 render self-test's `background` variant draws a moving square's cut-out over a colour, another clip and a picture,
 and checks the square is where the clip has it and the clip's own background shows nowhere.
 
@@ -96,7 +116,7 @@ and checks the square is where the clip has it and the clip's own background sho
 | Model | Where | Licence | How it was picked |
 |---|---|---|---|
 | Apple Vision person segmentation (`local/apple-vision`, accurate) | a Mac (macOS 12+), through MetaRush's own helper (`metarush-vision segment`, protocol 3: frames in, mattes out, its sequence handler kept across frames) | part of macOS | the default on a Mac: fast and steady, every person in the picture |
-| MODNet portrait matting (`local/modnet`) | any computer with the **Replacing a video's background** component (26 MB, pinned by SHA-256; run through onnxruntime) | Apache-2.0, code and models ([MODNet's README](https://github.com/ZHKKKe/MODNet/blob/28165a451e4610c9d77cfdf925a94610bb2810fb/README.md#license); the ONNX export is Xenova's, Apache-2.0) | the open model where Apple Vision isn't: a true alpha matte (hair stays soft), small, portrait-trained |
+| MODNet portrait matting (`local/modnet`) | any computer with the **Replacing a video's background** component (26 MB, pinned by SHA-256; run through onnxruntime) | Apache-2.0, code and models, since MODNet relicensed them on 28 January 2022 (earlier releases came under other terms; [MODNet's README](https://github.com/ZHKKKe/MODNet/blob/28165a451e4610c9d77cfdf925a94610bb2810fb/README.md#license); the ONNX export is Xenova's, Apache-2.0) | the open model where Apple Vision isn't: a true alpha matte (hair stays soft), small, portrait-trained |
 
 Considered and left out: **RobustVideoMatting** (GPL-3.0); **BiRefNet** (MIT, MetaRush's picture cut-outs off the
 Mac — about 4 s a frame, far too slow for video); **PP-HumanSeg** (Apache-2.0, fast but a coarse 192 × 192 mask with
@@ -129,7 +149,7 @@ cut-out as an ingredient whose source is algorithmically enhanced (`models.AIWor
 `enhanced`), the delivery's record lists it with what found the people, and the quality check (qa-8) notes where the
 background is replaced and what made it (`background_replaced`, information), so people can say so when a scene looks
 real. It also finds a cut-out that is gone, unmade or too short (`background_matte`, an error) or made from other media
-than the cut plays (`background_matte_stale`, a warning).
+than the cut plays (`background_matte_stale`, a warning) — in the cuts it nests too, at their time in this one.
 
 ## How well it works
 
@@ -181,6 +201,7 @@ threads of onnxruntime.)
 ## Tests
 
 `go test ./internal/matting/ ./internal/mattes/ ./internal/editspec/ ./internal/qa/` (stand-in models: no download,
-nothing real sent), the render self-test's `background` variant (`cd video && npm run render:selftest -- --only
+nothing real sent; `TestEveryFrameCarriesItsOwnMatte` checks every frame's alpha against its own picture in a WebM
+with a millisecond time base, an MP4, a variable-rate file and one whose sound runs on), the render self-test's `background` variant (`cd video && npm run render:selftest -- --only
 background`), and the browser run `scripts/background-e2e.sh` (ports 5830–5839): a clip's background replaced from the
 dashboard, its cut-out made by a stand-in model, the preview and a review copy showing the new background.

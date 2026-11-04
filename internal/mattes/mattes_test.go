@@ -2,8 +2,11 @@ package mattes_test
 
 import (
 	"bytes"
+	"compress/zlib"
 	"context"
+	"encoding/binary"
 	"errors"
+	"hash/crc32"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +33,7 @@ import (
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/providers"
+	"github.com/metavert-io/metarush/internal/resources"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/testutil/fakeai"
 	"github.com/metavert-io/metarush/internal/testutil/fakelocal"
@@ -539,5 +543,80 @@ func TestThePreviewFollowsContentSettings(t *testing.T) {
 	rules(aiwork.RulesSetIn{Allow: []string{local.Name}})
 	if _, _, err := mattes.Preview(ctx, e.a, &in); err != nil {
 		t.Fatalf("allowed again: %v", err)
+	}
+}
+
+// A picture shown behind the people is measured before it is decoded: one
+// whose file is small but whose picture is huge (a PNG that says 100,000 ×
+// 100,000) is refused in plain words, never decoded into memory.
+func TestAHugePictureIsntDecoded(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	var b bytes.Buffer
+	b.WriteString("\x89PNG\r\n\x1a\n")
+	chunk := func(typ string, data []byte) {
+		_ = binary.Write(&b, binary.BigEndian, uint32(len(data)))
+		b.WriteString(typ)
+		b.Write(data)
+		crc := crc32.NewIEEE()
+		crc.Write([]byte(typ))
+		crc.Write(data)
+		_ = binary.Write(&b, binary.BigEndian, crc.Sum32())
+	}
+	ihdr := make([]byte, 13)
+	binary.BigEndian.PutUint32(ihdr[0:], 100_000)
+	binary.BigEndian.PutUint32(ihdr[4:], 100_000)
+	ihdr[8], ihdr[9] = 8, 6 // 8 bits, RGBA
+	chunk("IHDR", ihdr)
+	var z bytes.Buffer
+	zw := zlib.NewWriter(&z)
+	_, _ = zw.Write(make([]byte, 4096))
+	_ = zw.Close()
+	chunk("IDAT", z.Bytes())
+	chunk("IEND", nil)
+	pic := filepath.Join(t.TempDir(), "poster.png")
+	if err := os.WriteFile(pic, b.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resources.AddFile(ctx, e.a, pic, resources.AddOptions{ProjectID: e.project, Name: "poster"}); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := mattes.Preview(ctx, e.a, &mattes.CutoutPreviewIn{AssetID: e.clip.ID, ProjectID: e.project, At: 1, With: mattes.WithPicture, Picture: "poster"})
+	if ae := apperr.From(err); ae == nil || ae.Code != apperr.InvalidInput || !strings.Contains(ae.Message, "100000 × 100000, too large") {
+		t.Fatalf("a huge picture: %v", err)
+	}
+}
+
+// A cut-out is made only where there is room for it: with too little free,
+// the job ends before anything is made, saying how much it needs and how
+// much is free; asked again once there is room, it is made.
+func TestACutOutNeedsRoom(t *testing.T) {
+	e := setup(t)
+	restore := mattes.FreeBytesForTest(func(string) (int64, bool) { return 100 << 20, true })
+	defer restore()
+	out, err := e.cutout(t, mattes.CutoutIn{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.run(t, out.JobID)
+	var fin *mattes.Final
+	if !errors.As(err, &fin) || !strings.Contains(err.Error(), "There isn't room on this computer to make the cut-out: it needs about") ||
+		!strings.Contains(err.Error(), "and 100 MB is") {
+		t.Fatalf("no room: %v", err)
+	}
+	m := e.matte(t, out.Matte.ID)
+	if m.State != models.MatteFailed || !strings.Contains(m.Error, "isn't room") || m.File != nil {
+		t.Fatalf("nothing made: %+v", m)
+	}
+	restore()
+	again, err := e.cutout(t, mattes.CutoutIn{})
+	if err != nil || again.Matte.ID != m.ID || again.JobID == "" {
+		t.Fatalf("asked again: %+v %v", again, err)
+	}
+	if _, err := e.run(t, again.JobID); err != nil {
+		t.Fatal(err)
+	}
+	if m := e.matte(t, m.ID); m.State != models.MatteReady {
+		t.Fatalf("made with room: %+v", m)
 	}
 }

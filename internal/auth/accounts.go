@@ -359,13 +359,23 @@ func signOutNow() bson.M { return bson.M{"sessionsValidAfter": true} }
 // everywhere" pressed on any computer (this computer's clock when the
 // database doesn't answer: serverNow). u is the person as read for this
 // sign-in (nil: not read): the session starts after a sign-out recorded just
-// before even when the measured time is a moment behind the server's (it
-// keeps milliseconds). It is moved a second at most, so a sign-out an older
+// before even when the measured time is behind the server's. A moment behind
+// (it keeps milliseconds) is moved past; a second or more — under load a slow
+// round trip can put the measured offset that far off, and a new password
+// signs out everywhere just before this browser's new session — asks the
+// server itself first. It is moved a second at most, so a sign-out an older
 // MetaRush wrote ahead of the server's time can't carry the session past a
 // later one.
 func SessionStart(ctx context.Context, a *app.App, u *models.User) time.Time {
 	now := serverNow(ctx, a)
 	if u != nil && u.SessionsValidAfter != nil {
+		if u.SessionsValidAfter.Sub(now) >= time.Second {
+			qctx, cancel := context.WithTimeout(ctx, lookupWait)
+			if asked, err := a.DB.ServerNow(qctx); err == nil {
+				now = asked
+			}
+			cancel()
+		}
 		if behind := u.SessionsValidAfter.Sub(now); behind >= 0 && behind < time.Second {
 			now = u.SessionsValidAfter.Add(time.Millisecond).UTC()
 		}

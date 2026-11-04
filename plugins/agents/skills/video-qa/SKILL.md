@@ -36,7 +36,7 @@ words ("Sam is hard to hear next to Maya"); the measured loudness of each person
      about frames you actually Read. Then the report's `limitations`.
    What's on screen (check `on_screen`): MetaRush places the footage's faces and its own text (the on-screen index)
    through each clip's crop and finds a face the crop cuts off, captions or a graphic over a face, and captions over
-   text that is in the footage itself; where a Mac looked at the rendered frames the finding is `observed`. Look at
+   text that is in the footage itself; where the computer looked at the rendered frames the finding is `observed`. Look at
    the finding's frame, say what you see ("the crop cuts Ada's face off at the right edge around 0:03"), and offer
    its fix (often letting the crop follow movement, or moving the captions to the top) — the person chooses.
    Caption words (check `caption_words`): a word fixed in the transcript since the version was made ("the captions

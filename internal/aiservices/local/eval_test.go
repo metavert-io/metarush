@@ -153,7 +153,7 @@ func TestMeasureBackground(t *testing.T) {
 		t.Skip("set EVAL_PICTURES to a folder of PNG pictures")
 	}
 	e := aiservices.Env{Tools: tools.New(config.Tools{}), Cfg: &config.Config{}, Home: t.TempDir(), Scratch: t.TempDir()}
-	if err := local.MaskerReady(e); err != nil {
+	if err := local.MaskerReady(e, local.ModelSubject); err != nil {
 		t.Skip(err)
 	}
 	a, _ := aiservices.Get(local.Name, aiservices.KindBackground)

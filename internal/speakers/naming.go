@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/metavert-io/metarush/internal/app"
+	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/names"
@@ -128,6 +129,9 @@ type NameResult struct {
 // person confirmed it), rebuilds the voice profiles involved from confirmed
 // voices only, updates transcripts and to-dos, and re-scores the library.
 func Name(ctx context.Context, a *app.App, in NameInput) (*NameResult, error) {
+	if err := notInReference(ctx, a, in.AssetID); err != nil {
+		return nil, err
+	}
 	voices, err := Voices(ctx, a, in.AssetID, false)
 	if err != nil {
 		return nil, err
@@ -457,7 +461,8 @@ func saveProfile(ctx context.Context, a *app.App, p *models.Person, pr voice.Pro
 
 func appearances(ctx context.Context, a *app.App, personID string) (int, float64, error) {
 	var vs []models.AssetSpeaker
-	if err := a.DB.Find(ctx, store.CSpeakers, a.WorkspaceID(), bson.M{"personId": personID, "mergedInto": bson.M{"$in": bson.A{nil, ""}}}, &vs); err != nil {
+	if err := a.DB.Find(ctx, store.CSpeakers, a.WorkspaceID(), bson.M{"personId": personID, "mergedInto": bson.M{"$in": bson.A{nil, ""}},
+		"assetId": bson.M{"$nin": referenceIDs(ctx, a)}}, &vs); err != nil { // someone else's video never counts (D443)
 		return 0, 0, err
 	}
 	assets := map[string]bool{}
@@ -526,7 +531,7 @@ func RefreshLibrary(ctx context.Context, a *app.App) (*LibraryChange, error) {
 	}
 	var vs []models.AssetSpeaker
 	if err := a.DB.Find(ctx, store.CSpeakers, a.WorkspaceID(), bson.M{"source": bson.M{"$in": bson.A{nil, "", models.SpeakerByAuto}}, "mergedInto": bson.M{"$in": bson.A{nil, ""}},
-		"model": voice.ModelName}, &vs); err != nil {
+		"model": voice.ModelName, "assetId": bson.M{"$nin": referenceIDs(ctx, a)}}, &vs); err != nil { // never a reference's voices (D443)
 		return nil, err
 	}
 	changed := map[string]bool{}
@@ -711,4 +716,15 @@ func without(xs []string, s string) []string {
 		}
 	}
 	return out
+}
+
+// notInReference refuses naming the people in a reference — someone else's
+// video, kept to learn from (D443) — until a person says it's theirs.
+func notInReference(ctx context.Context, a *app.App, assetID string) error {
+	var as models.Asset
+	if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), assetID, &as); err != nil || !as.IsReference() {
+		return nil // a clip that isn't there is said by the caller
+	}
+	return apperr.New(apperr.Conflict, "%s, so MetaRush doesn't name the people in it. If it's your own video, say so on its page (This is mine) first.", as.ReferenceWords()).
+		WithCommand(as.ReferenceMineCommand()).WithDetails(map[string]any{"reason": "reference", "assetId": as.ID})
 }

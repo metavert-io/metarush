@@ -33,18 +33,20 @@ ops.Offer("footage.moments", ops.Offering{ID: "best-moments", Group: "understand
 - `Words` are other words people use for it (find matches them).
 - `Needs`: `Works` — items of the first run's "what works here" (`transcripts`, `editing`, `renders`,
   `checks`, `scratch-voice`), every one needed (transcripts need FFmpeg too, so they come with `editing`); `OS`
-  (`mac`, `linux`) and `Partly` (what it still does on the other systems: "only plain-colour backgrounds", so it works
-  there in part and says so); `Programs` (allowlisted programs MetaRush doesn't set up by itself: `git`, `gh`,
+  (`mac`, `linux`) and `Partly` (what it still does without its OS or setup: "only plain-colour backgrounds", so it
+  works there in part and says so); `Programs` (allowlisted programs MetaRush doesn't set up by itself: `git`, `gh`,
   `yt-dlp`, `whisper-cli`…); `Keys` (integrations, any one is enough); `Claude` (it uses the person's Claude Code,
   counted toward their plan); `Priced` (priced first, paid to the service); `Leaves` (what leaves this computer when
   it runs; required with a key or Claude Code); `Setup` (a check another package registers with
-  `ops.RegisterReady`: `studio-voices`; `on-screen-helper`, which asks `vision.CanRun`: a Mac, FFmpeg and the
-  helper or what builds it; and `local-<model>` for each model on this computer, which asks its adapter whether it is
-  set up here).
+  `ops.RegisterReady`: `studio-voices`; `on-screen-helper`, which asks `looker.CanRun`: on a Mac FFmpeg and the
+  helper or what builds it, elsewhere the open models added (D405); `cut-outs`, which asks whether this computer can cut
+  a photo's subject out (Apple Vision, or the cut-out model); and `local-<model>` for each model on this computer,
+  which asks its adapter whether it is set up here).
 
 The kinds of AI work (`ai.make`) are annotated from the AI services' catalogue (`internal/aiservices/catalog.json`):
 each needs a key of any service with a model of that kind, so a new kind or service shows up by itself. The models on
-this computer are offered as their own entries (`offline-voices`, `ai-larger-pictures`, `ai-cut-outs`): free,
+this computer are offered as their own entries (`offline-voices`, `ai-larger-pictures`, `ai-cut-outs`,
+`ai-cut-outs-open`): free,
 no key, nothing leaves, and works here once the model is set up (`metarush ai local setup`, owners).
 
 `internal/catalog/firstparty.json` is generated from the annotations at build time:
@@ -122,26 +124,27 @@ first-party abilities were added after the original 166 (every third held out, w
 
 Generated from `firstparty.json` (a test keeps this list naming every ID).
 
-### Understand footage (10)
+### Understand footage (11)
 
 | ID | Ability | Runs | Needs | What leaves |
 |---|---|---|---|---|
 | `best-moments` | Best moments | `footage.moments` | the transcriber, FFmpeg | — |
 | `contact-sheets` | Contact sheets | `footage.sheet` | FFmpeg | — |
 | `spoken-language` | Each clip's language | `footage.language` | the transcriber, FFmpeg, whisper-cli | — |
-| `faces` | Faces across clips | `footage.faces` | a Mac, the on-screen helper | — |
+| `faces` | Faces across clips | `footage.faces` | a computer that can look (a Mac's helper, or the open models) | — |
 | `pauses-and-cuts` | Pauses, cuts and loud parts | `footage.evidence` | FFmpeg | — |
 | `call-switches` | Picture switches in calls | `footage.switches.find` | FFmpeg | — |
 | `scene-descriptions` | Scene descriptions | `footage.describe` | Claude Code | pictures of each scene leave this computer, for Claude |
 | `transcripts` | Transcripts and captions | `footage.analyze` | the transcriber, FFmpeg | — |
-| `whats-on-screen` | What's on screen | `footage.visuals` | a Mac, the on-screen helper | — |
+| `what-a-video-does` | What a video does | `footage.whatItDoes` | the transcriber, FFmpeg | — |
+| `whats-on-screen` | What's on screen | `footage.visuals` | a computer that can look (a Mac's helper, or the open models) | — |
 | `who-speaks` | Who speaks | `footage.speakers.detect` | the transcriber, FFmpeg | — |
 
 ### Fix sources (12)
 
 | ID | Ability | Runs | Needs | What leaves |
 |---|---|---|---|---|
-| `remove-background` | A photo's subject | `asset.fixes.set` `tick: ["background"]` | a Mac (elsewhere, only plain-colour backgrounds) | — |
+| `remove-background` | A photo's subject | `asset.fixes.set` `tick: ["background"]` | a Mac, or the cut-out model (without either, only plain-colour backgrounds) | — |
 | `balance-colour` | Balance colour | `asset.fixes.set` `tick: ["colour"]` | FFmpeg | — |
 | `change-a-spoken-word` | Change a spoken word | `cut.say.make` | the transcriber, FFmpeg, ElevenLabs or Google Gemini key, priced first | the new words, with the speaker's words around them, leave this computer for the service that holds the voice copy |
 | `clearer-voices` | Clearer voices | `sound.enhance` `mode: "clean"` | FFmpeg | — |
@@ -154,13 +157,14 @@ Generated from `firstparty.json` (a test keeps this list naming every ID).
 | `trim-silent-ends` | Trim silent ends | `asset.fixes.set` `tick: ["ends"]` | FFmpeg | — |
 | `cloud-voices` | Voices cleaned in the cloud | `sound.enhance` `mode: "cloud"` | ElevenLabs key, priced first | the voices' sound leaves this computer |
 
-### Make media (24)
+### Make media (25)
 
 | ID | Ability | Runs | Needs | What leaves |
 |---|---|---|---|---|
 | `own-presenters` | A person's own presenter | `presenter.make` (people only) | D-ID key, priced first | a video of the person and their filmed consent leave this computer, and the service keeps the presenter until it is retired |
 | `brand-from-a-site` | A website's brand | `brand.suggest` | — | — |
 | `ai-cut-outs` | AI cut-outs | `ai.make` `kind: "background-removal", model: "local/apple-vision"` | a Mac, the on-screen helper | — |
+| `ai-cut-outs-open` | AI cut-outs with BiRefNet | `ai.make` `kind: "background-removal", model: "local/birefnet"` | the cut-out model (Cutting out a picture's subject) | — |
 | `ai-larger-pictures` | AI larger pictures | `ai.make` `kind: "upscale", model: "local/real-esrgan-x4v3"` | the Real-ESRGAN picture model, set up once by an owner | — |
 | `ai-music` | AI music | `ai.make` `kind: "music"` | ElevenLabs or Google Gemini key, priced first | your words leave this computer |
 | `ai-narration` | AI narration | `voiceover.tts` | ElevenLabs key, priced first | the script's words leave this computer |
@@ -181,6 +185,7 @@ Generated from `firstparty.json` (a test keeps this list naming every ID).
 | `remotion-refreshes` | Remotion refreshes | `remotion.refresh.start` | Node.js and FFmpeg | — |
 | `repository-cards` | Repository cards | `resources.make` `kind: "stats"` | Node.js and FFmpeg | — |
 | `stand-in-narration` | Stand-in narration | `voiceover.scratch` | a system voice | — |
+| `start-from-a-video` | Start from a video you like | `recipe.fromVideo` | the transcriber, FFmpeg | — |
 | `voice-copies` | Voice copies | `ai.voices.copy` | ElevenLabs or Google Gemini key, priced first | a recording of the person's voice leaves this computer |
 
 ### Bring things in (10)

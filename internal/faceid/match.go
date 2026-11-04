@@ -97,14 +97,29 @@ type Thresholds struct {
 	// the runner-up" says little, so the bar is higher.
 	FewAuto   float64
 	FewOthers int
-	// Suggest is the lowest score asked about ("Is this Ada?").
-	Suggest float64
+	// Suggest is the lowest score asked about ("Is this Ada?"), and
+	// SuggestOpen the lowest for a face the open models found (D448): with
+	// their five points the wrong person was asked about more often at
+	// Suggest (0.77% of known faces against Apple Vision's 0.53%, two faces
+	// confirmed); at SuggestOpen it is at or below Apple Vision's rate with
+	// one, two and three confirmed.
+	Suggest, SuggestOpen float64
 }
 
 // DefaultThresholds were measured with tools/vision/eval/faces.py on
 // public-domain photos (docs/visual-index.md, D114): different people never
 // scored above 0.40 against a profile, the same person scored 0.45–0.85.
-var DefaultThresholds = Thresholds{Auto: 0.60, Margin: 0.15, FewAuto: 0.66, FewOthers: 2, Suggest: 0.38}
+var DefaultThresholds = Thresholds{Auto: 0.60, Margin: 0.15, FewAuto: 0.66, FewOthers: 2, Suggest: 0.38, SuggestOpen: 0.41}
+
+// For is the thresholds for a face whose fingerprints were made after by
+// found it and its five points (apple-vision or open-models; empty: Apple
+// Vision, which made every fingerprint before it was recorded).
+func (th Thresholds) For(by string) Thresholds {
+	if by == "open-models" && th.SuggestOpen > th.Suggest {
+		th.Suggest = th.SuggestOpen
+	}
+	return th
+}
 
 // AutoNeed is the score an automatic name needs when candidates people have
 // confirmed faces (the margin applies as well).

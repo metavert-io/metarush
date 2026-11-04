@@ -804,6 +804,9 @@ type AssetFacts struct {
 	// Remotion is set for a clip MetaRush rendered from a Remotion source
 	// (D135): the version it came from and where that version stands.
 	Remotion *RemotionFacts
+	// Reference: the clip is a reference (D398), someone else's video kept to
+	// learn from; no cut plays it until a person says it is theirs.
+	Reference bool
 }
 
 // RemotionFacts is what validation knows about a rendered composition's version.

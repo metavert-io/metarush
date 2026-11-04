@@ -70,6 +70,9 @@ type GateWord struct {
 	// Consent says what it plays whose consent no longer holds (changed
 	// words, D309): never shared, draft or not.
 	Consent []string
+	// References say the references it plays, someone else's videos (D441):
+	// shared only with a person's note, never just marked as a draft.
+	References []string
 }
 
 // ShareCreateIn makes a review link.
@@ -236,13 +239,17 @@ func shipGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Re
 	}
 	w := &GateWord{Held: g.On && g.State == ops.GateHeld}
 	for _, h := range g.Holds {
-		if h.Covered {
-			continue
+		if h.Covered || (!g.On && h.Kind != models.HoldReference && h.Kind != models.HoldConsent) {
+			continue // with the gate off, only a reference and changed words' consent hold a link (D309, D441)
 		}
 		w.Holds = append(w.Holds, h.Key)
 		w.Words = append(w.Words, strings.TrimSuffix(lowerFirst(h.Says), "."))
-		if h.Kind == models.HoldConsent {
+		switch h.Kind {
+		case models.HoldConsent:
 			w.Consent = append(w.Consent, strings.TrimSuffix(lowerFirst(h.Says), "."))
+		case models.HoldReference: // someone else's video: shared only with a note, gate or not (D441)
+			w.Held = true
+			w.References = append(w.References, strings.TrimSuffix(lowerFirst(h.Says), "."))
 		}
 	}
 	return w, nil

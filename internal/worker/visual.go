@@ -8,11 +8,14 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
+	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/evidence"
 	"github.com/metavert-io/metarush/internal/faceid"
 	"github.com/metavert-io/metarush/internal/faces"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/jobs"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/notify"
 	"github.com/metavert-io/metarush/internal/onnx"
@@ -55,8 +58,9 @@ func describeHandler(ctx context.Context, w *Worker, j *models.Job, report Repor
 }
 
 // visualHandler looks at what's on screen in a clip (D73): about one frame a
-// second plus the moments the picture changes, through Apple Vision on this
-// Mac, into the clip's on-screen index, its faces and "Is this …?" questions.
+// second plus the moments the picture changes, with this computer's looker —
+// Apple Vision on a Mac, the open models elsewhere (D405, D408) — into the
+// clip's on-screen index, its faces and "Is this …?" questions.
 func visualHandler(ctx context.Context, w *Worker, j *models.Job, report Report) (res map[string]any, err error) {
 	a := w.App
 	as, err := loadAsset(ctx, a, j)
@@ -66,15 +70,55 @@ func visualHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 	if !as.Media.HasVideo {
 		return nil, permanent("“%s” has no picture to look at", as.DisplayTitle())
 	}
-	st, built, err := vision.Ensure(ctx, a.Tools, a.Cfg.Home())
+	var keep *visual.Index
+	sameMedia := false
+	if looker.Chosen(a.Cfg) == looker.OpenModels {
+		// What looked at the very media the clip uses now: a fixed copy's
+		// index, or the original's — never the original's in a copy's place
+		// (D467).
+		mine, err := visual.LoadMedia(ctx, a.DB, a.WorkspaceID(), as.ID, as.MediaSHA())
+		if err != nil {
+			return nil, err
+		}
+		if mine != nil && mine.Index != nil && !mine.Index.ByOpenModels() {
+			// Apple Vision looked at this media before (D447): a Mac looks again
+			// while one is about; after a long while without one, this computer
+			// does and keeps what Apple Vision saw that the open models don't.
+			if wait := macAgain(ctx, w, j); wait != nil {
+				return nil, wait
+			}
+		} else if wait := macFirst(ctx, w, j); wait != nil {
+			// A Mac in the workspace sees more (D410): it gets the first go, also
+			// at a fixed copy whose original Apple Vision looked at (D467).
+			return nil, wait
+		}
+		if mine != nil {
+			keep, sameMedia = mine.Index, true
+		} else if prev := visual.Load(ctx, a.DB, a.WorkspaceID(), as.ID); prev != nil {
+			// A fixed copy's first look: the original's labels come over, not
+			// where things were in its picture (D467).
+			keep = prev.Index
+		}
+	}
+	lk, st, built, err := looker.Open(ctx, a.Cfg, a.Tools)
+	if err != nil {
+		// This computer can't look after all (left out by a person, a helper
+		// that didn't build, models changed after they were added): it stops
+		// offering to until its components or settings change, and the clip
+		// goes back for another computer that can (D446).
+		w.stopOffering(jobs.TypeVisual)
+		if lookerElsewhere(ctx, w) {
+			return nil, &released{waiting: "Waiting for another computer in this workspace to look at what's on screen: this one can't now."}
+		}
+	}
 	if apperr.Is(err, apperr.ToolMissing) {
-		return nil, &Permanent{Err: err} // left out by a person: its own words and the one step (D325)
+		return nil, &Permanent{Err: err} // left out by a person, or not added here: its own words and the one step (D325)
 	}
 	if err != nil {
-		return nil, permanent("the on-screen helper could not be built: %v", err)
-	}
-	if !st.Ready {
-		return nil, permanent("%s %s", st.Text, st.Fix)
+		if st.Backend == looker.AppleVision {
+			return nil, permanent("the on-screen helper could not be built: %v", err)
+		}
+		return nil, &Permanent{Err: err}
 	}
 	if built {
 		w.Log("built the on-screen helper (%s)", st.Path)
@@ -121,15 +165,15 @@ func visualHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 	report(0.05, "looking at what's on screen")
 	idx, err := visual.Run(ctx, a.Tools, src, as.Media.Duration, extra, cuts, srcName, dir, func(done, total int) {
 		report(0.05+0.85*float64(done)/float64(max(1, total)), fmt.Sprintf("looked at %d of %d frames", done, total))
-	}, visual.RunOptions{Prints: facePrinter(ctx, w)})
+	}, visual.RunOptions{Prints: printerFor(ctx, w, as, lk), Looker: lk})
 	if err != nil {
 		return nil, err
 	}
+	idx.KeepFrom(keep, sameMedia)
 	report(0.92, "saving")
-	model := fmt.Sprintf("metarush-vision %s", st.Protocol)
 	// The index belongs to the media it looked at (D152): a fixed copy's, or the original's.
 	_, mediaSHA, _ := as.CurrentMedia()
-	ins := models.Insight{ID: ids.New(ids.Insight), WorkspaceID: a.WorkspaceID(), AssetID: as.ID, Kind: visual.InsightKind, Provider: "apple-vision", Model: model,
+	ins := models.Insight{ID: ids.New(ids.Insight), WorkspaceID: a.WorkspaceID(), AssetID: as.ID, Kind: visual.InsightKind, Provider: lk.Backend(), Model: lk.Model(),
 		PromptVersion: visual.Version, Digest: mediaSHA + ":" + visual.Version, Data: visual.ToMap(idx), CreatedAt: time.Now().UTC(), Media: as.MediaSHA()}
 	old := store.SameMedia(as.ID, as.MediaSHA())
 	old["workspaceId"], old["kind"] = a.WorkspaceID(), visual.InsightKind
@@ -151,17 +195,29 @@ func visualHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 	}
 	_ = a.DB.Update(ctx, store.CAssets, a.WorkspaceID(), as.ID, bson.M{"$set": bson.M{"analysis.visual": "available", "updatedAt": time.Now().UTC()}})
 	res = map[string]any{"insightId": ins.ID, "frames": idx.Frames, "faces": len(idx.Tracks), "text": len(idx.Text), "labels": len(idx.Labels),
-		"summary": idx.Summary, "questions": asked, "recognized": len(recognized), "fingerprints": printed(idx)}
+		"summary": idx.Summary, "questions": asked, "recognized": len(recognized), "fingerprints": printed(idx), "lookedWith": lk.Backend()}
 	return res, nil
+}
+
+// printerFor fingerprints a clip's faces, never a reference's (someone else's
+// video, D443): its faces are found, not fingerprinted, so they never match or
+// teach anyone's face.
+func printerFor(ctx context.Context, w *Worker, as *models.Asset, lk looker.Looker) visual.Printer {
+	if as.IsReference() {
+		return nil
+	}
+	return facePrinter(ctx, w, lk)
 }
 
 // facePrinter is this machine's face fingerprinting (D114): onnxruntime from
 // the sherpa-onnx install and the face model, downloaded the first time. Where
 // either is missing faces are still found, only not recognized across clips.
-func facePrinter(ctx context.Context, w *Worker) visual.Printer {
+// Apple Vision gives the five points only from a helper of this protocol; the
+// open models always do.
+func facePrinter(ctx context.Context, w *Worker, lk looker.Looker) visual.Printer {
 	a := w.App
 	lib := onnx.Library(a.Tools.Path(tools.Sherpa))
-	if lib == "" || !vision.Rich(ctx, a.Tools) {
+	if lib == "" || (lk.Backend() == looker.AppleVision && !vision.Rich(ctx, a.Tools)) {
 		return nil
 	}
 	model, err := faceid.Setup{Home: a.Cfg.Home()}.Ensure(ctx)
@@ -175,6 +231,86 @@ func facePrinter(ctx context.Context, w *Worker) visual.Printer {
 		return nil
 	}
 	return e
+}
+
+// screenIndex is how this computer looks at clips, when it does (D408).
+func (w *Worker) screenIndex() string {
+	if !w.Can(jobs.TypeVisual) {
+		return ""
+	}
+	return looker.Chosen(w.App.Cfg)
+}
+
+// A Mac in the workspace sees more in a clip than the open models do
+// (labels, animals, bodies and gestures, text in any language; D410), so a
+// computer with the open models leaves a clip to such a Mac for a while: while
+// one that takes big jobs has been seen in the last couple of minutes, the
+// job waits, at most macWaits times macWait, then this computer looks.
+const (
+	macWait  = 2 * time.Minute
+	macWaits = 5
+	macSeen  = 2 * time.Minute
+)
+
+// macFirst puts the job back for a moment while a Mac that looks with Apple
+// Vision is about (nil: look here now).
+func macFirst(ctx context.Context, w *Worker, j *models.Job) error {
+	if jobs.Postponed(j) >= macWaits {
+		return nil
+	}
+	a := w.App
+	f := canLook(a, macSeen)
+	f["screenIndex"], f["acceptsHeavy"] = looker.AppleVision, true
+	n, err := a.DB.C(store.CWorkers).CountDocuments(ctx, f)
+	if err != nil || n == 0 {
+		return nil
+	}
+	return &postponed{after: macWait, reason: "A Mac in this workspace sees more in a clip (things, animals, gestures, words in more languages), so it gets the first look; this computer looks if it hasn't in a few minutes."}
+}
+
+// An index Apple Vision made is looked at again only by a Mac while one that
+// looks was seen in the workspace this recently (D447); the job waits
+// macWait, then twice as long each time, at most appleWait.
+const (
+	appleSeen = 30 * 24 * time.Hour
+	appleWait = 3 * time.Hour
+)
+
+// macAgain puts back a clip Apple Vision looked at before while a Mac that
+// looks has been seen in the last 30 days (nil: look here, keeping what Apple
+// Vision saw).
+func macAgain(ctx context.Context, w *Worker, j *models.Job) error {
+	f := canLook(w.App, appleSeen)
+	f["screenIndex"] = looker.AppleVision
+	n, err := w.App.DB.C(store.CWorkers).CountDocuments(ctx, f)
+	if err != nil || n == 0 {
+		return nil
+	}
+	after := min(appleWait, macWait<<min(jobs.Postponed(j), 7))
+	return &postponed{after: after, reason: "Apple Vision looked at this clip before and sees more in it (things, animals, gestures), so a Mac in this workspace looks at it again."}
+}
+
+// canLook finds the other computers of the workspace that look at clips — they
+// offer the visual job and lack nothing for it (D446) — seen within a while
+// (the database server's time).
+func canLook(a *app.App, seen time.Duration) bson.M {
+	f := store.SeenWithin("lastHeartbeat", seen)
+	f["workspaceId"], f["jobTypes"] = a.WorkspaceID(), jobs.TypeVisual
+	f["lacks.jobType"] = bson.M{"$ne": jobs.TypeVisual}
+	f["_id"] = bson.M{"$ne": a.Cfg.Installation.ID}
+	return f
+}
+
+// elsewhereSeen is how recently another computer that looks must have been
+// seen for a clip this one can't look at to wait for it (a Mac asleep for the
+// night still counts).
+const elsewhereSeen = 24 * time.Hour
+
+// lookerElsewhere reports another computer in the workspace that can look at
+// clips (D446).
+func lookerElsewhere(ctx context.Context, w *Worker) bool {
+	n, err := w.App.DB.C(store.CWorkers).CountDocuments(ctx, canLook(w.App, elsewhereSeen))
+	return err == nil && n > 0
 }
 
 // printed counts the faces that got fingerprints.

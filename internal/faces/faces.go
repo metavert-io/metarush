@@ -162,7 +162,10 @@ func Save(ctx context.Context, a *app.App, assetID string, idx *visual.Index) er
 			f.Prints = append(f.Prints, models.FacePrint{At: p.At, Q: p.Quality, V: p.Vec})
 		}
 		if len(f.Prints) > 0 {
-			f.PrintModel = faceid.ModelName
+			f.PrintModel, f.PrintsBy = faceid.ModelName, visual.BackendAppleVision
+			if idx.ByOpenModels() {
+				f.PrintsBy = visual.BackendOpenModels
+			}
 		}
 		best, bestScore := -1, 0.0
 		for i, o := range old {
@@ -273,6 +276,9 @@ func Get(ctx context.Context, a *app.App, faceID string) (*models.FaceTrack, err
 func Confirm(ctx context.Context, a *app.App, faceID string, person models.Person) (*models.FaceTrack, error) {
 	f, err := Get(ctx, a, faceID)
 	if err != nil {
+		return nil, err
+	}
+	if err := notInReference(ctx, a, f.AssetID); err != nil {
 		return nil, err
 	}
 	now := time.Now().UTC()

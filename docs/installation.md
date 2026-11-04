@@ -135,7 +135,7 @@ One command sets MetaRush up on this computer. It asks, with a suggested answer 
 | The dashboard's port on this computer | 4845, or the next free one | any port above 1024 | `--port` |
 | Start MetaRush when you log in, and keep it running | yes (`metarush service`) | no: opening the dashboard starts it | `--service=false` |
 | Teach Claude Code MetaRush's video skills | yes when Claude Code is installed (into `~/.claude/skills`, or `$CLAUDE_CONFIG_DIR/skills`); without it nothing is written there until setup runs again | no | `--skills`, `--skills=false` |
-| Which optional components to add ([Components](#components)) | the suggested ones: FFmpeg, Node.js and the Remotion renderer, transcription, the link downloader, PDF pages, a stand-in voice, clearer voices, the sandbox, and on a Mac seeing what's on screen and faces | tick or untick any (a checklist; `none` for none) | `--components ffmpeg,renderer,…`, `--no-components` |
+| Which optional components to add ([Components](#components)) | the suggested ones: FFmpeg, Node.js and the Remotion renderer, transcription, the link downloader, PDF pages, a stand-in voice, clearer voices, the sandbox, seeing what's on screen and faces | tick or untick any (a checklist; `none` for none) | `--components ffmpeg,renderer,…`, `--no-components` |
 
 It also takes `init`'s `--workspace-name`, `--join`, `--new-workspace`, `--user-name`, `--user-email`,
 `--installation-name` and `--secrets keychain|env` (with `env`, the database address and an S3 secret go into
@@ -243,8 +243,9 @@ metarush components --json             # the same for scripts (ComponentsOut)
 | `other-languages` | Transcripts in about a hundred languages (whisper.cpp), finding a clip's language | 1.6 GB | no | whisper.cpp from Homebrew (or your own build) and MetaRush's download of its model |
 | `link-import` | Importing videos from YouTube, TikTok, X and other links | 40 MB | yes | Homebrew (with Deno), else yt-dlp's own program |
 | `pdf-pages` | The pages of a PDF in your videos | 30 MB | yes | Homebrew; on Linux your packages (`poppler-utils`) |
-| `screen-index` | Seeing what's on screen with Apple Vision (Mac) | 5 MB | yes | MetaRush builds it (needs Apple's Command Line Tools) |
-| `faces` | Recognizing the people you named across clips (Mac) | 40 MB | yes | MetaRush's download of the face model |
+| `screen-index` | Seeing what's on screen: faces and people, words on screen, framing that follows faces (on a Mac Apple Vision also names places, things and animals and sees gestures) | 5 MB on a Mac, 31 MB elsewhere | yes | On a Mac MetaRush builds its helper (needs Apple's Command Line Tools); elsewhere MetaRush's downloads of the open models (needs `ffmpeg` and `transcription`) |
+| `faces` | Recognizing the people you named across clips | 40 MB | yes | MetaRush's download of the face model (needs `screen-index` and `transcription`) |
+| `cut-outs` | Taking the background out of photos with an open model: Remove the background, AI cut-outs | 225 MB | no | MetaRush's download of BiRefNet (needs `transcription`); not offered on a Mac that uses Apple Vision, which does it itself |
 | `clean-voice` | Clearer voices on this computer, voice clarity scores | 30 MB | yes | MetaRush's downloads (DeepFilterNet) |
 | `stand-in-voice` | A free robotic voice to time narration | 5 MB | yes | Built into macOS; Homebrew or your packages on Linux (`espeak-ng`) |
 | `sandbox` | Abilities and a Remotion project's own steps, kept away from your files | — | yes | Built into macOS; your packages on Linux (`bubblewrap`) |
@@ -398,10 +399,11 @@ metarush import --check-tools
   them, the bgutil-ytdlp-pot-provider plugin runs locally (it talks only to Google) and yt-dlp picks it up from its
   plugin folders by itself; `metarush doctor` lists it. MetaRush does not install it for you.
 
-## Optional: looking at what's on screen (macOS)
+## Optional: looking at what's on screen
 On a Mac, MetaRush indexes what is in each clip (people and faces, the place, things and animals, text on screen)
-with Apple Vision, on your computer and at no cost ([visual-index.md](visual-index.md)). It needs a small helper
-program, `metarush-vision`, built from Swift source that ships inside `metarush`, so it needs Swift:
+with Apple Vision; on Linux, with open models (people and faces, text on screen, what stands out); both on your
+computer and at no cost ([visual-index.md](visual-index.md)). On a Mac it needs a small helper program,
+`metarush-vision`, built from Swift source that ships inside `metarush`, so it needs Swift:
 
 ```bash
 xcode-select --install     # the Xcode Command Line Tools (swiftc); macOS 12 or newer
@@ -429,11 +431,28 @@ metarush footage visuals status
   | `face_recognition_sface_2021dec.onnx` | `https://huggingface.co/opencv/face_recognition_sface/resolve/3d7082438a6e4551e840c9b2bb60b71e8da4b524/face_recognition_sface_2021dec.onnx` (OpenCV's mirror of OpenCV Zoo's `models/face_recognition_sface`) | 38,696,353 bytes | `0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79` | Apache-2.0 |
 
   To have it before going offline, copy the file there yourself (the checksum is checked all the same). `metarush
-  doctor` says whether this Mac recognizes faces. Without onnxruntime faces are still found in clips, only not
+  doctor` says whether this computer recognizes faces. Without onnxruntime faces are still found in clips, only not
   recognized across them.
-- **Linux and Windows:** Apple Vision does not exist there, so the index is skipped: `doctor` says so, and a Mac in the
-  same workspace indexes the clips (clips imported elsewhere catch up when that Mac's daemon starts). Everything else,
-  including visual change detection and smart contact sheets, works everywhere.
+- **Linux, and a Mac told to:** the open models look instead (`metarush components add screen-index`, about 31 MB;
+  they run through the onnxruntime that comes with Transcription on this computer, so add that first). A Mac uses
+  them only when told to (`metarush worker configure --screen-index open-models`, or Settings → Footage → Looking at
+  your footage), for instance to compare the two. Each file is checked against its SHA-256 before it is used:
+
+  | File | What it does | From (pinned) | Size | SHA-256 | Licence |
+  |---|---|---|---|---|---|
+  | `face_detection_yunet_2026may.onnx` | faces and their five points | OpenCV Zoo `models/face_detection_yunet`, commit 26cc381e | 229,738 bytes | `ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0` | MIT |
+  | `PP-OCRv5_mobile_det.onnx` | finds lines of text | PaddlePaddle on Hugging Face (`PP-OCRv5_mobile_det_onnx`) | 4,826,518 bytes | `a431985659dc921974177a95adcfbb90fd9e51989a5e04d70d0b75f597b6e61d` | Apache-2.0 |
+  | `PP-OCRv6_small_rec.onnx` | reads each line (Latin, Greek, Chinese, Japanese) | PaddlePaddle on Hugging Face (`PP-OCRv6_small_rec_onnx`) | 21,159,378 bytes | `5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634` | Apache-2.0 |
+  | `PP-OCRv6_small_rec.yml` | the characters it reads | the same | 150,579 bytes | `ab078671bb49f06228eadccd34f1bb501e157f7a047095ffb943ba81512c77d1` | Apache-2.0 |
+  | `u2netp.onnx` | what stands out where no face is seen | rembg's release v0.0.0 (U²-Net) | 4,574,861 bytes | `309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8` | Apache-2.0 (export MIT) |
+  | `BiRefNet-general-bb_swin_v1_tiny-epoch_232.onnx` | cuts a photo's subject out (`cut-outs`) | BiRefNet's release v1 | 224,005,088 bytes | `5600024376f572a557870a5eb0afb1e5961636bef4e1e22132025467d0f03333` | MIT |
+
+  They go into the models folder (`tools.modelsDir`, `screen-index/`), shared by every home on the computer;
+  `metarush components --details` shows each address. A Mac in the same workspace still gets the first look at a new
+  clip while it is about (it sees more), and clips imported before catch up when a computer gains the component.
+- **Windows:** neither runs there yet, so the index is skipped: `doctor` says so, and a Mac or a Linux computer in the
+  same workspace indexes the clips. Everything else, including visual change detection and smart contact sheets,
+  works everywhere.
 
 ## Optional: the browser extension
 The "Send to MetaRush" extension saves videos from your own signed-in browser when a download is blocked. Load it

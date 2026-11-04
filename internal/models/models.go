@@ -631,6 +631,44 @@ type Asset struct {
 	// clip ("Not Lena anywhere in this clip", D189): never suggested for its
 	// faces, and their voice is no evidence for them.
 	NotOnScreen []string `bson:"notOnScreen,omitempty" json:"notOnScreen,omitempty"`
+	// Reference marks a clip as a reference (D398): someone else's video, kept
+	// to learn from. No cut plays it until a person says it is theirs.
+	Reference *AssetReference `bson:"reference,omitempty" json:"reference,omitempty"`
+	// StartFrom is a draft asked for from this video ("Start from a video you
+	// like", D401): made once MetaRush has looked at it, as the person who asked.
+	StartFrom *StartFromVideo `bson:"startFrom,omitempty" json:"startFrom,omitempty"`
+}
+
+// Why a clip is a reference (AssetReference.Why, D398).
+const (
+	ReferenceStartFrom = "start-from" // brought in to start from ("Start from a video you like")
+	ReferenceMarked    = "marked"     // a person (or Claude, through a card) said so
+)
+
+// AssetReference marks a clip as a reference (D398): a video someone else
+// made, kept to learn from (what it does, how it is paced), never played in a
+// cut. The edit check refuses it in clips and sound; a person who made it
+// says so on its page (footage.reference.mine, people only), which takes the
+// mark off.
+type AssetReference struct {
+	By  Actor     `bson:"by" json:"by"`
+	At  time.Time `bson:"at" json:"at"`
+	Why string    `bson:"why,omitempty" json:"why,omitempty" jsonschema:"enum=,enum=start-from,enum=marked"`
+}
+
+// IsReference reports a clip marked as someone else's video, kept to learn from (D398).
+func (a *Asset) IsReference() bool { return a != nil && a.Reference != nil }
+
+// ReferenceWords says a reference plainly for refusals ("“X” is a reference:
+// someone else's video, kept to learn from").
+func (a *Asset) ReferenceWords() string {
+	return "“" + strings.TrimSpace(a.DisplayTitle()) + "” is a reference: someone else's video, kept to learn from"
+}
+
+// ReferenceMineCommand is the command a person runs to say a reference is
+// their own video.
+func (a *Asset) ReferenceMineCommand() string {
+	return "metarush footage reference " + a.ID + " --mine"
 }
 
 // AssetAlias is another filename an asset's bytes arrived under.
@@ -1028,11 +1066,14 @@ type WorkerDevice struct {
 	JobTypes    []string          `bson:"jobTypes" json:"jobTypes"`
 	// Lacks are kinds of work it can't do for want of a component, with
 	// what a waiting job says (D326).
-	Lacks        []WorkerLack `bson:"lacks,omitempty" json:"lacks,omitempty"`
-	Concurrency  int          `bson:"concurrency" json:"concurrency"`
-	Running      int          `bson:"running" json:"running"`
-	AcceptsHeavy bool         `bson:"acceptsHeavy" json:"acceptsHeavy"` // takes heavy jobs right now (config allows them and not deferring for battery)
-	OnBattery    bool         `bson:"onBattery" json:"onBattery"`
+	Lacks []WorkerLack `bson:"lacks,omitempty" json:"lacks,omitempty"`
+	// ScreenIndex is how it looks at what's on screen when it does (D408):
+	// apple-vision or open-models ("" when it doesn't look at clips).
+	ScreenIndex  string `bson:"screenIndex,omitempty" json:"screenIndex,omitempty" jsonschema:"enum=,enum=apple-vision,enum=open-models"`
+	Concurrency  int    `bson:"concurrency" json:"concurrency"`
+	Running      int    `bson:"running" json:"running"`
+	AcceptsHeavy bool   `bson:"acceptsHeavy" json:"acceptsHeavy"` // takes heavy jobs right now (config allows them and not deferring for battery)
+	OnBattery    bool   `bson:"onBattery" json:"onBattery"`
 	// Battery state and the heavy-job policy (worker.heavyBatteryThreshold).
 	BatteryPercent        *int       `bson:"batteryPercent,omitempty" json:"batteryPercent,omitempty"`
 	Charging              bool       `bson:"charging,omitempty" json:"charging,omitempty"`

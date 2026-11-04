@@ -41,12 +41,13 @@ go build -o "$COV" ./scripts/covreport
 
 status=0
 if [ -n "$TEST" ]; then
-  # 45 minutes: under load internal/ops has come close to 30 (Oct 2026).
+  # 90 minutes (GO_TEST_TIMEOUT): on a machine shared with other builds internal/ops alone has taken about
+  # 40, and 45 cut it off (Nov 2026).
   # Tests that need the generated footage skip without it, which would read as
   # lost coverage in a fresh worktree: make it first (quick when up to date).
   scripts/make-fixtures.sh >/dev/null || echo "couldn't make the test footage: the tests that need it will skip" >&2
   echo "== Go tests with coverage (-p ${GO_TEST_P:-2}; the slowest packages take minutes)"
-  nice -n 10 go test -p "${GO_TEST_P:-2}" -timeout 45m -coverpkg=./internal/... -coverprofile="$OUT/go-unit.raw.cov" ./... > "$OUT/go-test.log" 2>&1 || status=$?
+  nice -n 10 go test -p "${GO_TEST_P:-2}" -timeout "${GO_TEST_TIMEOUT:-90m}" -coverpkg=./internal/... -coverprofile="$OUT/go-unit.raw.cov" ./... > "$OUT/go-test.log" 2>&1 || status=$?
   grep -E '^(FAIL|ok|---)' "$OUT/go-test.log" | grep -v '^ok' || true
   [ "$status" = 0 ] || echo "the Go tests failed (exit $status): $OUT/go-test.log"
 fi

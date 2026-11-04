@@ -138,6 +138,10 @@ func (rs *resolver) resolve(in models.RecipeInput, given *RecipeInputValue) (*mo
 			if in.Kind == models.RecipeFootage {
 				items, ps := rs.footage(in, given, fromSource)
 				problems = append(problems, ps...)
+				if len(items) == 0 && len(ps) == 0 && in.Required && !rs.offline {
+					// Footage each run gives (D400): a run without it has nothing to choose from.
+					problems = append(problems, fmt.Sprintf("%s needs clips: give the run the footage it chooses its moments from.", upperFirst(inputLabel(in))))
+				}
 				v.Items = items
 				v.Words = itemsWords(items, "clip")
 				break
@@ -304,6 +308,9 @@ func (rs *resolver) footage(in models.RecipeInput, given *RecipeInputValue, from
 			continue
 		}
 		switch {
+		case as.IsReference():
+			// Someone else's video, kept to learn from: no run plays it (D398).
+			problems = append(problems, ops.ReferenceWords(as)+"; a run doesn't use it. If it's your own video, say so on its page first.")
 		case as.Trash != nil:
 			problems = append(problems, fmt.Sprintf("The clip “%s” is in the Trash.", as.DisplayTitle()))
 		case as.State != models.AssetAvailable:
@@ -326,6 +333,7 @@ func sourceFootage(src string) bson.M {
 	filter["kind"] = "video"
 	filter["state"] = models.AssetAvailable
 	filter["$and"] = bson.A{bson.M{"tags": bson.M{"$ne": "voiceover"}}}
+	filter["reference"] = bson.M{"$exists": false} // never someone else's video kept to learn from (D398)
 	return filter
 }
 

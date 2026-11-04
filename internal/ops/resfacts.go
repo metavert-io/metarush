@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/cutsheet"
@@ -31,6 +32,8 @@ type resourceFacts struct {
 	// kit are the resources of the brand the project uses (D193): its cuts
 	// may pin them wherever they live.
 	kit map[string]bool
+	// refs are the references pictures were taken from (D457), by clip.
+	refs map[string]string
 }
 
 func loadResourceFacts(ctx context.Context, a *app.App, projectID string, view *projectlinks.View, s *editspec.Spec) (*resourceFacts, error) {
@@ -43,8 +46,25 @@ func loadResourceFacts(ctx context.Context, a *app.App, projectID string, view *
 	if err := a.DB.Find(ctx, store.CResources, a.WorkspaceID(), bson.M{"_id": bson.M{"$in": idsList}}, &list); err != nil {
 		return nil, err
 	}
+	frames := bson.A{}
 	for i := range list {
 		rf.byID[list[i].ID] = &list[i]
+		for _, v := range list[i].Versions {
+			if f := v.Source.FrameOf; f != nil && f.AssetID != "" {
+				frames = append(frames, f.AssetID)
+			}
+		}
+	}
+	if len(frames) > 0 { // pictures taken from a clip: is it a reference now? (D457)
+		var refs []models.Asset
+		if err := a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), bson.M{"_id": bson.M{"$in": frames}, "reference": bson.M{"$exists": true}}, &refs,
+			options.Find().SetProjection(bson.M{"name": 1, "title": 1, "reference": 1})); err != nil {
+			return nil, err
+		}
+		rf.refs = map[string]string{}
+		for _, as := range refs {
+			rf.refs[as.ID] = as.DisplayTitle()
+		}
 	}
 	if projectID != "" {
 		rf.kit = kitResourceIDs(ctx, a, projectID)
@@ -71,6 +91,11 @@ func (rf *resourceFacts) info(id, sha string) (editspec.ResourceInfo, bool) {
 	}
 	ri.Known = true
 	ri.MIME, ri.Width, ri.Height, ri.Family = v.MIME, v.Width, v.Height, v.Family
+	if f := r.FrameOf(sha); f != nil {
+		if title, ok := rf.refs[f.AssetID]; ok {
+			ri.Reference = &editspec.ReferenceClip{ID: f.AssetID, Name: title}
+		}
+	}
 	if v.Site != nil {
 		ri.URL = v.Site.URL
 	}

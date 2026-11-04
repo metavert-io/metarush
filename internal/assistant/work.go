@@ -43,14 +43,17 @@ const (
 	WorkQA     = "qa"     // a quality check of an existing render
 	WorkJobs   = "jobs"   // jobs (fetch, import)
 	WorkRun    = "run"    // a run, until it waits for Claude or a person or is ready (Recipes, D211)
+	WorkDraft  = "draft"  // a draft from a video someone liked, until it is saved (Recipes, D402)
 )
 
 // ActionWork is the work a card started and how it ended.
 type ActionWork struct {
-	Kind     string   `bson:"kind" json:"kind" jsonschema:"enum=render,enum=qa,enum=jobs,enum=run"`
+	Kind     string   `bson:"kind" json:"kind" jsonschema:"enum=render,enum=qa,enum=jobs,enum=run,enum=draft"`
 	RenderID string   `bson:"renderId,omitempty" json:"renderId,omitempty"`
 	JobIDs   []string `bson:"jobIds,omitempty" json:"jobIds,omitempty"`
 	RunID    string   `bson:"runId,omitempty" json:"runId,omitempty"`
+	// AssetID is the video a draft is made from (draft).
+	AssetID string `bson:"assetId,omitempty" json:"assetId,omitempty"`
 	// What names it for people ("the review copy of version 2").
 	What    string `bson:"what" json:"what"`
 	State   string `bson:"state" json:"state" jsonschema:"enum=running,enum=finished,enum=failed,enum=gone"`
@@ -334,6 +337,8 @@ func (m *Manager) checkWork(ctx context.Context, w ActionWork) (ActionWork, bool
 		return m.checkJobs(ctx, w, end)
 	case WorkRun:
 		return m.checkRunWork(ctx, w, end)
+	case WorkDraft:
+		return m.checkDraftWork(ctx, w, end)
 	}
 	return end(WorkGone, "", "")
 }

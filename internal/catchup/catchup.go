@@ -24,6 +24,7 @@ import (
 	"github.com/metavert-io/metarush/internal/evidence"
 	"github.com/metavert-io/metarush/internal/faces"
 	"github.com/metavert-io/metarush/internal/jobs"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/notify"
 	"github.com/metavert-io/metarush/internal/ops"
@@ -32,7 +33,6 @@ import (
 	"github.com/metavert-io/metarush/internal/speakers"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/todos"
-	"github.com/metavert-io/metarush/internal/vision"
 	"github.com/metavert-io/metarush/internal/visual"
 )
 
@@ -80,7 +80,7 @@ var Steps = []Step{
 	{Name: "voice-profiles", Version: 1, About: "rebuild every person's voice from the clips a person confirmed", Run: rebuildVoices},
 	{Name: "speakers", Version: speakers.CatchUpVersion, About: "find who speaks in clips imported before speaker detection", Run: detectSpeakers},
 	{Name: "visual-changes", Version: 1, About: "find cuts, slow changes and movement in clips analyzed before visual change detection", Run: visualChanges},
-	{Name: "visual-index", Version: 2, About: "look at what's on screen in clips imported before the on-screen index, and again in clips looked at before faces were recognized across clips (needs a Mac)", Run: visualIndex},
+	{Name: "visual-index", Version: 2, About: "look at what's on screen in clips imported before the on-screen index, and again in clips looked at before faces were recognized across clips (needs a computer that can look: a Mac, or one with the open models added)", Run: visualIndex},
 	{Name: "face-questions", Version: 1, About: "ask who is on screen once per person instead of at every appearance, with the names the video shows or says as suggestions", Run: faceQuestions},
 	{Name: "questions", Version: 1, About: "ask the questions earlier versions did not (project brief, music rights, ready to approve)", Run: syncQuestions},
 	{Name: "image-resources", Version: 1, About: "make pictures imported before the resources library into resources (the same bytes; nothing is copied)", Run: imageResources},
@@ -372,15 +372,18 @@ func pictureSwitches(ctx context.Context, a *app.App) (string, error) {
 }
 
 // canLook says whether this machine can run the on-screen index (tests replace it).
-var canLook = vision.CanRun
+var canLook = func(a *app.App) bool { return looker.CanRun(a.Cfg, a.Tools) }
 
 // visualIndex queues the on-screen index for clips that do not have one, and
 // again for clips an older index looked at (vision-1: no face fingerprints,
 // attention or cuts, so their faces can't be recognized across clips and
 // framing can't follow movement; names people gave faces are kept). Only a
-// Mac can do it; elsewhere the step waits for one (ErrNotHere).
+// computer that can look does it — a Mac with Apple Vision, or one with the
+// open models added (D405); elsewhere the step waits for one (ErrNotHere),
+// and a computer that gains it catches up when it does (the daemon runs the
+// steps again when its components change).
 func visualIndex(ctx context.Context, a *app.App) (string, error) {
-	if !canLook(a.Tools) {
+	if !canLook(a) {
 		return "", ErrNotHere
 	}
 	var assets []models.Asset

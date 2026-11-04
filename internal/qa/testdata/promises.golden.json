@@ -123,7 +123,7 @@
         "measure": "faces-in-frame",
         "says": "No face is cut off by the edge of the picture.",
         "status": "unmeasured",
-        "measured": "MetaRush looks at faces only in footage it has indexed on a Mac.",
+        "measured": "MetaRush looks at faces only in footage it has looked at (on a Mac, or a computer with Seeing what's on screen added).",
         "basis": "heuristic",
         "findingId": "f9",
         "findingIds": [
@@ -350,7 +350,7 @@
         "from": 0,
         "to": 72,
         "timecode": "0:00.000–1:12.000",
-        "message": "The promise “No faces cut off” couldn't be measured here. MetaRush looks at faces only in footage it has indexed on a Mac. Look for it yourself before it goes out."
+        "message": "The promise “No faces cut off” couldn't be measured here. MetaRush looks at faces only in footage it has looked at (on a Mac, or a computer with Seeing what's on screen added). Look for it yourself before it goes out."
       },
       {
         "id": "f10",

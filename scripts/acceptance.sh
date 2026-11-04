@@ -10,9 +10,9 @@
 # repository, a code slide, a diagram and a local site's snapshot in a cut of slides (rendered, credited, refreshed)
 # → the Library (archive, a collection a project uses, the two-step Trash) → a project motion graphic
 # (check, refused until a person approves it, rendered, QA, withdrawn and refused) → a conversation from an online call
-# (two recordings lined up by their sound, cut automatically, cleaned up, rendered, QA) → on a Mac, a face named once
+# (two recordings lined up by their sound, cut automatically, cleaned up, rendered, QA) → where it can look, a face named once
 # recognized in another recording, a crop that follows a walk, and the render checked for faces cut off and captions
-# over faces or the footage's text → on a Mac, a call in speaker view in a workspace of its own (one question per
+# over faces or the footage's text → where it can look, a call in speaker view in a workspace of its own (one question per
 # person, the names it shows accepted in one click, nothing learned before, a wrong voice taken back from what a name
 # was learned from) → generated video (a fake Gemini: priced first, made only with the agreed price,
 # how it was made kept, deleted at the provider, marked AI-generated in the cut sheet, QA and the delivery; no one's likeness
@@ -35,6 +35,9 @@
 # after, the fixed copy used from then on and in a new version, the saved version unchanged, the original back on
 # untick) → the activity log (the run in plain words, a bug report without secrets) → cleanup of the throwaway DB.
 # Usage: scripts/acceptance.sh   (needs scripts/dev-mongo.sh running and tests/fixtures/gen)
+#        METARUSH_SCREEN_INDEX=open-models SCREEN_MODELS=<folder> scripts/acceptance.sh
+#        the on-screen steps with the open models looking (D405), on a Mac too: SCREEN_MODELS holds them
+#        (go run ./scripts/fetchscreenmodels <folder>), linked into the run's own models folder beside the speech models
 # The throwaway database is dropped on exit, also after a failure, through
 # store.DropTestDatabase (scripts/droptestdb refuses anything but local metarush-test-*).
 set -euo pipefail
@@ -50,6 +53,7 @@ cleanup() {
   [ -n "$ELV" ] && kill "$ELV" 2>/dev/null || true
   go run ./scripts/droptestdb "$URI" "$DB" || true
   [ -z "$DBC" ] || go run ./scripts/droptestdb "$URI" "$DBC" || true
+  [ -z "${SCREEN_LINKS:-}" ] || rm -rf "$SCREEN_LINKS"  # links only
 }
 trap cleanup EXIT
 . scripts/lib/e2e.sh && e2e_run "$DB" "$(dirname "$H")"  # D194: stops what the run started, drops its database, removes its folder when it passes
@@ -60,6 +64,20 @@ CHECK() { python3 -I -c "import json,sys;d=json.load(sys.stdin)
 $1"; }
 # Builds of the on-screen helper (macOS) stay in this run's folder, not the user's cache.
 export METARUSH_VISION_CACHE="$(dirname "$H")/vision-cache"
+if [ "${METARUSH_SCREEN_INDEX:-}" = "open-models" ]; then
+  [ -n "${SCREEN_MODELS:-}" ] || { echo "SCREEN_MODELS: a folder with the open models (go run ./scripts/fetchscreenmodels <folder>)"; exit 1; }
+  shared="${METARUSH_MODELS_DIR:-$HOME/.local/share/metarush-models}"
+  # Links only, beside the run's folder rather than in it (a METARUSH_*_DIR inside a run's folder keeps it).
+  t="${TMPDIR:-/tmp}"; SCREEN_LINKS="$(mktemp -d "${t%/}/metarush-screen-models-XXXXXX")"
+  for d in "$shared"/*; do
+    if [ -e "$d" ] && [ "$(basename "$d")" != screen-index ]; then ln -s "$d" "$SCREEN_LINKS/"; fi
+  done
+  ln -s "$SCREEN_MODELS" "$SCREEN_LINKS/screen-index"
+  export METARUSH_MODELS_DIR="$SCREEN_LINKS"
+fi
+# The on-screen steps run where this computer can look (D405): a Mac (Apple Vision, its helper built on first use), or
+# a computer with the open models added.
+can_look() { MR footage visuals status --json | J 'd["data"]["here"]["supported"] and (d["data"]["here"]["ready"] or d["data"]["here"]["canBuild"])' | grep -q True; }
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 scripts/make-fixtures.sh  # quick when the test videos are up to date; makes the missing ones (visual-b arrived later)
 go build -o bin/metarush ./cmd/metarush
@@ -160,27 +178,27 @@ assert s["mode"] == "smart" and os.path.getsize(s["path"]) > 10000, "a smart she
 assert shots == [1, 2, 3, 4, 5], "a frame of every shot"
 print("first frames: %s" % [t["caption"] for t in s["tiles"][:2]])
 assert any(t["shot"] == 1 and "“" in t["caption"] for t in s["tiles"]), "the words said over the first shot"'
-if MR footage visuals status --json | J 'd["data"]["here"]["supported"]' | grep -q True; then
+if can_look; then
   MR footage visuals "$VA" --json | CHECK '
 v = d["data"]
 print("\n".join(l["line"] for l in v["lines"]))
 assert any(t["text"] == "EXIT" and 20.5 <= t["from"] <= 21.5 for t in v["text"]), "the sign"
 assert any(l["shot"] == "close-up" and l["from"] == 0 for l in v["lines"]), "the close-up"
-assert any("dog" in l["things"] for l in v["lines"] if l["from"] >= 25), "the dog"'
+assert "labels" in v.get("notLookedFor", []) or any("dog" in l["things"] for l in v["lines"] if l["from"] >= 25), "the dog"'
   MR search "exit sign" --json | CHECK '
 hits = [h for h in d["data"]["visuals"] if h["matchedIn"] == "text"]
 print("search \"exit sign\": %s" % ["%s %s %r" % (h["assetTitle"], h["timecode"], h["text"]) for h in hits])
 assert hits and hits[0]["text"] == "EXIT", "on-screen text is searchable"'
   MR doctor --json | J '"doctor on the helper: %s" % [c["detail"] for c in d["data"]["checks"] if c["name"] == "helper"]'
 else
-  echo "on-screen index: not on this machine (Apple Vision needs a Mac); the step above is the part every machine does"
+  echo "on-screen index: this computer can't look (a Mac, or the open models added); the step above is the part every machine does"
 fi
 
-step "faces across clips, framing that follows movement, what's on screen in the render (D114–D116; needs a Mac)"
+step "faces across clips, framing that follows movement, what's on screen in the render (D114–D116; a computer that can look)"
 # visual-b (tests/fixtures/truth/visual-b.json): visual-a's talking head walks across the room (0–8 s) and sits low in
 # the picture (14–20 s), the person who walks into visual-a stands at the far right edge above a sign (8–14 s), and
 # someone else closes it (20–24 s). Other photos of the same two people, so recognizing them is not a copy match.
-if MR footage visuals status --json | J 'd["data"]["here"]["supported"]' | grep -q True; then
+if can_look; then
   MR ingest tests/fixtures/gen/visual-b.mp4 --project "$PV" --wait --json | J '"visual-b processed: %s" % sorted({"%s %s" % (j["type"], j["state"]) for j in d["data"]["jobs"]})'
   VB=$(MR asset list "$PV" --json | J '[a["id"] for a in d["data"]["assets"] if a["name"]=="visual-b.mp4"][0]')
   MR doctor --json | J '"doctor on face recognition: %s" % [c["detail"] for c in d["data"]["checks"] if c["name"] == "face recognition"]'
@@ -252,15 +270,15 @@ on = [f for f in d["data"]["report"]["findings"] if f["kind"] in ("face_cut_off"
 print("following movement, the render shows: %s" % (["%s %s" % (f["timecode"], f["kind"]) for f in on] or "no face cut off"))
 assert not any(f["kind"] == "face_cut_off" for f in on), "no face is cut off once the crop follows"'
 else
-  echo "faces, following and the on-screen checks: not on this machine (Apple Vision needs a Mac)"
+  echo "faces, following and the on-screen checks: this computer can't look (a Mac, or the open models added)"
 fi
 
-step "who is on screen: one question per person, the names a call shows in one click, nothing learned before; a wrong voice fixed from what it was learned from (D155–D158; needs a Mac)"
+step "who is on screen: one question per person, the names a call shows in one click, nothing learned before; a wrong voice fixed from what it was learned from (D155–D158; a computer that can look)"
 # The call fixture (tests/fixtures/truth/call.json): three people in speaker view, the picture switching at every turn
 # (so every appearance is a new face on screen), each name printed under the picture, a stretch in gallery view. In a
 # workspace of its own (another throwaway database), like a team that just recorded a call: nobody named yet, and the
 # people it adds don't change what the steps below see.
-if MR footage visuals status --json | J 'd["data"]["here"]["supported"]' | grep -q True; then
+if can_look; then
   scripts/make-call-fixtures.sh >/dev/null
   HC="$(dirname "$H")/home-call"; DBC="${DB}call"
   MC() { ./bin/metarush --home "$HC" "$@"; }
@@ -339,7 +357,7 @@ print("Ada Park is learned from %d voice(s) and %s" % (len(v["voices"]), ["%d fa
 assert len(v["voices"]) == 1 and v["voices"][0]["assetTitle"] == "garden-call", "her own voice only"'
   go run ./scripts/droptestdb "$URI" "$DBC" >/dev/null && DBC="" && rm -rf "$HC"
 else
-  echo "who is on screen: not on this machine (Apple Vision needs a Mac)"
+  echo "who is on screen: this computer can't look (a Mac, or the open models added)"
 fi
 
 step "7. grounded plan → check → apply (immutable revision) → render with a Remotion overlay"

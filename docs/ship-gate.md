@@ -23,6 +23,7 @@ for review copies, `--preset` for some shapes) — and lists what holds it:
 | `signoff` | "Still waiting for the sign-off “Lena OKs the final version”." (house ones say whose settings) | Tick it (a person) | yes |
 | `credentials` | "Its videos must carry Content Credentials, and this computer can't sign them: no signing certificate is set up on this computer." (only where they are required, for final videos; [content-credentials.md](content-credentials.md)); after a signing that failed, "… and the last signing on this computer failed (3 Nov 2026, 14:05 UTC): …"; a key the keychain won't give ("… MetaRush couldn't read the signing key from this computer's keychain. Unlock the keychain…") and a timestamp service MetaRush won't ask hold it too, looked at without signing (D461) | Set them up (a person who is an owner: Settings → Delivery); after a failed signing or with a key that can't be read, Try it on a sample first (`credentials.test`: when MetaRush's own sample signs and checks out, the hold is gone) | yes, gate on or off: the videos go out without them, and their records say so |
 | `consent` | "At 0:02 Ada Lovelace says “fifteen” (words changed with AI in their voice copy), but her consent … is no longer in force …" (or a mouth matched to them) | Take them out (`cut.say.undo`, a new version) | no: it holds with the gate off too |
+| `reference` | "Version 5 plays “Their video”, a reference: someone else's video, kept to learn from. …" (anywhere it plays, nested cuts too), or "Version 5 shows “Hook still”, taken from “Their video”, a reference …" (a picture taken from one) | It's mine (`footage.reference.mine`, a person), or take it out and make a new version | yes, with a note; it holds with the gate off too |
 
 Things worth checking (warnings) never hold. `--json` gives every hold with its stable `key`, `kind`, `says`,
 `anyway` (it holds with the gate off too), `problems` (message, time, fix, the fix's edit ops) and `paths` (the op and
@@ -41,7 +42,9 @@ sent the version out anyway.
   a 0600 file, refused inside a sync folder or a repository that would commit it); deleting it only makes the gate
   forget them — the check of the version's final renders, else its review copies; a
   version never rendered hasn't been checked. A timeline for your own editing app goes anywhere else.
-- **Share for review** asks `ops.ShipGate` the same way ([outside-reviewers.md](outside-reviewers.md)).
+- **Share for review** asks `ops.ShipGate` the same way ([outside-reviewers.md](outside-reviewers.md)). A version
+  that plays a reference is shared only with a person's note, never just marked as a draft.
+- **Posting** (`publish.plan|send`) holds what the gate holds.
 - **Content Credentials that are required** ([content-credentials.md](content-credentials.md)) hold with the gate off
   too, as changed words' consent does: "required" is its own choice. A version this computer can't sign waits, and a
   signing that fails during the delivery stops it (`E_HELD`, nothing written) and is remembered on this computer until
@@ -49,6 +52,16 @@ sent the version out anyway.
   `credentials` hold sends it out without them — with the gate on or off, since the hold says `anyway`: Deliver
   anyway… shows for it, and `delivery.override` takes it, while the gate is off. Timelines and posts to a platform
   never carry Content Credentials, so they never wait for them.
+
+A reference (someone else's video, kept to learn from; [recipes.md](recipes.md#start-from-a-video-you-like)) can't
+go into a new version, nor can a picture taken from one, but one saved before the clip was marked, or one that nests
+a cut playing it, would still go out: so `reference` holds delivery, timelines into a delivery folder, posts and
+review links with the gate off too, until a person says the video is theirs or sends the version out anyway with a
+note. With the gate off, `deliver ready` and the version's page say that a reference still holds it, the line to say
+the video is yours and the one to send it out anyway. Renders stay allowed — review copies and final renders stay on
+this computer — and show the hold on the version's page. A timeline never copies a reference into a footage folder,
+wherever it goes (refused, saying so); without a footage folder it points at MetaRush's own copy and warns not to
+hand that on.
 
 ## Whether it is on
 

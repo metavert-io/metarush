@@ -229,7 +229,15 @@ func choose(ctx context.Context, a *app.App, projectID, kind, asked string, now 
 			return nil, err
 		}
 		c.model, c.by = m, "default"
-		if !allows(rules, m.Provider) || m.Retired(now) {
+		// A usual model that runs on this computer and can't here (Apple
+		// Vision on Linux) gives way to one of the kind that can (D414),
+		// on this computer too: never to a paid service by itself.
+		if aiservices.IsLocal(m.Provider) && readyHere(a, m.Provider, kind, m.ID) != nil {
+			if alt := bestLocalHere(a, rules, kind, now); alt != nil {
+				c.model = alt
+			}
+		}
+		if !allows(rules, c.model.Provider) || c.model.Retired(now) {
 			var best *aiservices.Model
 			for _, x := range aiservices.ModelsOf(kind) {
 				x := x
@@ -250,6 +258,22 @@ func choose(ctx context.Context, a *app.App, projectID, kind, asked string, now 
 		}
 	}
 	return c, nil
+}
+
+// bestLocalHere is the best ranked model of a kind that runs on this
+// computer, is ready here and is allowed (nil when there is none).
+func bestLocalHere(a *app.App, rules *models.AIServiceRules, kind string, now time.Time) *aiservices.Model {
+	var best *aiservices.Model
+	for _, x := range aiservices.ModelsOf(kind) {
+		x := x
+		if !aiservices.IsLocal(x.Provider) || !allows(rules, x.Provider) || x.Retired(now) || !built(x.Provider, kind) || readyHere(a, x.Provider, kind, x.ID) != nil {
+			continue
+		}
+		if best == nil || x.Rank > best.Rank {
+			best = &x
+		}
+	}
+	return best
 }
 
 // built reports whether MetaRush has an adapter for a provider's kind of work.

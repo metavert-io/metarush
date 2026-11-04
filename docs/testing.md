@@ -18,8 +18,14 @@ Measurements, run by hand when a recognizer or its settings change (build tag `v
 English recognizers' comparison, the loaded models against the CLI, and the multilingual path
 (`scripts/fetch-speech.sh` fetches openly licensed readings into the gitignored `tests/fixtures/speech/`,
 then `EVAL_SPEECH=tests/fixtures/speech EVAL_LANGS=es go test -tags voiceeval -run TestMultilingual
-./internal/transcribe/`, one language at a time). Content Credentials with the real c2patool, once on a computer that
-has it: `METARUSH_REAL_C2PATOOL=<c2patool> go test -tags c2pareal -run TestRealC2patool ./internal/c2pa/` (with
+./internal/transcribe/`, one language at a time). The open models that look at what's on screen are compared with
+Apple Vision the same way (build tag `screeneval`: `go run ./scripts/fetchscreenmodels <folder>`, then
+`METARUSH_SCREEN_MODELS=<folder> go test -tags screeneval ./internal/visionmodels/` on a Mac with the fixtures), and
+face recognition with them by `tools/vision/eval/faces.py --with open-models`. On every push their runners run on
+stand-in models with the real ones' shapes (`internal/onnx/onnxtest`, `internal/testutil/fakescreen`) through the
+onnxruntime CI takes from the transcriber's pinned Linux build (`scripts/ci-onnxruntime.sh`, `METARUSH_ORT_LIB`).
+Content Credentials with the real c2patool, once on a computer that has it:
+`METARUSH_REAL_C2PATOOL=<c2patool> go test -tags c2pareal -run TestRealC2patool ./internal/c2pa/` (with
 `TestRealC2patoolIsNoOracle`: another program trying to get a signature while the real c2patool signs)
 ([content-credentials.md](content-credentials.md)).
 
@@ -28,7 +34,7 @@ Fakes, so no test reaches a real service: `internal/assistant/fakeclaude` (Claud
 (rclone and its Google Drives; the real rclone is refused under `go test`), `fakec2patool` (c2patool, signing through
 MetaRush's own signer; the real one is refused under `go test` unless a test names it), `gcsemu`
 and gofakes3 (buckets), `dblink` (a database link a test can cut), `fakenode`, and a fake `brew` and `gh` where
-needed. Downloads are refused under `go test` (the stabilizer, the face model) unless a local copy is given, and so are
+needed. Downloads are refused under `go test` (the stabilizer, the face model, the open models) unless a local copy is given, and so are
 Google's and ElevenLabs' real addresses (a test that forgets its fake fails before anything is sent).
 
 ## What runs where and when
@@ -51,7 +57,8 @@ fixed ports), a sweep again, and with `COVERAGE=1` the merged coverage report. E
 in a folder it prints (`.agent-home/check/<time>-<mode>/`), and a table at the end says what passed, what failed and
 how long each took; the exit status is 1 when anything failed. `--stop` stops at the first failure;
 `ONLY_E2E="about storage"` and `SKIP_E2E="remote"` choose browser runs; `GO_TEST_P` sets how many packages test at
-once (default 2: three other builds may share the machine and the test mongod).
+once (default 2: three other builds may share the machine and the test mongod) and `GO_TEST_TIMEOUT` how long one
+package may take (default 90m).
 
 ### Browser runs on Linux and on a Mac
 
@@ -62,6 +69,7 @@ once (default 2: three other builds may share the machine and the test mongod).
 | sound | Mac only | its fixtures are made with `say` too (`scripts/make-sound-fixtures.sh`) |
 | remote | Mac only | its check of spoofed Tailscale headers sends from `fe80::1%lo0` (`lo0` is macOS's name for loopback) |
 | presenters | Mac only | a presenter reads only sound MetaRush has listened to (nobody's voice in it, or voices a person named), which needs a recognizer on the computer (the transcription component); GitHub's runner has none, so the narration is never transcribed (`ingest --wait` no longer hangs there: it ends at once saying the transcripts wait for that component) and the presenter steps are refused |
+| start-from-video | Mac only | its video is `tests/fixtures/gen/reference-short.mp4` (made with `say`), and the draft waits until MetaRush has heard its words, which needs a recognizer on the computer; what's on screen is read with Apple Vision |
 | install | Mac only (for now) | it serves a stand-in for MongoDB's download made from a copy of a real `mongod` (a local `mongod`, or `METARUSH_TEST_MONGOD`); CI runs MongoDB in a container, with no `mongod` to copy |
 
 The nightly runs keep the Linux list honest: a run that fails there for a Linux reason moves to the Mac list here
@@ -90,6 +98,9 @@ and leaves `browser.yml`'s matrix.
     https://huggingface.co/opencv/face_recognition_sface/resolve/3d7082438a6e4551e840c9b2bb60b71e8da4b524/face_recognition_sface_2021dec.onnx
   shasum -a 256 face_recognition_sface_2021dec.onnx   # 0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79
   ```
+- **The open models** for running `people` and `acceptance` with them on a Mac (D405): `go run
+  ./scripts/fetchscreenmodels <folder>` once, then `METARUSH_SCREEN_INDEX=open-models SCREEN_MODELS=<folder>` before
+  the script; the run links them into its own models folder beside this computer's speech models.
 
 ## How to run
 
@@ -97,7 +108,7 @@ and leaves `browser.yml`'s matrix.
 scripts/dev-mongo.sh start                       # the test MongoDB: 127.0.0.1:27018, replica set rs0
 scripts/check.sh --quick                         # before a commit
 scripts/check.sh --full                          # before a merge or a release (an hour or more)
-go test -p 2 -timeout 45m ./internal/ops/        # one package (always -timeout 45m: ops and assistant need it under load)
+go test -p 2 -timeout 90m ./internal/ops/        # one package (always -timeout 90m: ops and assistant need it under load)
 scripts/coverage.sh --test                       # the Go suite with coverage, the per-package table and the ratchet
 scripts/about-e2e.sh                             # one browser run (each script's head says its ports and options)
 COVERAGE=1 scripts/about-e2e.sh                  # … as a coverage build (Go and the dashboard's pages)

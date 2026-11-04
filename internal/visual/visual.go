@@ -11,6 +11,7 @@ package visual
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -161,6 +162,83 @@ type Index struct {
 	Attention []AttentionSample `json:"attention,omitempty" bson:"attention,omitempty"`
 	// Gestures are hands pointing, raised or giving a thumbs up (vision-2, D117).
 	Gestures []GestureSpan `json:"gestures,omitempty" bson:"gestures,omitempty"`
+	// Backend is what looked at the clip (D405): apple-vision, or open-models
+	// (YuNet, PaddleOCR and U²-Net-p on a computer without Apple Vision);
+	// indexes made before it was recorded are Apple Vision's.
+	Backend string `json:"backend,omitempty" bson:"backend,omitempty" jsonschema:"enum=apple-vision,enum=open-models"`
+	// Sees is what the backend looked for when it isn't everything (the open
+	// models: faces, landmarks, text, attention — no labels, animals, bodies
+	// or gestures, so their absence says nothing about the clip).
+	Sees []string `json:"sees,omitempty" bson:"sees,omitempty"`
+	// Kept is what an index the open models made carries over from the one
+	// Apple Vision made before it (D447: labels — places, things, animals,
+	// people's bodies — and gestures, which the open models don't look for),
+	// so looking again without a Mac never drops them. A fixed copy's first
+	// look keeps only the original's labels: where a hand was in the original
+	// says nothing about the copy's picture (D467).
+	Kept []string `json:"kept,omitempty" bson:"kept,omitempty"`
+}
+
+// Backends that make indexes.
+const (
+	BackendAppleVision = "apple-vision"
+	BackendOpenModels  = "open-models"
+)
+
+// ByOpenModels reports an index the open models made.
+func (idx *Index) ByOpenModels() bool { return idx != nil && idx.Backend == BackendOpenModels }
+
+// Looked reports whether the index's backend looked for something (faces,
+// text, labels…): Apple Vision looks for everything.
+func (idx *Index) Looked(what string) bool {
+	if idx == nil || len(idx.Sees) == 0 {
+		return true
+	}
+	return slices.Contains(idx.Sees, what) || slices.Contains(idx.Kept, what)
+}
+
+// What an index Apple Vision made has that the open models' doesn't (D447).
+var keptKinds = []string{"labels", "animals", "people", "gestures"}
+
+// KeepFrom carries into an index the open models made what an earlier index
+// of the clip has that they don't look for (D447): Apple Vision's labels
+// (places, things, animals, people's bodies) and gestures, or what an earlier
+// index the open models made kept of them (D468), so looking again without a
+// Mac never drops them. sameMedia says the old index looked at the very media the
+// new one did; from another — the original's, at a fixed copy's first look —
+// only the labels come over: where a hand was and which way it pointed are of
+// the original's picture, not the copy's (D467). Faces, words and where the
+// eye is drawn are the new look's.
+func (idx *Index) KeepFrom(old *Index, sameMedia bool) {
+	if idx == nil || old == nil || !idx.ByOpenModels() {
+		return
+	}
+	kinds := keptKinds
+	if old.ByOpenModels() {
+		kinds = old.Kept
+	}
+	if !sameMedia {
+		kinds = slices.DeleteFunc(slices.Clone(kinds), func(k string) bool { return k == "gestures" })
+	}
+	if len(kinds) == 0 {
+		return
+	}
+	have := map[string]bool{}
+	for _, l := range idx.Labels {
+		have[l.Kind+"\x00"+l.Label] = true
+	}
+	for _, l := range old.Labels {
+		if !have[l.Kind+"\x00"+l.Label] && l.From < idx.Duration+0.5 {
+			idx.Labels = append(idx.Labels, l)
+		}
+	}
+	sort.SliceStable(idx.Labels, func(i, j int) bool { return idx.Labels[i].From < idx.Labels[j].From })
+	if len(idx.Gestures) == 0 && slices.Contains(kinds, "gestures") {
+		idx.Gestures = old.Gestures
+	}
+	idx.Kept = append([]string{}, kinds...)
+	idx.Terms = Terms(idx)
+	idx.Summary = summary(idx)
 }
 
 // AttentionSample is where the eye is drawn at one moment: the middle of

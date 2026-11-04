@@ -223,7 +223,11 @@ func makePlan(ctx context.Context, a *app.App, in ShareCreateIn) (*plan, error) 
 		} else if w != nil && w.Held {
 			pl.gate = w
 			out.Held, out.Holds = true, nonNil(w.Words)
-			if !in.AsDraft && in.Anyway == "" {
+			if len(w.References) > 0 && in.Anyway == "" { // someone else's video: a draft mark isn't enough (D441)
+				pl.stopWith(apperr.New(apperr.Held, "Version %d can't be shared: %s.", rev.Number, joinAnd(w.References)).
+					WithHint("If it's your own video, say so on its page (This is mine); otherwise send it anyway with a note saying why.").
+					WithDetails(map[string]any{"reason": "reference", "holds": w.Holds}))
+			} else if !in.AsDraft && in.Anyway == "" {
 				pl.stopWith(apperr.New(apperr.Conflict, "The ship gate holds version %d: %s.", rev.Number, joinAnd(w.Words)).
 					WithHint("Share it marked as a draft for review, or send it anyway with a note saying why.").
 					WithDetails(map[string]any{"reason": "held", "holds": w.Holds}))

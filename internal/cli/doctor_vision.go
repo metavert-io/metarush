@@ -3,18 +3,25 @@ package cli
 import (
 	"context"
 	"fmt"
+	"runtime"
 
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/faceid"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/onnx"
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/vision"
 )
 
-// visionChecks reports the on-screen index (Apple Vision, macOS) and builds its
-// helper when it is missing or older than this MetaRush and swiftc is there.
+// visionChecks reports the on-screen index: Apple Vision on a Mac, whose
+// helper it builds when it is missing or older than this MetaRush and swiftc
+// is there, or the open models elsewhere (D405, D408).
 func visionChecks(ctx context.Context, cfg *config.Config, ts *tools.Set, add addCheck) {
+	if looker.Chosen(cfg) == looker.OpenModels {
+		openModelChecks(ctx, cfg, ts, add)
+		return
+	}
 	st, built, err := vision.Ensure(ctx, ts, cfg.Home())
 	helper := "The helper that sees what's on screen in your clips"
 	again := "Run this check again to set it up."
@@ -70,5 +77,47 @@ func visionChecks(ctx context.Context, cfg *config.Config, ts *tools.Set, add ad
 	default:
 		add("on-screen index", "face recognition", "ok", "faces are recognized across clips on this Mac ("+model+")", "",
 			"Faces are recognized across clips on this Mac")
+	}
+}
+
+// openModelChecks reports the open models that look at what's on screen,
+// face recognition and the cut-out model on this computer (nothing is
+// downloaded here: a person adds them in Settings → Components).
+func openModelChecks(ctx context.Context, cfg *config.Config, ts *tools.Set, add addCheck) {
+	st := looker.Check(ctx, cfg, ts)
+	switch {
+	case !st.Supported:
+		add("on-screen index", "open models", "info", "not available on this computer: "+lowerFirst(st.Text), "",
+			"Seeing what's on screen isn't available on this computer. Everything else works, and a Mac or a Linux computer in this workspace can look at your clips")
+		return
+	case st.Ready:
+		add("on-screen index", "open models", "ok", "ready: clips are looked at on this computer with "+st.Engine+", nothing is uploaded ("+st.Path+")", "",
+			"Clips are looked at on this computer with open models; nothing is uploaded")
+	default:
+		add("on-screen index", "open models", "warn", st.Text, "metarush components add "+looker.Component,
+			"Seeing what's on screen isn't added on this computer", st.Fix)
+	}
+	if runtime.GOOS == "darwin" {
+		add("on-screen index", "choice", "info", "this Mac looks with the open models instead of Apple Vision (screenIndex.backend: open-models)", "metarush worker configure --screen-index auto")
+	}
+	lib := onnx.Library(ts.Path(tools.Sherpa))
+	model := faceid.Setup{Home: cfg.Home()}.Model()
+	switch {
+	case lib == "":
+		add("on-screen index", "face recognition", "info", "faces are not recognized across clips: onnxruntime comes with the transcription engine (sherpa-onnx), which isn't installed", "metarush components add faces",
+			"Faces aren't recognized across clips until transcription is added on this computer", "Add “Recognizing faces across clips” in Settings → Components.")
+	case model == "":
+		add("on-screen index", "face recognition", "info", fmt.Sprintf("the face model (%s, %d MB, Apache-2.0) is downloaded the first time a clip is looked at, checked against its SHA-256", faceid.ModelFile, faceid.ModelBytes>>20), "",
+			"Faces are recognized across clips: the face model is downloaded the first time a clip is looked at")
+	default:
+		add("on-screen index", "face recognition", "ok", "faces are recognized across clips on this computer ("+model+")", "",
+			"Faces are recognized across clips on this computer")
+	}
+	if co := looker.CheckCutOut(cfg, ts); co.Ready {
+		add("on-screen index", "cut-outs", "ok", "a picture's subject is cut out on this computer with "+co.Engine+" ("+co.Path+")", "",
+			"A picture's subject is cut out on this computer")
+	} else {
+		add("on-screen index", "cut-outs", "info", co.Text, "metarush components add "+looker.CutOutComponent,
+			"A photo's background is taken out only when it is one plain colour, until the cut-out model is added", co.Fix)
 	}
 }

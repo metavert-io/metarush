@@ -428,13 +428,15 @@ with the odd one marked; **Not Maya** on an earlier one fixes that mistake right
 "Not Maya?" on a face shows the faces hers was learned from, the same way.
 
 ### Sees what's in the picture
-On a Mac, MetaRush looks at about one frame a second of every clip, plus the moments the picture changes, with Apple
-Vision (on your computer, free): who is on screen and how close (close-up, medium, wide), the place, things and
-animals, and text on screen ([what MetaRush sees](docs/visual-index.md)).
+MetaRush looks at about one frame a second of every clip, plus the moments the picture changes, on your computer and
+free: on a Mac with Apple Vision (who is on screen and how close — close-up, medium, wide — the place, things and
+animals, and text on screen), on Linux with open models (who is on screen and how close, text on screen in Latin,
+Greek, Chinese and Japanese writing, and what stands out), into the same index ([what MetaRush sees](docs/visual-index.md)).
 - **Read out per clip**: each clip's On screen tab reads it out ("0:00–0:06 close-up · 1 face (Lena) · indoors · no
-  text"), and so does `metarush footage visuals`, with gestures (pointing, a hand raised) and text in any language.
+  text"), and so does `metarush footage visuals`, with gestures (pointing, a hand raised) and text in any language
+  where Apple Vision looked.
 - **Faces across clips**: name a face once and MetaRush **recognizes that person in your other clips** (SFace, on
-  your Mac, learned only from faces you confirmed: "looks like Maya", with "Not Maya?"); when it is less sure, To-dos
+  your computer, learned only from faces you confirmed: "looks like Maya", with "Not Maya?"); when it is less sure, To-dos
   asks "Is this Maya?" once per clip (who is talking alone never asks it).
 - **The right frames for Claude**: contact sheets pick one frame per shot, then pans, movement and new speakers, and
   label each frame with its time and who is saying what (`0:42.0 · Lena: “and then the bunny…”`), so Claude looks at
@@ -459,8 +461,8 @@ screen), where it's used, and two or three fixes for its kind, marked when they 
 - **calls**: even out each person's volume, clean up voices, reduce blockiness, steady a shaky webcam (a call is
   steadied one picture at a time, between its switches);
 - **sound**: even loudness, remove hum, trim silent ends;
-- **pictures**: remove the background (a photo's subject with Apple Vision on a Mac), trim empty edges, make it
-  larger.
+- **pictures**: remove the background (a photo's subject with Apple Vision on a Mac, or the cut-out model
+  elsewhere), trim empty edges, make it larger.
 
 Ticking makes a fixed copy (the original is kept) that everything after uses; saved cuts keep their media until you
 use the copy in them as a new version, with one click.
@@ -874,7 +876,7 @@ the limits a person set ([budgets](#budgets-limits-and-estimates)).
 ### Models on this computer
 **Models on this computer** (free, no key, nothing leaves it) sit beside the cloud services in the same estimate: the
 local recognizers as a transcription provider, offline voices (Kokoro, Kitten), a picture's background taken away
-(Apple Vision, on a Mac) and pictures made 2× or 4× larger (Real-ESRGAN). A person sets up the ones that need a
+(Apple Vision on a Mac, BiRefNet elsewhere) and pictures made 2× or 4× larger (Real-ESRGAN). A person sets up the ones that need a
 download, once (`metarush ai local`).
 
 ### AI services
@@ -1231,6 +1233,22 @@ new art and a warmer voice" makes a new version of the same cut.
   things in one project; its words treated as data; its motion graphics and Remotion versions waiting for a check and
   a person's approval there.
 
+### Start from a video you like
+Paste a link to a video you like (YouTube, TikTok, X) or choose its file — **Start from a video you like** on the
+Recipes tab and on Home, or `metarush recipe from-video <link | clip | file> [--wait]`. It comes in as a **reference**:
+someone else's video, kept to learn from: no cut plays it anywhere, nothing is generated from it or handed to an
+ability, a version that plays it is held from going out, a timeline never copies it into a footage folder, recipe files
+leave it out, and nobody in it is recognized or asked about (the edit check refuses it and says how to mark a video as
+yours; only a person says so, with **This is mine…**). Marking a clip takes back what its voices and faces taught. A
+frame or contact sheet MetaRush takes of it says so inside the file, and in Resources such a picture counts as the
+reference itself. MetaRush looks at it like any footage and says **what it
+does** — its hook, intro, parts, call to action and end card with times, its pacing, who speaks, burned-in captions,
+titles, what plays under the voices and how it ends — on this computer, with no AI service (the clip's **What it
+does** tab, `metarush footage what-it-does <clip>`). Then it drafts a recipe shaped like it, for your own footage:
+sections with their lengths, its shape and captions, rules (its length, a short hook) and hints (pacing, your layout
+pack's title card and end screen, music under the voices). The draft says where it came from and never holds the
+video's footage, words or pictures; a person makes it current. In the Claude panel it is a card.
+
 ### Starter recipes and a sample first
 - **Starter recipes**: MetaRush comes with "a call becomes an episode with shorts" and "a release tag becomes a
   release video", offered on the Recipes tab and Home (**Add the starter recipes**, **Use this one**;
@@ -1430,7 +1448,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 |---|---|
 | `metarush footage moments <project>` / `footage transcript <asset>` / `footage sheet <asset>` | evidence (moments include cuts, slow changes and movement, with frames to look at) |
 | `metarush footage sheet <asset> [--from 0:40 --to 1:10] [--mode smart\|even] [--details]` / `footage keyframes <asset>` | a labeled contact sheet: one frame per shot, changes, new speakers (or evenly spaced); which frames and why |
-| `metarush footage visuals <asset> [--from … --to …]` / `footage visuals status` | what's on screen, line by line (Mac: Apple Vision); whether clips get looked at here |
+| `metarush footage visuals <asset> [--from … --to …]` / `footage visuals status` | what's on screen, line by line (Apple Vision on a Mac, the open models elsewhere); whether clips get looked at here and how |
 | `metarush footage faces <asset>` / `footage faces name <face> "Ada"` / `footage faces reject <face>` | faces in a clip and whose they are (named by someone, or recognized by the face and not confirmed yet); name one (which teaches MetaRush the face), or take a name back |
 | `metarush footage describe <asset> [--wait]` / `footage describe settings --on [--project <id>]` | written scene descriptions by your Claude Code (optional, uses your Claude Code usage) |
 | `metarush footage speakers <asset> [--samples]` / `footage transcript <asset> --speaker "Ada"` | who speaks, clips to listen to; one person's lines |
@@ -1623,6 +1641,8 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush recipe again <recipe>#N --input voice=Cleo --note "a warmer voice"` / `recipe runs [--run <recipe>#N] [--wait]` / `recipe compare <recipe>#1 <recipe>#2` | make it again (a new version of the same cut) / runs and what they wait for / two runs side by side |
 | `metarush recipe update <recipe> --patch file.json` / `recipe publish <recipe>` / `recipe continue <run>` / `recipe stop <run>` / `recipe archive <recipe>` | a draft of the recipe (`--dry-run`: what it would change) / make a version current, let a waiting run go on (people only) / stop a run / archive |
 | `metarush recipe diff <recipe> [--to N] [--from N\|current]` | what changed between two versions in plain words (default: the newest draft against the version it was made from) |
+| `metarush recipe from-video <link \| clip \| file> [--project P] [--name N] [--wait]` | start a recipe from a video you like: it comes in as a reference no cut plays, and what it does is drafted for your own footage (a draft a person makes current) |
+| `metarush footage what-it-does <clip> [--details]` / `footage reference <clip> [--mine]` | what a video does: its sections with times, pacing, voices, captions, words on screen, music / mark a clip as a reference (someone else's video), or say it's yours (people only) |
 | `metarush recipe suggestions <recipe> [--only key]… [--save]` | what people kept changing in its approved runs, with why and what a draft would change; `--save` makes the draft (a person makes it current) |
 | `metarush recipe triggers [<recipe>] [--new-files on\|off] [--weekly "monday 09:00"\|off] [--dismiss]` | when recipes plan a run by themselves, whom they tell and the plan waiting; changing it is people only; it never starts a run |
 | `metarush recipe export <recipe> [file]` / `recipe import <file> [--project P] [--name n] [--dry-run]` | the recipe as one file for another workspace (its pictures, footage and approved code by hash) / bring one in as a draft (its code waits for a person here) |
@@ -1662,7 +1682,7 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush machine handover plan --to <computer>` → `handover export --to <computer>` → on it `handover receive <file>` | hand this computer's role to another computer: the dry run, the passphrase-protected handover file, then the conversations, work and folders go on there (people only, at a terminal) |
 | `metarush machine handover status` / `handover abandon` / `handover clean [--yes]` | where this computer stands (the host, stepping down or a client); abandon a handover that wasn't received; on the old computer, remove its copies of the conversations once received |
 | `metarush machine take-over <computer> --from <copy of its folders or a handover file> [--plan]` | take over from a computer that's gone for good (unseen for 30 minutes, you confirm it is off) |
-| `metarush worker settings` / `worker configure --heavy-battery-threshold 25` | battery policy for this machine |
+| `metarush worker settings` / `worker configure --heavy-battery-threshold 25` / `worker configure --screen-index open-models` | battery policy for this machine; how it looks at what's on screen |
 | `metarush log list [--problems] [--since 2h] [--project <id>]` / `log show <entry>` / `log tail --follow` | what MetaRush did, in plain words |
 | `metarush log search "<words>"` / `log export --since 7d --out log.jsonl` | find something in the log / save entries as JSON lines |
 | `metarush log bundle --since 2h` | a bug report (zip: entries, failed jobs with their error output, setup check, versions; no secrets) |
@@ -1737,6 +1757,9 @@ support `${VAR}` / `${VAR:default}`.
   own rclone for Google Drive folders; found on PATH by default, `METARUSH_RCLONE`), `tools.vision` (the on-screen
   helper `metarush-vision`, default: built by MetaRush into `<home>/tools` on a Mac), `tools.claude` (Claude Code
   path, default: on PATH).
+- **Looking at what's on screen**: `screenIndex.backend` (`auto`: Apple Vision on a Mac, the open models elsewhere;
+  `apple-vision`; `open-models`), set with `metarush worker configure --screen-index`; `METARUSH_SCREEN_INDEX` overrides
+  it for one process.
 - **Claude Code in the dashboard**:
   `assistant.{model,effort,tokenLimitMillions,compact,compactAtTokens,autoCompactTokens,cacheHour,holdNews,maxBudgetUsd,maxSteps,timeoutMinutes,idleMinutes,disabled,safeSteps}`
   (defaults: Claude Code's own model and effort; 50 million tokens per conversation; a summary once Claude's memory
@@ -1783,7 +1806,9 @@ checks below in order, log each step and end with a table; [testing](docs/testin
 - `node --test extension/test/detect.test.cjs extension/test/page.test.cjs` tests the extension's page detection and
   what Send this page reads.
 - `python3 -I tools/vision/eval/faces.py --metarush bin/metarush` measures face recognition as it ships
-  (`--helper <metarush-vision>`: Apple's feature print).
+  (`--with open-models`: with the open models' faces and points; `--helper <metarush-vision>`: Apple's feature print).
+- `go test -tags screeneval ./internal/visionmodels/` compares the open models with Apple Vision on the fixtures (the
+  models from `go run ./scripts/fetchscreenmodels <folder>` in `METARUSH_SCREEN_MODELS`).
 
 ### Browser runs
 - `node web/scripts/assistant-e2e.mjs` holds a real conversation through the Claude Code panel in a browser

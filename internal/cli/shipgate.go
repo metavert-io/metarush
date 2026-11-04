@@ -79,10 +79,31 @@ func printGate(c *cobra.Command, g *ops.ShipGateOut) {
 	for _, w := range g.Warnings {
 		fmt.Println(w)
 	}
-	if !g.On {
+	// A reference holds with the gate off too (D441, D459): how to clear it.
+	holding := 0
+	for _, h := range g.Holds {
+		if h.Covered || !h.Holding || !h.Overridable {
+			continue
+		}
+		holding++
+		if h.Kind != models.HoldReference || details {
+			continue
+		}
+		for _, p := range h.Paths {
+			if p.Command != "" {
+				fmt.Println("If it's your own video, say so (a person): " + p.Command)
+			}
+		}
+	}
+	anyway := "send it out anyway with a note (a person): metarush deliver override " + g.ProjectID + fmt.Sprintf(" --version r%d --note \"…\"", g.Number)
+	switch {
+	case !g.On && holding > 0:
 		fmt.Println(g.Why)
-	} else if open > 0 {
-		fmt.Println("Clear what holds it, or send it out anyway with a note (a person): metarush deliver override " + g.ProjectID + fmt.Sprintf(" --version r%d --note \"…\"", g.Number))
+		fmt.Println("Take out what holds it and make a new version, or " + anyway)
+	case !g.On:
+		fmt.Println(g.Why)
+	case open > 0:
+		fmt.Println("Clear what holds it, or " + anyway)
 	}
 	if len(g.Promises) > 0 {
 		fmt.Println("Promises made to the client:")

@@ -27,6 +27,7 @@ import (
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/linkimport"
 	"github.com/metavert-io/metarush/internal/logbook"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/notify"
 	"github.com/metavert-io/metarush/internal/ops"
@@ -40,7 +41,6 @@ import (
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/transcribe"
 	"github.com/metavert-io/metarush/internal/version"
-	"github.com/metavert-io/metarush/internal/vision"
 )
 
 // Permanent marks an error that retrying cannot fix.
@@ -60,6 +60,13 @@ type postponed struct {
 }
 
 func (p *postponed) Error() string { return p.reason }
+
+// released hands the job back as it was (the attempt does not count, as a
+// stopping worker does) for another computer to run: this one found it can't
+// after all, and stops offering it (D446). waiting is what the job says.
+type released struct{ waiting string }
+
+func (r *released) Error() string { return r.waiting }
 
 // Report updates a running job's progress.
 type Report func(pct float64, msg string)
@@ -179,9 +186,10 @@ func New(a *app.App) *Worker {
 	if a.Tools.Has(tools.Git) {
 		w.handlers[jobs.TypeRemotionPush] = remotionPushHandler
 	}
-	// What's on screen (Apple Vision, macOS): the helper is built on first use
-	// when only swiftc is there.
-	if vision.CanRun(a.Tools) {
+	// What's on screen (D73, D405): Apple Vision on a Mac (the helper is built
+	// on first use when only swiftc is there), the open models elsewhere once
+	// they are added (looker.Chosen).
+	if looker.CanRun(a.Cfg, a.Tools) {
 		w.handlers[jobs.TypeVisual] = visualHandler
 	}
 	// Scene descriptions are pinned to the machine that asked (its Claude Code).
@@ -336,6 +344,15 @@ func (w *Worker) Handle(t string, h Handler) {
 	w.handlers[t] = h
 }
 
+// stopOffering makes the worker leave a job type to other computers until
+// its components or settings change (Refresh offers it again when they allow
+// it): it found it can't run it after all (D446).
+func (w *Worker) stopOffering(t string) {
+	w.hmu.Lock()
+	defer w.hmu.Unlock()
+	delete(w.handlers, t)
+}
+
 func (w *Worker) handler(t string) Handler {
 	w.hmu.RLock()
 	defer w.hmu.RUnlock()
@@ -398,8 +415,8 @@ func (w *Worker) Lacks() []models.WorkerLack {
 	for _, t := range []string{jobs.TypeRender, jobs.TypeRenderShape, jobs.TypeRemotionImport, jobs.TypeRemotionRender, jobs.TypeRemotionTask, jobs.TypeRemotionRefresh} {
 		lack(t, renderer.Component)
 	}
-	if runtime.GOOS == "darwin" {
-		lack(jobs.TypeVisual, "screen-index")
+	if looker.Check(context.Background(), w.App.Cfg, ts).Supported {
+		lack(jobs.TypeVisual, looker.Component)
 	}
 	return out
 }
@@ -426,6 +443,7 @@ func (w *Worker) device() models.WorkerDevice {
 	d := models.WorkerDevice{
 		ID: a.Cfg.Installation.ID, WorkspaceID: a.WorkspaceID(), Name: a.Cfg.Installation.Name, Hostname: app.Hostname(), OS: runtime.GOOS, Arch: runtime.GOARCH,
 		CPUs: runtime.NumCPU(), MemoryGB: memoryGB(), Tools: tv, JobTypes: w.JobTypes(), Lacks: w.Lacks(), Concurrency: w.Concurrency, Running: running,
+		ScreenIndex:  w.screenIndex(),
 		AcceptsHeavy: w.AcceptsHeavy && !p.Defer, OnBattery: p.Battery.OnBattery(), Charging: p.Battery.Charging,
 		HeavyBatteryThreshold: p.Threshold, HeavyEnabled: w.AcceptsHeavy, DeferringHeavy: p.Defer, DeferReason: p.Reason,
 		Version: version.Version, StartedAt: w.started,
@@ -746,6 +764,7 @@ func (w *Worker) execute(parent context.Context, j *models.Job) (again time.Time
 	close(hbDone)
 	fctx := context.WithoutCancel(parent)
 	var wait *postponed
+	var rel *released
 	switch {
 	case lost:
 		w.Log("job %s: lease lost; another worker owns it now — discarding local result", j.ID)
@@ -761,6 +780,14 @@ func (w *Worker) execute(parent context.Context, j *models.Job) (again time.Time
 			w.Log("job %s %s: could not put it back in the queue: %v", j.ID, j.Type, rerr)
 		} else {
 			w.Log("job %s %s put back in the queue: this worker is stopping", j.ID, j.Type)
+		}
+	case errors.As(err, &rel):
+		// This computer can't run it after all, another one can: back in the
+		// queue as it was, for that one (D446).
+		if rerr := a.Queue.ReleaseFor(fctx, j, a.Cfg.Installation.ID, rel.waiting); rerr != nil {
+			w.Log("job %s %s: could not put it back in the queue: %v", j.ID, j.Type, rerr)
+		} else {
+			w.Log("job %s %s put back in the queue for another computer: %s", j.ID, j.Type, rel.waiting)
 		}
 	case errors.As(err, &wait):
 		// Something it needs isn't there yet: back in the queue for a moment,

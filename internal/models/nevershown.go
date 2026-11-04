@@ -23,7 +23,7 @@ var NeverShown = map[string]bool{
 	"writer": true, "seen": true, "taken": true, "owners": true, "seatSize": true, "hour": true, "inHour": true,
 	"syncUntil": true, "syncBy": true, "lastRead": true,
 	// Voice and face prints.
-	"v": true, "prints": true, "printModel": true, "centroid": true, "exemplars": true, "exSeconds": true,
+	"v": true, "prints": true, "printModel": true, "printsBy": true, "centroid": true, "exemplars": true, "exSeconds": true,
 	"nameKey": true, "notNames": true, "voices": true, "before": true, "speakerFrom": true,
 	// Claims and leases on work, and who holds what.
 	"claim": true, "lock": true, "lease": true, "holderPid": true, "pending": true, "pendingSince": true,

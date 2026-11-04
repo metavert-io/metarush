@@ -2,6 +2,8 @@ package ops
 
 import (
 	"context"
+	"runtime"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -11,6 +13,7 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/links"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/power"
 	"github.com/metavert-io/metarush/internal/store"
@@ -35,6 +38,10 @@ type WorkerSettingsIn struct{}
 // WorkerConfigureIn changes this installation's worker settings.
 type WorkerConfigureIn struct {
 	HeavyBatteryThreshold *int `json:"heavyBatteryThreshold,omitempty" jsonschema:"minimum=0,maximum=100,description=Defer heavy jobs only on battery, not charging, below this percent (0 = never defer)."`
+	// ScreenIndex is how this computer looks at what's on screen (D408):
+	// auto (Apple Vision on a Mac, the open models elsewhere), apple-vision or
+	// open-models (a Mac can use them, to compare the two).
+	ScreenIndex *string `json:"screenIndex,omitempty" jsonschema:"enum=auto,enum=apple-vision,enum=open-models"`
 }
 
 // WorkerSettingsOut is this installation's power state and worker policy.
@@ -47,7 +54,14 @@ type WorkerSettingsOut struct {
 	DeferReason           string        `json:"deferReason,omitempty"`
 	FakeBattery           bool          `json:"fakeBattery,omitempty" jsonschema:"description=The battery reading comes from the METARUSH_FAKE_BATTERY testing knob."`
 	ConfigPath            string        `json:"configPath"`
-	Note                  string        `json:"note,omitempty"`
+	// ScreenIndex is the setting (auto, apple-vision or open-models) and
+	// LooksWith how this computer looks at what's on screen now.
+	ScreenIndex string        `json:"screenIndex" jsonschema:"enum=auto,enum=apple-vision,enum=open-models"`
+	LooksWith   looker.Status `json:"looksWith"`
+	// ScreenIndexChoices are the ways this computer can be told to look
+	// (apple-vision only on a Mac).
+	ScreenIndexChoices []string `json:"screenIndexChoices"`
+	Note               string   `json:"note,omitempty"`
 }
 
 // NotificationListIn filters this person's notifications.
@@ -98,11 +112,15 @@ type NotificationReadOut struct {
 	Unread int64 `json:"unread"`
 }
 
-func workerSettings(a *app.App) *WorkerSettingsOut {
+func workerSettings(ctx context.Context, a *app.App) *WorkerSettingsOut {
 	b := power.Read()
 	t := a.Cfg.HeavyBatteryThreshold()
 	out := &WorkerSettingsOut{Installation: a.Cfg.Installation.Name, HeavyBatteryThreshold: t, HeavyEnabled: a.Cfg.Worker.HeavyRenders, Battery: b,
-		FakeBattery: b.Source == "fake", ConfigPath: config.Path(a.Cfg.Home())}
+		FakeBattery: b.Source == "fake", ConfigPath: config.Path(a.Cfg.Home()), ScreenIndex: a.Cfg.ScreenIndexChoice(), LooksWith: looker.Check(ctx, a.Cfg, a.Tools),
+		ScreenIndexChoices: []string{config.ScreenAuto, config.ScreenOpenModels}}
+	if runtime.GOOS == "darwin" {
+		out.ScreenIndexChoices = []string{config.ScreenAuto, config.ScreenAppleVision, config.ScreenOpenModels}
+	}
 	if out.HeavyEnabled {
 		out.DeferringHeavy, out.DeferReason = power.DeferHeavy(b, t)
 	}
@@ -143,28 +161,54 @@ func init() {
 		}
 		return out, nil
 	})
-	Def("worker.settings", "Show this installation's battery state and heavy-job battery policy", Flags{}, func(ctx context.Context, a *app.App, _ *WorkerSettingsIn) (*WorkerSettingsOut, error) {
-		return workerSettings(a), nil
+	Def("worker.settings", "Show this installation's battery state, heavy-job battery policy and how it looks at what's on screen", Flags{}, func(ctx context.Context, a *app.App, _ *WorkerSettingsIn) (*WorkerSettingsOut, error) {
+		return workerSettings(ctx, a), nil
 	})
-	Def("worker.configure", "Change this installation's worker settings (heavy-job battery threshold) in its config.yaml; owners", Flags{Mutating: true, HumanOnly: true, OwnerOnly: true}, func(ctx context.Context, a *app.App, in *WorkerConfigureIn) (*WorkerSettingsOut, error) {
-		if in.HeavyBatteryThreshold == nil {
-			return nil, invalid("Nothing to change: give the battery level below which big jobs wait.")
+	Def("worker.configure", "Change this installation's worker settings (heavy-job battery threshold, how it looks at what's on screen) in its config.yaml; owners", Flags{Mutating: true, HumanOnly: true, OwnerOnly: true}, func(ctx context.Context, a *app.App, in *WorkerConfigureIn) (*WorkerSettingsOut, error) {
+		if in.HeavyBatteryThreshold == nil && in.ScreenIndex == nil {
+			return nil, invalid("Nothing to change: give the battery level below which big jobs wait, or how this computer looks at what's on screen.")
 		}
-		t := *in.HeavyBatteryThreshold
-		if t < 0 || t > 100 {
-			return nil, invalid("The battery level must be between 0 and 100 percent (got %d).", t)
+		audit := map[string]any{}
+		if in.HeavyBatteryThreshold != nil {
+			t := *in.HeavyBatteryThreshold
+			if t < 0 || t > 100 {
+				return nil, invalid("The battery level must be between 0 and 100 percent (got %d).", t)
+			}
+			audit["heavyBatteryThreshold"], audit["previous"] = t, a.Cfg.HeavyBatteryThreshold()
 		}
-		prev := a.Cfg.HeavyBatteryThreshold()
-		if err := config.SetField(a.Cfg.Home(), []string{"worker", "heavyBatteryThreshold"}, t); err != nil {
-			return nil, apperr.Wrap(apperr.Internal, err, "Couldn't save the battery setting in config.yaml on this machine.")
+		if in.ScreenIndex != nil {
+			switch v := strings.TrimSpace(*in.ScreenIndex); v {
+			case config.ScreenAuto, config.ScreenAppleVision, config.ScreenOpenModels:
+				if v == config.ScreenAppleVision && runtime.GOOS != "darwin" {
+					return nil, invalid("Apple Vision only runs on a Mac; this computer looks with the open models.")
+				}
+				*in.ScreenIndex = v
+			default:
+				return nil, invalid("Say how this computer looks at what's on screen: auto, apple-vision or open-models (got %q).", v)
+			}
+			audit["screenIndex"], audit["previousScreenIndex"] = *in.ScreenIndex, a.Cfg.ScreenIndexChoice()
 		}
-		a.Cfg.SetHeavyBatteryThreshold(t)
-		a.Audit(ctx, "worker.configure", "installation", a.Cfg.Installation.ID, "", map[string]any{"heavyBatteryThreshold": t, "previous": prev})
+		if in.HeavyBatteryThreshold != nil {
+			if err := config.SetField(a.Cfg.Home(), []string{"worker", "heavyBatteryThreshold"}, *in.HeavyBatteryThreshold); err != nil {
+				return nil, apperr.Wrap(apperr.Internal, err, "Couldn't save the battery setting in config.yaml on this machine.")
+			}
+			a.Cfg.SetHeavyBatteryThreshold(*in.HeavyBatteryThreshold)
+		}
+		if in.ScreenIndex != nil {
+			if err := config.SetField(a.Cfg.Home(), []string{"screenIndex", "backend"}, *in.ScreenIndex); err != nil {
+				return nil, apperr.Wrap(apperr.Internal, err, "Couldn't save how this computer looks at what's on screen in config.yaml.")
+			}
+			a.Cfg.SetScreenIndexChoice(*in.ScreenIndex)
+		}
+		a.Audit(ctx, "worker.configure", "installation", a.Cfg.Installation.ID, "", audit)
 		if OnSettingsChanged != nil {
 			OnSettingsChanged()
 		}
-		out := workerSettings(a)
+		out := workerSettings(ctx, a)
 		out.Note = "Saved. MetaRush on this machine uses the new setting within a few seconds."
+		if in.ScreenIndex != nil && !out.LooksWith.Ready && out.LooksWith.Fix != "" {
+			out.Note += " " + out.LooksWith.Text + " " + out.LooksWith.Fix
+		}
 		return out, nil
 	})
 	Def("notification.list", "List your notifications (newest first) with the unread count", Flags{}, func(ctx context.Context, a *app.App, in *NotificationListIn) (*NotificationListOut, error) {

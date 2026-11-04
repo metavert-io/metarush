@@ -45,13 +45,26 @@ const (
 	bgTolerance     = 40   // colour distance (sum of channels) still counted as the background
 )
 
-// SegmentSubject is Apple Vision's subject mask on a Mac (the on-screen
-// helper): in is a picture, out gets a PNG of the subject on transparency.
-// nil elsewhere; pictures without a plain background then keep theirs.
-var SegmentSubject func(ctx context.Context, a *app.App, in, out string) error
+// SegmentSubject cuts a picture's subject out (D414): Apple Vision's subject
+// mask on a Mac (the on-screen helper), BiRefNet where the open models are
+// this computer's way of looking (looker.CutOut): in is a picture, out gets a
+// PNG of the subject on transparency, and tool names what did it. nil, or an
+// ErrCantSegment, where neither can run here; pictures without a plain
+// background then keep theirs.
+var SegmentSubject func(ctx context.Context, a *app.App, in, out string) (tool string, err error)
 
-// ErrNoSubject: Apple Vision found no subject in the picture.
+// noSegmentWhy is why a computer that can't cut subjects out keeps a
+// photo's background.
+const noSegmentWhy = "finding the subject of a photo needs a Mac, or the cut-out model added in Settings → Components"
+
+// ErrNoSubject: no subject was found in the picture.
 var ErrNoSubject = errors.New("no subject found")
+
+// ErrCantSegment says, in plain words, why this computer can't cut a
+// subject out (what it needs is in Settings → Components).
+type ErrCantSegment struct{ Why string }
+
+func (e *ErrCantSegment) Error() string { return e.Why }
 
 func loadPicture(ctx context.Context, a *app.App, id string) (*models.Resource, *models.ResourceVersion, error) {
 	var r models.Resource
@@ -621,9 +634,13 @@ func preparePicture(ctx context.Context, a *app.App, j *models.Job, report Repor
 			if err := os.WriteFile(in, buf.Bytes(), 0o600); err != nil {
 				return nil, err
 			}
-			switch err := SegmentSubject(ctx, a, in, out); {
+			tool, err := SegmentSubject(ctx, a, in, out)
+			var cant *ErrCantSegment
+			switch {
 			case errors.Is(err, ErrNoSubject):
 				notes = append(notes, "MetaRush found no clear subject to keep, so the background was kept.")
+			case errors.As(err, &cant):
+				notes = append(notes, "Its background isn't one plain colour, and "+cant.Why+"; the background was kept.")
 			case err != nil:
 				return nil, fmt.Errorf("finding the subject failed: %w", err)
 			default:
@@ -631,10 +648,10 @@ func preparePicture(ctx context.Context, a *app.App, j *models.Job, report Repor
 					return nil, err
 				}
 				alpha = true
-				done = append(done, models.FixStep{Fix: models.FixBackground, Engine: "subject mask", Tool: "Apple Vision"})
+				done = append(done, models.FixStep{Fix: models.FixBackground, Engine: "subject mask", Tool: tool})
 			}
 		default:
-			notes = append(notes, "Its background isn't one plain colour, and finding the subject of a photo needs a Mac; the background was kept.")
+			notes = append(notes, "Its background isn't one plain colour, and "+noSegmentWhy+"; the background was kept.")
 		}
 	}
 	if slices.Contains(steps, models.FixEdges) {

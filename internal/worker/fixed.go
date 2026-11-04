@@ -3,38 +3,47 @@ package worker
 import (
 	"context"
 	"errors"
-	"runtime"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/fixes"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/store"
-	"github.com/metavert-io/metarush/internal/vision"
 )
 
-// On a Mac, Remove the background finds the subject of a photo with Apple
-// Vision (the on-screen helper's mask command, macOS 14 or later); elsewhere
-// only a plain-coloured background can be removed.
+// Remove the background finds the subject of a photo with this computer's
+// cut-out engine (D414): Apple Vision on a Mac (the on-screen helper's mask
+// command, macOS 14 or later), BiRefNet where the open models are this
+// computer's way of looking and the cut-out model is added; elsewhere only a
+// plain-coloured background can be removed, and the copy says what to add.
 func init() {
-	if runtime.GOOS != "darwin" {
-		return
-	}
-	fixes.SegmentSubject = func(ctx context.Context, a *app.App, in, out string) error {
-		if _, _, err := vision.Ensure(ctx, a.Tools, a.Cfg.Home()); err != nil {
-			return err
+	fixes.SegmentSubject = func(ctx context.Context, a *app.App, in, out string) (string, error) {
+		if err := looker.CutOutReady(a.Cfg, a.Tools); err != nil {
+			return "", &fixes.ErrCantSegment{Why: cantCutOut(a)}
 		}
-		found, err := vision.Mask(ctx, a.Tools, in, out)
+		found, err := looker.CutOut(ctx, a.Cfg, a.Tools, in, out)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if !found {
-			return fixes.ErrNoSubject
+			return "", fixes.ErrNoSubject
 		}
-		return nil
+		if looker.Chosen(a.Cfg) == looker.AppleVision {
+			return "Apple Vision", nil
+		}
+		return "BiRefNet", nil
 	}
+}
+
+// cantCutOut says why this computer can't cut a subject out, to end a sentence.
+func cantCutOut(a *app.App) string {
+	if looker.Chosen(a.Cfg) == looker.AppleVision {
+		return "the on-screen helper isn't set up on this Mac (Seeing what's on screen, in Settings → Components)"
+	}
+	return "the cut-out model isn't on this computer (Cutting out a picture's subject, in Settings → Components)"
 }
 
 // inspectHandler measures a clip for its fixes (internal/fixes, D153).

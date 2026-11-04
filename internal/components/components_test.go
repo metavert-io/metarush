@@ -496,16 +496,44 @@ func TestRequiredAndUnknown(t *testing.T) {
 	if !apperr.Is(err, apperr.NotFound) {
 		t.Fatalf("unknown: %v", err)
 	}
-	// On Linux a Mac-only component isn't offered.
+	// On Linux seeing what's on screen is the open models (D405): offered,
+	// downloaded by MetaRush, after the transcriber (its engine); faces too.
 	e.GOOS = "linux"
+	offered := map[string]bool{}
 	for _, c := range e.Optional() {
-		if c.Name == "screen-index" || c.Name == "faces" {
-			t.Errorf("%s offered on Linux", c.Name)
+		offered[c.Name] = true
+	}
+	for _, n := range []string{"screen-index", "faces", "cut-outs"} {
+		if !offered[n] {
+			t.Errorf("%s isn't offered on Linux", n)
 		}
 	}
 	si, _ := Get("screen-index")
-	if st := e.StateOf(ctx, si); st.Status != StatusNotHere || st.Command != "" {
+	st := e.StateOf(ctx, si)
+	if st.Status != StatusMissing || st.How != HowDownload || st.Command != "metarush components add screen-index" ||
+		!slices.Equal(st.Needs, []string{"ffmpeg", "transcription"}) || !strings.Contains(st.Unlocks, "open models") || !strings.Contains(st.Licence, "Apache-2.0") {
 		t.Fatalf("screen-index on Linux: %+v", st)
+	}
+	co, _ := Get("cut-outs")
+	if st := e.StateOf(ctx, co); st.Status != StatusMissing || st.How != HowDownload || st.Size != "about 200 MB" {
+		t.Fatalf("cut-outs on Linux: %+v", st)
+	}
+	// On a Mac, Apple Vision cuts subjects out: the cut-out model isn't needed.
+	e.GOOS = "darwin"
+	if st := e.StateOf(ctx, co); st.Status != StatusNotHere || !strings.Contains(st.Says, "Apple Vision") {
+		t.Fatalf("cut-outs on a Mac: %+v", st)
+	}
+	if st := e.StateOf(ctx, si); !slices.Equal(st.Needs, []string{"ffmpeg"}) || st.How == HowDownload {
+		t.Fatalf("screen-index on a Mac: %+v", st)
+	}
+	// A Mac that chose the open models gets them as Linux does.
+	e.Cfg.SetScreenIndexChoice(config.ScreenOpenModels)
+	defer e.Cfg.SetScreenIndexChoice(config.ScreenAuto)
+	if st := e.StateOf(ctx, si); st.How != HowDownload || !slices.Equal(st.Needs, []string{"ffmpeg", "transcription"}) {
+		t.Fatalf("screen-index on a Mac with the open models: %+v", st)
+	}
+	if st := e.StateOf(ctx, co); st.Status == StatusNotHere {
+		t.Fatalf("cut-outs on a Mac with the open models: %+v", st)
 	}
 }
 

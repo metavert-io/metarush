@@ -13,6 +13,7 @@ import (
 	"github.com/metavert-io/metarush/internal/derive"
 	"github.com/metavert-io/metarush/internal/media"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/probe"
 	"github.com/metavert-io/metarush/internal/projectlinks"
 	"github.com/metavert-io/metarush/internal/resources"
@@ -78,6 +79,9 @@ func loadVideo(ctx context.Context, a *app.App, assetID string) (*models.Asset, 
 	var as models.Asset
 	if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), assetID, &as); err != nil {
 		return nil, apperr.New(apperr.NotFound, "That clip isn't in this workspace.").WithDetails(map[string]any{"assetId": assetID})
+	}
+	if as.IsReference() {
+		return nil, ops.RefuseReference(&as, "send it to an AI service or make new footage from it") // D441
 	}
 	if !as.Media.HasVideo {
 		return nil, apperr.New(apperr.UnsupportedMedia, "“%s” has no picture to take a frame from.", as.DisplayTitle())
@@ -205,6 +209,11 @@ func pictureOf(ctx context.Context, a *app.App, projectID, ref string, asIs bool
 		if sha == "" {
 			return nil, nil, "", apperr.New(apperr.NotFound, "“%s” has no version %s.", r.Title, version)
 		}
+	}
+	// A picture taken from someone else's video is never sent or made into
+	// anything (D457): AI work, generated video and looks all come here.
+	if err := resources.RefuseFrameOfReference(ctx, a, r, sha, "send it to an AI service or make anything from it"); err != nil {
+		return nil, nil, "", err
 	}
 	path, v, err := resources.LocalFile(ctx, a, r, sha, 0)
 	if err != nil {

@@ -50,7 +50,8 @@ func (m *Manager) describeLinkImport(ctx context.Context, call *cliCall, a *Assi
 		incomplete(a, "Look up a video", "A look-up changes nothing; it isn't a card.")
 		return
 	}
-	in := linkimport.ImportIn{URLs: links, ProjectID: prj, BrowserSignIn: strings.ToLower(strings.TrimSpace(call.Flags["browser-signin"])), Playlist: intFlag(call, "playlist")}
+	in := linkimport.ImportIn{URLs: links, ProjectID: prj, BrowserSignIn: strings.ToLower(strings.TrimSpace(call.Flags["browser-signin"])), Playlist: intFlag(call, "playlist"),
+		Reference: hasBool(call, "reference")}
 	if in.BrowserSignIn != "" && !linkimport.ValidBrowser(in.BrowserSignIn) {
 		incomplete(a, "Bring in a video", "The browser sign-in can come from Chrome, Safari, Firefox, Brave or Edge.")
 		return
@@ -70,6 +71,9 @@ func (m *Manager) describeLinkImport(ctx context.Context, call *cliCall, a *Assi
 	}
 	if in.BrowserSignIn != "" {
 		a.Details = append(a.Details, "Uses your "+upperFirst(in.BrowserSignIn)+" sign-in for this download only")
+	}
+	if in.Reference {
+		a.Details = append(a.Details, "As a reference: someone else's video, kept to learn from, that no cut plays")
 	}
 	if prj != "" {
 		a.Details = append(a.Details, "Into "+m.nameOf(ctx, prj))

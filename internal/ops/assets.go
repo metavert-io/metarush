@@ -20,6 +20,7 @@ import (
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/notify"
+	"github.com/metavert-io/metarush/internal/resources"
 	"github.com/metavert-io/metarush/internal/speakers"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/todos"
@@ -75,6 +76,10 @@ type AssetSummary struct {
 	FixState   string   `json:"fixState,omitempty"`
 	Fixed      bool     `json:"fixed,omitempty"`
 	FixesFit   int      `json:"fixesFit,omitempty"`
+	// Reference: someone else's video, kept to learn from (D398); no cut plays
+	// it. StartFrom is a draft asked for from it (D401) and how that went.
+	Reference *models.AssetReference `json:"reference,omitempty"`
+	StartFrom *models.StartFromVideo `json:"startFrom,omitempty"`
 }
 
 // Summarize is the compact row for an asset (title backfilled for older assets).
@@ -83,7 +88,8 @@ func Summarize(as models.Asset) AssetSummary { return summarize(as) }
 func summarize(as models.Asset) AssetSummary {
 	s := AssetSummary{ID: as.ID, Title: as.DisplayTitle(), Name: as.Name, Kind: as.Kind, State: as.State, Duration: as.Media.Duration, Width: as.Media.Width, Height: as.Media.Height,
 		FPS: as.Media.FPS, HasAudio: as.Media.HasAudio, VFR: as.Media.VFR, HDR: as.Media.HDR, Size: as.Size, SHA256: as.SHA256,
-		Transcript: as.Transcript, Analysis: as.Analysis, ProjectIDs: as.ProjectIDs, Tags: as.Tags, CreatedAt: as.CreatedAt, CreatedBy: as.CreatedBy, Variants: []string{}, Source: as.Source}
+		Transcript: as.Transcript, Analysis: as.Analysis, ProjectIDs: as.ProjectIDs, Tags: as.Tags, CreatedAt: as.CreatedAt, CreatedBy: as.CreatedBy, Variants: []string{}, Source: as.Source,
+		Reference: as.Reference, StartFrom: as.StartFrom}
 	for _, al := range as.Aliases {
 		s.Aliases = append(s.Aliases, al.Name)
 	}
@@ -380,6 +386,9 @@ func init() {
 		}
 		d := &derive.Deriver{T: a.Tools}
 		out := &FramesOut{Frames: []FrameFile{}, Source: srcName, Note: "Times are seconds in the original clip. Frames from the preview copy are 720p; use source=original for detail checks."}
+		if as.IsReference() { // D457
+			out.Note += " " + as.ReferenceWords() + ". These frames are for looking at; added to Resources, a picture taken from it counts as the video itself."
+		}
 		for _, t := range in.At {
 			if t < 0 || t > as.Media.Duration {
 				return nil, invalid("There's no frame at %.1f s: “%s” is %.1f s long.", t, as.DisplayTitle(), as.Media.Duration)
@@ -387,6 +396,11 @@ func init() {
 			p := filepath.Join(dir, strings.ReplaceAll(derive.Timecode(t), ":", "m")+".jpg")
 			if err := d.Frame(ctx, src, p, t, in.Width); err != nil {
 				return nil, err
+			}
+			// The frame says where it was taken (D457): added to Resources, a
+			// frame of a reference is treated like the reference itself.
+			if err := resources.MarkFrame(p, a.WorkspaceID(), as.ID, t); err != nil {
+				return nil, apperr.Wrap(apperr.ToolFailed, err, "MetaRush couldn't finish the frame at %.1f s of “%s”.", t, as.DisplayTitle())
 			}
 			out.Frames = append(out.Frames, FrameFile{At: t, Path: p})
 		}
@@ -459,7 +473,8 @@ func EnqueueDerivatives(ctx context.Context, a *app.App, as *models.Asset, trans
 	if transcribe && as.Media.HasAudio {
 		add(jobs.TypeTranscribe, 6, true)
 	}
-	// What's on screen (Apple Vision on a Mac; D73): after the transcript, so a
+	// What's on screen (Apple Vision on a Mac, the open models elsewhere; D73,
+	// D405): after the transcript, so a
 	// face alone on screen while a named voice speaks can be asked about.
 	if as.Media.HasVideo && visualsPossible(ctx, a) {
 		add(jobs.TypeVisual, 3, true)

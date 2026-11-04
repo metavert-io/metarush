@@ -18,6 +18,10 @@ const (
 	FactsAnalysis = "analysis" // an analysis job finished (preview copy, transcript, voices, on screen, evidence)
 	FactsPeople   = "people"   // someone named (or unnamed) a voice or a face
 	FactsFixed    = "fixed"    // a fix switched the media it uses
+	// FactsAsked: someone asked for something that waits for MetaRush's first
+	// look at the source (a draft from a video someone liked, D401); hooks that
+	// act on new analysis ignore it.
+	FactsAsked = "asked"
 )
 
 var (

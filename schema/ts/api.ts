@@ -2981,10 +2981,11 @@ limits?: string
  * via the `definition` "ActionWork".
  */
 export interface ActionWork {
-kind: ("render" | "qa" | "jobs" | "run")
+kind: ("render" | "qa" | "jobs" | "run" | "draft")
 renderId?: string
 jobIds?: string[]
 runId?: string
+assetId?: string
 what: string
 state: ("running" | "finished" | "failed" | "gone")
 /**
@@ -3066,7 +3067,7 @@ text?: string
  * Recipes: a run's plan with its steps, what saving a cut would vary and keep, or what a draft or a version made current changes.
  */
 export interface RecipeCardView {
-kind: ("run" | "again" | "save" | "update" | "publish" | "picks" | "sheet" | "suggested")
+kind: ("run" | "again" | "save" | "update" | "publish" | "picks" | "sheet" | "suggested" | "fromvideo")
 recipe?: string
 title: string
 link?: string
@@ -3102,6 +3103,18 @@ change?: string
 picks?: RecipeCardPick[]
 reasons?: string[]
 new?: boolean
+/**
+ * The video it starts from, as people name it.
+ */
+video?: string
+/**
+ * Where the video came from (its link).
+ */
+videoFrom?: string
+/**
+ * What the video does, in plain words.
+ */
+does?: string[]
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema
@@ -3365,6 +3378,7 @@ soundTracks: number
 markers: number
 duration: number
 notes: string[]
+warnings: string[]
 summary: string
 open: string
 }
@@ -3466,7 +3480,7 @@ agent?: string
  */
 export interface ShipHold {
 key: string
-kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent" | "credentials")
+kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent" | "credentials" | "reference")
 says: string
 }
 /**
@@ -4244,7 +4258,7 @@ resetsAt: string
  * via the `definition` "RecipeCardView".
  */
 export interface RecipeCardView1 {
-kind: ("run" | "again" | "save" | "update" | "publish" | "picks" | "sheet" | "suggested")
+kind: ("run" | "again" | "save" | "update" | "publish" | "picks" | "sheet" | "suggested" | "fromvideo")
 recipe?: string
 title: string
 link?: string
@@ -4280,6 +4294,18 @@ change?: string
 picks?: RecipeCardPick[]
 reasons?: string[]
 new?: boolean
+/**
+ * The video it starts from, as people name it.
+ */
+video?: string
+/**
+ * Where the video came from (its link).
+ */
+videoFrom?: string
+/**
+ * What the video does, in plain words.
+ */
+does?: string[]
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema

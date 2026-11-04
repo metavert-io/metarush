@@ -613,6 +613,28 @@ func TestTheShipGateHoldsAVersion(t *testing.T) {
 	}
 }
 
+// A version that plays a reference — someone else's video, kept to learn from
+// (D441) — is shared only with a person's note, with the ship gate off too: a
+// draft mark isn't enough, and the note names the hold it covers.
+func TestAReferenceIsSharedOnlyWithANote(t *testing.T) {
+	w := newWorld(t)
+	a := w.a
+	if err := a.DB.Update(context.Background(), store.CAssets, a.WorkspaceID(), w.clip.ID, bson.M{"$set": bson.M{"reference": models.AssetReference{By: a.Actor, At: time.Now().UTC(), Why: models.ReferenceMarked}}}); err != nil {
+		t.Fatal(err)
+	}
+	plan := call[reviewlinks.SharePlanOut](t, a, "share.plan", reviewlinks.SharePlanIn{ProjectID: w.p.ID}, ops.Caller{})
+	if plan.May || !plan.Held || !strings.Contains(plan.Why, "can't be shared: version 1 plays “Interview”, a reference: someone else's video") {
+		t.Fatalf("plan: %+v", plan)
+	}
+	if err := callErr(a, "share.create", reviewlinks.ShareCreateIn{ProjectID: w.p.ID, AsDraft: true}, person); code(err) != apperr.Held {
+		t.Fatalf("marked as a draft isn't enough: %v", err)
+	}
+	out := call[reviewlinks.ShareOut](t, a, "share.create", reviewlinks.ShareCreateIn{ProjectID: w.p.ID, Anyway: "Our licensed copy, for the client's legal team."}, person)
+	if out.Link.Anyway == nil || len(out.Link.Anyway.Holds) != 1 || !strings.HasPrefix(out.Link.Anyway.Holds[0], "reference:"+w.clip.ID) {
+		t.Fatalf("anyway: %+v", out.Link.Anyway)
+	}
+}
+
 // A version without a review copy has nothing to share.
 func TestNoReviewCopyNothingToShare(t *testing.T) {
 	w := newWorld(t)

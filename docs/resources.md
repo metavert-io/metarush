@@ -445,7 +445,7 @@ only, pictures from a page or a repository whose licence isn't recorded.
 
 | Hook | For |
 |---|---|
-| `resources.RegisterTagger(Tagger)` · `RegisterTextFinder(TextFinder)` | more tag suggestions and words found. In use: the visual index (`internal/visual/still.go`, Mac only) for pictures, SVGs, PDF pages and page snapshots; `madeTagger` for what MetaRush made |
+| `resources.RegisterTagger(Tagger)` · `RegisterTextFinder(TextFinder)` | more tag suggestions and words found. In use: the visual index (`internal/visual/still.go`, wherever the computer can look: Apple Vision or the open models) for pictures, SVGs, PDF pages and page snapshots; `madeTagger` for what MetaRush made |
 | `resources.RegisterURLSource(URLSource)` | addresses that become resources: `github` (repositories) and `website` (pages and pictures) are registered by `internal/resources` |
 | `ops.RegisterDeleteHook(name, fn)` | features that keep data per footage remove it when footage is deleted |
 | templates family | more slide templates join the catalog the same way (`editspec.Templates`, `video/src/templates/registry.tsx`) |

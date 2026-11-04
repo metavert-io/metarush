@@ -227,6 +227,8 @@ var opBase = map[string]string{
 	"footage.speakers.assign": "fix who said a line in {a}", "footage.speakers.unmerge": "separate two voices in {a}",
 	"footage.speakers.detect": "listen for the voices in the footage",
 	"footage.keyframes":       "choose frames to show from {a}", "footage.visuals": "read what's on screen in {a}",
+	// What a video does, and references (D398, D399).
+	"footage.whatItDoes": "read what {a} does", "footage.reference": "mark {a} as a reference", "footage.reference.mine": "say {a} is their own video",
 	"footage.visuals.status": "check whether clips get looked at for what's on screen",
 	"footage.faces":          "look at the faces in {a}", "footage.faces.name": "name a face in {a}", "footage.faces.reject": "correct a face in {a}",
 	"footage.describe": "describe the scenes of {a}", "footage.describe.settings": "check the scene description settings",
@@ -263,7 +265,7 @@ var opBase = map[string]string{
 	"workspace.exports": "look at the workspace's exports",
 	"workspace.adopt":   "say this restored copy is now the workspace",
 	"workspace.restore": "restore the workspace from an export",
-	"worker.settings":   "check the battery settings", "worker.configure": "change the battery settings", "machine.list": "list machines", "machine.invite": "invite a machine",
+	"worker.settings":   "check this computer's battery and looking settings", "worker.configure": "change this computer's battery or looking settings", "machine.list": "list machines", "machine.invite": "invite a machine",
 	"machine.revoke": "remove a machine", "machine.rekeyPlan": "check what giving this machine its own storage key would do",
 	"machine.rekey": "give this machine its own storage key", "audit.list": "read the audit trail",
 	"machine.handover.plan": "check what handing this computer's role over would do", "machine.handover.status": "look at whether this computer hands its role over",

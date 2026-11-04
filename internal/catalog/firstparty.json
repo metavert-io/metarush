@@ -17,13 +17,31 @@
         "subject lifting"
       ],
       "needs": {
-        "os": [
-          "mac"
-        ],
         "setup": "local-apple-vision"
       },
       "cost": "free",
       "madeWith": "metarush/ai-cut-outs"
+    },
+    {
+      "id": "ai-cut-outs-open",
+      "name": "metarush/ai-cut-outs-open",
+      "group": "make",
+      "title": "AI cut-outs with BiRefNet",
+      "does": "Takes a picture's background away with an open model (BiRefNet) on this computer, as a new picture; nothing leaves it.",
+      "op": "ai.make",
+      "input": {
+        "kind": "background-removal",
+        "model": "local/birefnet"
+      },
+      "words": [
+        "background remover",
+        "transparent cut-out"
+      ],
+      "needs": {
+        "setup": "local-birefnet"
+      },
+      "cost": "free",
+      "madeWith": "metarush/ai-cut-outs-open"
     },
     {
       "id": "ai-larger-pictures",
@@ -707,9 +725,6 @@
         "recognize people"
       ],
       "needs": {
-        "os": [
-          "mac"
-        ],
         "setup": "on-screen-helper"
       },
       "cost": "free",
@@ -1140,7 +1155,7 @@
       "name": "metarush/remove-background",
       "group": "fix",
       "title": "A photo's subject",
-      "does": "Takes the background out of a photo or a logo, leaving its subject; a background that isn't one plain colour needs a Mac.",
+      "does": "Takes the background out of a photo or a logo, leaving its subject; a background that isn't one plain colour needs a Mac, or the cut-out model on other computers.",
       "op": "asset.fixes.set",
       "input": {
         "tick": [
@@ -1152,10 +1167,8 @@
         "transparent background"
       ],
       "needs": {
-        "os": [
-          "mac"
-        ],
-        "partly": "only plain-colour backgrounds"
+        "partly": "only plain-colour backgrounds",
+        "setup": "cut-outs"
       },
       "cost": "free",
       "madeWith": "metarush/remove-background"
@@ -1333,6 +1346,28 @@
       },
       "cost": "free",
       "madeWith": "metarush/stand-in-narration"
+    },
+    {
+      "id": "start-from-a-video",
+      "name": "metarush/start-from-a-video",
+      "group": "make",
+      "title": "Start from a video you like",
+      "does": "Brings a video you like in as a reference and drafts a recipe shaped like it, for your own footage.",
+      "op": "recipe.fromVideo",
+      "words": [
+        "make a video like this one",
+        "a video like this",
+        "copy how a video is made",
+        "reference video"
+      ],
+      "needs": {
+        "works": [
+          "transcripts",
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/start-from-a-video"
     },
     {
       "id": "steady-footage",
@@ -1591,6 +1626,28 @@
       "madeWith": "metarush/web-pages"
     },
     {
+      "id": "what-a-video-does",
+      "name": "metarush/what-a-video-does",
+      "group": "understand",
+      "title": "What a video does",
+      "does": "Says what a video does: its hook, intro, parts, call to action and end card with times, its pacing, captions and music.",
+      "op": "footage.whatItDoes",
+      "words": [
+        "break down a video",
+        "how is this video made",
+        "structure of a video",
+        "video breakdown"
+      ],
+      "needs": {
+        "works": [
+          "transcripts",
+          "editing"
+        ]
+      },
+      "cost": "free",
+      "madeWith": "metarush/what-a-video-does"
+    },
+    {
       "id": "whats-on-screen",
       "name": "metarush/whats-on-screen",
       "group": "understand",
@@ -1603,9 +1660,6 @@
         "what can be seen"
       ],
       "needs": {
-        "os": [
-          "mac"
-        ],
         "setup": "on-screen-helper"
       },
       "cost": "free",

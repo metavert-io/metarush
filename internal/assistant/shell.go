@@ -134,6 +134,9 @@ var pathBoolFlags = map[string]map[string]bool{
 	"recipe suggestions": {"save": true},                // Recipes: suggested changes saved as a draft (D217)
 	"recipe triggers":    {"dismiss": true},             // Recipes: a plan made by itself set aside (D218)
 	"deliver notes set":  {"clear": true},               // delivery notes taken off (D237)
+	"recipe from-video":  {"reference": true},           // Recipes: a clip here marked a reference too (D402)
+	"footage reference":  {"mine": true},                // a reference that is the person's own video (D398; never a card)
+	"import":             {"reference": true},           // a link brought in as a reference (D398)
 }
 
 // commandGroups are metarush commands with subcommands.

@@ -424,8 +424,11 @@ func removeCatalogue(ctx context.Context, a *app.App, in *AbilityCatalogueRemove
 // the database server's clock (with force, the ones given, now), each claimed
 // first so two readers never ask at once, and a failed one asked again no
 // sooner than retryAfter. A failure keeps the copy before and says why; it
-// never fails what asked (D482).
+// never fails what asked (D482). A read once claimed is finished even when
+// whoever asked goes away (a page left), within its own time limit.
 func refreshCatalogues(ctx context.Context, a *app.App, cs []models.AbilityCatalogue, force bool) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Duration(len(cs))*(indexTimeout+5*time.Second))
+	defer cancel()
 	for i := range cs {
 		c := &cs[i]
 		filter := bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID()}
@@ -466,7 +469,7 @@ func refreshCatalogues(ctx context.Context, a *app.App, cs []models.AbilityCatal
 		if len(stamp) > 0 {
 			upd["$currentDate"] = stamp
 		}
-		_, _ = a.DB.C(store.CAbilityCatalogues).UpdateOne(context.WithoutCancel(ctx), bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID()}, upd)
+		_, _ = a.DB.C(store.CAbilityCatalogues).UpdateOne(ctx, bson.M{"_id": c.ID, "workspaceId": a.WorkspaceID()}, upd)
 	}
 }
 
@@ -810,7 +813,7 @@ func listedNeeds(e models.CatalogueEntry) []string {
 		out = append(out, fmt.Sprintf("A %s key, kept on each computer by an owner; MetaRush adds it only for %s, and the ability never sees it.", k.Name, where))
 	}
 	if len(e.Programs) > 0 {
-		out = append(out, fmt.Sprintf("Each computer it runs on needs %s, set up there by a person.", joinAnd(e.Programs)))
+		out = append(out, fmt.Sprintf("%s, which a person sets up there.", joinAnd(e.Programs)))
 	}
 	if len(e.OS) > 0 {
 		out = append(out, "It runs only on "+joinAnd(osWords(e.OS))+".")
@@ -822,7 +825,7 @@ func listedNeeds(e models.CatalogueEntry) []string {
 		out = append(out, "It changes something outside MetaRush (it publishes, uploads or drives another app), so only a person starts it.")
 	}
 	if len(out) == 0 {
-		out = append(out, "Nothing to set up on each computer.")
+		out = append(out, "Nothing to set up.")
 	}
 	return out
 }

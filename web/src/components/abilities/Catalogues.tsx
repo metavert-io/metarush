@@ -82,7 +82,7 @@ export function BrowseCatalogues({ catalogue, listing }: { catalogue?: string; l
       <Link to="/library/abilities" className="mb-4 inline-flex items-center gap-1.5 text-[12.5px] text-muted hover:text-fg">
         <ArrowLeft size={13} /> All abilities
       </Link>
-      <header className="mb-4 flex flex-wrap items-end gap-3">
+      <header className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
         <div className="min-w-0 flex-1">
           <h2 className="text-[22px] font-semibold tracking-[-0.02em]">Browse catalogues</h2>
           <p className="mt-1 max-w-[70ch] text-[13.5px] leading-relaxed text-muted">
@@ -127,16 +127,18 @@ export function BrowseCatalogues({ catalogue, listing }: { catalogue?: string; l
           <Skeleton className="h-48" />
         </div>
       ) : d.catalogues.length === 0 ? (
-        <EmptyState
-          icon={<Books size={22} />}
-          title="No catalogue yet"
-          body="This workspace trusts no catalogue of abilities yet. An owner adds one under Settings → Abilities; then what it lists shows here."
-          action={
-            <Link to="/settings/abilities" className="text-[13px] font-medium text-accent-text hover:underline">
-              Settings → Abilities
-            </Link>
-          }
-        />
+        <div data-browse-empty>
+          <EmptyState
+            icon={<Books size={22} />}
+            title="No catalogue yet"
+            body="This workspace trusts no catalogue of abilities yet. An owner adds one under Settings → Abilities; then what it lists shows here."
+            action={
+              <Link to="/settings/abilities" className="text-[13px] font-medium text-accent-text hover:underline">
+                Settings → Abilities
+              </Link>
+            }
+          />
+        </div>
       ) : (
         <>
           {problems.map((c) => (
@@ -471,57 +473,59 @@ function CatalogueItem({ c }: { c: CatalogueRow }) {
     }
   };
   return (
-    <li className="flex flex-wrap items-start gap-3 py-3" data-catalogue-item={c.key}>
-      <span className="mt-0.5 text-accent-text" aria-hidden>
-        <Books size={18} weight="duotone" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[14px] font-medium">
-          <Theirs>{c.title || c.key}</Theirs> <span className="text-[12px] font-normal text-subtle">· called {c.key} here</span>
-        </p>
-        {c.about ? (
-          <p className="text-[12.5px] text-muted">
-            <Theirs>{c.about}</Theirs>
+    <li className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:gap-3" data-catalogue-item={c.key}>
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <span className="mt-0.5 text-accent-text" aria-hidden>
+          <Books size={18} weight="duotone" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-medium">
+            <Theirs>{c.title || c.key}</Theirs> <span className="text-[12px] font-normal text-subtle">· called {c.key} here</span>
           </p>
-        ) : null}
-        <p className="mt-0.5 text-[12px] text-subtle">
-          {plural(c.abilities, 'ability', 'abilities')} listed
-          {c.maintainer ? (
-            <>
-              {' '}
-              · kept by <Theirs>{c.maintainer}</Theirs>
-            </>
+          {c.about ? (
+            <p className="text-[12.5px] text-muted">
+              <Theirs>{c.about}</Theirs>
+            </p>
           ) : null}
-          {c.fetchedAt ? (
-            <>
-              {' '}
-              · read <span title={absolute(c.fetchedAt)}>{stamp(c.fetchedAt)}</span>
-            </>
-          ) : null}{' '}
-          · added by <Theirs>{c.addedBy}</Theirs>
-        </p>
-        {c.problem ? <p className="mt-1 text-[12px] text-accent-text">The last time MetaRush asked: {c.problem} Its copy before stays in use.</p> : null}
-        {c.leftOut.length > 0 ? (
-          <details className="mt-1 text-[12px] text-muted">
-            <summary className="cursor-pointer select-none text-subtle hover:text-fg">MetaRush left {plural(c.leftOut.length, 'listing')} out</summary>
-            <ul className="mt-1 space-y-0.5">
-              {c.leftOut.map((x, i) => (
-                <li key={i}>
-                  <Theirs>{x.name}</Theirs>: {x.why}
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
-        <Details label="Details" compact>
-          <p className="break-all">{c.url}</p>
-          <p>
-            Its version {c.version}
-            {c.date ? `, ${c.date}` : ''}
+          <p className="mt-0.5 text-[12px] text-subtle">
+            {plural(c.abilities, 'ability', 'abilities')} listed
+            {c.maintainer ? (
+              <>
+                {' '}
+                · kept by <Theirs>{c.maintainer}</Theirs>
+              </>
+            ) : null}
+            {c.fetchedAt ? (
+              <>
+                {' '}
+                · read <span title={absolute(c.fetchedAt)}>{stamp(c.fetchedAt)}</span>
+              </>
+            ) : null}{' '}
+            · added by <Theirs>{c.addedBy}</Theirs>
           </p>
-        </Details>
+          {c.problem ? <p className="mt-1 text-[12px] text-accent-text">The last time MetaRush asked: {c.problem} Its copy before stays in use.</p> : null}
+          {c.leftOut.length > 0 ? (
+            <details className="mt-1 text-[12px] text-muted">
+              <summary className="cursor-pointer select-none text-subtle hover:text-fg">MetaRush left {plural(c.leftOut.length, 'listing')} out</summary>
+              <ul className="mt-1 space-y-0.5">
+                {c.leftOut.map((x, i) => (
+                  <li key={i}>
+                    <Theirs>{x.name}</Theirs>: {x.why}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+          <Details label="Details" compact>
+            <p className="break-all">{c.url}</p>
+            <p>
+              Its version {c.version}
+              {c.date ? `, ${c.date}` : ''}
+            </p>
+          </Details>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 pl-[30px] sm:pl-0">
         <Link to={browseLink({ catalogue: c.key })} className="text-[12.5px] text-accent-text hover:underline">
           Browse
         </Link>

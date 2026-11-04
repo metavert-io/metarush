@@ -1,0 +1,438 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/metavert-io/metarush/internal/abilities/catalogue-index",
+  "$ref": "#/$defs/CatalogueIndex",
+  "$defs": {
+    "CatalogueAI": {
+      "properties": {
+        "footage": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "sound": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "picture": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "document": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "font": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "captions": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "What AI does to each kind of output: made, edited, enhanced or none."
+    },
+    "CatalogueFileSource": {
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^https://"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url",
+        "sha256"
+      ]
+    },
+    "CatalogueGitSource": {
+      "properties": {
+        "repository": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^https://github\\.com/"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "repository",
+        "commit",
+        "path"
+      ]
+    },
+    "CatalogueIndex": {
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": [
+            "metarush.ability-catalogue/1"
+          ],
+          "description": "The index's format: metarush.ability-catalogue/1."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "about": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "maintainer": {
+          "$ref": "#/$defs/CataloguePublisher"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "abilities": {
+          "items": {
+            "$ref": "#/$defs/IndexEntry"
+          },
+          "type": "array",
+          "maxItems": 1000
+        },
+        "revoked": {
+          "items": {
+            "$ref": "#/$defs/CatalogueRevoked"
+          },
+          "type": "array",
+          "maxItems": 1000
+        },
+        "signatures": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array",
+          "maxItems": 16
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "format",
+        "name",
+        "title",
+        "version",
+        "date",
+        "abilities"
+      ]
+    },
+    "CatalogueKey": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "hosts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 32
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "CatalogueLink": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^https://"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "title",
+        "url"
+      ]
+    },
+    "CatalogueLocal": {
+      "properties": {
+        "port": {
+          "type": "integer",
+          "maximum": 32767,
+          "minimum": 1024
+        },
+        "service": {
+          "type": "string",
+          "maxLength": 60,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "port",
+        "service"
+      ]
+    },
+    "CataloguePublisher": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "github": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^https://"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "CatalogueRevoked": {
+      "properties": {
+        "archive": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "why": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "date": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "archive"
+      ]
+    },
+    "CatalogueSource": {
+      "properties": {
+        "git": {
+          "$ref": "#/$defs/CatalogueGitSource"
+        },
+        "file": {
+          "$ref": "#/$defs/CatalogueFileSource"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "IndexEntry": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "does": {
+          "type": "string",
+          "maxLength": 300,
+          "minLength": 1
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "publisher": {
+          "$ref": "#/$defs/CataloguePublisher"
+        },
+        "source": {
+          "$ref": "#/$defs/CatalogueSource"
+        },
+        "archive": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "licence": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "provides": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 8
+        },
+        "outputs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 6
+        },
+        "network": {
+          "type": "string",
+          "enum": [
+            "off",
+            "metarush",
+            "open"
+          ]
+        },
+        "hosts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 32
+        },
+        "keys": {
+          "items": {
+            "$ref": "#/$defs/CatalogueKey"
+          },
+          "type": "array",
+          "maxItems": 8
+        },
+        "sends": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 5
+        },
+        "ai": {
+          "$ref": "#/$defs/CatalogueAI"
+        },
+        "cost": {
+          "type": "string",
+          "enum": [
+            "free",
+            "keyed",
+            "priced"
+          ]
+        },
+        "local": {
+          "$ref": "#/$defs/CatalogueLocal"
+        },
+        "changesOutside": {
+          "type": "boolean"
+        },
+        "programs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 8
+        },
+        "os": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 2
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 20
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/CatalogueLink"
+          },
+          "type": "array",
+          "maxItems": 8
+        },
+        "signatures": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array",
+          "maxItems": 16
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "title",
+        "does",
+        "publisher",
+        "source",
+        "archive",
+        "licence",
+        "network",
+        "cost"
+      ]
+    }
+  },
+  "title": "metarush.ability-catalogue/1",
+  "description": "A community catalogue of MetaRush abilities: each pinned to a repository's commit and folder or to an ability file's SHA-256, with the SHA-256 of its canonical archive (MetaRush, docs/ability-catalogue.md)."
+}

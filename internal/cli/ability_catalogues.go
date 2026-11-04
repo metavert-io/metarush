@@ -33,8 +33,31 @@ an ability brought in is checked on a computer here in the sandbox, and an owner
   metarush ability catalogues remove acme                                                             (owners)
   metarush ability catalogues make ./abilities --out index.json    (for a catalogue's maintainer)`,
 	}
+	var details bool
+	cmd.Args = cobra.NoArgs
+	cmd.RunE = func(c *cobra.Command, _ []string) error { return listCatalogues(c, details) } // alone, it lists them
+	addDetails(cmd, &details)
 	cmd.AddCommand(abilityCataloguesListCmd(), abilityCataloguesAddCmd(), abilityCataloguesRemoveCmd(), abilityCataloguesMakeCmd())
 	return cmd
+}
+
+// listCatalogues prints the catalogues this workspace trusts.
+func listCatalogues(c *cobra.Command, details bool) error {
+	return runOp(c, "ability.catalogues", abilities.AbilityCataloguesIn{}, func(o any) {
+		out := o.(*abilities.AbilityCataloguesOut)
+		for _, r := range out.Catalogues {
+			printCatalogueRow(r, details)
+		}
+		for _, s := range out.Suggested {
+			if !s.Trusted {
+				fmt.Println("Suggested on this computer: " + s.URL + " (an owner adds it to trust it)")
+			}
+		}
+		fmt.Println(out.Message)
+		if len(out.Catalogues) > 0 {
+			fmt.Println(out.Note)
+		}
+	})
 }
 
 // personAtTheKeys: trusting a catalogue and bringing an ability in from one
@@ -87,23 +110,7 @@ func abilityCataloguesListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List the catalogues of abilities this workspace trusts, and the ones this computer suggests",
 		Args:  cobra.NoArgs,
-		RunE: func(c *cobra.Command, _ []string) error {
-			return runOp(c, "ability.catalogues", abilities.AbilityCataloguesIn{}, func(o any) {
-				out := o.(*abilities.AbilityCataloguesOut)
-				for _, r := range out.Catalogues {
-					printCatalogueRow(r, details)
-				}
-				for _, s := range out.Suggested {
-					if !s.Trusted {
-						fmt.Println("Suggested on this computer: " + s.URL + " (an owner adds it to trust it)")
-					}
-				}
-				fmt.Println(out.Message)
-				if len(out.Catalogues) > 0 {
-					fmt.Println(out.Note)
-				}
-			})
-		},
+		RunE:  func(c *cobra.Command, _ []string) error { return listCatalogues(c, details) },
 	}
 	addDetails(c, &details)
 	return c
@@ -290,10 +297,12 @@ func printListed(l abilities.ListedAbility, details bool) {
 	fmt.Println("  " + theirs(e.Does))
 	fmt.Println("  What it reaches: " + l.Reaches)
 	fmt.Println("  What leaves this computer: " + l.Leaves)
+	fmt.Println("  " + l.Makes + " " + l.AIWords)
+	fmt.Println("  What each computer needs:")
 	for _, n := range l.Needs {
-		fmt.Println("  Needs: " + n)
+		fmt.Println("    " + n)
 	}
-	fmt.Println("  " + l.AIWords + " " + l.CostWords + " Licence: " + theirs(e.Licence) + ".")
+	fmt.Println("  " + l.CostWords + " Licence: " + theirs(e.Licence) + ".")
 	for _, w := range l.Warnings {
 		fmt.Println("  Note: " + w)
 	}
@@ -329,7 +338,7 @@ func abilityImportFromCatalogue(c *cobra.Command, in abilities.AbilityCatalogueI
 	}
 	defer a.Close()
 	human := ops.Caller{Human: true}
-	print := func(o any) {
+	say := func(o any) {
 		out := o.(*abilities.AbilityImportOut)
 		fmt.Println(out.Message)
 		if out.Lineage != "" {
@@ -350,7 +359,7 @@ func abilityImportFromCatalogue(c *cobra.Command, in abilities.AbilityCatalogueI
 		if err != nil {
 			return failErr(c, err)
 		}
-		print(look)
+		say(look)
 		if !look.New {
 			return nil
 		}
@@ -359,5 +368,5 @@ func abilityImportFromCatalogue(c *cobra.Command, in abilities.AbilityCatalogueI
 			return fail(c, apperr.Canceled, "Nothing came in.", "")
 		}
 	}
-	return runOpWith(c, a, "ability.catalogues.import", in, human, print)
+	return runOpWith(c, a, "ability.catalogues.import", in, human, say)
 }

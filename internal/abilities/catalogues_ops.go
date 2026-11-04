@@ -777,43 +777,26 @@ func listedMakes(e models.CatalogueEntry) string {
 // aiWords says what the listing says AI does to what it brings back.
 func aiWords(e models.CatalogueEntry) string {
 	if len(e.Outputs) == 0 {
-		return "It brings nothing back, so no AI is in anything it makes."
+		return "No AI is in anything it makes: it brings nothing back."
 	}
 	if len(e.AI) == 0 {
 		return "It doesn't say what AI does to what it brings back."
 	}
-	var made, edited, enhanced, none, unsaid []string
+	by := map[string][]string{}
 	for _, o := range e.Outputs {
-		switch e.AI[o] {
-		case "made":
-			made = append(made, kindWords(o))
-		case "edited":
-			edited = append(edited, kindWords(o))
-		case "enhanced":
-			enhanced = append(enhanced, kindWords(o))
-		case "none":
-			none = append(none, kindWords(o))
-		default:
-			unsaid = append(unsaid, kindWords(o))
-		}
+		by[e.AI[o]] = append(by[e.AI[o]], kindWords(o))
+	}
+	if len(by["none"]) == len(e.Outputs) {
+		return "No AI makes or changes what it brings back."
 	}
 	var parts []string
-	if len(made) > 0 {
-		parts = append(parts, upperFirst(joinAnd(made))+" made with AI")
+	for _, w := range []struct{ word, says string }{{"made", "AI makes the %s"}, {"edited", "AI changes the %s"},
+		{"enhanced", "a model improves the %s without making anything new"}, {"none", "no AI is in the %s"}, {"", "it doesn't say what AI does to the %s"}} {
+		if ks := by[w.word]; len(ks) > 0 {
+			parts = append(parts, fmt.Sprintf(w.says, joinAnd(ks)))
+		}
 	}
-	if len(edited) > 0 {
-		parts = append(parts, upperFirst(joinAnd(edited))+" changed with AI")
-	}
-	if len(enhanced) > 0 {
-		parts = append(parts, upperFirst(joinAnd(enhanced))+" improved by a model, nothing new made")
-	}
-	if len(none) > 0 {
-		parts = append(parts, upperFirst(joinAnd(none))+" without AI")
-	}
-	if len(unsaid) > 0 {
-		parts = append(parts, upperFirst(joinAnd(unsaid))+": it doesn't say")
-	}
-	return strings.Join(parts, "; ") + "."
+	return upperFirst(strings.Join(parts, "; ")) + "."
 }
 
 // listedNeeds says what each computer needs for a listing.

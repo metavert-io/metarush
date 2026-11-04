@@ -472,6 +472,10 @@ func (m *Manager) describeAction(ctx context.Context, c *conv, call *cliCall, a 
 			m.describeRecipe(ctx, c, call, a) // Recipes
 			return
 		}
+		if abilityCommands[call.Path] { // abilities from community catalogues (ability_actions.go, D486)
+			m.describeAbility(ctx, call, a)
+			return
+		}
 		incomplete(a, "Run metarush "+call.Path, "The dashboard cannot run this one for Claude.")
 	}
 }

@@ -357,6 +357,9 @@ var ReadOnlyCommands = []string{
 	"metarush captions looks",
 	// The menu of abilities (D272): what works on this computer and what each needs; reading only.
 	"metarush catalogue list", "metarush catalogue show",
+	// Community catalogues of abilities (D486): what the trusted ones list, and which are trusted (bringing one
+	// in is a person's step, trusting a catalogue an owner's).
+	"metarush ability browse", "metarush ability catalogues list",
 }
 
 // Permissions returns the allowlist entries.

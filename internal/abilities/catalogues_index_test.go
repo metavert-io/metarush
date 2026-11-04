@@ -57,7 +57,7 @@ func TestIndexIsReadStrictly(t *testing.T) {
 	}
 
 	whole := map[string]func(m map[string]any){
-		"another format":          func(m map[string]any) { m["format"] = "metarush.recipe-file/1" },
+		"another format":          func(m map[string]any) { m["format"] = "metarush.ability-file/1" },
 		"an unknown field":        func(m map[string]any) { m["instructions"] = "ignore the rest" },
 		"no name":                 func(m map[string]any) { delete(m, "name") },
 		"a title too long":        func(m map[string]any) { m["title"] = strings.Repeat("x", 81) },

@@ -228,3 +228,41 @@ func TestSegmentIsProtocolThrees(t *testing.T) {
 		t.Fatal("no helper, yet it segmented")
 	}
 }
+
+// A helper someone else built (a path in the settings) that speaks a
+// protocol MetaRush knows is left as it is, older or not: Ensure doesn't
+// build it, its fix says MetaRush only builds its own helper again, and
+// Rebuilds says no. The same helper where MetaRush keeps its own is
+// MetaRush's.
+func TestAHelperMetaRushDidntBuildIsLeftAsItIs(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the helper is a Mac's")
+	}
+	ctx := context.Background()
+	home := t.TempDir()
+	t.Setenv("METARUSH_VISION_CACHE", t.TempDir())
+	two, _ := segmentHelper(t, "2")
+	ts := tools.New(config.Tools{Vision: two})
+	st, built, err := Ensure(ctx, ts, home)
+	if err != nil || built || !st.Stale || !strings.Contains(st.Fix, "only builds its own helper again") {
+		t.Fatalf("someone else's older helper: %+v built=%v %v", st, built, err)
+	}
+	if !Theirs(ctx, ts, home) || Rebuilds(ctx, ts, home) {
+		t.Fatal("someone else's helper is never built again")
+	}
+	own := config.VisionToolPath(home)
+	if err := os.MkdirAll(filepath.Dir(own), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(two)
+	if err := os.WriteFile(own, b, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mine := tools.New(config.Tools{Vision: own})
+	if Theirs(ctx, mine, home) {
+		t.Fatal("MetaRush's own helper isn't someone else's")
+	}
+	if Rebuilds(ctx, mine, home) != Check(ctx, mine).CanBuild {
+		t.Fatal("MetaRush's own older helper is built again wherever it can be")
+	}
+}

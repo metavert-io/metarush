@@ -72,9 +72,17 @@ var MatterReady = func(e aiservices.Env, model string) error {
 		return apperr.New(apperr.NotConfigured, "The on-screen helper isn't set up on this Mac, so it can't find the people in footage here.").
 			WithHint("Add “Seeing what's on screen” in Settings → Components.").WithCommand("metarush components add screen-index")
 	}
-	if e.Tools.Has(tools.Vision) && !vision.CanSegment(context.Background(), e.Tools) && !e.Tools.Has(tools.Swiftc) {
-		return apperr.New(apperr.NotConfigured, "The on-screen helper on this Mac was built by an older MetaRush and can't find the people in footage; Apple's Command Line Tools build it again.").
-			WithCommand("xcode-select --install")
+	if ctx := context.Background(); e.Tools.Has(tools.Vision) && !vision.CanSegment(ctx, e.Tools) {
+		switch {
+		case vision.Theirs(ctx, e.Tools, e.Home):
+			// A helper MetaRush didn't build (a path in the settings): never built again here.
+			return apperr.New(apperr.NotConfigured, "The on-screen helper this Mac is set to use wasn't built by MetaRush and is too old to find the people in footage; MetaRush only builds its own helper again.").
+				WithHint("Build that helper again from this version of MetaRush, or take its path out of MetaRush's settings so MetaRush builds its own.").
+				WithDetails(map[string]any{"helper": e.Tools.Path(tools.Vision), "setting": "tools.vision", "source": "tools/vision/main.swift"})
+		case !vision.Rebuilds(ctx, e.Tools, e.Home):
+			return apperr.New(apperr.NotConfigured, "The on-screen helper on this Mac was built by an older MetaRush and can't find the people in footage; Apple's Command Line Tools build it again.").
+				WithCommand("xcode-select --install")
+		}
 	}
 	return nil
 }

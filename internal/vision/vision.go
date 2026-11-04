@@ -275,17 +275,50 @@ func Ensure(ctx context.Context, ts *tools.Set, home string) (Status, bool, erro
 		// A person left it out or removed it (D325): never built by itself.
 		return st, false, choice.LeftOut("screen-index", "Seeing what's on screen needs the on-screen helper (about 5 MB). Add it in Settings → Components.")
 	}
-	if !st.Supported || (st.Ready && !st.Stale) || !st.CanBuild {
+	if theirs(st, home) {
+		// Someone else's build (bootstrap, a configured path) that still speaks our protocol: leave it.
+		if st.Stale {
+			st.Fix = theirsFix
+		}
 		return st, false, nil
 	}
-	if st.Path != "" && st.Path != config.VisionToolPath(home) && knownProtocol(st.Protocol) {
-		// Someone else's build (bootstrap, a configured path) that still speaks our protocol: leave it.
+	if !st.Supported || (st.Ready && !st.Stale) || !st.CanBuild {
 		return st, false, nil
 	}
 	if _, err := build(ctx, ts, home); err != nil {
 		return st, false, err
 	}
 	return Check(ctx, ts), true, nil
+}
+
+// theirsFix is what to do about an older helper MetaRush didn't build.
+const theirsFix = "MetaRush only builds its own helper again: build this one again from this version of MetaRush, or take its path out of MetaRush's settings so MetaRush builds its own."
+
+// theirs: the helper is someone else's build (bootstrap, a path in the
+// settings) that speaks a protocol MetaRush knows, which Ensure leaves as it
+// is, older or not.
+func theirs(st Status, home string) bool {
+	return st.Path != "" && st.Path != config.VisionToolPath(home) && knownProtocol(st.Protocol)
+}
+
+// Theirs says whether the helper this Mac uses is someone else's build that
+// MetaRush never builds again (Ensure leaves it as it is).
+func Theirs(ctx context.Context, ts *tools.Set, home string) bool {
+	return theirs(Check(ctx, ts), home)
+}
+
+// Rebuilds says whether Ensure builds the helper again when it is older than
+// this build's: MetaRush's own (or one of a protocol it doesn't know), on a
+// Mac that can build it.
+func Rebuilds(ctx context.Context, ts *tools.Set, home string) bool {
+	st := Check(ctx, ts)
+	switch {
+	case !st.Supported || !st.CanBuild || theirs(st, home):
+		return false
+	case !st.Ready && choice.Declined(home, "screen-index"):
+		return false
+	}
+	return true
 }
 
 // Box is [x, y, w, h], 0–1 from the top-left of the picture.

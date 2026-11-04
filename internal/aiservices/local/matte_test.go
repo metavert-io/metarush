@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/metavert-io/metarush/internal/aiservices"
 	"github.com/metavert-io/metarush/internal/aiservices/aiconformance"
 	"github.com/metavert-io/metarush/internal/aiservices/local"
+	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/matting"
 	"github.com/metavert-io/metarush/internal/matting/mattingtest"
@@ -152,5 +154,73 @@ func TestVideoBackgroundSaysWhatItNeeds(t *testing.T) {
 	}
 	if _, ok := m.(matting.MODNet); !ok || m.(matting.MODNet).Path != visionmodels.StoreIn(e.Tools.ModelsDir()).MattePath() {
 		t.Fatalf("MODNet's runner: %#v", m)
+	}
+}
+
+// An on-screen helper too old to find the people in footage (protocol 2) is
+// ready for it only where MetaRush builds it again: its own helper, on a Mac
+// with Apple's Command Line Tools. One the settings point at that MetaRush
+// didn't build is never built again, so it isn't ready, and says what to
+// do; MetaRush's own without the tools to build it says to install them.
+func TestAnOlderHelperIsReadyOnlyWhereMetaRushBuildsItAgain(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("Apple Vision's helper is a Mac's")
+	}
+	bin := t.TempDir()
+	for _, name := range []string{"ffmpeg", "ffprobe"} {
+		p, err := exec.LookPath(name)
+		if err != nil {
+			t.Skip("ffmpeg isn't installed here")
+		}
+		if err := os.Symlink(p, filepath.Join(bin, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv(tools.EnvToolDirs, bin)               // only what is put there
+	t.Setenv("METARUSH_VISION_CACHE", t.TempDir()) // no build of this version to copy
+	older := func(path string) string {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		script := "#!/bin/sh\ncase \"$1\" in\n  --version) echo 'metarush-vision 2 macOS 26.5';;\n  *) exit 2;;\nesac\n"
+		if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	swiftc := func(there bool) {
+		t.Helper()
+		p := filepath.Join(bin, "swiftc")
+		if !there {
+			_ = os.Remove(p)
+			return
+		}
+		if err := os.WriteFile(p, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	envWith := func(home, helper string) aiservices.Env {
+		return aiservices.Env{Tools: tools.New(config.Tools{Vision: helper}), Cfg: &config.Config{}, Home: home}
+	}
+
+	home := t.TempDir()
+	theirs := envWith(home, older(filepath.Join(t.TempDir(), "built-by-hand", "metarush-vision")))
+	swiftc(true)
+	err := local.MatterReady(theirs, local.ModelSubject)
+	if err == nil || !strings.Contains(err.Error(), "wasn't built by MetaRush") || !strings.Contains(apperr.From(err).Hint, "take its path out of MetaRush's settings") {
+		t.Fatalf("a helper the settings point at, with Swift here: %v", err)
+	}
+	if d, _ := apperr.From(err).Details.(map[string]any); d["setting"] != "tools.vision" {
+		t.Fatalf("the details name the setting: %+v", apperr.From(err).Details)
+	}
+	own := envWith(home, older(config.VisionToolPath(home)))
+	if err := local.MatterReady(own, local.ModelSubject); err != nil {
+		t.Fatalf("MetaRush's own helper, with Swift here to build it again: %v", err)
+	}
+	swiftc(false)
+	own = envWith(home, config.VisionToolPath(home))
+	if err := local.MatterReady(own, local.ModelSubject); err == nil || apperr.From(err).Command() != "xcode-select --install" {
+		t.Fatalf("MetaRush's own helper, nothing to build it again with: %v", err)
 	}
 }

@@ -56,9 +56,13 @@ func TestBackgroundCardsReadLikeTheCLI(t *testing.T) {
 			t.Errorf("label for %q: %q", cmd, got)
 		}
 	}
-	// Auto: only a model on a computer of the workspace, and never a price.
+	// Auto: only a model the catalogue knows as one of the kind's on a
+	// computer of the workspace, and never a price — not a name that only
+	// starts like one, nor a local model of another kind.
 	c := &conv{}
-	for input, auto := range map[string]bool{`{"clip":"1"}`: true, `{"model":"local/modnet"}`: true, `{"model":"fake/fake-video-background"}`: false, `{"maxUsd":1}`: false} {
+	for input, auto := range map[string]bool{`{"clip":"1"}`: true, `{"model":"local/modnet"}`: true, `{"model":"modnet"}`: true, `{"model":"local/apple-vision"}`: true,
+		`{"model":"fake/fake-video-background"}`: false, `{"maxUsd":1}`: false, `{"model":"local/modnet","maxUsd":0}`: false,
+		`{"model":"local/whatever"}`: false, `{"model":"local/kokoro"}`: false, `{"model":"local/../fake/fake-video-background"}`: false} {
 		for _, op := range []string{"cut.background", "footage.cutout"} {
 			a := &AssistantAction{State: ActionPending, Op: op, Input: input}
 			if got := c.autoStep(a); got != auto {

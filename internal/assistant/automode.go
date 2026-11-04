@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/metavert-io/metarush/internal/aiservices"
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/editspec"
@@ -223,12 +224,21 @@ func (c *conv) autoStep(a *AssistantAction) bool {
 		return json.Unmarshal([]byte(a.Input), &in) == nil && in.Framing != editspec.FramingFollow
 	case "cut.background", "footage.cutout":
 		// Never by itself when the clip would leave for a service elsewhere
-		// (D512): only a model on a computer of the workspace, and no price.
+		// (D512): no price, and a model named only when the catalogue knows it
+		// as one of the kind's on a computer of the workspace (none named: the
+		// op itself asks a price of any other, which Auto never agrees to).
 		var in struct {
 			Model  string   `json:"model"`
 			MaxUSD *float64 `json:"maxUsd"`
 		}
-		return json.Unmarshal([]byte(a.Input), &in) == nil && in.MaxUSD == nil && (in.Model == "" || strings.HasPrefix(in.Model, "local/"))
+		if json.Unmarshal([]byte(a.Input), &in) != nil || in.MaxUSD != nil {
+			return false
+		}
+		if strings.TrimSpace(in.Model) == "" {
+			return true
+		}
+		m, err := aiservices.FindModel(aiservices.KindVideoBackground, in.Model)
+		return err == nil && m.Kind == aiservices.KindVideoBackground && aiservices.IsLocal(m.Provider)
 	}
 	return true
 }

@@ -604,7 +604,7 @@ func jobOutcome(j models.Job) (shown, forClaude string, ok bool) {
 	case jobs.TypeMatte:
 		sha, _ := j.Result["sha256"].(string)
 		return "The cut-out is ready", "The matte job " + j.ID + " finished: the cut-out of clip " + j.AssetID + " is ready (sha256 " + sha +
-			"). Replace the clip's background in a cut with `metarush cut background <project> --clip <clip id> --with blur` (or colour:#rrggbb, picture:<name>, footage:<clip>).", true
+			"). Replace the clip's background in a cut with `metarush cut background <project> --clip <clip id> --with blur` (or `--with colour --colour '#rrggbb'`, `--with picture --picture <name>`, `--with footage --footage <clip> [--footage-at 0:03]`).", true
 	case jobs.TypeImport:
 		title, _ := j.Result["title"].(string)
 		asset, _ := j.Result["assetId"].(string)

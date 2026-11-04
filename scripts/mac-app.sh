@@ -12,10 +12,10 @@
 #       download). The update key is the EdDSA public key: given, from METARUSH_SPARKLE_PUBLIC_KEY, or read from this
 #       Mac's keychain with --key-from-keychain (Sparkle's generate_keys -p); without one the app never updates. A key
 #       given is checked against the keychain's when this Mac has one; the feed address must be https.
-#   scripts/mac-app.sh sign-update <archive> [--ed-key-file FILE|-] [--account NAME]
+#   scripts/mac-app.sh sign-update <archive.zip> [--ed-key-file FILE|-] [--account NAME]
 #       the archive's EdDSA signature, by Sparkle's sign_update: the private key from this Mac's keychain (made once
 #       with `scripts/mac-app.sh tools` then generate_keys; docs/mac-app.md), or a key file (tests: made at run time)
-#   scripts/mac-app.sh appcast <archive> [--url URL] [--out FILE] [--ed-key-file FILE|-] [--account NAME]
+#   scripts/mac-app.sh appcast <archive.zip> [--url URL] [--out FILE] [--ed-key-file FILE|-] [--account NAME]
 #       the feed entry for the archive (default <archive's folder>/appcast.xml), with what's new from CHANGELOG.md;
 #       the archive and the feed itself signed (SURequireSignedFeed), then both checked against the update key the
 #       archive's app carries, so a release the app would refuse never leaves this Mac; the URL defaults to the
@@ -273,6 +273,16 @@ cmd_build() {
   echo "Built $app (nothing published)."
 }
 
+# zip_only <archive>: an update is the app's zip, never a disk image: for a disk image signed by the same Developer ID
+# team, Sparkle falls back to its code signature even with SUVerifyUpdateBeforeExtraction (desktop/mac/Info.plist).
+zip_only() {
+  case "$1" in
+  *.zip) ;;
+  *) die "updates are the app's .zip: Sparkle would take a disk image signed by the same Developer ID team without the update key" ;;
+  esac
+  [ "$(head -c 2 "$1")" = "PK" ] || die "$(basename "$1") isn't a zip archive"
+}
+
 # signature <archive> [sign_update options…]: the EdDSA signature alone.
 signature() {
   local archive="$1" tools
@@ -294,6 +304,7 @@ cmd_sign_update() {
     shift
   done
   [ -f "$archive" ] || die "no archive at $archive"
+  zip_only "$archive"
   local sig
   sig="$(signature "$archive" ${opts[@]+"${opts[@]}"})"
   printf 'sparkle:edSignature="%s" length="%s"\n' "$sig" "$(stat -f %z "$archive")"
@@ -314,6 +325,7 @@ cmd_appcast() {
     shift
   done
   [ -f "$archive" ] || die "no archive at $archive"
+  zip_only "$archive"
   # A key on the standard input signs twice (the archive, then the feed): read once, kept in memory only.
   local key_in=""
   [ -z "$stdin_key" ] || key_in="$(cat)"

@@ -28,9 +28,13 @@ let package = Package(
         .executableTarget(
             name: "MetaRushApp", dependencies: ["MetaRushCore", "Sparkle"],
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]),
+        // Its own Info.plist linked in (AppHarness-Info.plist): its preferences go to an
+        // identifier the update test removes, not to a name of its own in the person's Library.
         .executableTarget(
             name: "AppHarness", dependencies: ["MetaRushCore", "Sparkle"],
-            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path"])]),
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path",
+                                           "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist",
+                                           "-Xlinker", Context.packageDirectory + "/AppHarness-Info.plist"])]),
         // Fixtures: the program's answers written from the Go types (internal/cli
         // TestMacAppFixtures) and the stand-in program; read by path, not bundled.
         .testTarget(name: "MetaRushCoreTests", dependencies: ["MetaRushCore"], exclude: ["Fixtures"]),

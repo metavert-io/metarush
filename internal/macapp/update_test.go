@@ -39,11 +39,19 @@ import (
 //
 // Sparkle's installer runs as a launchd job of the person's own session and
 // keeps its preferences through cfprefsd, which don't see a test's HOME: the
-// test bundles share one identifier made for this test only, and what Sparkle
-// leaves under it (its preferences and an empty cache folder) is removed
-// before and after.
+// test bundles share one identifier made for this test only, the harness has
+// its own (desktop/mac/AppHarness-Info.plist, where Sparkle keeps the date a
+// signed feed first failed), and what Sparkle leaves under either (their
+// preferences, a cache folder) is removed before and after.
 
-const testBundleID = "io.metarush.app-update-test"
+const (
+	testBundleID    = "io.metarush.app-update-test"
+	harnessBundleID = "io.metarush.app-update-test.harness"
+	// failedFeedKey is where Sparkle keeps the date a signed feed first failed
+	// to check: in the preferences of the program that updates (the harness),
+	// named after the app it updates when the two differ (SUAppcastDriver).
+	failedFeedKey = "SUInitialFailedFeedSigningValidationDate_" + testBundleID
+)
 
 var (
 	harnessOnce sync.Once
@@ -185,16 +193,18 @@ func zipApp(t *testing.T, app, archive string) {
 	}
 }
 
-// sparkleLeftovers removes what Sparkle keeps under the test's bundle
-// identifier in the person's own Library.
+// sparkleLeftovers removes what Sparkle keeps under the test bundles' and the
+// harness's identifiers in the person's own Library.
 func sparkleLeftovers(t *testing.T) {
 	u, err := user.Current()
 	if err != nil || u.HomeDir == "" {
 		return
 	}
-	_ = exec.Command("defaults", "delete", testBundleID).Run()
-	_ = os.Remove(filepath.Join(u.HomeDir, "Library", "Preferences", testBundleID+".plist"))
-	_ = os.RemoveAll(filepath.Join(u.HomeDir, "Library", "Caches", testBundleID))
+	for _, id := range []string{testBundleID, harnessBundleID} {
+		_ = exec.Command("defaults", "delete", id).Run()
+		_ = os.Remove(filepath.Join(u.HomeDir, "Library", "Preferences", id+".plist"))
+		_ = os.RemoveAll(filepath.Join(u.HomeDir, "Library", "Caches", id))
+	}
 }
 
 // result is the harness's last JSON line.
@@ -245,6 +255,10 @@ func plistValue(t *testing.T, app, key string) string {
 
 func TestUpdateWithSparkle(t *testing.T) {
 	h := harness(t)
+	// The harness keeps its preferences under its own identifier, which this test removes.
+	if who, _, _ := runHarness(t, h, t.TempDir(), "identity"); who["bundleIdentifier"] != harnessBundleID {
+		t.Fatalf("the harness is %v, not %s: its preferences would land under another name", who, harnessBundleID)
+	}
 	sparkleLeftovers(t)
 	t.Cleanup(func() { sparkleLeftovers(t) })
 
@@ -511,6 +525,38 @@ func TestUpdateWithSparkle(t *testing.T) {
 			t.Errorf("refused, but not on its signature: %v", last)
 		}
 		unchanged(t, app)
+	})
+
+	// failedSince sets the date a signed feed first failed to check to `days`
+	// ago, where Sparkle keeps it (the harness's preferences).
+	failedSince := func(t *testing.T, days int) {
+		t.Helper()
+		when := time.Now().UTC().AddDate(0, 0, -days).Format("2006-01-02 15:04:05 +0000")
+		if out, err := exec.Command("defaults", "write", harnessBundleID, failedFeedKey, "-date", when).CombinedOutput(); err != nil {
+			t.Fatalf("defaults write: %v %s", err, out)
+		}
+		t.Cleanup(func() { _ = exec.Command("defaults", "delete", harnessBundleID, failedFeedKey).Run() })
+	}
+
+	t.Run("an unsigned feed is refused even after a month of failed checks", func(t *testing.T) {
+		failedSince(t, 31)
+		offer(offered{short: "0.2.0", body: good, signedBy: priv})
+		app := installed("month-of-failures")
+		last, _, code := runHarness(t, h, userHome, "apply-update", app, feedURL)
+		refusedFeed(t, code, last, "no EdDSA signature in the appcast")
+		unchanged(t, app)
+	})
+
+	t.Run("without SUSignedFeedFailureExpirationInterval a month of failures lets an unsigned feed through", func(t *testing.T) {
+		// The control: Sparkle's default (20 days) takes an unsigned feed after a
+		// month of failed checks ("safe mode"). The app ships with 0, so it never does.
+		failedSince(t, 31)
+		offer(offered{short: "0.2.0", body: good, signedBy: priv})
+		app := installed("default-expiry", "SUSignedFeedFailureExpirationInterval")
+		last, _, code := runHarness(t, h, userHome, "apply-update", app, feedURL)
+		if code != 0 || last["installed"] != true {
+			t.Fatalf("the control took nothing (exit %d, %v): the setting shows no effect", code, last)
+		}
 	})
 
 	t.Run("an older release isn't offered", func(t *testing.T) {

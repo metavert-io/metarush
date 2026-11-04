@@ -99,6 +99,27 @@ func TestAppcastSignsAndChecksARelease(t *testing.T) {
 		!strings.Contains(out, "don't match the update key in the app") {
 		t.Errorf("signed with another key: %v\n%s", err, out)
 	}
+	// Only the app's zip is an update: a disk image (Sparkle would take one signed by the
+	// same Developer ID team without the key) or anything else is refused.
+	dmg := filepath.Join(dir, "MetaRush-0.2.0.dmg")
+	notZip := filepath.Join(dir, "not-a-zip", "MetaRush-0.2.0.zip")
+	if err := os.MkdirAll(filepath.Dir(notZip), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(zip)
+	if err := os.WriteFile(dmg, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(notZip, []byte("koly, not a zip"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for archive, says := range map[string]string{dmg: "updates are the app's .zip", notZip: "isn't a zip archive"} {
+		for _, cmd := range []string{"appcast", "sign-update"} {
+			if out, err := runScript(t, tools, nil, cmd, archive, "--ed-key-file", keyFile); err == nil || !strings.Contains(out, says) {
+				t.Errorf("%s %s: %v\n%s", cmd, filepath.Base(archive), err, out)
+			}
+		}
+	}
 	// An app without a key would never update: no feed for it.
 	noKey := release("no-key", "__ED_PUBLIC_KEY__")
 	if out, err := runScript(t, tools, nil, "appcast", noKey, "--url", "https://example.invalid/x.zip", "--out", feed, "--ed-key-file", keyFile); err == nil ||

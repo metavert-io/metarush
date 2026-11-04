@@ -7,10 +7,15 @@
   one), the feed address (the repository's latest release unless given another) and the update
   key: the EdDSA public key of the release Mac (Sparkle's generate_keys, or one given to the
   build). The key stays this placeholder in the repository; a build without a real one never
-  updates (docs/mac-app.md). Sparkle checks an update's EdDSA signature before it unpacks
-  anything, with no fallback to the app's code signature (SUVerifyUpdateBeforeExtraction),
-  and takes only a feed signed with the same key (SURequireSignedFeed): both from the first
-  release on, since an app without them would accept an unsigned feed (D471).
+  updates (docs/mac-app.md). From the first release on (an app without these would take
+  unsigned feeds for good, D471):
+  - SUVerifyUpdateBeforeExtraction: Sparkle checks an update's EdDSA signature before it
+    unpacks anything. For a zip, the only archive MetaRush publishes (mac-app.sh appcast
+    refuses any other), there is no fallback to a code signature; Sparkle would still take a
+    disk image signed by the same Developer ID team instead, which is why there are none.
+  - SURequireSignedFeed: only a feed signed with the same key.
+  - SUSignedFeedFailureExpirationInterval 0: never relaxed. Sparkle's default lets an
+    unsigned feed through ("safe mode") after 20 days of failed signed-feed checks.
 -->
 <plist version="1.0">
 <dict>
@@ -54,5 +59,7 @@
 	<true/>
 	<key>SURequireSignedFeed</key>
 	<true/>
+	<key>SUSignedFeedFailureExpirationInterval</key>
+	<integer>0</integer>
 </dict>
 </plist>

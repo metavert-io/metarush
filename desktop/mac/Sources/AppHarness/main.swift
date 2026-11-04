@@ -11,6 +11,7 @@ import Sparkle
 //   AppHarness finish <bundle> [--home H]     the steps after an update with <bundle>'s own metarush
 //   AppHarness compare <a> <b> [<a> <b>…]     Sparkle's order of each pair of bundle versions: -1, 0 or 1
 //   AppHarness icon <folder.iconset>          the app's icon at every size (scripts/mac-app.sh)
+//   AppHarness identity                       its own bundle identifier (where its preferences go)
 
 func out(_ value: [String: Any]) {
     if let d = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]) {
@@ -152,7 +153,10 @@ case "icon" where args.count == 2:
     }
     out(["icons": Mark.iconSet.count])
 
+case "identity" where args.count == 1:
+    out(["bundleIdentifier": Bundle.main.bundleIdentifier ?? ""])
+
 default:
-    say("usage: AppHarness apply-update <bundle> <feed> | finish <bundle> [--home H] | compare <a> <b> [<a> <b>…] | icon <folder.iconset>")
+    say("usage: AppHarness apply-update <bundle> <feed> | finish <bundle> [--home H] | compare <a> <b> [<a> <b>…] | icon <folder.iconset> | identity")
     exit(64)
 }

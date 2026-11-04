@@ -321,3 +321,26 @@ func TestDecideService(t *testing.T) {
 		}
 	}
 }
+
+// Setting the service up again (taking another copy's place, say) keeps its
+// mode: a worker's service is written with --worker-only again.
+func TestSetupKeepsAWorkerAWorker(t *testing.T) {
+	u := t.TempDir()
+	o := service.Options{Home: filepath.Join(u, "home"), Exe: "/Applications/MetaRush.app/Contents/Helpers/metarush", UserHome: u, OS: "darwin", UID: 501}
+	for _, c := range []struct {
+		st     service.Status
+		worker bool
+	}{
+		{service.Status{Installed: true, WorkerOnly: true, OtherCopy: true}, true},
+		{service.Status{Installed: true, OtherCopy: true}, false},
+		{service.Status{}, false},
+	} {
+		plan, err := sameMode(o, c.st).InstallPlan()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(plan.Content, "--worker-only"); got != c.worker {
+			t.Errorf("%+v: --worker-only %v, want %v", c.st, got, c.worker)
+		}
+	}
+}

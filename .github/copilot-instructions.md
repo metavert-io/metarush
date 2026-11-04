@@ -79,9 +79,14 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
 - The Mac app adds no behaviour of its own: it runs the `metarush` it carries with `--json` and shows the answers.
   Decisions live in `MetaRushCore` (tested headlessly); the app target stays thin; the app never asks for or keeps a
   password or key. Text it shows goes in `Words.swift` (checked by `TestAppSpeaksPlainly`).
-- Its updates are EdDSA-signed (Sparkle): no private key and no real public key in the repository; the test key is
-  made at run time. A change to an answer the app reads regenerates its fixtures (`TestMacAppFixtures`). Tests never
-  run the built app or its program against a real home, service or `~/.local/bin`.
+- Its updates are EdDSA-signed (Sparkle), the feed too, and checked before anything is unpacked
+  (`SURequireSignedFeed`, `SUVerifyUpdateBeforeExtraction` in `desktop/mac/Info.plist`: keep both): no private key
+  and no real public key in the repository; the test key is made at run time. A change to an answer the app reads
+  regenerates its fixtures (`TestMacAppFixtures`, from typed outputs, never hand-written maps). Tests never run the
+  built app or its program against a real home, service or `~/.local/bin`, never write the person's preferences and
+  never register a login item.
+- Another copy of MetaRush (Homebrew, a script, a link) is never taken over, stopped or replaced without the person's
+  yes, and never when it is newer; a worker stays a worker.
 
 ## Repository hygiene
 No real people, organisations, hostnames, tokens or deployment identifiers in code, tests, fixtures or docs; tests use

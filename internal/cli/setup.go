@@ -889,9 +889,7 @@ func (s *setupRun) installService(ctx context.Context, cfg *config.Config, ts *t
 		s.say("✓ %s", out.Says)
 		return out
 	}
-	// Set up (again) for this copy, the way it ran: a worker that renders
-	// for the team stays a worker, without the dashboard.
-	o.WorkerOnly = out.WorkerOnly
+	o = sameMode(o, st)
 	if err == nil {
 		_, err = o.Install(ctx)
 	}
@@ -916,6 +914,13 @@ func (s *setupRun) installService(ctx context.Context, cfg *config.Config, ts *t
 	}
 	s.tech("service %s", o.Label())
 	return out
+}
+
+// sameMode: the service set up (again) for this copy runs the way it ran: a
+// worker that renders for the team stays a worker, without the dashboard.
+func sameMode(o service.Options, st service.Status) service.Options {
+	o.WorkerOnly = st.Installed && st.WorkerOnly
+	return o
 }
 
 // serviceChoice is what setup does with the background service (D473).

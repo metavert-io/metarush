@@ -90,7 +90,7 @@ import Testing
         try fixture("version-1.json").write(to: link.folder.appendingPathComponent("version.json"))
         #expect(await link.versionThere() == "0.1.0")
         // A program that doesn't answer is given a few seconds, then nothing is said.
-        try "sleep 5".write(to: link.folder.appendingPathComponent("version.sh"), atomically: true, encoding: .utf8)
+        try "exec sleep 5".write(to: link.folder.appendingPathComponent("version.sh"), atomically: true, encoding: .utf8)
         let started = Date()
         #expect(await link.versionThere(seconds: 0.5) == nil)
         #expect(Date().timeIntervalSince(started) < 10)

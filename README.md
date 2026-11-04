@@ -78,8 +78,9 @@ and https://www.remotion.dev/docs/license.
 it, and its setup panels ask `metarush setup`'s questions with the same suggested answers (step 2 below, done for you)
 and open the dashboard. It carries the `metarush` program, links it for your terminal and Claude Code if you agree,
 keeps itself up to date with signed updates (Sparkle) and brings MetaRush up to date after each one, and its menu has
-Open MetaRush, Check for Updates…, Start/Stop MetaRush and Show Logs. It never asks for a password or a key: a cloud
-bucket or a database you already have is set up in Terminal. Until releases carry it, `scripts/mac-app.sh build` makes
+Open MetaRush, Check for Updates…, Start/Stop MetaRush, Show Logs and Open at Login. It never asks for a password or a
+key: a cloud bucket or a database you already have is set up in Terminal. Where another copy of MetaRush already runs,
+it asks before taking its place, and never takes a newer copy's. Until releases carry it, `scripts/mac-app.sh build` makes
 it from a checkout. Details: [docs/mac-app.md](docs/mac-app.md).
 
 **From source**: the way to get MetaRush until its first release. You need Git, Go 1.27 or newer and Node.js 22 or

@@ -39,7 +39,7 @@ Google's and ElevenLabs' real addresses (a test that forgets its fake fails befo
 | Every push and pull request | GitHub (`ci.yml`) | `secret-scan`; `go-static` (gofmt, vet, a macOS build, the CI groups, scripts parse, `scripts/lib/e2e-test.sh`); `go` × 4 side by side (`assistant`, `ops`, `heavy`, `rest` from `scripts/ci-go-packages.sh`, with coverage to Codecov); `js` (types, the dashboard's unit tests with coverage, motion tests, the extension's tests, the dashboard build); `go-live` (real buckets, only with the secrets) |
 | Nightly, on version tags, by hand | GitHub (`browser.yml`) | the browser runs that work on Linux, one job each, as coverage builds; a failed run's homes, logs and screenshots as an artifact |
 | When the bootstrap changes, weekly, by hand | GitHub (`bootstrap.yml`) | `./bootstrap.sh --dry-run` on macOS |
-| When MetaRush.app changes, weekly, by hand | GitHub (`mac-app.yml`) | on macOS: the app's Swift tests, `go test ./internal/macapp/` (the update test with the real Sparkle) and a full `scripts/mac-app.sh build` |
+| When MetaRush.app or what it runs and reads changes, weekly, by hand | GitHub (`mac-app.yml`) | on macOS: the app's Swift tests, `go test ./internal/macapp/` (the update test with the real Sparkle, the release script's signing) and a full `scripts/mac-app.sh build` with the dashboard |
 | Before a release | your Mac | `scripts/check.sh --release`: everything in `--full`, then `scripts/release.sh --snapshot` |
 
 `scripts/check.sh --full` (an hour or more) runs, one after another: a sweep of leftovers, the dashboard (types,

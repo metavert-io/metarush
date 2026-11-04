@@ -1,10 +1,10 @@
 name: mac-app
 # MetaRush.app (docs/mac-app.md) on macOS: its Swift tests (swift-testing), the update test with the
 # real Sparkle (go test ./internal/macapp: a loopback feed, a key made at run time, never kept), and a
-# full build of the universal app with its zip and disk image (scripts/mac-app.sh build: signed ad
-# hoc, no update key, nothing published), kept a week as an artifact to try. Like bootstrap.yml it
-# runs only when the app or what it calls changes, weekly and by hand: a macOS minute costs ten Linux
-# minutes.
+# full build of the universal app with the dashboard, its zip and disk image (scripts/mac-app.sh
+# build: signed ad hoc, no update key so it never updates itself, nothing published), kept a week as
+# an artifact to try. Like bootstrap.yml it runs only when the app or what it runs and reads changes,
+# weekly and by hand: a macOS minute costs ten Linux minutes.
 on:
   push:
     branches: [main]
@@ -13,10 +13,27 @@ on:
       - internal/macapp/**
       - scripts/macapp/**
       - scripts/mac-app.sh
+      - scripts/version.sh
+      - VERSION
+      # What the app runs and reads (its --json answers: internal/cli TestMacAppFixtures).
       - internal/cli/setup*.go
       - internal/cli/service.go
       - internal/cli/doctor.go
+      - internal/cli/daemon.go
+      - internal/cli/version.go
+      - internal/cli/renderer.go
+      - internal/cli/skills*.go
+      - internal/cli/output.go
+      - internal/cli/macapp*.go
       - internal/service/**
+      - internal/version/**
+      - internal/apperr/**
+      - internal/firstrun/**
+      - internal/components/**
+      - internal/skillsinstall/**
+      - internal/catchup/**
+      - internal/renderer/renderer.go
+      - internal/plainwords/**
       - .github/workflows/mac-app.yml
   pull_request:
     paths:
@@ -24,10 +41,27 @@ on:
       - internal/macapp/**
       - scripts/macapp/**
       - scripts/mac-app.sh
+      - scripts/version.sh
+      - VERSION
+      # What the app runs and reads (its --json answers: internal/cli TestMacAppFixtures).
       - internal/cli/setup*.go
       - internal/cli/service.go
       - internal/cli/doctor.go
+      - internal/cli/daemon.go
+      - internal/cli/version.go
+      - internal/cli/renderer.go
+      - internal/cli/skills*.go
+      - internal/cli/output.go
+      - internal/cli/macapp*.go
       - internal/service/**
+      - internal/version/**
+      - internal/apperr/**
+      - internal/firstrun/**
+      - internal/components/**
+      - internal/skillsinstall/**
+      - internal/catchup/**
+      - internal/renderer/renderer.go
+      - internal/plainwords/**
       - .github/workflows/mac-app.yml
   schedule:
     - cron: "37 6 * * 1" # Mondays 06:37 UTC
@@ -43,14 +77,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.27" }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22 }
       - name: the app's own tests
         run: scripts/mac-app.sh test
-      - name: the update test with the real Sparkle, the feed, the app's plain words
+      - name: the update test with the real Sparkle, the feed, the release script, the app's plain words
         run: go test -count=1 -timeout 20m ./internal/macapp/
-      - name: the universal app, its zip and disk image (nothing published)
-        run: scripts/mac-app.sh build --skip-web
+      - name: the universal app with the dashboard, its zip and disk image (nothing published)
+        run: scripts/mac-app.sh build
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: MetaRush-app
+          name: MetaRush-app-test-build-no-updates
           path: dist/mac/MetaRush-*.zip
           retention-days: 7

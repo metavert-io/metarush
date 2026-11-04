@@ -16,15 +16,18 @@ and Node.js along.
 2. Open it from Applications. Until releases are signed with a Developer ID, macOS asks once: Control-click MetaRush →
    Open, or open it, then System Settings → Privacy & Security → **Open Anyway**.
 3. Answer its setup panels: they are `metarush setup`'s questions with the same suggested answers — where footage and
-   projects are kept, MetaRush starting when you log in, Claude Code's skills, the components checklist — and setup
-   runs, the background service starts and the dashboard opens. A cloud bucket or a database you already have needs a
-   key or password, which the app never asks for: it hands you over to Terminal for that.
+   projects are kept, MetaRush starting when you log in, the app opening when you log in (it checks for updates while
+   it runs), Claude Code's skills, the components checklist — and setup runs, the background service starts and the
+   dashboard opens. A cloud bucket or a database you already have needs a key or password, which the app never asks
+   for: it hands you over to Terminal for that.
 
-It lives in the menu bar (Open MetaRush, Check for Updates…, Start/Stop MetaRush, Show Logs), carries the `metarush`
-program inside it, and, if you agree, links it as `~/.local/bin/metarush` so your terminal and Claude Code's skills
-find it (another copy already there is kept, after it asks). Updates come with Sparkle, signed and checked, and after
-each one the app brings MetaRush up to date and restarts it, as `scripts/deploy.sh` does. How it works, its updates,
-its key and how it is built and released: [mac-app.md](mac-app.md).
+It lives in the menu bar (Open MetaRush, Check for Updates…, Start/Stop MetaRush, Show Logs, Open at Login), carries
+the `metarush` program inside it, and, if you agree, links it as `~/.local/bin/metarush` so your terminal and Claude
+Code's skills find it (another copy already there is kept, after it asks). Updates come with Sparkle, the feed and
+the archive signed and checked, and after each one the app brings MetaRush up to date and restarts it, as
+`scripts/deploy.sh` does. On a Mac where MetaRush already runs from another copy (Homebrew, a script), the app
+doesn't open its setup by itself and never takes that copy's place without asking — nor ever when that copy is newer.
+How it works, its updates, its key and how it is built and released: [mac-app.md](mac-app.md).
 
 ## With Homebrew (macOS and Linux)
 ```bash

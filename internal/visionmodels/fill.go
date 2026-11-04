@@ -32,6 +32,14 @@ const (
 	// (their 90th percentile) at most fillFlat of the picture's.
 	fillDetail = 12.0
 	fillFlat   = 0.4
+	// fillBandsQ: the share of the bands' rows that must be flat (the rest
+	// may hold something laid over the copy: a face cam, a picture in
+	// picture, a title).
+	fillBandsQ = 0.5
+	// fillOverlay: a place in the bands with more detail than this (the
+	// absolute Laplacian, averaged nearby) is laid over the copy, and left
+	// out of comparing the copy with the picture.
+	fillOverlay = 6.0
 	// The picture covers between fillMin and fillMax of the frame's side.
 	fillMin = 0.25
 	fillMax = 0.88
@@ -41,6 +49,10 @@ const (
 	// this share, at most its inverse).
 	fillCopy   = 0.75
 	fillSpread = 0.4
+	// fillSharpFace: a face outside the picture is laid over the copy (a
+	// face cam, a picture in picture) when at least this share of it there
+	// has detail.
+	fillSharpFace = 0.5
 	// fillEdge: a fill's picture ends in straight lines, where the
 	// brightness changes this many times more than across the rows near
 	// them (the geometric mean of both ends).
@@ -147,12 +159,17 @@ func runningMedian(xs []float64, w int) []float64 {
 // sides have little detail next to it.
 func flatBands(prof []float64, from, to int) bool {
 	inside := append([]float64{}, prof[from:to]...)
-	outside := append(append([]float64{}, prof[:from]...), prof[to:]...)
-	if len(outside) == 0 {
+	before, after := append([]float64{}, prof[:from]...), append([]float64{}, prof[to:]...)
+	outside := append(append([]float64{}, before...), after...)
+	if len(before) == 0 || len(after) == 0 {
 		return false
 	}
 	pic := percentile(inside, 0.5)
-	return pic >= fillDetail && percentile(outside, 0.9) <= fillFlat*pic
+	// Most of the bands' rows are flat, and all of one band's (whatever is
+	// laid over the copy sits in one).
+	flat := fillFlat * pic
+	return pic >= fillDetail && percentile(outside, fillBandsQ) <= flat &&
+		math.Min(percentile(before, 0.9), percentile(after, 0.9)) <= flat
 }
 
 // boxBlur averages g over a square of radius r.
@@ -188,7 +205,7 @@ func boxBlur(g gray, r int) gray {
 // blurred (blurs: the picture blurred a little, more and a lot, as the
 // copy's blur is unknown; the closest is kept). It is zero where the bands
 // don't vary like the picture does there.
-func copyLikeness(g gray, blurs []gray, x0, y0, x1, y1 int) float64 {
+func copyLikeness(g, overlay gray, blurs []gray, x0, y0, x1, y1 int) float64 {
 	pw, ph := float64(x1-x0), float64(y1-y0)
 	if pw < 4 || ph < 4 {
 		return 0
@@ -206,7 +223,7 @@ func copyLikeness(g gray, blurs []gray, x0, y0, x1, y1 int) float64 {
 			}
 			// The picture point the copy shows here.
 			px, py := cx+(float64(x)-float64(g.w)/2)/s, cy+(float64(y)-float64(g.h)/2)/s
-			if px < float64(x0) || px > float64(x1-1) || py < float64(y0) || py > float64(y1-1) {
+			if px < float64(x0) || px > float64(x1-1) || py < float64(y0) || py > float64(y1-1) || overlay.at(x, y) > fillOverlay {
 				continue
 			}
 			pts = append(pts, [2]float64{px, py})
@@ -274,15 +291,32 @@ func correlation(xs, ys []float64) float64 {
 	return sxy / math.Sqrt(sxx*syy)
 }
 
+// fillFrame is a fill found in a frame: its sharp picture (frame pixels
+// [x, y, w, h]) and what tells the copy's faces from faces laid over it.
+type fillFrame struct {
+	pic [4]float64
+	// detail is the frame's detail at each place (the absolute Laplacian,
+	// averaged nearby; small) and k frame pixels per small pixel.
+	detail gray
+	k      float64
+}
+
 // sharpPicture finds the sharp picture of a fill, as a box in the frame's
 // pixels [x, y, w, h]; ok is false for a frame that isn't one.
 func sharpPicture(p *picture) (box [4]float64, ok bool) {
+	f, ok := findFill(p)
+	return f.pic, ok
+}
+
+// findFill finds a fill in a frame (ok false: it isn't one).
+func findFill(p *picture) (f fillFrame, ok bool) {
 	if p.w < 32 || p.h < 32 {
-		return box, false
+		return f, false
 	}
 	g := smallGray(p, fillSide)
 	l := laplacian(g)
 	var blurs []gray
+	var overlay gray
 	best, bestFrom, bestTo, bestAcross := fillCopy, 0, 0, false
 	// A picture fills a frame's width when the frame is taller than it
 	// (bands above and below), its height when the frame is wider (bands
@@ -306,12 +340,13 @@ func sharpPicture(p *picture) (box [4]float64, ok bool) {
 			if blurs == nil {
 				r := float64(min(g.w, g.h))
 				blurs = []gray{boxBlur(g, 1), boxBlur(g, max(1, int(r/60))), boxBlur(g, max(1, int(r/24)))}
+				overlay = boxBlur(l, 2)
 			}
 			var c float64
 			if across {
-				c = copyLikeness(g, blurs, 0, from, g.w, to)
+				c = copyLikeness(g, overlay, blurs, 0, from, g.w, to)
 			} else {
-				c = copyLikeness(g, blurs, from, 0, to, g.h)
+				c = copyLikeness(g, overlay, blurs, from, 0, to, g.h)
 			}
 			if c > best {
 				best, bestFrom, bestTo, bestAcross = c, from, to, across
@@ -319,13 +354,57 @@ func sharpPicture(p *picture) (box [4]float64, ok bool) {
 		}
 	}
 	if bestTo == 0 {
-		return box, false
+		return f, false
 	}
 	k := float64(p.w) / float64(g.w)
+	f = fillFrame{detail: overlay, k: k}
 	if bestAcross {
-		return [4]float64{0, float64(bestFrom) * k, float64(p.w), float64(bestTo-bestFrom) * k}, true
+		f.pic = [4]float64{0, float64(bestFrom) * k, float64(p.w), float64(bestTo-bestFrom) * k}
+	} else {
+		f.pic = [4]float64{float64(bestFrom) * k, 0, float64(bestTo-bestFrom) * k, float64(p.h)}
 	}
-	return [4]float64{float64(bestFrom) * k, 0, float64(bestTo-bestFrom) * k, float64(p.h)}, true
+	return f, true
+}
+
+// fillMargin: the copy's pixels this close to the picture (small pixels)
+// are left out of measuring it (the picture's sharp edge).
+const fillMargin = 2
+
+// sharpShare is the share of a box's pixels outside the picture (away from
+// its edges) with detail: laid over the copy, not of it (-1: too few of them
+// to tell, and the face counts as the copy's, as every face outside the
+// picture did before).
+func (f fillFrame) sharpShare(box [4]float64) float64 {
+	x0, y0 := int(box[0]/f.k), int(box[1]/f.k)
+	x1, y1 := int(math.Ceil((box[0]+box[2])/f.k)), int(math.Ceil((box[1]+box[3])/f.k))
+	px0, py0 := int(f.pic[0]/f.k)-fillMargin, int(f.pic[1]/f.k)-fillMargin
+	px1, py1 := int(math.Ceil((f.pic[0]+f.pic[2])/f.k))+fillMargin, int(math.Ceil((f.pic[1]+f.pic[3])/f.k))+fillMargin
+	n, sharp := 0, 0
+	for y := max(0, y0); y < min(f.detail.h, y1); y++ {
+		for x := max(0, x0); x < min(f.detail.w, x1); x++ {
+			if x >= px0 && x < px1 && y >= py0 && y < py1 {
+				continue
+			}
+			n++
+			if f.detail.v[y*f.detail.w+x] > fillOverlay {
+				sharp++
+			}
+		}
+	}
+	if n < 9 {
+		return -1
+	}
+	return float64(sharp) / float64(n)
+}
+
+// inCopy says a face found in a fill is the copy's: mostly outside the
+// picture and, there, mostly without detail (D465: a face cam or a picture
+// in picture laid over the copy is sharp, and stays).
+func (f fillFrame) inCopy(face [4]float64) bool {
+	if !outsidePicture(face, f.pic) {
+		return false
+	}
+	return f.sharpShare(face) < fillSharpFace
 }
 
 // edgeStrength is how much more the brightness changes across row (or

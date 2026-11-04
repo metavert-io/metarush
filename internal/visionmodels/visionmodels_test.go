@@ -575,3 +575,29 @@ func TestSharpPicture(t *testing.T) {
 		}
 	}
 }
+
+// Something sharp laid over the copy — a face cam in a band, a picture in
+// picture — keeps its faces (D465): the fill is still found, a face on the
+// inset stays, and a face in the blurred copy beside it goes.
+func TestAFaceLaidOverTheCopyStays(t *testing.T) {
+	frame, want := fillOf(scene(320, 180, 1), 270, 480, 8, false)
+	cam := scene(60, 60, 9) // sharp, in the top band
+	for y := 0; y < cam.h; y++ {
+		copy(frame.px[3*((40+y)*270+20):3*((40+y)*270+20+cam.w)], cam.px[3*y*cam.w:3*(y+1)*cam.w])
+	}
+	f, ok := findFill(frame)
+	if !ok {
+		t.Fatal("a fill with a face cam in its band isn't found")
+	}
+	for i := range f.pic {
+		if math.Abs(f.pic[i]-want[i]) > 0.04*480 {
+			t.Fatalf("picture %v, want %v", f.pic, want)
+		}
+	}
+	onCam := [4]float64{25, 45, 50, 50}
+	inCopy := [4]float64{150, 20, 60, 60} // beside the cam, in the blurred copy
+	inPicture := [4]float64{want[0] + want[2]/3, want[1] + want[3]/3, want[2] / 6, want[3] / 6}
+	if f.inCopy(onCam) || !f.inCopy(inCopy) || f.inCopy(inPicture) {
+		t.Fatalf("on the cam %v, in the copy %v, in the picture %v (against %v)", f.inCopy(onCam), f.inCopy(inCopy), f.inCopy(inPicture), f.pic)
+	}
+}

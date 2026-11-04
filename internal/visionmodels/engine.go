@@ -145,8 +145,8 @@ func (e *Engine) Look(img image.Image, o vision.Options) (vision.Frame, error) {
 	if err != nil {
 		return f, err
 	}
-	var pic [4]float64
-	fill, looked := false, false
+	var fill fillFrame
+	isFill, looked := false, false
 	for _, fa := range found {
 		if fa.score < FaceMin {
 			continue
@@ -158,10 +158,10 @@ func (e *Engine) Look(img image.Image, o vision.Options) (vision.Frame, error) {
 		if !looked {
 			// A picture laid over a blurred copy of itself (D445): the
 			// copy's faces aren't the frame's.
-			pic, fill = sharpPicture(p)
+			fill, isFill = findFill(p)
 			looked = true
 		}
-		if fill && outsidePicture(fa.box, pic) {
+		if isFill && fill.inCopy(fa.box) {
 			continue
 		}
 		f.Faces = append(f.Faces, toFace(fa, p.w, p.h, qualityOf(fa, sharp)))

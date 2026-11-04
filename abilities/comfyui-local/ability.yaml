@@ -12,6 +12,7 @@ inputs:
   steps: {kind: number, min: 1, max: 60, default: 20, says: Sampling steps (more is slower)}
   seed: {kind: number, min: 0, max: 4294967295, optional: true, says: A seed to make the same picture again}
 outputs: [picture]
+ai: {picture: made}
 cost: free
 network: metarush
 local:

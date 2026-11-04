@@ -10,6 +10,7 @@ inputs:
   count: {kind: number, min: 1, max: 6, default: 3, says: How many to bring in}
   contact: {kind: words, max: 120, optional: true, says: An email or web address Wikimedia can reach you at (it asks every tool for one)}
 outputs: [footage, sound, picture]
+ai: {footage: none, sound: none, picture: none}
 cost: free
 hosts: [commons.wikimedia.org, upload.wikimedia.org, archive.org, "*.archive.org"]
 sends: [words]

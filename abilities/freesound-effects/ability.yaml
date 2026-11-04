@@ -9,6 +9,7 @@ inputs:
   longest: {kind: number, min: 1, max: 600, default: 30, says: The longest a sound may be (seconds)}
   licences: {kind: choice, options: [cc0-and-cc-by, cc0-only], default: cc0-and-cc-by, says: "CC0 and CC BY (credit needed), or CC0 only. Freesound's API is free for non-commercial use only"}
 outputs: [sound]
+ai: {sound: none}
 cost: free
 keys: [{name: freesound, env: FREESOUND_API_KEY, hosts: [freesound.org]}]
 hosts: [freesound.org, cdn.freesound.org]

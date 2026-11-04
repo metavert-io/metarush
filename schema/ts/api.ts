@@ -39,6 +39,8 @@ extPageOut: ExtPageOut
 sendToEditorIn: SendToEditorIn
 sendToEditorOut: SendToEditorOut
 exportRevealIn: ExportRevealIn
+deliverHereIn: DeliverHereIn
+deliverHereOut: DeliverHereOut
 folderChooseIn: FolderChooseIn
 folderChooseOut: FolderChooseOut
 storageMovePlanIn: StorageMovePlanIn
@@ -378,6 +380,7 @@ model: string
 modelTitle?: string
 operation: ("shot" | "again" | "variation" | "extend" | "edit" | "look-test" | "make")
 kind?: string
+aiWork?: ("made" | "edited" | "enhanced" | "")
 take?: number
 prompt?: string
 look?: string
@@ -463,6 +466,10 @@ licence?: string
 source?: string
 credit?: string
 author?: string
+/**
+ * What the ability's manifest declares AI did to this kind of output; empty: nothing declared, counted as made.
+ */
+ai?: ("made" | "edited" | "enhanced" | "none" | "")
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema
@@ -3352,6 +3359,196 @@ folder: string
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DeliverHereIn".
+ */
+export interface DeliverHereIn {
+revisionId: string
+presets?: string[]
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DeliverHereOut".
+ */
+export interface DeliverHereOut {
+folder: string
+deliver: DeliverOut
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DeliverOut".
+ */
+export interface DeliverOut {
+dir: string
+files: DeliverFile[]
+warnings: string[]
+note: string
+credits?: string[]
+disclosure?: DeliveryGenerated
+signoffs?: Signoff[]
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DeliverFile".
+ */
+export interface DeliverFile {
+revisionId: string
+revisionNumber: number
+title: string
+approval: string
+renderId: string
+preset: string
+quality: string
+duration: number
+path: string
+sidecar: string
+captions?: string[]
+size: number
+sha256: string
+qaVerdict?: string
+sentAnyway?: ShipOverride[]
+contentCredentials?: DeliveryCredentials
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "ShipOverride".
+ */
+export interface ShipOverride {
+id: string
+by: Actor
+at: string
+note: string
+holds: ShipHold[]
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "Actor".
+ */
+export interface Actor {
+userId: string
+userName?: string
+installationId: string
+via: string
+agent?: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "ShipHold".
+ */
+export interface ShipHold {
+key: string
+kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent" | "credentials")
+says: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DeliveryCredentials".
+ */
+export interface DeliveryCredentials {
+signed: boolean
+signer?: string
+verified: boolean
+manifestHash?: string
+testCertificate?: boolean
+issuer?: string
+fingerprint?: string
+timestamped?: boolean
+sha256?: string
+size?: number
+parts?: number
+aiParts?: number
+changedParts?: number
+sourceType?: string
+required?: boolean
+says: string
+problem?: string
+tool?: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DeliveryGenerated".
+ */
+export interface DeliveryGenerated {
+/**
+ * A sentence for the description: the video contains AI-generated footage.
+ */
+notice: string
+/**
+ * How long generated footage is on screen.
+ */
+seconds: number
+/**
+ * It shows a real person's likeness made with AI (with their consent).
+ */
+likeness: boolean
+/**
+ * The provider's invisible watermark in the generated clips.
+ */
+watermark?: string
+presenter?: boolean
+clips: DeliveryGeneratedClip[]
+checklist: DisclosureItem[]
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DeliveryGeneratedClip".
+ */
+export interface DeliveryGeneratedClip {
+assetId: string
+kind?: string
+resourceId?: string
+title: string
+generationId: string
+provider: string
+model: string
+look?: string
+likeness?: boolean
+work?: ("made" | "edited" | "")
+ability?: string
+presenter?: string
+consent?: string
+presenterWatermark?: string
+/**
+ * The provider's original file, kept as it came.
+ */
+sha256: string
+usedAs: string[]
+seconds: number
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "DisclosureItem".
+ */
+export interface DisclosureItem {
+/**
+ * Where it applies: YouTube, TikTok, Instagram and Facebook, the EU.
+ */
+place: string
+what: string
+when: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "Signoff".
+ */
+export interface Signoff {
+id: string
+text: string
+/**
+ * The cut it is for (default main).
+ */
+branch?: string
+done?: boolean
+doneBy?: Actor
+doneAt?: string
+note?: string
+version?: number
+addedBy: Actor
+addedAt: string
+house?: boolean
+houseOf?: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
  * via the `definition` "FolderChooseIn".
  */
 export interface FolderChooseIn {
@@ -3920,17 +4117,6 @@ export interface RecordingLink {
 projectId: string
 conversationId: string
 at: string
-}
-/**
- * This interface was referenced by `Api`'s JSON-Schema
- * via the `definition` "Actor".
- */
-export interface Actor {
-userId: string
-userName?: string
-installationId: string
-via: string
-agent?: string
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema

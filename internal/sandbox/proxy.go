@@ -414,9 +414,9 @@ func hostMatches(patterns []string, host, port, scheme string) bool {
 	return false
 }
 
-// publicIP reports an address on the internet: not this computer, a local
+// PublicIP reports an address on the internet: not this computer, a local
 // network, link-local or a special range.
-func publicIP(ip net.IP) bool {
+func PublicIP(ip net.IP) bool {
 	if ip == nil || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() ||
 		ip.IsUnspecified() || ip.IsInterfaceLocalMulticast() {
 		return false
@@ -430,7 +430,7 @@ func publicIP(ip net.IP) bool {
 	}
 	// IPv6: IPv4-mapped and -translated forms of the ranges above, unique local.
 	if len(ip) == net.IPv6len && ip[0] == 0x00 && ip[1] == 0x64 && ip[2] == 0xff && ip[3] == 0x9b {
-		return publicIP(net.IP(ip[12:16]))
+		return PublicIP(net.IP(ip[12:16]))
 	}
 	return true
 }
@@ -470,7 +470,7 @@ func (p *Proxy) dial(ctx context.Context, network, addr string) (net.Conn, error
 	d := net.Dialer{Timeout: 15 * time.Second}
 	var last error = errLocal
 	for _, ip := range ips {
-		if !publicIP(ip.IP) {
+		if !PublicIP(ip.IP) {
 			continue
 		}
 		c, err := d.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))

@@ -839,6 +839,13 @@ input: ConsentIDIn
 output: ConsentView
 }
 /**
+ * Owners: say for a project's own Content Settings whether its delivered videos carry Content Credentials (on, required or off; asking less is people only), or follow the workspace
+ */
+"content.credentials.set": {
+input: ContentCredentialsSetIn
+output: CredentialsStatusOut
+}
+/**
  * Make a project use another project's Content Settings (live: later changes there show up here; chains are followed, circles refused), or the default's
  */
 "content.follow": {
@@ -1138,6 +1145,52 @@ output: CallOut
 "conversation.update": {
 input: CallUpdateIn
 output: CallOut
+}
+/**
+ * Read a video file's Content Credentials on this computer: whether it carries them, whether they check out, who signed them and what they say
+ */
+"credentials.check": {
+input: CredentialsCheckIn
+output: CredentialsCheckOut
+}
+/**
+ * Owners, people only: remove this computer's signing certificate and its key (videos delivered here then go out without Content Credentials, or wait where they are required)
+ */
+"credentials.remove": {
+input: {
+
+}
+output: CredentialsStatusOut
+}
+/**
+ * Owners: whether delivered videos carry Content Credentials — off, on (every final delivery signed) or required (a version this computer can't sign waits) — and a timestamp service; asking less is people only
+ */
+"credentials.set": {
+input: CredentialsSetIn
+output: CredentialsStatusOut
+}
+/**
+ * Owners, people only: set up this computer's signing certificate for Content Credentials — a test certificate made here, or a certificate chain and its private key, read once (the key goes into this computer's keychain and is never shown again)
+ */
+"credentials.setup": {
+input: CredentialsSetupIn
+output: CredentialsSetupOut
+}
+/**
+ * Content Credentials: whether delivered videos carry them (the workspace's choice, and what a project's Content Settings say) and whether this computer can sign them, with its certificate (never its key)
+ */
+"credentials.status": {
+input: CredentialsStatusIn
+output: CredentialsStatusOut
+}
+/**
+ * Sign MetaRush's one-second sample with this computer's certificate and read it back: whether Content Credentials work here
+ */
+"credentials.test": {
+input: {
+
+}
+output: CredentialsTestOut
 }
 /**
  * Put footage into the latest cut as a new clip (all of it, or from a time or words to another), at the end, the start or next to a clip; dryRun checks it and gives a confirm token
@@ -4434,6 +4487,9 @@ terms?: string
 minutes: number
 mb: number
 provides?: string[]
+ai?: {
+[k: string]: string
+}
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -5850,6 +5906,7 @@ model: string
 modelTitle?: string
 operation: ("shot" | "again" | "variation" | "extend" | "edit" | "look-test" | "make")
 kind?: string
+aiWork?: ("made" | "edited" | "enhanced" | "")
 take?: number
 prompt?: string
 look?: string
@@ -5935,6 +5992,10 @@ licence?: string
 source?: string
 credit?: string
 author?: string
+/**
+ * What the ability's manifest declares AI did to this kind of output; empty: nothing declared, counted as made.
+ */
+ai?: ("made" | "edited" | "enhanced" | "none" | "")
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -11932,6 +11993,8 @@ prompt?: string
 watermark?: string
 likeness?: boolean
 edit?: boolean
+aiKind?: string
+aiWork?: ("made" | "edited" | "enhanced" | "")
 ability?: AbilityMadeWith
 repoId?: string
 repoSha?: string
@@ -13459,6 +13522,95 @@ id: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ContentCredentialsSetIn".
+ */
+export interface ContentCredentialsSetIn {
+/**
+ * A project with its own settings (default: the default's).
+ */
+projectId?: string
+/**
+ * on
+ */
+mode: ("on" | "off" | "required" | "workspace")
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsStatusOut".
+ */
+export interface CredentialsStatusOut {
+workspace?: ContentCredentialsSettings
+settings?: CredentialsSetting
+of?: string
+mode: ("off" | "on" | "required")
+means: string
+whose: string
+here: CredentialsHere
+summary: string
+lines: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ContentCredentialsSettings".
+ */
+export interface ContentCredentialsSettings {
+mode: ("off" | "on" | "required")
+timestampUrl?: string
+updatedAt: string
+updatedBy: Actor
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsSetting".
+ */
+export interface CredentialsSetting {
+mode: ("off" | "on" | "required")
+updatedAt: string
+updatedBy: Actor
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsHere".
+ */
+export interface CredentialsHere {
+machine: string
+certificate?: SigningCertificate
+setAt?: string
+setBy?: string
+kept?: ("" | "keychain" | "file")
+tool?: string
+ready: boolean
+problems: string[]
+says: string
+failed?: Failure
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SigningCertificate".
+ */
+export interface SigningCertificate {
+signer: string
+name: string
+organisation?: string
+issuer: string
+fingerprint: string
+serial: string
+validFrom: string
+validUntil: string
+alg: ("es256" | "es384" | "es512" | "ps256" | "ed25519")
+test: boolean
+certificates: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "Failure".
+ */
+export interface Failure {
+at: string
+why: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "ContentFollowIn".
  */
 export interface ContentFollowIn {
@@ -13532,6 +13684,7 @@ packDraft?: PackDraft
 signoffs?: Signoff[]
 aiServices?: AIServiceRules
 gate?: GateSetting
+credentials?: CredentialsSetting
 leave?: LeaveRules
 createdAt: string
 createdBy: Actor
@@ -15813,6 +15966,86 @@ layout?: ("side-by-side" | "stacked" | "pip" | "grid")
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsCheckIn".
+ */
+export interface CredentialsCheckIn {
+/**
+ * A video file on this computer (a delivered one
+ */
+path: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsCheckOut".
+ */
+export interface CredentialsCheckOut {
+carries: boolean
+verified: boolean
+problem?: string
+signer?: string
+generator?: string
+manifestHash?: string
+parts: number
+sourceTypes?: string[]
+ours: boolean
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsSetIn".
+ */
+export interface CredentialsSetIn {
+/**
+ * off: delivered videos carry none; on: every final delivery is signed; required: and a version this computer can't sign waits.
+ */
+mode: ("off" | "on" | "required")
+timestampUrl?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsSetupIn".
+ */
+export interface CredentialsSetupIn {
+test?: boolean
+organisation?: string
+certificate?: string
+privateKey?: string
+replace?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsSetupOut".
+ */
+export interface CredentialsSetupOut {
+status: CredentialsStatusOut
+summary: string
+tried?: CredentialsTestOut
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsTestOut".
+ */
+export interface CredentialsTestOut {
+verified: boolean
+signer: string
+test: boolean
+manifestHash?: string
+problem?: string
+tool?: string
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CredentialsStatusIn".
+ */
+export interface CredentialsStatusIn {
+/**
+ * A project: also what its Content Settings say.
+ */
+projectId?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "CutAddIn".
  */
 export interface CutAddIn {
@@ -18012,6 +18245,7 @@ size: number
 sha256: string
 qaVerdict?: string
 sentAnyway?: ShipOverride[]
+contentCredentials?: DeliveryCredentials
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -18030,8 +18264,32 @@ holds: ShipHold[]
  */
 export interface ShipHold {
 key: string
-kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent")
+kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent" | "credentials")
 says: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "DeliveryCredentials".
+ */
+export interface DeliveryCredentials {
+signed: boolean
+signer?: string
+verified: boolean
+manifestHash?: string
+testCertificate?: boolean
+issuer?: string
+fingerprint?: string
+timestamped?: boolean
+sha256?: string
+size?: number
+parts?: number
+aiParts?: number
+changedParts?: number
+sourceType?: string
+required?: boolean
+says: string
+problem?: string
+tool?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -18072,6 +18330,8 @@ provider: string
 model: string
 look?: string
 likeness?: boolean
+work?: ("made" | "edited" | "")
+ability?: string
 presenter?: string
 consent?: string
 presenterWatermark?: string
@@ -18306,10 +18566,11 @@ lines: string[]
  */
 export interface GateHold {
 key: string
-kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent")
+kind: ("approval" | "render" | "qa-missing" | "qa-running" | "qa-failed" | "qa-stale" | "qa-errors" | "signoff" | "consent" | "credentials")
 says: string
 overridable: boolean
 covered?: boolean
+anyway?: boolean
 problems?: GateProblem[]
 paths: GatePath[]
 }
@@ -25798,6 +26059,7 @@ auto: ReceiptAuto[]
 posted: ReceiptPosted[]
 samples: ReceiptSample[]
 sentAnyway: ReceiptSentAnyway[]
+signed: ReceiptSigned[]
 cost: ReceiptCost
 left: ReceiptLeft
 lines: string[]
@@ -26015,6 +26277,33 @@ note: string
  */
 held: string[]
 wentOut: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ReceiptSigned".
+ */
+export interface ReceiptSigned {
+revisionId: string
+number: number
+delivery: SignedDelivery
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SignedDelivery".
+ */
+export interface SignedDelivery {
+at: string
+by: Actor
+file: string
+folder?: string
+preset?: string
+signer: string
+test?: boolean
+verified: boolean
+manifestHash: string
+sha256: string
+fingerprint?: string
+timestamped?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -37193,6 +37482,7 @@ reviewFollow?: ReviewFollowSettings
 estimates?: EstimateSettings
 shipGate?: ShipGateSettings
 reviewLinks?: ReviewLinkSettings
+contentCredentials?: ContentCredentialsSettings
 deletionsPaused?: DeletionsPause
 }
 /**

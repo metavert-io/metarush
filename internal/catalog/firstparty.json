@@ -548,6 +548,33 @@
       "madeWith": "metarush/contact-sheets"
     },
     {
+      "id": "content-credentials",
+      "name": "metarush/content-credentials",
+      "group": "deliver",
+      "title": "Content Credentials",
+      "does": "Signs every final video MetaRush delivers with Content Credentials: made with MetaRush, from which footage, and which parts AI made or changed.",
+      "op": "credentials.set",
+      "input": {
+        "mode": "on"
+      },
+      "words": [
+        "c2pa",
+        "provenance",
+        "signed video",
+        "authenticity",
+        "made with ai label",
+        "content credentials"
+      ],
+      "needs": {
+        "programs": [
+          "c2patool"
+        ],
+        "setup": "content-credentials"
+      },
+      "cost": "free",
+      "madeWith": "metarush/content-credentials"
+    },
+    {
       "id": "cover-call-names",
       "name": "metarush/cover-call-names",
       "group": "edit",

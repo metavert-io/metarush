@@ -1896,6 +1896,12 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "ai": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
         }
       },
       "additionalProperties": false,
@@ -2546,6 +2552,17 @@
         },
         "author": {
           "type": "string"
+        },
+        "ai": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none",
+            ""
+          ],
+          "description": "What the ability's manifest declares AI did to this kind of output; empty: nothing declared, counted as made."
         }
       },
       "additionalProperties": false,
@@ -13109,6 +13126,59 @@
         "link"
       ]
     },
+    "ContentCredentialsSetIn": {
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "A project with its own settings (default: the default's)."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "on",
+            "off",
+            "required",
+            "workspace"
+          ],
+          "description": "on"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode"
+      ]
+    },
+    "ContentCredentialsSettings": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on",
+            "required"
+          ]
+        },
+        "timestampUrl": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedBy": {
+          "$ref": "#/$defs/Actor"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode",
+        "updatedAt",
+        "updatedBy"
+      ]
+    },
     "ContentDefaultIn": {
       "properties": {
         "projectId": {
@@ -13711,6 +13781,9 @@
         },
         "gate": {
           "$ref": "#/$defs/GateSetting"
+        },
+        "credentials": {
+          "$ref": "#/$defs/CredentialsSetting"
         },
         "leave": {
           "$ref": "#/$defs/LeaveRules"
@@ -15220,6 +15293,299 @@
         "y",
         "w",
         "h"
+      ]
+    },
+    "CredentialsCheckIn": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "A video file on this computer (a delivered one"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path"
+      ]
+    },
+    "CredentialsCheckOut": {
+      "properties": {
+        "carries": {
+          "type": "boolean"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "problem": {
+          "type": "string"
+        },
+        "signer": {
+          "type": "string"
+        },
+        "generator": {
+          "type": "string"
+        },
+        "manifestHash": {
+          "type": "string"
+        },
+        "parts": {
+          "type": "integer"
+        },
+        "sourceTypes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ours": {
+          "type": "boolean"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "carries",
+        "verified",
+        "parts",
+        "ours",
+        "summary"
+      ]
+    },
+    "CredentialsHere": {
+      "properties": {
+        "machine": {
+          "type": "string"
+        },
+        "certificate": {
+          "$ref": "#/$defs/SigningCertificate"
+        },
+        "setAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "setBy": {
+          "type": "string"
+        },
+        "kept": {
+          "type": "string",
+          "enum": [
+            "",
+            "keychain",
+            "file"
+          ]
+        },
+        "tool": {
+          "type": "string"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "says": {
+          "type": "string"
+        },
+        "failed": {
+          "$ref": "#/$defs/Failure"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "machine",
+        "ready",
+        "problems",
+        "says"
+      ]
+    },
+    "CredentialsSetIn": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on",
+            "required"
+          ],
+          "description": "off: delivered videos carry none; on: every final delivery is signed; required: and a version this computer can't sign waits."
+        },
+        "timestampUrl": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode"
+      ]
+    },
+    "CredentialsSetting": {
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on",
+            "required"
+          ]
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedBy": {
+          "$ref": "#/$defs/Actor"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode",
+        "updatedAt",
+        "updatedBy"
+      ]
+    },
+    "CredentialsSetupIn": {
+      "properties": {
+        "test": {
+          "type": "boolean"
+        },
+        "organisation": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "certificate": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "privateKey": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "replace": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "CredentialsSetupOut": {
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/CredentialsStatusOut"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "tried": {
+          "$ref": "#/$defs/CredentialsTestOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "status",
+        "summary"
+      ]
+    },
+    "CredentialsStatusIn": {
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "A project: also what its Content Settings say."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "CredentialsStatusOut": {
+      "properties": {
+        "workspace": {
+          "$ref": "#/$defs/ContentCredentialsSettings"
+        },
+        "settings": {
+          "$ref": "#/$defs/CredentialsSetting"
+        },
+        "of": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on",
+            "required"
+          ]
+        },
+        "means": {
+          "type": "string"
+        },
+        "whose": {
+          "type": "string"
+        },
+        "here": {
+          "$ref": "#/$defs/CredentialsHere"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "mode",
+        "means",
+        "whose",
+        "here",
+        "summary",
+        "lines"
+      ]
+    },
+    "CredentialsTestOut": {
+      "properties": {
+        "verified": {
+          "type": "boolean"
+        },
+        "signer": {
+          "type": "string"
+        },
+        "test": {
+          "type": "boolean"
+        },
+        "manifestHash": {
+          "type": "string"
+        },
+        "problem": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "verified",
+        "signer",
+        "test",
+        "summary"
       ]
     },
     "Crop": {
@@ -18267,6 +18633,9 @@
             "$ref": "#/$defs/ShipOverride"
           },
           "type": "array"
+        },
+        "contentCredentials": {
+          "$ref": "#/$defs/DeliveryCredentials"
         }
       },
       "additionalProperties": false,
@@ -18406,6 +18775,71 @@
         "name"
       ]
     },
+    "DeliveryCredentials": {
+      "properties": {
+        "signed": {
+          "type": "boolean"
+        },
+        "signer": {
+          "type": "string"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "manifestHash": {
+          "type": "string"
+        },
+        "testCertificate": {
+          "type": "boolean"
+        },
+        "issuer": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "timestamped": {
+          "type": "boolean"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "parts": {
+          "type": "integer"
+        },
+        "aiParts": {
+          "type": "integer"
+        },
+        "changedParts": {
+          "type": "integer"
+        },
+        "sourceType": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "says": {
+          "type": "string"
+        },
+        "problem": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "signed",
+        "verified",
+        "says"
+      ]
+    },
     "DeliveryGenerated": {
       "properties": {
         "notice": {
@@ -18478,6 +18912,17 @@
         },
         "likeness": {
           "type": "boolean"
+        },
+        "work": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            ""
+          ]
+        },
+        "ability": {
+          "type": "string"
         },
         "presenter": {
           "type": "string"
@@ -21376,6 +21821,23 @@
         "summary"
       ]
     },
+    "Failure": {
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at",
+        "why"
+      ]
+    },
     "FavoriteVoice": {
       "properties": {
         "voiceId": {
@@ -23408,7 +23870,8 @@
             "qa-stale",
             "qa-errors",
             "signoff",
-            "consent"
+            "consent",
+            "credentials"
           ]
         },
         "says": {
@@ -23418,6 +23881,9 @@
           "type": "boolean"
         },
         "covered": {
+          "type": "boolean"
+        },
+        "anyway": {
           "type": "boolean"
         },
         "problems": {
@@ -25591,6 +26057,15 @@
         },
         "kind": {
           "type": "string"
+        },
+        "aiWork": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            ""
+          ]
         },
         "take": {
           "type": "integer"
@@ -42488,6 +42963,12 @@
           },
           "type": "array"
         },
+        "signed": {
+          "items": {
+            "$ref": "#/$defs/ReceiptSigned"
+          },
+          "type": "array"
+        },
         "cost": {
           "$ref": "#/$defs/ReceiptCost"
         },
@@ -42519,6 +43000,7 @@
         "posted",
         "samples",
         "sentAnyway",
+        "signed",
         "cost",
         "left",
         "lines",
@@ -45425,6 +45907,26 @@
         "service",
         "usd",
         "requests"
+      ]
+    },
+    "ReceiptSigned": {
+      "properties": {
+        "revisionId": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "delivery": {
+          "$ref": "#/$defs/SignedDelivery"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "revisionId",
+        "number",
+        "delivery"
       ]
     },
     "RecipeAgainIn": {
@@ -58003,6 +58505,18 @@
         "edit": {
           "type": "boolean"
         },
+        "aiKind": {
+          "type": "string"
+        },
+        "aiWork": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            ""
+          ]
+        },
         "ability": {
           "$ref": "#/$defs/AbilityMadeWith"
         },
@@ -62178,7 +62692,8 @@
             "qa-stale",
             "qa-errors",
             "signoff",
-            "consent"
+            "consent",
+            "credentials"
           ]
         },
         "says": {
@@ -62617,6 +63132,118 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "SignedDelivery": {
+      "properties": {
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "by": {
+          "$ref": "#/$defs/Actor"
+        },
+        "file": {
+          "type": "string"
+        },
+        "folder": {
+          "type": "string"
+        },
+        "preset": {
+          "type": "string"
+        },
+        "signer": {
+          "type": "string"
+        },
+        "test": {
+          "type": "boolean"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "manifestHash": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "timestamped": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at",
+        "by",
+        "file",
+        "signer",
+        "verified",
+        "manifestHash",
+        "sha256"
+      ]
+    },
+    "SigningCertificate": {
+      "properties": {
+        "signer": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "organisation": {
+          "type": "string"
+        },
+        "issuer": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "serial": {
+          "type": "string"
+        },
+        "validFrom": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "validUntil": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "alg": {
+          "type": "string",
+          "enum": [
+            "es256",
+            "es384",
+            "es512",
+            "ps256",
+            "ed25519"
+          ]
+        },
+        "test": {
+          "type": "boolean"
+        },
+        "certificates": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "signer",
+        "name",
+        "issuer",
+        "fingerprint",
+        "serial",
+        "validFrom",
+        "validUntil",
+        "alg",
+        "test",
+        "certificates"
+      ]
     },
     "Signoff": {
       "properties": {
@@ -72592,6 +73219,9 @@
         "reviewLinks": {
           "$ref": "#/$defs/ReviewLinkSettings"
         },
+        "contentCredentials": {
+          "$ref": "#/$defs/ContentCredentialsSettings"
+        },
         "deletionsPaused": {
           "$ref": "#/$defs/DeletionsPause"
         }
@@ -74764,6 +75394,23 @@
       ],
       "description": "Show a consent record"
     },
+    "content.credentials.set": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/ContentCredentialsSetIn"
+        },
+        "output": {
+          "$ref": "#/$defs/CredentialsStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Owners: say for a project's own Content Settings whether its delivered videos carry Content Credentials (on, required or off; asking less is people only), or follow the workspace"
+    },
     "content.follow": {
       "properties": {
         "input": {
@@ -75494,6 +76141,114 @@
         "output"
       ],
       "description": "Rename a conversation, or change a member: their name, name tag, what their recording gives (picture and sound, sound only, picture only) and who they are in People"
+    },
+    "credentials.check": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/CredentialsCheckIn"
+        },
+        "output": {
+          "$ref": "#/$defs/CredentialsCheckOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Read a video file's Content Credentials on this computer: whether it carries them, whether they check out, who signed them and what they say"
+    },
+    "credentials.remove": {
+      "properties": {
+        "input": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {},
+          "additionalProperties": false,
+          "type": "object"
+        },
+        "output": {
+          "$ref": "#/$defs/CredentialsStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Owners, people only: remove this computer's signing certificate and its key (videos delivered here then go out without Content Credentials, or wait where they are required)"
+    },
+    "credentials.set": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/CredentialsSetIn"
+        },
+        "output": {
+          "$ref": "#/$defs/CredentialsStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Owners: whether delivered videos carry Content Credentials — off, on (every final delivery signed) or required (a version this computer can't sign waits) — and a timestamp service; asking less is people only"
+    },
+    "credentials.setup": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/CredentialsSetupIn"
+        },
+        "output": {
+          "$ref": "#/$defs/CredentialsSetupOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Owners, people only: set up this computer's signing certificate for Content Credentials — a test certificate made here, or a certificate chain and its private key, read once (the key goes into this computer's keychain and is never shown again)"
+    },
+    "credentials.status": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/CredentialsStatusIn"
+        },
+        "output": {
+          "$ref": "#/$defs/CredentialsStatusOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Content Credentials: whether delivered videos carry them (the workspace's choice, and what a project's Content Settings say) and whether this computer can sign them, with its certificate (never its key)"
+    },
+    "credentials.test": {
+      "properties": {
+        "input": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {},
+          "additionalProperties": false,
+          "type": "object"
+        },
+        "output": {
+          "$ref": "#/$defs/CredentialsTestOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Sign MetaRush's one-second sample with this computer's certificate and read it back: whether Content Credentials work here"
     },
     "cut.add": {
       "properties": {
@@ -82841,6 +83596,7 @@
     "consent.record",
     "consent.revoke",
     "consent.show",
+    "content.credentials.set",
     "content.follow",
     "content.gate.set",
     "content.leave",
@@ -82884,6 +83640,12 @@
     "conversation.styles",
     "conversation.sync",
     "conversation.update",
+    "credentials.check",
+    "credentials.remove",
+    "credentials.set",
+    "credentials.setup",
+    "credentials.status",
+    "credentials.test",
     "cut.add",
     "cut.apply",
     "cut.captions",

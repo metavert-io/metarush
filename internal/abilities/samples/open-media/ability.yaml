@@ -6,6 +6,7 @@ runs: python3 run.py
 inputs:
   words: {kind: words, max: 100, says: What to look for}
 outputs: [picture, sound, footage]
+ai: {picture: none, sound: none, footage: none}
 cost: free
 hosts: [api.commons.example, files.commons.example]
 sends: [words]

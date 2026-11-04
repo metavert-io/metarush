@@ -217,7 +217,8 @@ func setupWords(name string) string {
 
 // setupNames say what each setup check is about.
 var setupNames = map[string]string{"studio-voices": "the studio voice cleaner, set up once by a person",
-	"on-screen-helper": "the helper that looks at the picture, which MetaRush builds"}
+	"on-screen-helper":    "the helper that looks at the picture, which MetaRush builds",
+	"content-credentials": "a signing certificate, set up once by an owner on this computer"}
 
 func article(s string) string {
 	if s != "" && strings.ContainsRune("AEIOUaeiou", rune(s[0])) {

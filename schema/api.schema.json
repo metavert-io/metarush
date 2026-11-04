@@ -38,6 +38,17 @@
         },
         "author": {
           "type": "string"
+        },
+        "ai": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none",
+            ""
+          ],
+          "description": "What the ability's manifest declares AI did to this kind of output; empty: nothing declared, counted as made."
         }
       },
       "additionalProperties": false,
@@ -2351,6 +2362,344 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "DeliverFile": {
+      "properties": {
+        "revisionId": {
+          "type": "string"
+        },
+        "revisionNumber": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "approval": {
+          "type": "string"
+        },
+        "renderId": {
+          "type": "string"
+        },
+        "preset": {
+          "type": "string"
+        },
+        "quality": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "number"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sidecar": {
+          "type": "string"
+        },
+        "captions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "qaVerdict": {
+          "type": "string"
+        },
+        "sentAnyway": {
+          "items": {
+            "$ref": "#/$defs/ShipOverride"
+          },
+          "type": "array"
+        },
+        "contentCredentials": {
+          "$ref": "#/$defs/DeliveryCredentials"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "revisionId",
+        "revisionNumber",
+        "title",
+        "approval",
+        "renderId",
+        "preset",
+        "quality",
+        "duration",
+        "path",
+        "sidecar",
+        "size",
+        "sha256"
+      ]
+    },
+    "DeliverHereIn": {
+      "properties": {
+        "revisionId": {
+          "type": "string"
+        },
+        "presets": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "revisionId"
+      ]
+    },
+    "DeliverHereOut": {
+      "properties": {
+        "folder": {
+          "type": "string"
+        },
+        "deliver": {
+          "$ref": "#/$defs/DeliverOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "folder",
+        "deliver"
+      ]
+    },
+    "DeliverOut": {
+      "properties": {
+        "dir": {
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/DeliverFile"
+          },
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "note": {
+          "type": "string"
+        },
+        "credits": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "disclosure": {
+          "$ref": "#/$defs/DeliveryGenerated"
+        },
+        "signoffs": {
+          "items": {
+            "$ref": "#/$defs/Signoff"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "dir",
+        "files",
+        "warnings",
+        "note"
+      ]
+    },
+    "DeliveryCredentials": {
+      "properties": {
+        "signed": {
+          "type": "boolean"
+        },
+        "signer": {
+          "type": "string"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "manifestHash": {
+          "type": "string"
+        },
+        "testCertificate": {
+          "type": "boolean"
+        },
+        "issuer": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "timestamped": {
+          "type": "boolean"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "parts": {
+          "type": "integer"
+        },
+        "aiParts": {
+          "type": "integer"
+        },
+        "changedParts": {
+          "type": "integer"
+        },
+        "sourceType": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "says": {
+          "type": "string"
+        },
+        "problem": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "signed",
+        "verified",
+        "says"
+      ]
+    },
+    "DeliveryGenerated": {
+      "properties": {
+        "notice": {
+          "type": "string",
+          "description": "A sentence for the description: the video contains AI-generated footage."
+        },
+        "seconds": {
+          "type": "number",
+          "description": "How long generated footage is on screen."
+        },
+        "likeness": {
+          "type": "boolean",
+          "description": "It shows a real person's likeness made with AI (with their consent)."
+        },
+        "watermark": {
+          "type": "string",
+          "description": "The provider's invisible watermark in the generated clips."
+        },
+        "presenter": {
+          "type": "boolean"
+        },
+        "clips": {
+          "items": {
+            "$ref": "#/$defs/DeliveryGeneratedClip"
+          },
+          "type": "array"
+        },
+        "checklist": {
+          "items": {
+            "$ref": "#/$defs/DisclosureItem"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "notice",
+        "seconds",
+        "likeness",
+        "clips",
+        "checklist"
+      ]
+    },
+    "DeliveryGeneratedClip": {
+      "properties": {
+        "assetId": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "resourceId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "generationId": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "look": {
+          "type": "string"
+        },
+        "likeness": {
+          "type": "boolean"
+        },
+        "work": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            ""
+          ]
+        },
+        "ability": {
+          "type": "string"
+        },
+        "presenter": {
+          "type": "string"
+        },
+        "consent": {
+          "type": "string"
+        },
+        "presenterWatermark": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "description": "The provider's original file, kept as it came."
+        },
+        "usedAs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "seconds": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "title",
+        "generationId",
+        "provider",
+        "model",
+        "sha256",
+        "usedAs",
+        "seconds"
+      ]
+    },
     "Diff": {
       "properties": {
         "durationBefore": {
@@ -2515,6 +2864,27 @@
       "required": [
         "op",
         "text"
+      ]
+    },
+    "DisclosureItem": {
+      "properties": {
+        "place": {
+          "type": "string",
+          "description": "Where it applies: YouTube, TikTok, Instagram and Facebook, the EU."
+        },
+        "what": {
+          "type": "string"
+        },
+        "when": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "place",
+        "what",
+        "when"
       ]
     },
     "Ducking": {
@@ -3520,6 +3890,15 @@
         },
         "kind": {
           "type": "string"
+        },
+        "aiWork": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            ""
+          ]
         },
         "take": {
           "type": "integer"
@@ -6234,6 +6613,72 @@
         "owners"
       ]
     },
+    "ShipHold": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "approval",
+            "render",
+            "qa-missing",
+            "qa-running",
+            "qa-failed",
+            "qa-stale",
+            "qa-errors",
+            "signoff",
+            "consent",
+            "credentials"
+          ]
+        },
+        "says": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key",
+        "kind",
+        "says"
+      ]
+    },
+    "ShipOverride": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "by": {
+          "$ref": "#/$defs/Actor"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 3
+        },
+        "holds": {
+          "items": {
+            "$ref": "#/$defs/ShipHold"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "by",
+        "at",
+        "note",
+        "holds"
+      ]
+    },
     "Shot": {
       "properties": {
         "at": {
@@ -6375,6 +6820,60 @@
       "required": [
         "userId",
         "name"
+      ]
+    },
+    "Signoff": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1
+        },
+        "branch": {
+          "type": "string",
+          "description": "The cut it is for (default main)."
+        },
+        "done": {
+          "type": "boolean"
+        },
+        "doneBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "doneAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "version": {
+          "type": "integer"
+        },
+        "addedBy": {
+          "$ref": "#/$defs/Actor"
+        },
+        "addedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "house": {
+          "type": "boolean"
+        },
+        "houseOf": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "text",
+        "addedBy",
+        "addedAt"
       ]
     },
     "SoundTransition": {
@@ -8054,6 +8553,12 @@
     "exportRevealIn": {
       "$ref": "#/$defs/ExportRevealIn"
     },
+    "deliverHereIn": {
+      "$ref": "#/$defs/DeliverHereIn"
+    },
+    "deliverHereOut": {
+      "$ref": "#/$defs/DeliverHereOut"
+    },
     "folderChooseIn": {
       "$ref": "#/$defs/FolderChooseIn"
     },
@@ -8139,6 +8644,8 @@
     "sendToEditorIn",
     "sendToEditorOut",
     "exportRevealIn",
+    "deliverHereIn",
+    "deliverHereOut",
     "folderChooseIn",
     "folderChooseOut",
     "storageMovePlanIn",

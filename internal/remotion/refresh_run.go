@@ -222,7 +222,7 @@ func (rf *refresher) run(ctx context.Context, id, jobID string, report func(floa
 	if real, err := filepath.EvalSymlinks(cache); err == nil {
 		cache = real
 	}
-	ap := &apart{Root: root, Cache: cache, Work: work, Hide: hiddenFor(a, originalFolder(a, s))}
+	ap := &apart{Root: root, Cache: cache, Work: work, Hide: hiddenFor(a, originalFolder(a, s)), Inside: insideFor()}
 	if modules != "" {
 		if iso.Kind == isoLinux {
 			ap.Modules = modules

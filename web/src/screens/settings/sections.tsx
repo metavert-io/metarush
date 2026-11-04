@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useOp } from '../../api/queries';
 import { cx } from '../../ui/primitives';
-import { ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Package, PlugsConnected, PuzzlePiece, SlidersHorizontal, TerminalWindow, UsersThree, Robot } from '@phosphor-icons/react';
+import { Certificate, ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Package, PlugsConnected, PuzzlePiece, SlidersHorizontal, TerminalWindow, UsersThree, Robot } from '@phosphor-icons/react';
 
 /*
  * Settings in sections (D184): each section is a page of its own at
@@ -15,7 +15,7 @@ import { ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Package, PlugsCo
  * General: /settings/general#appearance redirects).
  */
 
-export type SettingsSectionId = 'general' | 'people' | 'preferences' | 'claude' | 'footage' | 'extension' | 'storage' | 'components' | 'integrations' | 'log' | 'cli';
+export type SettingsSectionId = 'general' | 'people' | 'preferences' | 'claude' | 'footage' | 'extension' | 'storage' | 'delivery' | 'components' | 'integrations' | 'log' | 'cli';
 
 export interface SettingsSection {
   id: SettingsSectionId;
@@ -78,6 +78,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: (s) => <HardDrives size={s} />,
   },
   {
+    id: 'delivery',
+    label: 'Delivery',
+    line: 'Content Credentials on delivered videos',
+    intro: 'What goes out with the videos you deliver: Content Credentials, a signed record of how each video was made, and the certificate this computer signs them with.',
+    icon: (s) => <Certificate size={s} />,
+  },
+  {
     id: 'components',
     label: 'Components',
     line: 'Optional parts and what they add',
@@ -133,6 +140,7 @@ const OLD_ANCHORS: Record<string, string> = {
   trash: '/settings/storage#trash',
   export: '/settings/storage#export',
   'review-links': '/settings/storage#review-links',
+  'content-credentials': '/settings/delivery#content-credentials',
   log: '/settings/log',
   about: '/settings/general',
   preferences: '/settings/preferences',

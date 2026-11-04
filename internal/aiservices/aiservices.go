@@ -315,6 +315,10 @@ type Output struct {
 	PresenterID string `json:"presenterId,omitempty"`
 	// Text is what came with it (a song's words or structure).
 	Text string `json:"text,omitempty"`
+	// Work is what AI did to it when the provider says more than its kind
+	// of work does (an ability, by its manifest; D460): made, edited or
+	// enhanced; "" the kind decides.
+	Work string `json:"work,omitempty"`
 }
 
 // Delivery is how an output arrives: inline, uri, transcript or voice.

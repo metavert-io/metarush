@@ -146,7 +146,9 @@ func RunJob(ctx context.Context, a *app.App, j *models.Job, report func(pct floa
 	report(0.8, "Taking in what it made")
 	made := models.AbilityMadeWith{Ability: v.Name + "@" + Short(v.Hash), Name: v.Name, Hash: v.Hash, Title: v.Title, RunID: r.ID, Inputs: r.Inputs, CostUSD: r.EstimateUSD}
 	for _, o := range res.Outputs {
-		r.Outputs = append(r.Outputs, takeIn(ctx, a, r, o, made))
+		mo := made
+		mo.AI = m.AIOf(o.Kind) // what its manifest declares AI did to this kind of output (D460)
+		r.Outputs = append(r.Outputs, takeIn(ctx, a, r, o, mo))
 	}
 	finish(ctx, a, r, models.AbilityRunDone, summaryOf(r), "", res)
 	return map[string]any{"run": r.ID, "outputs": len(r.Outputs), "message": summaryOf(r)}, nil

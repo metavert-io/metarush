@@ -9,7 +9,7 @@ is public and can't be taken back quietly, so Claude, Auto and AI apps never do 
 aren't in MetaRush yet:
 
 1. **A version's final render as an input** (`kind: delivered`): today an ability takes clips, pictures and sound
-   from the Library, not a render. Content Credentials needs the same.
+   from the Library, not a render.
 2. **The version's delivery notes as an input** (`kind: delivery-notes`): its title, description and chapters, as
    words the run reads; today the person would type them again.
 

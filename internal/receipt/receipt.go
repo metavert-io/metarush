@@ -203,6 +203,14 @@ type ReceiptSentAnyway struct {
 	WentOut bool `json:"wentOut"`
 }
 
+// ReceiptSigned is a delivered video of a version that carries Content
+// Credentials (D420): who signed, whether they checked out, the manifest's hash.
+type ReceiptSigned struct {
+	RevisionID string                `json:"revisionId"`
+	Number     int                   `json:"number"`
+	Delivery   models.SignedDelivery `json:"delivery"`
+}
+
 // ProjectReceiptOut is a project's receipt.
 type ProjectReceiptOut struct {
 	Format      string             `json:"format" jsonschema:"description=metarush.receipt/1"`
@@ -220,7 +228,9 @@ type ProjectReceiptOut struct {
 	Samples []ReceiptSample `json:"samples"`
 	// SentAnyway are the versions a person sent out past the ship gate (D299).
 	SentAnyway []ReceiptSentAnyway `json:"sentAnyway"`
-	Cost       ReceiptCost         `json:"cost"`
+	// Signed are the delivered videos that carry Content Credentials (D420).
+	Signed []ReceiptSigned `json:"signed"`
+	Cost   ReceiptCost     `json:"cost"`
 	// Left is what of the project left this computer, and where (D291).
 	Left *ReceiptLeft `json:"left"`
 	// Lines say it all in a few plain sentences.
@@ -252,7 +262,7 @@ func Receipt(ctx context.Context, a *app.App, p *models.Project, r *models.Revis
 	// (what Claude was shown a moment ago, say).
 	a.Log.Flush(ctx)
 	out := &ProjectReceiptOut{Format: "metarush.receipt/1", ProjectID: p.ID, ProjectName: p.Name, At: time.Now().UTC(), Requests: []ReceiptRequest{},
-		Claude: []ReceiptClaude{}, Logged: []ReceiptLogged{}, Generated: []ReceiptGenerated{}, Auto: []ReceiptAuto{}, Samples: []ReceiptSample{}, SentAnyway: []ReceiptSentAnyway{}, Posted: []ReceiptPosted{}}
+		Claude: []ReceiptClaude{}, Logged: []ReceiptLogged{}, Generated: []ReceiptGenerated{}, Auto: []ReceiptAuto{}, Samples: []ReceiptSample{}, SentAnyway: []ReceiptSentAnyway{}, Posted: []ReceiptPosted{}, Signed: []ReceiptSigned{}}
 	pc := &priced{gens: map[string]costs.Part{}, takes: map[string]costs.Part{}, pinned: map[string][]costs.Part{}}
 	if err := receiptGenerations(ctx, a, p.ID, out, pc); err != nil {
 		return nil, err
@@ -272,6 +282,7 @@ func Receipt(ctx context.Context, a *app.App, p *models.Project, r *models.Revis
 	out.Posted = receiptPosted(ctx, a, p.ID)
 	out.Samples = samplesIn(ctx, a, p.ID)
 	out.SentAnyway = sentAnywayIn(ctx, a, p.ID)
+	out.Signed = signedIn(ctx, a, p.ID)
 	receiptGenerated(ctx, a, p.ID, r, out, pc)
 	if r != nil {
 		pinnedCloud(ctx, a, r, pc)
@@ -872,12 +883,56 @@ func receiptGenerated(ctx context.Context, a *app.App, projectID string, r *mode
 		}
 		out.Generated = append(out.Generated, g)
 	}
+	// What abilities brought in with AI, as their manifests declare (D460):
+	// clips and pictures, the answer delivery and the quality check give.
+	var byAbility []models.Asset
+	_ = a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), bson.M{"projectIds": projectID, "source.platform": models.PlatformAbility}, &byAbility,
+		options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}).SetLimit(2000))
+	for _, as := range byAbility {
+		work := models.AIWorkOfSource(as.Source)
+		if work == "" {
+			continue
+		}
+		kind, noun := "shot", "footage"
+		if as.Kind != "video" {
+			kind, noun = "sound", "sound"
+		}
+		g := ReceiptGenerated{AssetID: as.ID, Title: firstNonEmpty(as.DisplayTitle(), as.Name), Kind: kind, What: abilityWorkWords(noun, work, as.Source.AbilityTitle()),
+			Service: as.Source.AbilityTitle(), Seconds: math.Round(as.Media.Duration*10) / 10, InVersion: used[as.ID]}
+		if mw := as.Source.MadeWith; mw != nil {
+			g.Model = mw.Ability
+		}
+		out.Generated = append(out.Generated, g)
+	}
+	var abilityPics []models.Resource
+	_ = a.DB.Find(ctx, store.CResources, a.WorkspaceID(), bson.M{"projectId": projectID, "versions.source.madeWith.kind": "ability"}, &abilityPics,
+		options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}).SetLimit(2000))
+	for _, res := range abilityPics {
+		for _, v := range res.Versions {
+			mw := v.Source.MadeWith
+			work := models.AIWorkOfMadeWith(mw, "")
+			if work == "" || mw.Ability == nil {
+				continue
+			}
+			title := firstNonEmpty(mw.Ability.Title, mw.Ability.Name)
+			out.Generated = append(out.Generated, ReceiptGenerated{ResourceID: res.ID, Title: firstNonEmpty(res.Title, res.Name), Kind: "picture",
+				What: abilityWorkWords("a picture", work, title), Service: title, Model: mw.Ability.Ability, InVersion: usedPics[res.ID]})
+			break
+		}
+	}
 	var takes []models.VoiceTake
 	_ = a.DB.Find(ctx, store.CVoiceTakes, a.WorkspaceID(), bson.M{"projectId": projectID, "aiVoice": true}, &takes, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}).SetLimit(5000))
 	for _, t := range takes {
 		out.Generated = append(out.Generated, ReceiptGenerated{AssetID: t.AssetID, Title: theirsLine(t.Text), Kind: "voice", Service: firstNonEmpty(providerTitle(t.Provider), "an outside service"), Model: t.ModelID,
 			Seconds: math.Round(t.Duration*10) / 10, InVersion: usedTakes[t.ID]})
 	}
+}
+
+// abilityWorkWords says what an ability did with AI to something it brought in
+// ("a picture the ability “ComfyUI (local)” made with AI").
+func abilityWorkWords(noun, work, ability string) string {
+	verb := map[string]string{models.AIWorkMade: "made with AI", models.AIWorkEdited: "changed with AI", models.AIWorkEnhanced: "improved with AI, making nothing new"}[work]
+	return noun + " the ability “" + ability + "” " + verb
 }
 
 // VersionCost is what one version uses of the outside AI work, at cost: its
@@ -1104,6 +1159,7 @@ func receiptLines(out *ProjectReceiptOut, whose bool) []string {
 			lines = append(lines, fmt.Sprintf("Auto spent %s by itself, on %s.", moneyWords(costs.Round(total)), count(len(out.Auto), "change", "changes")))
 		}
 	}
+	lines = append(lines, signedLines(out.Signed)...)
 	for _, x := range out.Posted {
 		if x.Post.State != models.PublicationPosted {
 			continue
@@ -1164,6 +1220,60 @@ func sentAnywayIn(ctx context.Context, a *app.App, projectID string) []ReceiptSe
 		}
 	}
 	return out
+}
+
+// signedIn are the project's delivered videos that carry Content
+// Credentials (D420), oldest first.
+func signedIn(ctx context.Context, a *app.App, projectID string) []ReceiptSigned {
+	out := []ReceiptSigned{}
+	var revs []models.Revision
+	if err := a.DB.Find(ctx, store.CRevisions, a.WorkspaceID(), bson.M{"projectId": projectID, "contentCredentials.0": bson.M{"$exists": true}}, &revs,
+		options.Find().SetProjection(bson.M{"number": 1, "contentCredentials": 1}).SetSort(bson.D{{Key: "number", Value: 1}})); err != nil {
+		return out
+	}
+	for _, r := range revs {
+		for _, d := range r.ContentCredentials {
+			out = append(out, ReceiptSigned{RevisionID: r.ID, Number: r.Number, Delivery: d})
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Delivery.At.Before(out[j].Delivery.At) })
+	return out
+}
+
+// signedLines say which versions went out with Content Credentials: one
+// line per version, signer and day.
+func signedLines(xs []ReceiptSigned) []string {
+	type key struct {
+		n      int
+		signer string
+		test   bool
+		day    string
+	}
+	files := map[key]int{}
+	checked := map[key]bool{}
+	var order []key
+	for _, x := range xs {
+		k := key{x.Number, x.Delivery.Signer, x.Delivery.Test, x.Delivery.At.UTC().Format("2 Jan 2006")}
+		if files[k] == 0 {
+			order = append(order, k)
+			checked[k] = true
+		}
+		files[k]++
+		checked[k] = checked[k] && x.Delivery.Verified
+	}
+	var lines []string
+	for _, k := range order {
+		who := "signed by " + q(k.signer)
+		if k.test {
+			who = "signed with a test certificate (verifiers show its signer as unknown)"
+		}
+		l := fmt.Sprintf("Version %d went out with Content Credentials on %s, %s: %s", k.n, k.day, who, count(files[k], "file", "files"))
+		if checked[k] {
+			l += ", checked after signing"
+		}
+		lines = append(lines, l+".")
+	}
+	return lines
 }
 
 // deliveryReceipt is a version's receipt for its delivery record.

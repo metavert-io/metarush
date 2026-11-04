@@ -150,7 +150,7 @@ func TestRegistryIsWhole(t *testing.T) {
 		if archive(p.URL) == (p.Take == "") {
 			t.Errorf("pin %s: an archive keeps a part of itself, a file is kept whole", p.ID)
 		}
-		if p.Config != "" && toolSetting(config.Tools{Node: "x", FFmpeg: "x", FFprobe: "x", YtDlp: "x", SherpaDir: "x"}, p.Config) == "" {
+		if p.Config != "" && toolSetting(config.Tools{Node: "x", FFmpeg: "x", FFprobe: "x", YtDlp: "x", SherpaDir: "x", C2PATool: "x"}, p.Config) == "" {
 			t.Errorf("pin %s sets an unknown setting %s", p.ID, p.Config)
 		}
 	}

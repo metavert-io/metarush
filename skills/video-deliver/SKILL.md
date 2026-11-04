@@ -1,8 +1,8 @@
 ---
 name: video-deliver
 description: Export approved cuts of the person's videos to a folder with clear names and a sidecar each (unapproved only when asked; never overwriting or uploading), or hand a cut to Resolve, Final Cut or Premiere as a timeline. Routes to `metarush deliver`, `metarush export timeline`. Works whether or not they say MetaRush (the `metarush` CLI).
-when_to_use: '"export the approved cut to ~/Desktop/x", "deliver the finals", "copy the 30 and 60 second versions to the client folder", "open this cut in DaVinci Resolve"'
-allowed-tools: Bash(metarush project list *) Bash(metarush project show *) Bash(metarush revision list *) Bash(metarush revision show *) Bash(metarush render list *) Bash(metarush render status *) Bash(metarush qa show *) Bash(metarush ops find *) Bash(metarush ops describe *) Bash(metarush deliver notes show *) Bash(metarush deliver ready *) Bash(metarush captions file *) Bash(metarush transcript spelling list *) Bash(metarush captions lines *) Bash(metarush captions languages *)
+when_to_use: '"export the approved cut to ~/Desktop/x", "deliver the finals", "copy the 30 and 60 second versions to the client folder", "open this cut in DaVinci Resolve", "does the delivered video carry Content Credentials?"'
+allowed-tools: Bash(metarush project list *) Bash(metarush project show *) Bash(metarush revision list *) Bash(metarush revision show *) Bash(metarush render list *) Bash(metarush render status *) Bash(metarush qa show *) Bash(metarush ops find *) Bash(metarush ops describe *) Bash(metarush deliver notes show *) Bash(metarush deliver ready *) Bash(metarush captions file *) Bash(metarush transcript spelling list *) Bash(metarush captions lines *) Bash(metarush captions languages *) Bash(metarush credentials status *) Bash(metarush credentials check *)
 ---
 
 # Deliver
@@ -47,6 +47,13 @@ See [reference/cli.md](reference/cli.md) and [reference/safety.md](reference/saf
    record's `receipt` says what the version cost at cost and what the project sent to outside AI services (the whole
    receipt: `metarush project receipt <prj> --json`); mention the cost when the person asks what it cost. Say
    plainly that nothing was uploaded — posting or sending the files is the user's step.
+   **Content Credentials.** When a file has `contentCredentials`, say what its `says` says: that the video carries
+   Content Credentials (who signed them, checked after signing; a test certificate's signer shows as unknown) or why
+   it went out without them — and that the file should be uploaded as it is, since editing or converting it takes
+   them out. `metarush credentials status --json` says whether they are on and whether this computer can sign;
+   `metarush credentials check <file> --json` reads any video's. A hold or refusal saying its videos must carry
+   Content Credentials means this computer can't sign them: setting them up (a certificate and its key), removing
+   them or asking less of them is an owner's own step in Settings → Delivery — never do it for them.
 7. **Fixes after delivery.** When the person fixes words after a delivery, the captions files can follow without a
    new render: `metarush deliver captions <folder> --json` rewrites them with today's words (it says how many fixes
    it added). Captions drawn into the video only change with a new version, rendered and delivered again.

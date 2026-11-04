@@ -84,6 +84,10 @@ type ContentSettings struct {
 	// wait for the quality check and their sign-offs before they go out
 	// (D298), over the workspace's choice; nil: the workspace's choice.
 	Gate *GateSetting `bson:"gate,omitempty" json:"gate,omitempty"`
+	// Credentials says whether the delivered videos of every project using
+	// these settings carry Content Credentials (D418), over the workspace's
+	// choice; nil: the workspace's choice.
+	Credentials *CredentialsSetting `bson:"credentials,omitempty" json:"credentials,omitempty"`
 	// Leave says what of every project using these settings may leave this
 	// computer, and to whom (D288): AI services, abilities, Claude, cloud
 	// storage and delivery.

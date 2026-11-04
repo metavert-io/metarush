@@ -27,6 +27,7 @@ import (
 var commandOverrides = map[string]string{
 	"users.resetLink": "metarush users reset-password", // usersLinkCmd("reset-password", "users.resetLink", …)
 	"draft.decide":    "metarush draft approve",        // draftDecideCmd("approve" | "not-quite" | "turn-down")
+	"credentials.set": "metarush credentials on",       // credentialsModeCmd("on" | "required" | "off")
 }
 
 const commandIndexFile = "../catalog/commands.json"

@@ -85,7 +85,10 @@ type GateHold struct {
 	// check and sign-offs; never the approval or a render that isn't there).
 	Overridable bool `json:"overridable"`
 	// Covered: a person already sent it out anyway past this (Override).
-	Covered  bool          `json:"covered,omitempty"`
+	Covered bool `json:"covered,omitempty"`
+	// Anyway: it holds with the gate off too — changed words whose consent
+	// ended (D309), Content Credentials the settings require (D418).
+	Anyway   bool          `json:"anyway,omitempty"`
 	Problems []GateProblem `json:"problems,omitempty"`
 	Paths    []GatePath    `json:"paths"`
 }
@@ -156,7 +159,7 @@ type ShipGateOut struct {
 
 // gateKinds are the holds the gate is about (a person may send it out past them).
 var gateKinds = map[string]bool{models.HoldQAMissing: true, models.HoldQARunning: true, models.HoldQAFailed: true, models.HoldQAStale: true,
-	models.HoldQAErrors: true, models.HoldSignoff: true}
+	models.HoldQAErrors: true, models.HoldSignoff: true, models.HoldCredentials: true}
 
 // GateFor says whether the gate holds a project's versions: the Content
 // Settings it uses when they say, else the workspace's choice (off while
@@ -448,6 +451,13 @@ func ShipGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Re
 		out.Holds = append(out.Holds, GateHold{ShipHold: models.ShipHold{Key: "signoff:" + s.ID + "@" + orBranch(rev.Branch), Kind: models.HoldSignoff, Says: says},
 			Paths: []GatePath{{Label: "Tick it", Op: "cut.signoffs.done", Input: map[string]any{"projectId": p.ID, "branch": orBranch(rev.Branch), "signoff": s.ID}, Command: cmd, People: true}}})
 	}
+	// Content Credentials its videos must carry, which this computer can't
+	// sign (D418): final deliveries only.
+	if quality == "final" {
+		if h := credentialsHold(ctx, a, p); h != nil {
+			out.Holds = append(out.Holds, *h)
+		}
+	}
 	// Changed words whose consent is no longer in force (D309): never sent out anyway.
 	heard, err := saidHeardInRevision(ctx, a, rev)
 	if err != nil {
@@ -459,6 +469,7 @@ func ShipGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Re
 	for i := range out.Holds {
 		h := &out.Holds[i]
 		h.Overridable = gateKinds[h.Kind]
+		h.Anyway = h.Kind == models.HoldConsent || h.Kind == models.HoldCredentials
 		for _, o := range rev.ShipOverrides {
 			if h.Overridable && o.Covers(h.Key) {
 				h.Covered = true
@@ -537,9 +548,16 @@ func decide(out *ShipGateOut, rev *models.Revision) {
 			out.Unmeasured++
 		}
 	}
+	// With the gate off only what holds anyway keeps it back (D309, D418).
+	holding := slices.Clone(blocking)
+	for _, h := range open {
+		if out.On || h.holdsAnyway() {
+			holding = append(holding, h)
+		}
+	}
 	switch {
 	case !out.On:
-		out.Ready = len(blocking) == 0
+		out.Ready = len(holding) == 0
 		out.State = GateReady
 		out.Headline = "Ready to deliver"
 		if len(open)+len(covered) > 0 {
@@ -593,7 +611,7 @@ func decide(out *ShipGateOut, rev *models.Revision) {
 		out.Summary = fmt.Sprintf("%s can go out: sent out anyway by %s.", version, strings.Join(said, "; "))
 	default:
 		var says []string
-		for _, h := range append(blocking, open...) {
+		for _, h := range holding {
 			says = append(says, lowerFirst(strings.TrimSuffix(h.Says, ".")))
 		}
 		out.Summary = fmt.Sprintf("%s can't go out yet: %s.", version, strings.Join(says, "; "))
@@ -643,7 +661,7 @@ func heldError(gates []*ShipGateOut, what string) *apperr.Error {
 	for _, g := range gates {
 		var says []string
 		for _, h := range g.Holds {
-			if (h.Overridable && !h.Covered) || h.Kind == models.HoldConsent {
+			if (h.Overridable && !h.Covered && (g.On || h.holdsAnyway())) || h.Kind == models.HoldConsent {
 				says = append(says, lowerFirst(strings.TrimSuffix(h.Says, ".")))
 			}
 			consent = consent || h.Kind == models.HoldConsent
@@ -665,11 +683,16 @@ func heldError(gates []*ShipGateOut, what string) *apperr.Error {
 
 // letsOut reports whether the gate lets a version out (off, nothing holds
 // it, or a person sent it out anyway past everything that holds it); never
-// while it plays changed words whose consent is no longer in force.
+// while it plays changed words whose consent is no longer in force, nor
+// while Content Credentials its settings require can't be signed and nobody
+// sent it out without them.
 func (g *ShipGateOut) letsOut() bool {
 	for _, h := range g.Holds {
 		if h.Kind == models.HoldConsent {
 			return false // with the gate off too (D309)
+		}
+		if h.holdsAnyway() {
+			return false
 		}
 	}
 	if !g.On {
@@ -681,6 +704,14 @@ func (g *ShipGateOut) letsOut() bool {
 		}
 	}
 	return true
+}
+
+// holdsAnyway: a hold that keeps the version back with the gate off too
+// until a person covers it with a note, where it can be — Content
+// Credentials the settings require (D418: "required" is its own choice,
+// apart from the gate's).
+func (h GateHold) holdsAnyway() bool {
+	return h.Anyway && !h.Covered
 }
 
 // gateRecord is the gate in a delivered video's record (the .json next to it).
@@ -703,7 +734,11 @@ func (g *ShipGateOut) record() *DeliveryGate {
 			d.Held = append(d.Held, h.ShipHold)
 		}
 	}
-	if g.On && len(d.Held) > 0 {
+	anyway := false // a note covers what holds it with the gate off too (D418)
+	for _, h := range g.Holds {
+		anyway = anyway || (h.Covered && h.Anyway)
+	}
+	if (g.On && len(d.Held) > 0) || anyway {
 		d.SentAnyway = g.SentAnyway
 	}
 	return d
@@ -737,13 +772,36 @@ func sentAnywayMarkdown(d *DeliveryGate) string {
 	return b.String()
 }
 
+// withoutKind is the gate without one kind of hold (worked out again): a
+// post sends the render as it is, so Content Credentials don't hold it.
+func withoutKind(g *ShipGateOut, rev *models.Revision, kind string) *ShipGateOut {
+	var holds []GateHold
+	for _, h := range g.Holds {
+		if h.Kind != kind {
+			holds = append(holds, h)
+		}
+	}
+	if len(holds) == len(g.Holds) {
+		return g
+	}
+	g.Holds, g.Lines, g.SentAnyway, g.Override, g.Unmeasured = holds, []string{}, []models.ShipOverride{}, nil, 0
+	if g.Holds == nil {
+		g.Holds = []GateHold{}
+	}
+	decide(g, rev)
+	return g
+}
+
 // TimelineGate is the gate for a timeline exported into a delivery folder:
 // the quality check of the version's final renders, else its review copies;
 // a version never rendered hasn't been checked.
 func TimelineGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Revision) (*ShipGateOut, error) {
 	g, err := ShipGate(ctx, a, p, rev, "final", nil)
-	if err != nil || len(g.Renders) > 0 {
+	if err != nil {
 		return g, err
+	}
+	if len(g.Renders) > 0 {
+		return withoutKind(g, rev, models.HoldCredentials), nil // a timeline carries no Content Credentials
 	}
 	if r, err := ShipGate(ctx, a, p, rev, "review", nil); err != nil || len(r.Renders) > 0 {
 		return r, err
@@ -757,7 +815,7 @@ func TimelineGate(ctx context.Context, a *app.App, p *models.Project, rev *model
 	}
 	holds := []GateHold{h}
 	for _, x := range g.Holds {
-		if x.Kind != models.HoldRender {
+		if x.Kind != models.HoldRender && x.Kind != models.HoldCredentials { // a timeline carries no Content Credentials
 			holds = append(holds, x)
 		}
 	}
@@ -785,12 +843,18 @@ func loosening(ctx context.Context, a *app.App, projectID, what, command string,
 type settingsHolds struct {
 	on                 bool
 	promises, signoffs []string
+	// credentials is how much Content Credentials are asked (0 off, 1 on,
+	// 2 required; D418): asking less is loosening too.
+	credentials int
 }
 
 func holdsOfSettings(ctx context.Context, a *app.App, owner string) settingsHolds {
 	var h settingsHolds
 	ws := workspaceGate(ctx, a)
 	h.on = ws != nil && ws.On
+	if wc := workspaceCredentials(ctx, a); wc != nil {
+		h.credentials = credentialsRank[wc.Mode]
+	}
 	if owner == "" {
 		return h
 	}
@@ -800,6 +864,9 @@ func holdsOfSettings(ctx context.Context, a *app.App, owner string) settingsHold
 	}
 	if rec.Gate != nil {
 		h.on = rec.Gate.Mode == models.GateOn
+	}
+	if rec.Credentials != nil {
+		h.credentials = credentialsRank[rec.Credentials.Mode]
 	}
 	for _, r := range rec.HouseRules {
 		if r.Promise {
@@ -828,6 +895,12 @@ func gateSwitch(ctx context.Context, a *app.App, projectName, fromOwner, toOwner
 	var drops []string
 	if from.on && !to.on {
 		drops = append(drops, "holding versions back for the quality check and sign-offs")
+	}
+	switch {
+	case from.credentials > to.credentials && from.credentials == credentialsRank[models.CredentialsRequired] && to.credentials > 0:
+		drops = append(drops, "Content Credentials required on every video")
+	case from.credentials > to.credentials:
+		drops = append(drops, "Content Credentials on its videos")
 	}
 	for _, p := range from.promises {
 		if !has(to.promises, p) {
@@ -994,9 +1067,11 @@ func overrideVersion(ctx context.Context, a *app.App, in *ShipOverrideIn) (*Ship
 	if err != nil {
 		return nil, err
 	}
+	// What holds it now: with the gate off, only what holds anyway (D418:
+	// Content Credentials the settings require), so a note can cover that too.
 	var holds []models.ShipHold
 	for _, h := range g.Holds {
-		if h.Overridable && !h.Covered {
+		if h.Overridable && !h.Covered && (g.On || h.holdsAnyway()) {
 			holds = append(holds, h.ShipHold)
 		}
 	}
@@ -1006,7 +1081,7 @@ func overrideVersion(ctx context.Context, a *app.App, in *ShipOverrideIn) (*Ship
 				WithHint("Take the changed words out of the cut and make a new version.")
 		}
 	}
-	if !g.On {
+	if !g.On && len(holds) == 0 {
 		return nil, apperr.New(apperr.Conflict, "Nothing holds version %d: %s", rev.Number, lowerFirst(g.Why)).WithHint("Deliver it as it is.")
 	}
 	if len(holds) == 0 {

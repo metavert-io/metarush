@@ -260,6 +260,44 @@ after `config.yaml` switches; environment variables that would override the key 
 copy of the old secret is removed; the old key itself is deleted by a person (once no machine uses it), never by
 MetaRush, since a CI job or a script outside MetaRush may still use it.
 
+## Content Credentials signing keys ([content-credentials.md](content-credentials.md))
+A computer that signs delivered videos keeps a certificate chain and its private key. Only an owner sets them up, as a
+person (Settings → Delivery or their own terminal; `credentials.setup` and `credentials.remove` are OwnerOnly +
+HumanOnly, refused to Claude, Auto, MCP, AI apps and drafts). PEM files are read once, from paths a person names, and
+never from a sync folder or a folder a git repository would commit (`secretpath.Inspect`); the key is checked against
+the certificate and kept in the keychain (the raw PKCS#8 bytes), or in `<home>/.env` (0600) in env mode under a name
+`secretpath` keeps out of every environment MetaRush gives a program. It is never in MongoDB, `config.yaml`, the
+activity log (its forms are registered for redaction), an audit entry, an error, a command line, an API response or an
+ability's run. The chain is public and sits in `state/private/content-credentials.json` (0600). Choosing a timestamp
+service is an owner's, as a person; its address must be `https://` with a name on the internet (IP literals,
+`localhost`, `.local`/`.internal`/`.lan`/`.home.arpa` names and names without a dot are refused, and every address the
+name resolves to must be public — `sandbox.PublicIP`, the abilities' proxy's rule — when it is set and again before each
+signing; c2patool resolves it again when it asks, so a name whose answers change in between isn't caught). It receives
+an RFC 3161 request: a hash of what is signed and a nonce, nothing of the client's.
+
+What is enforced when a video is signed (`internal/c2pa`, D436):
+
+| | |
+|---|---|
+| Where | Each signing works in a new 0700 folder under `<home>/state/private` (itself 0700): the manifest, MetaRush's settings file, a link to the render and the signed copy. Nothing is written next to the delivered video until the copy has checked out. |
+| c2patool | Started through `internal/tools` with typed arguments, in that folder, with an environment built from nothing (no `C2PA_*` variable or settings file of the person's reaches it, so its built-in test key can't be used) and `--signer-path` = MetaRush itself (`metarush c2pa-signer`). It never holds the key. |
+| The signer's channel | A socket pair made for that signing alone (`socketpair`, both ends close-on-exec while `syscall.ForkLock` is held, so no other program MetaRush starts meanwhile inherits either), MetaRush's end kept in the process, c2patool's end handed to c2patool as its descriptor 3 (`tools.Spec.ExtraFiles`) and closed in MetaRush once c2patool runs. c2patool starts its signer with its descriptors, so the signer finds MetaRush on descriptor 3 and nowhere else; it refuses to run when descriptor 3 isn't a socket. There is no socket file, no address, no ticket, and nothing about the channel in an environment or on a command line, so no other program — another process of the same person, an ability, a Remotion refresh — has anything to connect to or reuse. Taking an open descriptor out of c2patool's process needs rights to debug it (a debugger the person allowed on a Mac; ptrace rights on Linux), which reach MetaRush's own memory as well. |
+| What it signs | Exactly one signature per signing: reserved before MetaRush signs (a second request is refused, however the requests are timed), and only a COSE `Signature1` input (`Credential.Sign` refuses anything else). MetaRush keeps the signature it returned. |
+| The copy | Refused and thrown away unless MetaRush signed for it, nothing was refused, and the signature(s) in its manifest store — read by MetaRush itself (`c2pa.StoreSignatures`: the JUMBF store, each manifest's one `c2pa.signature` COSE box) — are exactly the ones MetaRush returned, byte for byte. So a signature can't be taken for anything else without the signing failing and the copy being thrown away: one MetaRush made for another claim never reaches a client unnoticed. Then c2patool reads it back and it must check out with this computer's certificate. |
+| Placing it | Linked from the private folder into the delivery folder (never over a file; copied and hashed as it is written across disks), then hashed again: the placed file's SHA-256 and its manifest store's must be the checked copy's, or it is removed and nothing is recorded. |
+
+c2patool and MetaRush's own program are trusted: c2patool is the component pinned by SHA-256 when it was downloaded (or
+the one a person named), and a program that can replace either as the person can do anything MetaRush can. Remotion
+refreshes, which run with the network on under an `(allow default)` profile, can't read, write or connect to anything
+inside the temporary folders other programs use (`$TMPDIR`, `/tmp`, and on a Mac the person's other folders beside
+`$TMPDIR` under `/var/folders` — caches and system services' own) apart from their own room and cache, nor MetaRush's
+home (`internal/remotion/isolate.go`; bubblewrap gives them an empty `/tmp` and `/run/user/<uid>`). Abilities run deny-by-default
+(`internal/sandbox`): on a Mac they read only system folders, their installation and their room, reach the network only
+through their proxy and see only their own process; on Linux bubblewrap unshares everything and gives them a fresh
+`/tmp`. Tests make their certificates and keys while they run; none is in the repository, and the real c2patool is
+refused under `go test` unless a test names it. `TestTheSignerIsNoOracle` replays a program trying every way in while a
+signing waits; `TestRealC2patoolIsNoOracle` (`-tags c2pareal`) does it with the real c2patool.
+
 ## Moving the media from the dashboard
 Settings → Storage moves the media with the same `storage.plan` / `storage.migrate` as the terminal.
 Both stay `LocalOnly` (and `storage.migrate` `HumanOnly`): `/api/ops` refuses them, and the dashboard gets three

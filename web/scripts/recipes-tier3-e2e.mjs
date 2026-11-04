@@ -258,7 +258,8 @@ try {
   await api(page, 'asset.link', { assetId: kitchen, projectId: project });
   const planned = await waitFor(async () => (await api(page, 'recipe.triggers', { recipe: RECIPE })).recipes[0].prepared, 90_000, 1000);
   check('T: new footage, once settled: a plan', !!planned && planned.why === 'new-files' && /^New footage in “Garden story” \(\d clips?\)$/.test(planned.words), JSON.stringify(planned ?? {}).slice(0, 200));
-  const bell = (await api(page, 'notification.list', { limit: 30 })).notifications.find((n) => n.kind === 'recipe_planned');
+  // The bell's note is written just after the plan: on a busy computer it can come a moment later.
+  const bell = await waitFor(async () => (await api(page, 'notification.list', { limit: 30 })).notifications.find((n) => n.kind === 'recipe_planned'), 30_000, 1000);
   check('T: the bell rings: the run is planned', !!bell && /for “Garden story”: the run is planned, /.test(bell.title) && /planned=1/.test(bell.link ?? ''), bell ? `${bell.title} → ${bell.link}` : 'none');
   await sleep(3000);
   check('T: no run started (Auto on, estimates off)', (await doneRuns(page)).length === runsBefore, `${runsBefore} → ${(await doneRuns(page)).length}`);

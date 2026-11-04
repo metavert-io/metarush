@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -327,7 +328,7 @@ func TestKeepFrom(t *testing.T) {
 		{Label: "person", Kind: "person", From: 0, To: 6, Conf: 0.9}}, Gestures: []GestureSpan{{Kind: "pointing", From: 12, To: 15, Toward: "left"}}}
 	open := &Index{Duration: 30, Backend: BackendOpenModels, Sees: []string{"faces", "landmarks", "text", "attention"},
 		Labels: []LabelSpan{{Label: "person", Kind: "person", From: 0, To: 6, Conf: 0.95}}, Text: []TextSpan{{Text: "EXIT", From: 21, To: 25}}}
-	open.KeepFrom(apple)
+	open.KeepFrom(apple, true)
 	var got []string
 	for _, l := range open.Labels {
 		got = append(got, l.Label)
@@ -338,12 +339,62 @@ func TestKeepFrom(t *testing.T) {
 	if !strings.Contains(open.Summary, "dog") || !strings.Contains(strings.Join(open.Terms, " "), "dog") || len(open.Text) != 1 {
 		t.Fatalf("summary %q, terms %v", open.Summary, open.Terms)
 	}
-	// Nothing to keep from another index the open models made, or into Apple Vision's own.
+	// Nothing to keep from an index the open models made that kept nothing, or into Apple Vision's own.
+	plain := &Index{Duration: 30, Backend: BackendOpenModels, Sees: []string{"faces"}, Labels: []LabelSpan{{Label: "person", Kind: "person", From: 0, To: 6}}}
 	again := &Index{Duration: 30, Backend: BackendOpenModels, Sees: []string{"faces"}}
-	again.KeepFrom(open)
+	again.KeepFrom(plain, true)
 	same := &Index{Duration: 30}
-	same.KeepFrom(apple)
+	same.KeepFrom(apple, true)
 	if len(again.Labels) != 0 || len(again.Kept) != 0 || len(same.Labels) != 0 || len(same.Kept) != 0 {
 		t.Fatalf("kept where it shouldn't: %+v %+v", again, same)
+	}
+}
+
+// A fixed copy's first look keeps only the labels of Apple Vision's index of
+// the original (D467): where a hand was and which way it pointed are of the
+// original's picture (a steadied copy is framed differently), so gestures
+// don't come over and the index says it didn't look for them.
+func TestAFixedCopyKeepsOnlyTheOriginalsLabels(t *testing.T) {
+	original := &Index{Duration: 30, Labels: []LabelSpan{{Label: "beach", Kind: "scene", From: 6, To: 14, Conf: 0.9}, {Label: "dog", Kind: "animal", From: 25, To: 30, Conf: 0.8}},
+		Gestures: []GestureSpan{{Kind: "pointing", From: 12, To: 15, Toward: "left", Box: vision.Box{0.1, 0.4, 0.1, 0.1}}}}
+	copyIdx := &Index{Duration: 30, Backend: BackendOpenModels, Sees: []string{"faces", "landmarks", "text", "attention"}}
+	copyIdx.KeepFrom(original, false)
+	var got []string
+	for _, l := range copyIdx.Labels {
+		got = append(got, l.Label)
+	}
+	if strings.Join(got, ",") != "beach,dog" || !copyIdx.Looked("labels") || !copyIdx.Looked("animals") {
+		t.Fatalf("labels: %v (kept %v)", got, copyIdx.Kept)
+	}
+	if len(copyIdx.Gestures) != 0 || copyIdx.Looked("gestures") || slices.Contains(copyIdx.Kept, "gestures") {
+		t.Fatalf("the original's gestures came over: %+v (kept %v)", copyIdx.Gestures, copyIdx.Kept)
+	}
+	// Looking at the copy again keeps what its first look kept: still no gestures.
+	again := &Index{Duration: 30, Backend: BackendOpenModels, Sees: []string{"faces", "landmarks", "text", "attention"}}
+	again.KeepFrom(copyIdx, true)
+	if len(again.Labels) != 2 || len(again.Gestures) != 0 || again.Looked("gestures") || !again.Looked("labels") {
+		t.Fatalf("looked again: %+v (kept %v)", again.Labels, again.Kept)
+	}
+}
+
+// Looking again without a Mac keeps what an earlier look by the open models
+// kept of Apple Vision's (D447): its labels and gestures of the same media
+// aren't dropped the second time.
+func TestLookingAgainKeepsWhatAnEarlierLookKept(t *testing.T) {
+	apple := &Index{Duration: 30, Labels: []LabelSpan{{Label: "beach", Kind: "scene", From: 6, To: 14, Conf: 0.9}, {Label: "dog", Kind: "animal", From: 25, To: 30, Conf: 0.8}},
+		Gestures: []GestureSpan{{Kind: "pointing", From: 12, To: 15, Toward: "left"}}}
+	first := &Index{Duration: 30, Backend: BackendOpenModels, Sees: []string{"faces", "landmarks", "text", "attention"}}
+	first.KeepFrom(apple, true)
+	second := &Index{Duration: 30, Backend: BackendOpenModels, Sees: []string{"faces", "landmarks", "text", "attention"}, Text: []TextSpan{{Text: "EXIT", From: 21, To: 25}}}
+	second.KeepFrom(first, true)
+	var got []string
+	for _, l := range second.Labels {
+		got = append(got, l.Label)
+	}
+	if strings.Join(got, ",") != "beach,dog" || len(second.Gestures) != 1 || !second.Looked("labels") || !second.Looked("gestures") || len(second.Text) != 1 {
+		t.Fatalf("the second look: %v %+v (kept %v)", got, second.Gestures, second.Kept)
+	}
+	if !strings.Contains(second.Summary, "dog") {
+		t.Fatalf("summary %q", second.Summary)
 	}
 }

@@ -328,3 +328,103 @@ func TestALeftOutMacDoesntOfferToLook(t *testing.T) {
 		t.Fatalf("offers %v, looks with %q, lacks %v", w.JobTypes(), w.screenIndex(), w.Lacks())
 	}
 }
+
+// A fixed copy's first look isn't a look again (D467): Apple Vision looked
+// only at the original, so a Mac seen three days ago doesn't hold the copy —
+// only one about now gets the first look, as at any clip — and the open models
+// look, keeping the original's labels but not its gestures (where a hand was
+// in the original's picture). The original's index stays as it was; an Apple
+// Vision index of the copy itself is looked at again by a Mac.
+func TestAFixedCopysFirstLookIsntALookAgain(t *testing.T) {
+	s := newShop(t)
+	staged := fakescreen.Stage(t)
+	staged.Apply(&s.a.Cfg.Tools)
+	s.a.Tools.Rescan(s.a.Cfg.Tools)
+	s.a.Cfg.SetScreenIndexChoice(config.ScreenOpenModels)
+	w := s.worker()
+	ctx := context.Background()
+	res := ingest.File(ctx, s.a, s.footage("jetty", 4, false, false), ingest.Options{ProjectID: s.project, Via: "cli", Transcribe: false})
+	var visualJob, proxy string
+	for _, id := range res.JobIDs {
+		j, _ := s.a.Queue.Get(ctx, id)
+		switch j.Type {
+		case jobs.TypeVisual:
+			visualJob = id
+		case jobs.TypeProxy:
+			proxy = id
+		}
+	}
+	for _, j := range runJobs(t, w, proxy) {
+		if j.State != models.JobSucceeded {
+			t.Fatalf("%s: %s", j.Type, j.Error)
+		}
+	}
+	// Apple Vision's index of the original: a dog, and a hand pointing left.
+	as := s.asset(res.AssetID)
+	apple := visual.Build([]visual.Sample{{At: 0.5, Frame: vision.Frame{W: 320, H: 240, Labels: []vision.Label{{ID: "dog", Conf: 0.95, Precise: true}}}},
+		{At: 1.5, Frame: vision.Frame{W: 320, H: 240, Labels: []vision.Label{{ID: "dog", Conf: 0.95, Precise: true}}}}}, 1, 4, nil, "proxy")
+	apple.Gestures = []visual.GestureSpan{{Kind: visual.GesturePoint, From: 1, To: 2, Toward: "left", Box: vision.Box{0.1, 0.4, 0.1, 0.1}, Conf: 0.9}}
+	appleInsight := func(media string) {
+		t.Helper()
+		if err := s.a.DB.Insert(ctx, store.CInsights, models.Insight{ID: ids.New(ids.Insight), WorkspaceID: s.a.WorkspaceID(), AssetID: as.ID, Kind: visual.InsightKind,
+			Provider: "apple-vision", PromptVersion: "vision-1", Digest: "d", Data: visual.ToMap(apple), CreatedAt: time.Now().UTC(), Media: media}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	appleInsight("")
+	// The clip now uses a steadied copy, which nothing has looked at.
+	copySHA := strings.Repeat("c", 64)
+	if _, err := s.a.DB.C(store.CAssets).UpdateOne(ctx, bson.M{"_id": as.ID}, bson.M{"$set": bson.M{"fixes.copy": models.FixedCopyRef{ID: "copy_steady", SHA256: copySHA,
+		StorageKey: as.StorageKey, Size: as.Size, MIME: "video/mp4", Fixes: []string{models.FixSteady}, At: time.Now().UTC()}}}); err != nil {
+		t.Fatal(err)
+	}
+	// A Mac about now gets the first look, as at any clip.
+	otherComputer(t, s, "ins_mac", looker.AppleVision, []string{jobs.TypeVisual}, nil, 5*time.Second)
+	j, _ := s.a.Queue.Get(ctx, visualJob)
+	_, err := visualHandler(ctx, w, j, func(float64, string) {})
+	var wait *postponed
+	if !errors.As(err, &wait) || wait.after != macWait || !strings.Contains(wait.reason, "gets the first look") {
+		t.Fatalf("a Mac about now: %v", err)
+	}
+	// One seen three days ago doesn't hold the copy, as it would a look again at Apple Vision's index.
+	otherComputer(t, s, "ins_mac", looker.AppleVision, []string{jobs.TypeVisual}, nil, 72*time.Hour)
+	for _, j := range runJobs(t, w, visualJob) {
+		if j.State != models.JobSucceeded {
+			t.Fatalf("the copy's first look: %s %s (%+v)", j.State, j.Error, j.Attempts)
+		}
+	}
+	look, err := visual.LoadMedia(ctx, s.a.DB, s.a.WorkspaceID(), as.ID, copySHA)
+	if err != nil || look == nil || !look.Index.ByOpenModels() {
+		t.Fatalf("the copy's index: %+v %v", look, err)
+	}
+	if !slices.ContainsFunc(look.Index.Labels, func(l visual.LabelSpan) bool { return l.Label == "dog" }) || !look.Index.Looked(looker.SeesLabels) {
+		t.Fatalf("the original's labels didn't come over: %+v (kept %v)", look.Index.Labels, look.Index.Kept)
+	}
+	if len(look.Index.Gestures) != 0 || look.Index.Looked("gestures") {
+		t.Fatalf("the original's gestures came over: %+v (kept %v)", look.Index.Gestures, look.Index.Kept)
+	}
+	orig, err := visual.LoadMedia(ctx, s.a.DB, s.a.WorkspaceID(), as.ID, "")
+	if err != nil || orig == nil || orig.Index.ByOpenModels() || len(orig.Index.Gestures) != 1 {
+		t.Fatalf("the original's index changed: %+v %v", orig, err)
+	}
+	if st := visual.Load(ctx, s.a.DB, s.a.WorkspaceID(), as.ID); st == nil || !st.Index.ByOpenModels() {
+		t.Fatalf("the clip doesn't show the copy's index: %+v", st)
+	}
+	// Looking at the copy again keeps what its first look kept, and still waits for no Mac seen days ago.
+	j, _ = s.a.Queue.Get(ctx, visualJob)
+	if _, err := visualHandler(ctx, w, j, func(float64, string) {}); err != nil {
+		t.Fatalf("looking again at the copy: %v", err)
+	}
+	if again, err := visual.LoadMedia(ctx, s.a.DB, s.a.WorkspaceID(), as.ID, copySHA); err != nil || again == nil ||
+		!slices.ContainsFunc(again.Index.Labels, func(l visual.LabelSpan) bool { return l.Label == "dog" }) || len(again.Index.Gestures) != 0 {
+		t.Fatalf("the copy looked at again: %+v %v", again, err)
+	}
+	// Apple Vision's own index of the copy is looked at again by a Mac.
+	if _, err := s.a.DB.C(store.CInsights).DeleteMany(ctx, bson.M{"assetId": as.ID, "media": copySHA}); err != nil {
+		t.Fatal(err)
+	}
+	appleInsight(copySHA)
+	if _, err := visualHandler(ctx, w, j, func(float64, string) {}); !errors.As(err, &wait) || !strings.Contains(wait.reason, "a Mac in this workspace looks at it again") {
+		t.Fatalf("Apple Vision's index of the copy: %v", err)
+	}
+}

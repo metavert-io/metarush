@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/faces"
@@ -139,5 +141,29 @@ func TestReadersWorkOnAnOpenModelsIndex(t *testing.T) {
 	fr, _ := framingOf(t, a, r.Revision.ID)
 	if fr.From != editspec.FramingFollow || len(fr.Path) < 2 || fr.Path[len(fr.Path)-1].X <= fr.Path[0].X {
 		t.Fatalf("following: %+v", fr)
+	}
+}
+
+// A fixed copy the open models looked at first keeps only the labels of Apple
+// Vision's index of the original (D467): the readout says where its places,
+// things and animals come from, and that gestures weren't looked for.
+func TestTheReadoutSaysAFixedCopyKeptOnlyTheOriginalsLabels(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	p := call[ProjectOut](t, a, "project.create", ProjectCreateIn{Name: "Jetty"})
+	clip := openModelsCall(t, a, p.Project.ID)
+	copySHA := strings.Repeat("c", 64)
+	if _, err := a.DB.C(store.CAssets).UpdateOne(ctx, bson.M{"_id": clip}, bson.M{"$set": bson.M{"fixes.copy": models.FixedCopyRef{ID: "copy_steady", SHA256: copySHA,
+		StorageKey: "k", Size: 1, MIME: "video/mp4", Fixes: []string{models.FixSteady}, At: time.Now().UTC()}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.DB.C(store.CInsights).UpdateOne(ctx, bson.M{"assetId": clip, "kind": visual.InsightKind}, bson.M{"$set": bson.M{"media": copySHA,
+		"data.kept": []string{"labels", "animals", "people"}}, "$push": bson.M{"data.labels": visual.LabelSpan{Label: "dog", Kind: visual.KindAnimal, From: 1, To: 3, Conf: 0.9}}}); err != nil {
+		t.Fatal(err)
+	}
+	v := call[VisualsOut](t, a, "footage.visuals", VisualsIn{AssetID: clip})
+	if !slices.Equal(v.NotLookedFor, []string{"gestures"}) || !strings.Contains(v.Note, "from Apple Vision's earlier look at the original") ||
+		!strings.Contains(v.Note, "gestures weren't looked for") || !slices.ContainsFunc(v.Labels, func(l VisualLabel) bool { return l.Label == "dog" }) {
+		t.Fatalf("the readout: not looked for %v, note %q, labels %+v", v.NotLookedFor, v.Note, v.Labels)
 	}
 }

@@ -173,7 +173,9 @@ type Index struct {
 	// Kept is what an index the open models made carries over from the one
 	// Apple Vision made before it (D447: labels — places, things, animals,
 	// people's bodies — and gestures, which the open models don't look for),
-	// so looking again without a Mac never drops them.
+	// so looking again without a Mac never drops them. A fixed copy's first
+	// look keeps only the original's labels: where a hand was in the original
+	// says nothing about the copy's picture (D467).
 	Kept []string `json:"kept,omitempty" bson:"kept,omitempty"`
 }
 
@@ -199,11 +201,26 @@ func (idx *Index) Looked(what string) bool {
 var keptKinds = []string{"labels", "animals", "people", "gestures"}
 
 // KeepFrom carries into an index the open models made what an earlier index
-// of the same clip by Apple Vision saw that they don't look for (D447): its
-// labels (places, things, animals, people's bodies) and gestures. Faces,
-// words and where the eye is drawn are the new look's.
-func (idx *Index) KeepFrom(old *Index) {
-	if idx == nil || old == nil || !idx.ByOpenModels() || old.ByOpenModels() {
+// of the clip has that they don't look for (D447): Apple Vision's labels
+// (places, things, animals, people's bodies) and gestures, or what an earlier
+// index the open models made kept of them (D468), so looking again without a
+// Mac never drops them. sameMedia says the old index looked at the very media the
+// new one did; from another — the original's, at a fixed copy's first look —
+// only the labels come over: where a hand was and which way it pointed are of
+// the original's picture, not the copy's (D467). Faces, words and where the
+// eye is drawn are the new look's.
+func (idx *Index) KeepFrom(old *Index, sameMedia bool) {
+	if idx == nil || old == nil || !idx.ByOpenModels() {
+		return
+	}
+	kinds := keptKinds
+	if old.ByOpenModels() {
+		kinds = old.Kept
+	}
+	if !sameMedia {
+		kinds = slices.DeleteFunc(slices.Clone(kinds), func(k string) bool { return k == "gestures" })
+	}
+	if len(kinds) == 0 {
 		return
 	}
 	have := map[string]bool{}
@@ -216,10 +233,10 @@ func (idx *Index) KeepFrom(old *Index) {
 		}
 	}
 	sort.SliceStable(idx.Labels, func(i, j int) bool { return idx.Labels[i].From < idx.Labels[j].From })
-	if len(idx.Gestures) == 0 {
+	if len(idx.Gestures) == 0 && slices.Contains(kinds, "gestures") {
 		idx.Gestures = old.Gestures
 	}
-	idx.Kept = append([]string{}, keptKinds...)
+	idx.Kept = append([]string{}, kinds...)
 	idx.Terms = Terms(idx)
 	idx.Summary = summary(idx)
 }

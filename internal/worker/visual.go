@@ -71,18 +71,33 @@ func visualHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 		return nil, permanent("“%s” has no picture to look at", as.DisplayTitle())
 	}
 	var keep *visual.Index
+	sameMedia := false
 	if looker.Chosen(a.Cfg) == looker.OpenModels {
-		if prev := visual.Load(ctx, a.DB, a.WorkspaceID(), as.ID); prev != nil && prev.Index != nil && !prev.Index.ByOpenModels() {
-			// Apple Vision looked at this clip before (D447): a Mac looks again
+		// What looked at the very media the clip uses now: a fixed copy's
+		// index, or the original's — never the original's in a copy's place
+		// (D467).
+		mine, err := visual.LoadMedia(ctx, a.DB, a.WorkspaceID(), as.ID, as.MediaSHA())
+		if err != nil {
+			return nil, err
+		}
+		if mine != nil && mine.Index != nil && !mine.Index.ByOpenModels() {
+			// Apple Vision looked at this media before (D447): a Mac looks again
 			// while one is about; after a long while without one, this computer
 			// does and keeps what Apple Vision saw that the open models don't.
 			if wait := macAgain(ctx, w, j); wait != nil {
 				return nil, wait
 			}
-			keep = prev.Index
 		} else if wait := macFirst(ctx, w, j); wait != nil {
-			// A Mac in the workspace sees more (D410): it gets the first go.
+			// A Mac in the workspace sees more (D410): it gets the first go, at a
+			// fixed copy only the original of which Apple Vision looked at too.
 			return nil, wait
+		}
+		if mine != nil {
+			keep, sameMedia = mine.Index, true
+		} else if prev := visual.Load(ctx, a.DB, a.WorkspaceID(), as.ID); prev != nil {
+			// A fixed copy's first look: the original's labels come over, not
+			// where things were in its picture (D467).
+			keep = prev.Index
 		}
 	}
 	lk, st, built, err := looker.Open(ctx, a.Cfg, a.Tools)
@@ -154,7 +169,7 @@ func visualHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 	if err != nil {
 		return nil, err
 	}
-	idx.KeepFrom(keep)
+	idx.KeepFrom(keep, sameMedia)
 	report(0.92, "saving")
 	// The index belongs to the media it looked at (D152): a fixed copy's, or the original's.
 	_, mediaSHA, _ := as.CurrentMedia()

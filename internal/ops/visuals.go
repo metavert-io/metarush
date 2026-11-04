@@ -367,8 +367,13 @@ func init() {
 				"or see gestures, so a label missing here says nothing about what is in the clip. A face has a name where a person confirmed it; \"looks like\" names were recognized by the face and are not confirmed yet " +
 				"(\"maybe\" = a question is open). Look at frames (footage frames --at) before claiming anything visual."
 			if len(idx.Kept) > 0 {
+				kept := "the places, things, animals and gestures are from Apple Vision's earlier look at this clip"
+				if !idx.Looked(looker.SeesGestures) {
+					// A fixed copy's first look keeps the original's labels only (D467).
+					kept = "the places, things and animals are from Apple Vision's earlier look at the original; gestures weren't looked for, so a gesture missing here says nothing about the clip"
+				}
 				out.Note = "From the open models on a computer in this workspace, about one frame a second plus the moments the picture changes: they find faces, read text " +
-					"(Latin, Greek, Chinese and Japanese writing; check spelling before quoting it) and see what stands out; the places, things, animals and gestures are from Apple Vision's earlier look at this clip. " +
+					"(Latin, Greek, Chinese and Japanese writing; check spelling before quoting it) and see what stands out; " + kept + ". " +
 					"A face has a name where a person confirmed it; \"looks like\" names were recognized by the face and are not confirmed yet " +
 					"(\"maybe\" = a question is open). Look at frames (footage frames --at) before claiming anything visual."
 			}

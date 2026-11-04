@@ -13,10 +13,11 @@ import (
 	"unicode"
 
 	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/secretfields"
 )
 
 // Redacted replaces every hidden value.
-const Redacted = "[redacted]"
+const Redacted = secretfields.Hidden
 
 // Minimum lengths of exact secret values: shorter configured secrets would turn
 // ordinary words into redactions; environment values need to look like keys.

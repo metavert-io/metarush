@@ -19,6 +19,7 @@ import (
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/media"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/secretfields"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/version"
@@ -649,7 +650,7 @@ func (l *Logger) StartOp(ctx context.Context, name string, raw json.RawMessage, 
 	// one's secret, and one made up to equal an ordinary word would otherwise
 	// blank that word out of every later entry.
 	parent := ScopeOf(ctx)
-	hide := append(secretInputs(raw, secretFieldsOf(name)), parent.hidden()...)
+	hide := append(secretInputs(raw, secretfields.Of(name)), parent.hidden()...)
 	return &OpRecord{l: l, id: ids.New(EntryPrefix), name: name, start: time.Now(), raw: append(json.RawMessage(nil), raw...), actor: actor,
 		human: human, remote: remote, parent: parent, hide: hide}
 }

@@ -127,6 +127,9 @@ func (l *Logger) FlushSpool(ctx context.Context, maxFiles int) (written int, err
 			_ = os.Rename(claimed, f+".bad")
 			continue
 		}
+		for _, r := range recs {
+			scrubSecretFields(&r.Entry) // spooled by an older version, its fields as typed
+		}
 		failed := l.write(ctx, recs) // records were redacted before they were spooled
 		if len(failed) > 0 {
 			// Still unreachable: put the remainder back and stop for now.

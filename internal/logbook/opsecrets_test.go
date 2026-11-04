@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/secretfields"
 	"github.com/metavert-io/metarush/internal/tools"
 )
 
@@ -72,24 +75,23 @@ func TestSecretInputsStayInTheirCall(t *testing.T) {
 	}
 }
 
-// An operation's own secret fields (SecretFields: account.password's current
-// and new password) are hidden like secret-named ones: by name in its input,
-// and their values anywhere else in its call. Another operation's fields of
-// the same names are not.
+// An operation's own secret fields (internal/secretfields: account.password's
+// current and new password) are hidden like secret-named ones: by name in its
+// input, and their values anywhere else in its call. Another operation's
+// fields of the same names are not.
 func TestOperationSecretFields(t *testing.T) {
 	e := newEnv(t, true)
 	l := e.open(t, e.ms)
 	ctx := context.Background()
-	SecretFields("test.passwordish", "current", "new")
 	const current, next = "tomato garden at dusk", "rosemary under the window"
 	raw, _ := json.Marshal(map[string]any{"current": current, "new": next, "note": "keep"})
-	if got := secretInputs(raw, secretFieldsOf("test.passwordish")); len(got) != 2 {
+	if got := secretInputs(raw, secretfields.Of("account.password")); len(got) != 2 {
 		t.Fatalf("an operation's own secret fields: %v", got)
 	}
 	if got := SecretInputs(raw); len(got) != 0 {
 		t.Fatalf("other operations' fields with these names aren't secrets: %v", got)
 	}
-	rec := l.StartOp(ctx, "test.passwordish", raw, models.Actor{Via: "cli"}, true, false)
+	rec := l.StartOp(ctx, "account.password", raw, models.Actor{Via: "cli"}, true, false)
 	rec.End(true, nil, errors.New("couldn't take "+next))
 	other := l.StartOp(ctx, "test.other", raw, models.Actor{Via: "cli"}, true, false)
 	other.End(true, map[string]any{}, nil)
@@ -97,7 +99,7 @@ func TestOperationSecretFields(t *testing.T) {
 	for _, en := range e.entries(t, bson.M{"kind": KindOp}) {
 		b, _ := bson.MarshalExtJSON(en, false, false)
 		switch en.Op.Name {
-		case "test.passwordish":
+		case "account.password":
 			if en.Op.Input["current"] != Redacted || en.Op.Input["new"] != Redacted || en.Op.Input["note"] != "keep" ||
 				strings.Contains(string(b), current) || strings.Contains(string(b), next) {
 				t.Fatalf("the operation's secret fields show: %s", b)
@@ -107,5 +109,34 @@ func TestOperationSecretFields(t *testing.T) {
 				t.Fatalf("another operation's field of the same name is hidden: %s", b)
 			}
 		}
+	}
+}
+
+// An entry an older version spooled with an operation's secret fields as
+// typed is cleaned when a newer one writes it to the database.
+func TestSpooledSecretFieldsAreCleaned(t *testing.T) {
+	e := newEnv(t, true)
+	l := e.open(t, e.ms)
+	ctx := context.Background()
+	const next = "rosemary under the window"
+	old := &spoolRecord{Entry: Entry{ID: newID(), WorkspaceID: e.cfg.Workspace.ID, At: time.Now().UTC(), Kind: KindOp, Level: LevelError, Channel: ChannelDashboard,
+		Summary: "account.password failed: " + next + " is too common", Error: &EntryError{Message: next + " is too common"},
+		Op: &OpInfo{Name: "account.password", Mutating: true, Input: map[string]any{"current": "tomato garden at dusk", "new": next}}}}
+	if err := os.MkdirAll(l.spoolDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSpoolFile(filepath.Join(l.spoolDir(), "1-1-old.jsonl"), []*spoolRecord{old}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := l.FlushSpool(ctx, 0); err != nil || n != 1 {
+		t.Fatalf("flush: %d %v", n, err)
+	}
+	es := e.entries(t, bson.M{"_id": old.Entry.ID})
+	if len(es) != 1 {
+		t.Fatal("the spooled entry wasn't written")
+	}
+	b, _ := bson.MarshalExtJSON(es[0], false, false)
+	if es[0].Op.Input["current"] != Redacted || es[0].Op.Input["new"] != Redacted || strings.Contains(string(b), next) || strings.Contains(string(b), "tomato garden") {
+		t.Fatalf("a spooled password reached the database: %s", b)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/secretfields"
 )
 
 // Secrets kept by other packages. The providers registry reports every API key
@@ -206,42 +207,31 @@ func loggerFor(ctx context.Context) *Logger {
 // secretInputHint cheaply rules out inputs without secret-named fields.
 var secretInputHint = []string{"key", "secret", "token", "password", "authorization", "cookie", "credential"}
 
-// Fields of an operation's input that hold a secret although their names
-// don't say so (account.password's current and new password), by operation.
-var (
-	fieldsMu     sync.RWMutex
-	secretFields = map[string]map[string]bool{}
-)
-
-// SecretFields tells the log that these top-level fields of an operation's
-// input hold a secret though their names don't say so: their values are
-// hidden like those of secret-named fields.
-func SecretFields(op string, fields ...string) {
-	fieldsMu.Lock()
-	defer fieldsMu.Unlock()
-	if secretFields[op] == nil {
-		secretFields[op] = map[string]bool{}
+// scrubSecretFields takes the values of an operation's secret fields
+// (internal/secretfields) out of an entry an older version prepared with them
+// as typed: one it spooled, written by a newer version (migration 71 cleaned
+// those already in the database).
+func scrubSecretFields(e *Entry) bool {
+	if e.Op == nil || e.Op.Input == nil {
+		return false
 	}
-	for _, f := range fields {
-		secretFields[op][f] = true
+	var msg, hint, advice *string
+	if e.Error != nil {
+		msg, hint, advice = &e.Error.Message, &e.Error.Hint, &e.Error.Advice
 	}
-}
-
-func secretFieldsOf(op string) map[string]bool {
-	fieldsMu.RLock()
-	defer fieldsMu.RUnlock()
-	return secretFields[op]
+	return secretfields.Scrub(e.Op.Name, e.Op.Input, &e.Summary, &e.Op.Command, msg, hint, advice)
 }
 
 // inputHidden is an operation's input with what its call hides taken out
-// before it is shortened: its own secret fields (SecretFields) by name, and
+// before it is shortened: its own secret fields (fields that hold a secret
+// though their names don't say so, internal/secretfields) by name, and
 // the values its call was sent in secret-named fields wherever else they
 // appear in it. Inputs with neither are left as they are.
 func (p *pending) inputHidden() json.RawMessage {
 	if p.e.Op == nil || len(p.raw) == 0 {
 		return p.raw
 	}
-	fields := secretFieldsOf(p.e.Op.Name)
+	fields := secretfields.Of(p.e.Op.Name)
 	if len(fields) == 0 && len(p.hide) == 0 {
 		return p.raw
 	}
@@ -302,7 +292,8 @@ func SecretInputs(raw json.RawMessage) []string {
 	return secretInputs(raw, nil)
 }
 
-// secretInputs is SecretInputs with an operation's own secret fields.
+// secretInputs is SecretInputs with an operation's own secret fields
+// (internal/secretfields).
 func secretInputs(raw json.RawMessage, fields map[string]bool) []string {
 	if len(raw) < 8 {
 		return nil

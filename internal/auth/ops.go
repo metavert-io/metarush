@@ -10,7 +10,6 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/config"
-	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/sessions"
@@ -149,9 +148,8 @@ func init() {
 		})
 	ops.Def("users.role", "Make a person an owner or a member (owners)", ops.Flags{Mutating: true, HumanOnly: true, OwnerOnly: true}, roleOp)
 	ops.Def("account.password", "Change your own password (asks for the current one); signs you out everywhere", ops.Flags{Mutating: true, HumanOnly: true}, passwordOp)
-	// Its fields are passwords though their names don't say so: the activity
-	// log hides them like a secret-named field's.
-	logbook.SecretFields("account.password", "current", "new")
+	// Its "current" and "new" are passwords though their names don't say
+	// so: internal/secretfields declares them for the activity log.
 	ops.Def("account.update", "Change your own name or email (an email change asks for your password)", ops.Flags{Mutating: true, HumanOnly: true}, updateOp)
 	ops.Def("account.signoutEverywhere", "Sign yourself out on every computer and browser", ops.Flags{Mutating: true, HumanOnly: true}, signoutOp)
 }

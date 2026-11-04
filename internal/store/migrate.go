@@ -11,7 +11,8 @@ import (
 )
 
 // Migration is one versioned, idempotent schema step. Migrations only ever add
-// (indexes, fields) or rename fields in place (37); they never drop data.
+// (indexes, fields), rename fields in place (37) or take a secret out of a
+// record where an older version kept it (71); they never drop data.
 type Migration struct {
 	Version int
 	Name    string
@@ -222,6 +223,8 @@ var Migrations = []Migration{
 			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "sso.key", Value: 1}},
 				options.Index().SetName("sso_account").SetUnique(true).SetPartialFilterExpression(bson.M{"sso.key": bson.M{"$exists": true}})))
 	}},
+	// v67–v70 belong to builds merged in parallel.
+	{Version: 71, Name: "passwords older versions wrote into the activity log taken out", Up: scrubLogSecretFields},
 }
 
 // migratePresenters indexes people's own presenters (D273: one per short

@@ -21,7 +21,8 @@
   keeps or that the service accepts, a password it sets or that works. Before, whatever someone sent in a field named
   like a secret was hidden from every later entry, so a member could send a made-up "key" equal to an ordinary word —
   a person's email, say — and blank that word out of the log, and out of the log in every workspace export. Changing
-  your own password no longer leaves the current and the new password in the activity log.
+  your own password no longer leaves the current and the new password in the activity log, and the entries older
+  versions wrote with them are cleaned when this version updates the database (and in workspace exports).
 - **Abilities say what AI does to what they make**. An ability's manifest now says, for each kind of output, whether
   a generative AI model made it, changed it, only improved it, or no AI took part (`ai: {picture: made}`), and what an
   ability brings in carries that word. Content Credentials, the delivery's record, the quality check and the receipt

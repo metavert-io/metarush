@@ -145,7 +145,7 @@ history, and stays.
 | `late_looks` | as it is | the looks at an old database after the workspace moved, as history: when, from which computer, how much each found (never an address) |
 | `late_writes` | left out | copies of records written into an old database after the workspace moved, kept a short while for a person to carry over: about that old database only |
 | `linked_folders` | as it is | linked folders' shared records (where each folder is on a computer stays in that computer's settings) |
-| `log_entries` | as it is | the activity log (written without keys or passwords) |
+| `log_entries` | changed | the activity log (written without keys or passwords); passwords older versions wrote into an operation's entry as typed (`account.password`'s current and new) are taken out, as the database's own update does |
 | `looks` | as it is | looks of people and characters |
 | `motion_components` | as it is | motion graphics, their checks and who approved them |
 | `notifications` | as it is | each person's notifications |

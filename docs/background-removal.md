@@ -55,8 +55,8 @@ described as the clip's. It is derived media, like a fixed copy:
 - **never of someone else's video**: a reference (a video kept to learn from) is never cut out, and never shown behind
   people; neither is a picture taken from one.
 
-`metarush footage cut-outs <clip>` lists them; Settings → Storage's export keeps them (`mattes`), and clearing a
-project out leaves them with the footage.
+`metarush footage cut-outs <clip>` lists them; Settings → Storage's export keeps them (`mattes`), clearing a
+project out leaves them with the footage, and deleting the footage for good deletes them too.
 
 ## In the cut
 

@@ -122,7 +122,8 @@ Read `docs/architecture.md` before structural changes.
   channel); keys, cloning and recording are never offered to the assistant (`internal/assistant/voiceover.go`).
 - **Everything MetaRush does goes to the activity log** (`internal/logbook`, `log_entries`, D47–D51): `ops.Call`,
   job events, `internal/tools` runs, provider requests and Claude turns are recorded in the background and redacted
-  before anything is written (new secret kinds: register them, e.g. `logbook.RememberSecret`); prompts follow
+  before anything is written (new secret kinds: register them, e.g. `logbook.RememberSecret` — a value from a request
+  only once it is looked up and found real, never before, or a made-up one blanks that word out of the log); prompts follow
   `log.prompts` (workspace | local | off); log data is never written into repos, sync or project folders
   (`logbook.CheckOutput`); new operations need a plain phrase in `logbook/describe.go` (`opBase`).
 

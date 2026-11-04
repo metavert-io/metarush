@@ -252,12 +252,12 @@ func (e *extAPI) requireToken(next http.Handler) http.Handler {
 			writeErr(w, apperr.New(apperr.Unauthorized, "This browser isn't paired with MetaRush.").WithHint("Pair it in the extension with a code from Settings → Browser extension in MetaRush."))
 			return
 		}
-		e.s.App.Log.Secret(tok) // never in the activity log
 		b, err := browserext.Of(e.s.App).Verify(tok, r.Header.Get("Origin"), time.Now())
 		if err != nil {
 			writeErr(w, apperr.New(apperr.Unauthorized, "%s", err.Error()).WithHint("Pair it again with a code from Settings → Browser extension in MetaRush."))
 			return
 		}
+		e.s.App.Log.Secret(tok) // a pairing's token: never in the activity log (a made-up one is never taken for a secret)
 		// A pairing is its person's (D197): what the browser sends is theirs,
 		// and it stops while their account is turned off or removed (checked
 		// on every request, the way a sign-in is; unpairing itself still works).
@@ -321,7 +321,6 @@ func (e *extAPI) pair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a := e.s.App
-	a.Log.Secret(in.Code)
 	tok, b, err := browserext.Of(a).Pair(in.Code, r.Header.Get("Origin"), in.Name, in.Version, time.Now())
 	if err != nil {
 		reason := "code"
@@ -331,7 +330,7 @@ func (e *extAPI) pair(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, apperr.New(apperr.Unauthorized, "%s", err.Error()).WithDetails(map[string]any{"reason": reason}))
 		return
 	}
-	a.Log.Secret(tok)
+	a.Log.Secret(in.Code, tok) // a code that paired (a made-up one is never taken for a secret) and the new token
 	// The pairing is the person's who made the code (D197).
 	name, reason, ok := auth.MaySend(r.Context(), a, b.UserID)
 	if !ok {

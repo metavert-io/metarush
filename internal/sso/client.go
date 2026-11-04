@@ -433,13 +433,15 @@ type tokenAnswer struct {
 // Exchange trades the answer's code for the ID token (with the PKCE verifier,
 // and the client secret when the app has one) and checks the token. The
 // access and refresh tokens the provider may also send are dropped unread.
+// The code came in the browser's request, so it is kept out of the log only
+// once the provider takes it: a made-up one is never taken for a secret (it
+// would blank that word out of every later log entry).
 func (c *Client) Exchange(ctx context.Context, code, verifier, redirect, nonce string) (*Identity, error) {
 	d, err := c.Discover(ctx)
 	if err != nil {
 		return nil, err
 	}
-	logbook.RememberSecret(code)
-	logbook.RememberSecret(verifier)
+	logbook.RememberSecret(verifier) // ours, from the sign-in begun here
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("code", code)
@@ -490,6 +492,7 @@ func (c *Client) Exchange(ctx context.Context, code, verifier, redirect, nonce s
 		}
 		return nil, &Problem{Reason: "refused", Msg: "The sign-in provider didn't finish the sign-in.", Hint: "Sign in again; if it happens again, an owner checks the setup in Settings → People.", Detail: firstNonEmpty(t.Error, res.Status)}
 	}
+	logbook.RememberSecret(code) // the provider took it: a real code
 	logbook.ProviderDone(ctx, call, nil)
 	return c.Verify(ctx, d, t.IDToken, nonce)
 }

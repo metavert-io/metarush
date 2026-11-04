@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- **Changing your password keeps this browser signed in on a busy computer**. A new password signs you out
+  everywhere else and this browser carries on, but on a computer working hard MetaRush could misjudge the time by a
+  second or two and sign this browser out as well. It now asks the database for the time when they disagree.
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says

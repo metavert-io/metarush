@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowsLeftRight, FilmStrip, Info, MagnifyingGlass, Scissors, Trash, VideoCamera } from '@phosphor-icons/react';
+import { ArrowsLeftRight, FilmStrip, ImageSquare, Info, MagnifyingGlass, Scissors, Trash, VideoCamera } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { call, media, toApiError } from '../../api/client';
 import { useOp } from '../../api/queries';
@@ -17,6 +17,7 @@ import { loadPref, savePref } from '../../lib/theme';
 import { CropFraming, Layers, ReviewPanel } from '../CutReview';
 import { SourceInspector } from '../SourceInspector';
 import { ClipDetail, transitionWords } from '../Timeline';
+import { BackgroundDialog, backgroundWords, canReplaceBackground } from './BackgroundDialog';
 import { CallFixes } from './CallFixes';
 import { CutTranscript } from './CutTranscript';
 import { CopyStatus, PreviewSwitch, useCutCopies } from './ReviewCopy';
@@ -50,6 +51,7 @@ export function CutEditor({ data, onOpenSource, workspaceInstallations }: { data
   const live = useMemo(() => new Proxy({} as Editor, { get: (_, k) => (editorRef.current as unknown as Record<string | symbol, unknown>)[k] }), []);
   const dialog = useDialog();
   const toast = useToast();
+  const qc = useQueryClient();
   const assets = useMemo(() => new Map<string, AssetSummary>(data.assets.map((a) => [a.id, a])), [data.assets]);
   const musicLane = useMusicLane({ editor, projectId, assets });
   const preview = useRef<CutPreviewHandle>(null);
@@ -145,6 +147,40 @@ export function CutEditor({ data, onOpenSource, workspaceInstallations }: { data
       .then((applied) => {
         if (applied) toast({ tone: 'success', title: `${applied} into ${next}`, action: { label: 'Undo', onClick: () => live.undo() } });
       });
+  };
+
+  // A clip's background replaced (D510, D513): checked and saved by the server as a
+  // new version (its cut-out made first when it has none), with Undo.
+  const refreshCut = () => {
+    for (const key of ['project.show', 'project.list', 'revision.list', 'revision.show', 'cut.show', 'revision.plan']) void qc.invalidateQueries({ queryKey: [key] });
+  };
+  const putBackground = (clipId: string, base: string, before: Clip['background'] | undefined) =>
+    call('edit.apply', { plan: { baseRevisionId: base, origin: 'background:studio', instruction: 'Undo the background change', ops: [{ op: 'updateClip', id: clipId, set: { background: before ?? null } }] } })
+      .then(() => {
+        refreshCut();
+        toast({ title: 'Background put back' });
+      })
+      .catch((e: unknown) => toast({ tone: 'error', title: 'Not put back', body: toApiError(e).message }));
+  const openBackground = (c: Clip) => {
+    void dialog
+      .open<{ summary: string; revisionId: string; number: number; before?: Clip['background'] } | undefined>(
+        (close) => <BackgroundDialog projectId={projectId} clip={c} assets={assets} onDone={(r) => close(r)} />,
+        { title: c.background ? 'Change the background' : 'Replace the background', size: 'lg' },
+      )
+      .then((res) => {
+        if (!res) return;
+        refreshCut();
+        toast({ tone: 'success', title: 'Background replaced', body: `${res.summary} Saved as version ${res.number}.`, action: { label: 'Undo', onClick: () => void putBackground(c.id, res.revisionId, res.before) } });
+      });
+  };
+  const backgroundOff = (c: Clip) => {
+    const before = c.background;
+    call('cut.background', { projectId, clip: c.id, off: true })
+      .then((out) => {
+        refreshCut();
+        if (out.applied) toast({ title: 'Background taken out', body: out.summary, action: { label: 'Undo', onClick: () => void putBackground(c.id, out.applied!.revision.id, before) } });
+      })
+      .catch((e: unknown) => toast({ tone: 'error', title: 'Not changed', body: toApiError(e).message }));
   };
 
   // Footage into the cut: at the end, or at the playhead (a clip under it is split there).
@@ -286,6 +322,9 @@ export function CutEditor({ data, onOpenSource, workspaceInstallations }: { data
                 preview.current?.play();
               }}
               onTransition={openTransition}
+              dirty={editor.dirty}
+              onBackground={openBackground}
+              onBackgroundOff={backgroundOff}
               onRemove={(c) => {
                 const err = editor.apply(`Removed ${nameOf(c)}`, [{ op: 'removeClip', id: c.id }]);
                 if (err) toast({ tone: 'error', title: 'Not removed', body: err });
@@ -360,6 +399,9 @@ function ClipPanel({
   onPlayFrom,
   onTransition,
   onRemove,
+  dirty,
+  onBackground,
+  onBackgroundOff,
 }: {
   spec?: Spec;
   clip?: Clip;
@@ -370,6 +412,9 @@ function ClipPanel({
   onPlayFrom: (s: number) => void;
   onTransition: (clipId: string) => void;
   onRemove: (c: Clip) => void;
+  dirty?: boolean;
+  onBackground?: (c: Clip) => void;
+  onBackgroundOff?: (c: Clip) => void;
 }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -405,6 +450,24 @@ function ClipPanel({
         {i > 0 ? (
           <Button size="sm" variant="secondary" icon={<ArrowsLeftRight size={13} />} onClick={() => onTransition(clip.id)}>
             {way ? `Transition: ${way}` : 'Choose a transition in'}
+          </Button>
+        ) : null}
+        {onBackground && canReplaceBackground(clip, assets.get(clip.assetId)) ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<ImageSquare size={13} />}
+            disabled={clip.locked || dirty}
+            title={dirty ? 'Your changes are saving; then you can replace the background.' : 'Put a colour, a blur, a picture or another clip behind the people in this clip'}
+            onClick={() => onBackground(clip)}
+            data-replace-background
+          >
+            {clip.background ? `Background: ${backgroundWords(clip, assets)}` : 'Replace the background…'}
+          </Button>
+        ) : null}
+        {clip.background && onBackgroundOff ? (
+          <Button size="sm" variant="ghost" disabled={clip.locked || dirty} onClick={() => onBackgroundOff(clip)} data-background-off>
+            Take the background out
           </Button>
         ) : null}
         <Button size="sm" variant="ghost" icon={<Trash size={13} />} disabled={clip.locked || spec.clips.length < 2} onClick={() => onRemove(clip)}>

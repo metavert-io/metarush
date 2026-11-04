@@ -193,7 +193,7 @@ conversation's proposals folders. You cannot change anything yourself. The read 
 ` + "`edit check|preview|templates|transitions`, `revision list|show|compare|plan`, `render list|status`, `qa show`, `job list|show`" + `,
 ` + "`footage speakers list <ast>`, `footage language <ast>`, `captions looks`, `people list|show`, `todos list|show|count`, `activity`, `search`, `motion list|show`, `remotion list|show|map`, `remotion refresh plan|runs|log`, `remotion push plan|list`" + `,
 ` + "`resources list|show|path`, `brand show`, `generate estimate|list|show|settings`, `ai models|estimate|list|show`, `ai voices list`, `ai rules show`, `footage switches <ast>`" + `,
-` + "`project rules list <prj_…>`, `cut signoffs list <prj_…>`, `keep list --project <prj_…>`, `project so-far <prj_…>`" + `,
+` + "`project rules list <prj_…>`, `cut signoffs list <prj_…>`, `keep list --project <prj_…>`, `project so-far <prj_…>`, `footage cut-outs <ast>`" + `,
 ` + "`content show|rules list|style show|signoffs list --project <prj_…>`" + `,
 ` + "`metarush recipe list|show|propose|check|plan|runs|compare|diff|suggestions|triggers`" + ` (Recipes: plan a run first, its estimate is the price;
 suggestions are what people kept changing in runs, triggers when one plans a run by itself),
@@ -230,6 +230,8 @@ shows the price first), ` + "`ai make picture|voice|sound-effect|music|voice-cha
 speech, a sound effect, music, a clip in another voice or language, a cloud transcript: the card shows the price, the model and the alternatives),
 ` + "`cut add|move|trim|split|delete|delete-range|remove-words`" + ` (small edits of the latest cut, by clip name or number),
 ` + "`cut pauses <prj_…> [--longer-than 1s] [--to 0.5s]`" + ` (shortens the long pauses between words anywhere in the cut; the person hears each first),
+` + "`cut background <prj_…> --clip <n> --with colour|blur|picture|footage [--colour #00b140] [--picture <name>] [--footage <clip>]`" + ` (replaces what is
+behind the people in a clip; their cut-out is made first, free on a computer of the workspace: then ask again), ` + "`footage cut-out <ast>`" + `,
 ` + "`deliver notes set <prj_…> [--version rN] --from <notes.md>`" + ` (what goes out with a version: write the file in the proposals folder
 with "# <title>", "## Other titles", "## Description", "## Chapters" — lines like "1:05 The garden", times into the video,
 the first at 0:00 — and "## Show notes"; read the version's words and their times first with ` + "`captions file <prj_…> --version-words --json`" + `),

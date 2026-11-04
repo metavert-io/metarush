@@ -28,6 +28,10 @@ var commandOverrides = map[string]string{
 	"users.resetLink": "metarush users reset-password", // usersLinkCmd("reset-password", "users.resetLink", …)
 	"draft.decide":    "metarush draft approve",        // draftDecideCmd("approve" | "not-quite" | "turn-down")
 	"credentials.set": "metarush credentials on",       // credentialsModeCmd("on" | "required" | "off")
+	// A clip's cut-outs (D505): the commands say cut-out, as people write it.
+	"footage.cutout":         "metarush footage cut-out",
+	"footage.cutouts":        "metarush footage cut-outs",
+	"footage.cutout.preview": "metarush footage cut-out-preview",
 }
 
 const commandIndexFile = "../catalog/commands.json"

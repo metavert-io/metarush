@@ -286,8 +286,13 @@ func (m *Manager) describeAction(ctx context.Context, c *conv, call *cliCall, a 
 		a.Title = "Mark " + name + " as a reference"
 		a.Details = []string{"Someone else's video, kept to learn from: no cut plays it. If it's yours, say so on its page."}
 		setInput(a, "footage.reference", ops.FootageReferenceIn{AssetID: arg})
-	case "cut add", "cut move", "cut trim", "cut split", "cut delete", "cut delete-range", "cut remove-words", "cut pauses", "cut flashes", "cut names", "cut use-fixed", "content pack apply":
+	case "cut add", "cut move", "cut trim", "cut split", "cut delete", "cut delete-range", "cut remove-words", "cut pauses", "cut flashes", "cut names", "cut use-fixed", "content pack apply",
+		"cut background":
 		m.describeCutEdit(ctx, call, a)
+	case "footage cut-out": // a clip's cut-out (D505, background_actions.go)
+		m.describeFootageCutout(ctx, call, a)
+	case "footage cut-out-preview":
+		unavailable(a, "Show a still with the background replaced", "The still is written into a folder on this computer; the person sees it in Replace the background… on the clip in the Edit tab.")
 	case "qa run":
 		if !ids.Valid(ids.Render, arg) && !ids.Valid(ids.Revision, arg) {
 			incomplete(a, "Check a render for problems", "Claude did not name a render or revision.")

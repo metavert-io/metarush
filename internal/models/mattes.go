@@ -37,7 +37,7 @@ type Matte struct {
 	Fixed string `bson:"fixed,omitempty" json:"fixed,omitempty"`
 	// MediaKey and MediaSize locate the media in the media store.
 	MediaKey  string `bson:"mediaKey" json:"-"`
-	MediaSize int64  `bson:"mediaSize" json:"-"`
+	MediaSize int64  `bson:"mediaSize" json:"mediaSize,omitempty"`
 	// From and To are the stretch of the clip it covers, in seconds of the
 	// clip, from the frame showing at From to the one showing just before
 	// To; First is that first frame's number (0 the clip's first) and Frames

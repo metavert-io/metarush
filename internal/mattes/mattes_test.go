@@ -75,11 +75,17 @@ func setup(t *testing.T) *env {
 // model's "person").
 func (e *env) footage(t *testing.T, name string) *models.Asset {
 	t.Helper()
+	return e.footageOf(t, name, 2)
+}
+
+// footageOf is footage of its own length (other bytes: another clip).
+func (e *env) footageOf(t *testing.T, name string, seconds float64) *models.Asset {
+	t.Helper()
 	dir := filepath.Join(t.TempDir(), name)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	path := mattingtest.Footage(t, dir, 2, 320, 180, 25)
+	path := mattingtest.Footage(t, dir, seconds, 320, 180, 25)
 	named := filepath.Join(dir, name+".mp4")
 	if err := os.Rename(path, named); err != nil {
 		t.Fatal(err)

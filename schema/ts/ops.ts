@@ -1242,6 +1242,13 @@ input: CutApplyIn
 output: CutApplyOut
 }
 /**
+ * Replace the background behind the people in a clip of the latest version, for background removal in video: a colour, a blur of the clip itself, a picture or another clip, the people's edges softened; makes the clip's cut-out first when it has none (free on a computer of the workspace; a service elsewhere only at an agreed price); dryRun checks it and gives a confirm token; off takes it out again
+ */
+"cut.background": {
+input: CutBackgroundIn
+output: CutBackgroundOut
+}
+/**
  * Choose how the latest version's captions look: one of the vetted looks, their size and place, the words per line, on or off; dryRun checks it and gives a confirm token
  */
 "cut.captions": {
@@ -6761,7 +6768,7 @@ summary: string
  * via the `definition` "LocalIn".
  */
 export interface LocalIn {
-kind?: ("" | "voice" | "transcription" | "background-removal" | "upscale")
+kind?: ("" | "voice" | "transcription" | "background-removal" | "upscale" | "video-background")
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -16506,6 +16513,198 @@ sheetUrl: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutBackgroundIn".
+ */
+export interface CutBackgroundIn {
+/**
+ * Project ID or its exact name.
+ */
+projectId: string
+/**
+ * Default main.
+ */
+branch?: string
+/**
+ * Only check: the change in plain words, warnings and a confirm token.
+ */
+dryRun?: boolean
+/**
+ * The token from a dry run of exactly this change.
+ */
+confirmToken?: string
+/**
+ * What was asked (recorded with the new version).
+ */
+instruction?: string
+rationale?: string
+/**
+ * Permit changing locked clips. Only when the person explicitly asked.
+ */
+allowUnlock?: boolean
+/**
+ * The clip: its name in the cut (hook) or its number (1 = the first).
+ */
+clip: string
+/**
+ * What shows behind the people: a colour, a blur of the clip itself, a picture or another clip (default: what the clip has, else a blur).
+ */
+with?: ("" | "colour" | "blur" | "picture" | "footage")
+/**
+ * With colour: #rrggbb.
+ */
+colour?: string
+/**
+ * With blur: how strong (pixels on a 1080 picture; default 28).
+ */
+blur?: number
+/**
+ * With picture: a picture from the resources library (its short name; name#3 for a PDF's page).
+ */
+picture?: string
+/**
+ * With footage: the clip to show behind (its name, file name or ID).
+ */
+footage?: string
+/**
+ * With footage: where in that clip it starts, in seconds.
+ */
+footageAt?: number
+/**
+ * How soft the people's edges are (pixels on a 1080 picture; default 2).
+ */
+feather?: number
+/**
+ * Take the replaced background out: the clip plays as recorded again.
+ */
+off?: boolean
+/**
+ * The model that makes the clip's cut-out when it needs one (local/apple-vision, local/modnet); default: the usual one where it can run.
+ */
+model?: string
+/**
+ * For a cut-out made by a service elsewhere: the most you agree to pay, in US dollars.
+ */
+maxUsd?: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutBackgroundOut".
+ */
+export interface CutBackgroundOut {
+projectId: string
+branch: string
+/**
+ * The change in one plain sentence.
+ */
+summary: string
+/**
+ * What changes, in plain words (as a cut sheet check lists them).
+ */
+changes: string[]
+durationBefore: number
+/**
+ * The video's length after the change (seconds).
+ */
+duration: number
+noChange: boolean
+/**
+ * The change is in the cut as a new version.
+ */
+saved: boolean
+/**
+ * Problems (errors) and notes (warnings) about the change, in plain words.
+ */
+problems: Problem[]
+/**
+ * remove-words: the stretches taken out, or with cleanup the suggestions (numbered from 1 in this order).
+ */
+removals?: WordRemoval[]
+/**
+ * The edit plan (typed ops against the latest version).
+ */
+plan: {
+
+}
+check?: EditCheckOut
+applied?: EditApplyOut
+/**
+ * The clip's name in the cut.
+ */
+clip: string
+was: string
+now: string
+cutout?: CutoutOut
+waiting: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutoutOut".
+ */
+export interface CutoutOut {
+matte: CutoutView
+reused: boolean
+jobId?: string
+dryRun?: boolean
+/**
+ * About how long making it takes, in seconds.
+ */
+seconds?: number
+here: boolean
+estimate?: AIEstimate
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CutoutView".
+ */
+export interface CutoutView {
+id: string
+assetId: string
+/**
+ * The clip's name.
+ */
+clip: string
+projectId?: string
+state: ("waiting" | "making" | "ready" | "failed" | "stopped")
+words: string
+part: string
+from: number
+to: number
+frames?: number
+rate?: string
+fixed?: string
+provider: string
+providerTitle: string
+model: string
+modelTitle: string
+choice?: string
+sha256?: string
+size?: number
+measures?: MatteMeasures
+/**
+ * The computer that made it.
+ */
+madeOn?: string
+jobId?: string
+pct?: number
+error?: string
+generationId?: string
+createdAt: string
+readyAt?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "MatteMeasures".
+ */
+export interface MatteMeasures {
+seconds: number
+msPerFrame: number
+people: number
+flickerBefore: number
+flickerAfter: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "CutCaptionsIn".
  */
 export interface CutCaptionsIn {
@@ -19764,73 +19963,6 @@ maxUsd?: number
  * Say what it would use and how long it would take; nothing is made.
  */
 dryRun?: boolean
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "CutoutOut".
- */
-export interface CutoutOut {
-matte: CutoutView
-reused: boolean
-jobId?: string
-dryRun?: boolean
-/**
- * About how long making it takes, in seconds.
- */
-seconds?: number
-here: boolean
-estimate?: AIEstimate
-summary: string
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "CutoutView".
- */
-export interface CutoutView {
-id: string
-assetId: string
-/**
- * The clip's name.
- */
-clip: string
-projectId?: string
-state: ("waiting" | "making" | "ready" | "failed" | "stopped")
-words: string
-part: string
-from: number
-to: number
-frames?: number
-rate?: string
-fixed?: string
-provider: string
-providerTitle: string
-model: string
-modelTitle: string
-choice?: string
-sha256?: string
-size?: number
-measures?: MatteMeasures
-/**
- * The computer that made it.
- */
-madeOn?: string
-jobId?: string
-pct?: number
-error?: string
-generationId?: string
-createdAt: string
-readyAt?: string
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "MatteMeasures".
- */
-export interface MatteMeasures {
-seconds: number
-msPerFrame: number
-people: number
-flickerBefore: number
-flickerAfter: number
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema

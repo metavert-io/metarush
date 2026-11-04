@@ -15,10 +15,20 @@ import { framingStyle } from './framing';
  * cut's frames), its edges softened (`feather`).
  */
 
+/**
+ * Whether this browser shows a video's see-through parts: Safari plays VP9
+ * but not its alpha channel, so there the preview plays the clip as recorded
+ * (renders draw in Chrome, the review copy shows the new background).
+ */
+export const seeThroughVideo = (): boolean => {
+  if (getRemotionEnvironment().isRendering || typeof navigator === 'undefined') return true;
+  return !/^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
+};
+
 /** The clip's cut-out file, when the plan has its URL (the preview may not yet). */
 export const cutOutSrc = (clip: PlanClip, plan: RenderPlan): string | undefined => {
   const bg = clip.background;
-  if (!bg?.cutOut) return undefined;
+  if (!bg?.cutOut || !seeThroughVideo()) return undefined;
   const url = plan.cutOutSources?.[bg.cutOut];
   return typeof url === 'string' && url.length > 0 ? url : undefined;
 };

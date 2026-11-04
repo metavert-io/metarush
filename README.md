@@ -682,6 +682,15 @@ the notes and reasons behind each cut ([docs/cut-sheet.md](docs/cut-sheet.md)).
   (following the subject when you ask) with captions on, approved like any cut
   (`metarush footage short <project> --clip <ast> --from --to`).
 
+### A new background behind the people
+- **Replace the background…** on a clip in the Edit tab puts a colour, a blur of the clip itself, a picture or another
+  clip behind the people in it, their edges softened, with a still to check it first. MetaRush finds the people frame by
+  frame once — the clip's **cut-out**, made on any computer of the workspace that can (Apple Vision on a Mac, the open
+  MODNet model elsewhere): free, and nothing leaves it — and every cut, the preview and the render play it the same way.
+  From a terminal: `metarush footage cut-out <clip> --wait` and `metarush cut background <project> --clip 2 --with
+  colour --colour '#00b140'`. Content Credentials and the quality check say where it was done
+  ([docs/background-removal.md](docs/background-removal.md)).
+
 ### Narration and mixing
 Write or import a voiceover script and place each line the way you would say it: when a shot starts, at a moment in
 the footage ("right after she laughs"), after the previous line, or at an exact time; lines tied to shots move with
@@ -1503,6 +1512,8 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush cut framing <project> follow\|faces\|center [--clip 3]` | how crops are framed: follow the subject as it moves, keep faces in frame, or keep the middle (the whole cut or one clip; shows the change first) |
 | `metarush footage short <project> --clip <asset> --from 0:12 --to 0:41 [--piece <asset>@<from>-<to> …] [--name …] [--look bold] [--framing follow\|faces\|center] [--shape vertical\|square]` | a short from any footage: a new cut for phones, the crop following the subject, captions on (shows it first; approved like any cut) |
 | `metarush cut captions <project> [--look bold] [--size large] [--position top] [--words-per-line 3] [--on\|--off]` / `captions looks [--project <p>]` | how the cut's captions look (six vetted looks; shows the change first); the looks and the house style's |
+| `metarush cut background <project> --clip 2 --with blur\|colour\|picture\|footage [--colour '#00b140'] [--picture beach] [--footage <clip> --footage-at 0:04] [--edges 2] [--off] [--wait]` | put something else behind the people in a clip (its cut-out made first when it has none; shows the change first) |
+| `metarush footage cut-out <clip> [--range 0:12-0:40] [--model local/modnet] [--wait]` · `footage cut-outs <clip>` · `footage cut-out-preview <clip> --at 0:03 --with colour --colour '#00b140'` | a clip's cut-out (the people told from their background, made once on a computer that can), its cut-outs, and a still of one moment with a new background |
 | `metarush cut move <project> kitchen start` · `cut trim <project> 2 --end -0.5` (`--roll`, `--slip 0.3`) · `cut split <project> hook '"what would"'` | move, trim or split one clip (named as in the cut sheet, or by number); shows the change first, the same command with `--confirm <token>` saves it |
 | `metarush cut add <project> interview 0:12 0:18 --after hook` · `cut delete <project> broll` · `cut delete-range <project> 0:10 0:14` | put footage in; take clips, or a stretch of the video, out (the rest closes up) |
 | `metarush cut remove-words <project> "um, anyway"` (`--which 2`, `--all`) · `cut remove-words <project> --ums` (`--pick 1,3`) | take words out, cutting in the pauses around them; suggested ums, repeated words and false starts |

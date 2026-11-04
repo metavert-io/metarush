@@ -32,6 +32,8 @@ var cutEditOps = map[string]struct{ op, title string }{
 	"cut use-fixed": {"cut.useFixed", "Use a fixed copy in the cut"},
 	// The layout pack on the latest cut (D264).
 	"content pack apply": {"content.pack.apply", "Use the layout pack on the latest cut"},
+	// A clip's background replaced (D510).
+	"cut background": {"cut.background", "Replace a clip's background"},
 }
 
 // isCutEditOp reports whether an op is one of the editing verbs.
@@ -68,6 +70,8 @@ func cutEditInput(call *cliCall) (any, bool) {
 		return ""
 	}
 	switch call.Path {
+	case "cut background":
+		return backgroundInput(c, call)
 	case "cut add":
 		if len(args) < 2 {
 			return nil, false

@@ -167,6 +167,9 @@ var autoOps = map[string]bool{
 	"delivery.notes.set": true,
 	// Captions in other languages (D238): kept line by line, taken off again.
 	"captions.translate": true,
+	// A clip's background replaced and its cut-out (D510, D512): only made on a
+	// computer of the workspace (see autoStep).
+	"cut.background": true, "footage.cutout": true,
 }
 
 // pricedOps are changes that use a paid outside AI service (D208). Auto runs
@@ -218,6 +221,14 @@ func (c *conv) autoStep(a *AssistantAction) bool {
 		// short that asks for it waits for a click.
 		var in ops.FootageShortIn
 		return json.Unmarshal([]byte(a.Input), &in) == nil && in.Framing != editspec.FramingFollow
+	case "cut.background", "footage.cutout":
+		// Never by itself when the clip would leave for a service elsewhere
+		// (D512): only a model on a computer of the workspace, and no price.
+		var in struct {
+			Model  string   `json:"model"`
+			MaxUSD *float64 `json:"maxUsd"`
+		}
+		return json.Unmarshal([]byte(a.Input), &in) == nil && in.MaxUSD == nil && (in.Model == "" || strings.HasPrefix(in.Model, "local/"))
 	}
 	return true
 }

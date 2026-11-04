@@ -14,6 +14,7 @@ sign up for:
 | Dubs | — | ElevenLabs dubbing | Sources, as a new clip (the picture kept, the sound dubbed) |
 | Transcripts in the cloud (on request) | Gemini 3.5 Transcribe | Scribe v2 | the clip's words |
 | A picture's background taken away | — | — | the resources library (on this computer: Apple Vision on a Mac, BiRefNet elsewhere) |
+| A clip's people cut out, for a new background ([background-removal.md](background-removal.md)) | — | — | the clip's cut-out, which cuts play (on a computer of the workspace: Apple Vision on a Mac, MODNet elsewhere) |
 | A picture made larger | — | — | the resources library (on this computer: Real-ESRGAN) |
 | Lip sync (with consent) | — | — | Sources, as a clip (sync., its own key: lipsync-2, lipsync-2-pro, sync-3) |
 

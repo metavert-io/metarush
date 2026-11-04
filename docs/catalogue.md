@@ -203,7 +203,7 @@ Generated from `firstparty.json` (a test keeps this list naming every ID).
 | `video-links` | Videos from links | `ingest.url` | FFmpeg, yt-dlp | — |
 | `web-pages` | Web pages | `resources.fetch` `as: "page"` | Node.js and FFmpeg | — |
 
-### Shape the cut (10)
+### Shape the cut (11)
 
 | ID | Ability | Runs | Needs | What leaves |
 |---|---|---|---|---|
@@ -214,6 +214,7 @@ Generated from `firstparty.json` (a test keeps this list naming every ID).
 | `find-and-replace` | Find and replace in transcripts | `transcript.replace` | — | — |
 | `matched-webcams` | Matched webcams | `conversation.match` | FFmpeg | — |
 | `remove-ums` | Remove ums | `cut.removeWords` `cleanup: true` | the transcriber, FFmpeg | — |
+| `replace-background` | Replace a clip's background | `cut.background` | FFmpeg, a Mac or the video cut-out model (Replacing a video's background) | — |
 | `shorts` | Shorts | `footage.short` | FFmpeg | — |
 | `tighten-pauses` | Tighten pauses | `cut.pauses` | the transcriber, FFmpeg | — |
 | `trim-flashes` | Trim flashes | `cut.flashes` | FFmpeg | — |

@@ -51,7 +51,7 @@ func NewBroker(a *app.App) *Broker { return &Broker{a: a, subs: map[chan Event]b
 var watched = []string{store.CJobs, store.CAssets, store.CRevisions, store.CRenders, store.CProjects, store.CComments, store.CWorkers, store.CIngest,
 	store.CNotifications, store.CQAReports, store.CTodos, store.CSpeakers, store.CPeople, store.CResources, store.CLinkedFolders, store.CProjectLinks,
 	store.CCollections, store.CGenerations, store.CLooks, store.CConsents, store.CRemotionSources, store.CRemotionVersions, store.CRemotionRenders, store.CSpelling, store.CContentSettings, store.CContentDefaults,
-	store.CRecipes, store.CRecipeVersions, store.CRecipeRuns, store.CDrafts, store.CPresenters, store.CReviewLinks}
+	store.CRecipes, store.CRecipeVersions, store.CRecipeRuns, store.CDrafts, store.CPresenters, store.CReviewLinks, store.CMattes}
 
 // leaseOnly reports whether an update only took or gave back a run's lease
 // (store.CRecipeRuns: the engine's every look; store.CReviewLinks: a look
@@ -208,6 +208,8 @@ var polled = []struct {
 	{coll: store.CDrafts, stamps: []string{"createdAt", "decision.at", "tried.at"}},
 	// Review links (D314, D315): one made or ended, or comments came in.
 	{coll: store.CReviewLinks, stamps: []string{"createdAt", "endedAt", "lastCommentAt"}},
+	// Clips' cut-outs (D505): one asked for, made, failed or stopped.
+	{coll: store.CMattes, stamps: []string{"updatedAt"}},
 }
 
 // stampsOf says a record's stamps, to tell whether any moved.

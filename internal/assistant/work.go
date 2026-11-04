@@ -18,6 +18,7 @@ import (
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/linkimport"
 	"github.com/metavert-io/metarush/internal/links"
+	"github.com/metavert-io/metarush/internal/mattes"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
@@ -98,6 +99,10 @@ func (m *Manager) workFor(ctx context.Context, res any) *ActionWork {
 	switch o := res.(type) {
 	case *ops.RenderOut:
 		return renderWork(o, renderWhat(o.Render))
+	case *mattes.CutBackgroundOut: // a clip's cut-out being made for its new background (D510)
+		return backgroundWork(o)
+	case *mattes.CutoutOut:
+		return cutoutWork(o, o.Matte.ProjectID)
 	case *ops.QARunOut:
 		if o.Report != nil || o.Job == nil {
 			return nil // it had been checked already: the card says how it went

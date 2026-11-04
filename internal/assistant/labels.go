@@ -163,6 +163,17 @@ func (p *parser) bashLabel(c *cliCall, raw string) string {
 		return "Checked whether clips get looked at"
 	case "footage what-it-does": // D399
 		return "Read what " + p.thing(arg, "the video") + " does"
+	case "footage cut-outs": // D505
+		return "Looked at the cut-outs of " + p.thing(arg, "the clip")
+	case "footage cut-out":
+		return "Asked to cut the people out of " + p.thing(arg, "the clip")
+	case "footage cut-out-preview":
+		return "Asked for a still of " + p.thing(arg, "the clip") + " with its background replaced"
+	case "cut background": // D510
+		if hasBool(c, "off") {
+			return "Asked to take a clip's new background out"
+		}
+		return "Asked to replace a clip's background"
 	case "footage reference": // D398
 		if hasBool(c, "mine") {
 			return "Asked to say a video is someone's own"

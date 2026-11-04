@@ -29,7 +29,7 @@ import (
 )
 
 // Version identifies the check set and thresholds (part of the job idempotency key).
-const Version = "qa-7" // qa-2: narration checks and speech continuity; qa-3: transitions, split edits and loudness at cuts; qa-4: conversations; qa-5: what's on screen (faces cut off, covered, text under captions); qa-6: call footage (flashes at clip edges, printed names, the name bar) and the project's rules; qa-7: promises made to the client (D300)
+const Version = "qa-8" // qa-2: narration checks and speech continuity; qa-3: transitions, split edits and loudness at cuts; qa-4: conversations; qa-5: what's on screen (faces cut off, covered, text under captions); qa-6: call footage (flashes at clip edges, printed names, the name bar) and the project's rules; qa-7: promises made to the client (D300); qa-8: clips' replaced backgrounds (D510)
 
 // Detector thresholds. They are recorded in each report's checks.
 const (
@@ -148,6 +148,10 @@ type Input struct {
 	// MotionShapes are the motion graphics the render shows in a shape they
 	// were never drawn in (D379: editspec.MotionShapeGaps at the render's size).
 	MotionShapes []editspec.MotionShapeGap
+	// Mattes says what the clips' cut-outs the cut plays are now (D510:
+	// editspec.MatteFacts' answer; nil: the check only notes where the
+	// background is replaced).
+	Mattes func(sha string) (editspec.MatteInfo, bool)
 }
 
 // ResourceCredit is what QA knows about a resource a cut shows.
@@ -204,6 +208,7 @@ func Analyze(ctx context.Context, t *tools.Set, in Input) (*models.QAReport, err
 	r.onScreen(ctx)
 	r.outsideFootage()
 	r.aiGenerated()
+	r.backgrounds()
 	r.changedWords()
 	r.captionWords()
 	r.clearerVoices()

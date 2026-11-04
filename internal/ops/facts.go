@@ -43,6 +43,8 @@ type dbFacts struct {
 	switches     map[string]*editspec.FootageShots
 	// fixed are the fixed copies the spec pins, by asset (D152).
 	fixed map[string]*models.SourceCopy
+	// mattes are the clips' cut-outs the spec pins, by their files' SHA-256 (D510).
+	mattes map[string]editspec.MatteInfo
 }
 
 // Beats implements editspec.MusicFacts: the beats found when music was added.
@@ -251,6 +253,13 @@ func loadFactsWith(ctx context.Context, a *app.App, projectID string, view *proj
 	}
 	if f.nested, err = loadNested(ctx, a, projectID, view, s, depth, chain); err != nil {
 		return nil, err
+	}
+	if shas := editspec.MatteSHAs(s); len(shas) > 0 {
+		ms, err := LoadMattes(ctx, a, shas)
+		if err != nil {
+			return nil, err
+		}
+		f.mattes = matteInfos(ms)
 	}
 	ids := specAssetIDs(s)
 	if len(ids) == 0 {

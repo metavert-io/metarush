@@ -53,13 +53,57 @@ func LoadRenderExtras(ctx context.Context, a *app.App, s *editspec.Spec) (*Rende
 	if err != nil {
 		return nil, err
 	}
-	return &RenderExtras{res: res, nested: nested}, nil
+	mattes, err := LoadMattes(ctx, a, editspec.MatteSHAs(s))
+	if err != nil {
+		return nil, err
+	}
+	return &RenderExtras{res: res, nested: nested, mattes: mattes}, nil
 }
 
-// RenderExtras answers editspec.ResourceFacts and editspec.NestedFacts for renders.
+// RenderExtras answers editspec.ResourceFacts, editspec.NestedFacts and
+// editspec.MatteFacts for renders.
 type RenderExtras struct {
 	res    *resourceFacts
 	nested *nestedFacts
+	mattes map[string]*models.Matte
+}
+
+// Matte implements editspec.MatteFacts: a cut-out the cut pins (D510).
+func (x *RenderExtras) Matte(sha string) (editspec.MatteInfo, bool) {
+	if x == nil {
+		return editspec.MatteInfo{}, false
+	}
+	if m, ok := x.mattes[sha]; ok {
+		return MatteInfoOf(m), true
+	}
+	return editspec.MatteInfo{}, false
+}
+
+// CutOuts reads the cut-out files a plan plays, nested cuts' included, to
+// fetch for the renderer (D510).
+func (x *RenderExtras) CutOuts(ctx context.Context, a *app.App, plan *editspec.RenderPlan) (map[string]*models.Matte, error) {
+	shas := editspec.PlanCutOuts(plan)
+	out := map[string]*models.Matte{}
+	var missing []string
+	for _, sha := range shas {
+		if x != nil {
+			if m, ok := x.mattes[sha]; ok {
+				out[sha] = m
+				continue
+			}
+		}
+		missing = append(missing, sha)
+	}
+	if len(missing) > 0 {
+		more, err := LoadMattes(ctx, a, missing)
+		if err != nil {
+			return nil, err
+		}
+		for sha, m := range more {
+			out[sha] = m
+		}
+	}
+	return out, nil
 }
 
 // Resource implements editspec.ResourceFacts.

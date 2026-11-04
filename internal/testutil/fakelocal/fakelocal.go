@@ -25,6 +25,8 @@ import (
 	"github.com/metavert-io/metarush/internal/aiservices/local"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/localmodels"
+	"github.com/metavert-io/metarush/internal/matting"
+	"github.com/metavert-io/metarush/internal/matting/mattingtest"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/transcribe"
@@ -175,4 +177,17 @@ func Hearing(t testing.TB) {
 	old := local.Recognizer
 	local.Recognizer = func(aiservices.Env, string, string) (transcribe.Provider, error) { return Recognizer{}, nil }
 	t.Cleanup(func() { local.Recognizer = old })
+}
+
+// Matter stands in the models that find the people in footage (both Apple
+// Vision's and MODNet, D505): the person is what is bright, as
+// mattingtest's model says. It returns the model, to count what it saw.
+func Matter(t testing.TB) *mattingtest.Model {
+	t.Helper()
+	oldReady, oldMatter := local.MatterReady, local.Matter
+	t.Cleanup(func() { local.MatterReady, local.Matter = oldReady, oldMatter })
+	m := mattingtest.New()
+	local.MatterReady = func(aiservices.Env, string) error { return nil }
+	local.Matter = func(aiservices.Env, string) (matting.Model, error) { return m, nil }
+	return m
 }

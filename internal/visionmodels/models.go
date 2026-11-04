@@ -49,6 +49,8 @@ type File struct {
 const (
 	PartIndex  = "index"
 	PartCutOut = "cut-out"
+	// PartMatte tells people from their background in footage (D506).
+	PartMatte = "matte"
 )
 
 // Where publishers send their downloads.
@@ -74,6 +76,12 @@ var (
 //   - BiRefNet's general model on the Swin-T backbone (the BiRefNet
 //     repository's LICENSE is MIT), from its own release v1 (no digest
 //     stated: measured).
+//   - MODNet's portrait matting model (its repository's README: "The code,
+//     models, and demos in this repository ... are released under the Apache
+//     License 2.0"; read at commit 28165a45), as exported to ONNX for
+//     Transformers.js on Hugging Face (Xenova/modnet, model card: license
+//     apache-2.0), at a pinned revision, by Hugging Face's stated LFS digest
+//     (D506).
 //
 // None is GPL or for non-commercial use only. What the models were trained on
 // is their publishers' (WIDER Face; PaddleOCR's text sets; DUTS; DIS5K and
@@ -112,6 +120,12 @@ var Files = []File{
 		SHA256: "5600024376f572a557870a5eb0afb1e5961636bef4e1e22132025467d0f03333", Bytes: 224005088,
 		Licence: "MIT", LicenceURL: "https://github.com/ZhengPeng7/BiRefNet/blob/main/LICENSE",
 		Hosts: githubAssets, Part: PartCutOut},
+	{ID: "video-cut-outs", Title: "MODNet", What: "tells the people in footage from their background",
+		Name:   "modnet-portrait-matting.onnx",
+		URL:    "https://huggingface.co/Xenova/modnet/resolve/fa2fa546052fba4c08921230a26cc69a333fca12/onnx/model.onnx",
+		SHA256: "07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9", Bytes: 25888640,
+		Licence: "Apache-2.0 (MODNet's code and models; the ONNX export is Xenova's for Transformers.js, Apache-2.0)", LicenceURL: "https://github.com/ZHKKKe/MODNet/blob/28165a451e4610c9d77cfdf925a94610bb2810fb/README.md#license",
+		Hosts: hfCDN, Part: PartMatte},
 }
 
 // Folder is the models folder's subfolder these files go in.
@@ -236,6 +250,14 @@ func (s Store) IndexPaths() Paths {
 // CutOutPath is the subject model's file in this store.
 func (s Store) CutOutPath() string {
 	if f, ok := s.ByID("cut-outs"); ok {
+		return s.Path(f)
+	}
+	return ""
+}
+
+// MattePath is the matting model's file in this store.
+func (s Store) MattePath() string {
+	if f, ok := s.ByID("video-cut-outs"); ok {
 		return s.Path(f)
 	}
 	return ""

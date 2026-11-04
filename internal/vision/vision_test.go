@@ -1,8 +1,10 @@
 package vision
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -161,5 +163,68 @@ func TestCopyFileAtOnce(t *testing.T) {
 	left, _ := filepath.Glob(dst + ".*.tmp")
 	if len(left) > 0 {
 		t.Fatalf("temporary files left behind: %v", left)
+	}
+}
+
+// segmentHelper is a stand-in metarush-vision whose segment command answers
+// each frame's matte as all zeros (frames of w×h×4 in, w×h out; it reads
+// them all before it answers) and records its arguments.
+func segmentHelper(t *testing.T, protocol string) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	p, args := filepath.Join(dir, "metarush-vision"), filepath.Join(dir, "args")
+	script := "#!/bin/sh\ncase \"$1\" in\n  --version) echo 'metarush-vision " + protocol + " macOS 26.5';;\n" +
+		"  segment) echo \"$@\" > '" + args + "'; w=$3; h=$5; n=$(( $(wc -c | tr -d ' ') / (w*h*4) )); i=0\n" +
+		"    while [ $i -lt $n ]; do head -c $((w*h)) /dev/zero; i=$((i+1)); done;;\n" +
+		"  *) exit 2;;\nesac\n"
+	if err := os.WriteFile(p, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return p, args
+}
+
+// Telling people from their background is protocol 3's (D507): a helper of
+// protocol 3 is asked frame by frame through standard input and output; an
+// older one is still ready for the index but says it must be built again.
+func TestSegmentIsProtocolThrees(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		if err := Segment(context.Background(), tools.New(config.Tools{}), 32, 32, "", strings.NewReader(""), io.Discard); !errors.Is(err, ErrNotMac) {
+			t.Fatalf("off a Mac: %v", err)
+		}
+		return
+	}
+	helper, argsFile := segmentHelper(t, Protocol)
+	ts := tools.New(config.Tools{Vision: helper})
+	if !CanSegment(context.Background(), ts) || !Rich(context.Background(), ts) {
+		t.Fatal("a protocol 3 helper can't segment")
+	}
+	in := bytes.NewReader(make([]byte, 32*16*4*3))
+	var out bytes.Buffer
+	if err := Segment(context.Background(), ts, 32, 16, SegmentBalanced, in, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Len() != 32*16*3 {
+		t.Fatalf("mattes of %d bytes for three frames", out.Len())
+	}
+	if b, _ := os.ReadFile(argsFile); strings.TrimSpace(string(b)) != "segment --width 32 --height 16 --quality balanced" {
+		t.Fatalf("arguments %q", b)
+	}
+	if err := Segment(context.Background(), ts, 32, 16, "sharpest", in, &out); err == nil {
+		t.Fatal("an unknown quality was asked for")
+	}
+	if err := Segment(context.Background(), ts, 8, 8, "", in, &out); err == nil {
+		t.Fatal("frames too small were segmented")
+	}
+	two, _ := segmentHelper(t, "2")
+	older := tools.New(config.Tools{Vision: two})
+	st := Check(context.Background(), older)
+	if !st.Ready || !st.Stale || !strings.Contains(st.Text, "background") || CanSegment(context.Background(), older) || !Rich(context.Background(), older) {
+		t.Fatalf("a protocol 2 helper: %+v", st)
+	}
+	if err := Segment(context.Background(), older, 32, 16, "", in, &out); err == nil || !strings.Contains(err.Error(), "older MetaRush") {
+		t.Fatalf("a protocol 2 helper segmented: %v", err)
+	}
+	if err := Segment(context.Background(), tools.New(config.Tools{Vision: filepath.Join(t.TempDir(), "none")}), 32, 16, "", in, &out); err == nil {
+		t.Fatal("no helper, yet it segmented")
 	}
 }

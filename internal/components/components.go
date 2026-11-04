@@ -216,6 +216,7 @@ var aliases = map[string]string{
 	"rclone": "google-drive", "d2": "diagrams", "gh": "github", "bubblewrap": "sandbox", "espeak-ng": "stand-in-voice",
 	"claude": "claude-code", "vision": "screen-index", "metarush-vision": "screen-index", "deepfilternet": "clean-voice",
 	"open-models": "screen-index", "on-screen": "screen-index", "birefnet": "cut-outs", "cut-out": "cut-outs", "subject": "cut-outs",
+	"modnet": "video-cut-outs", "matte": "video-cut-outs", "background": "video-cut-outs", "green-screen": "video-cut-outs",
 }
 
 // Optional lists the optional components for this computer's system.

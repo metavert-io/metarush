@@ -333,6 +333,9 @@ type Output struct {
 	// of work does (an ability, by its manifest; D460): made, edited or
 	// enhanced; "" the kind decides.
 	Work string `json:"work,omitempty"`
+	// Measures are what making it measured on this computer (a clip's
+	// matte: frames, time per frame, how much its edges flickered).
+	Measures map[string]float64 `json:"measures,omitempty"`
 }
 
 // Delivery is how an output arrives: inline, uri, transcript or voice.

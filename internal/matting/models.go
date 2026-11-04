@@ -129,3 +129,7 @@ func (s *modnetStream) Close() error { return nil }
 // ErrNoModel: no model that tells people from their background is set up on
 // this computer.
 var ErrNoModel = errors.New("no model that tells people from their background is set up on this computer")
+
+// Component is the component that adds MODNet to a computer (Settings →
+// Components, D506); on a Mac Apple Vision does it, with the on-screen helper.
+const Component = "video-cut-outs"

@@ -215,3 +215,19 @@ func Subject(t testing.TB, dir string) string {
 	b := modelOf(nodes, inits, valueInfo("input_image", []int64{1, 3, 1024, 1024}), valueInfo("output_image", []int64{1, 1, 1024, 1024}))
 	return write(t, dir, "subject.onnx", b)
 }
+
+// Matte writes a stand-in for MODNet (input "input", 1×3×H×W of any size,
+// red, green and blue at −1…1; output "output", 1×1×H×W, how much of each
+// pixel is a person, 0–1): the person is what is bright, with soft edges
+// where the picture is grey.
+func Matte(t testing.TB, dir string) string {
+	t.Helper()
+	nodes := []node{
+		brightness("input", "bright"),
+		{op: "Mul", in: []string{"bright", "gain"}, out: []string{"logit"}},
+		{op: "Sigmoid", in: []string{"logit"}, out: []string{"output"}},
+	}
+	inits := [][]byte{floatTensor("gain", []int64{1}, []float32{8})}
+	b := modelOf(nodes, inits, valueInfoOwn("input", []int64{1, 3, -1, -1}), valueInfoOwn("output", []int64{1, 1, -1, -1}))
+	return write(t, dir, "matte.onnx", b)
+}

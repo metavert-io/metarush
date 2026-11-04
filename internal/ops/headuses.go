@@ -32,11 +32,37 @@ func HeadsUsing(ctx context.Context, a *app.App, assetID string) ([]HeadUse, err
 	return headsUsing(ctx, a, assetID, false)
 }
 
-// HeadsPlaying is HeadsUsing plus the cuts whose latest version nests a cut
-// that plays the asset, at any depth: what a reference (someone else's video,
-// D398, D440) must not be in.
+// HeadsPlaying is HeadsUsing plus the cuts whose latest version shows a
+// picture taken from the asset (D457) or nests a cut that plays or shows it,
+// at any depth: what a reference (someone else's video, D398, D440) must not
+// be in.
 func HeadsPlaying(ctx context.Context, a *app.App, assetID string) ([]HeadUse, error) {
 	return headsUsing(ctx, a, assetID, true)
+}
+
+// framesOf are the pictures with a version taken from a clip (D457).
+func framesOf(ctx context.Context, a *app.App, assetID string) (map[string]*models.Resource, error) {
+	var rs []models.Resource
+	if err := a.DB.Find(ctx, store.CResources, a.WorkspaceID(), bson.M{"versions.source.frameOf.assetId": assetID}, &rs); err != nil {
+		return nil, err
+	}
+	out := map[string]*models.Resource{}
+	for i := range rs {
+		out[rs[i].ID] = &rs[i]
+	}
+	return out, nil
+}
+
+// showsFrame reports whether a spec pins a version of a picture taken from the clip.
+func showsFrame(s *editspec.Spec, frames map[string]*models.Resource, assetID string) bool {
+	for _, pin := range s.Resources {
+		if r := frames[pin.ID]; r != nil {
+			if f := r.FrameOf(pin.SHA256); f != nil && f.AssetID == assetID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func headsUsing(ctx context.Context, a *app.App, assetID string, nested bool) ([]HeadUse, error) {
@@ -72,8 +98,24 @@ func headsUsing(ctx context.Context, a *app.App, assetID string, nested bool) ([
 		bson.M{"spec.fixed." + assetID: bson.M{"$exists": true}},
 		bson.M{"$expr": bson.M{"$in": bson.A{assetID, members}}},
 	}
+	var frames map[string]*models.Resource
 	if nested {
 		or = append(or, bson.M{"spec.clips.assetId": bson.M{"$regex": "^cut:"}})
+		var err error
+		if frames, err = framesOf(ctx, a, assetID); err != nil {
+			return nil, err
+		}
+		if len(frames) > 0 {
+			ids := bson.A{}
+			for id := range frames {
+				ids = append(ids, id)
+			}
+			pinned := bson.M{"$map": bson.M{"input": bson.M{"$objectToArray": bson.M{"$ifNull": bson.A{"$spec.resources", bson.M{}}}}, "in": "$$this.v.id"}}
+			or = append(or, bson.M{"$expr": bson.M{"$gt": bson.A{bson.M{"$size": bson.M{"$setIntersection": bson.A{pinned, ids}}}, 0}}})
+		}
+	}
+	uses := func(s *editspec.Spec) bool {
+		return slices.Contains(editspec.AssetIDs(s), assetID) || (nested && showsFrame(s, frames, assetID))
 	}
 	filter := bson.M{"_id": bson.M{"$in": heads}, "detached": bson.M{"$ne": true}, "$or": or}
 	var revs []models.Revision
@@ -86,9 +128,9 @@ func headsUsing(ctx context.Context, a *app.App, assetID string, nested bool) ([
 		if !ok || p.Branches[r.Branch].Head != r.ID {
 			continue
 		}
-		plays := slices.Contains(editspec.AssetIDs(&r.Spec), assetID)
+		plays := uses(&r.Spec)
 		if !plays && nested {
-			plays = nestedPlays(ctx, a, &r.Spec, assetID, 1)
+			plays = nestedPlays(ctx, a, &r.Spec, uses, 1)
 		}
 		if plays {
 			out = append(out, HeadUse{Project: p, Branch: r.Branch, Revision: r, Fixed: r.Spec.FixedSHA(assetID)})
@@ -103,8 +145,8 @@ func headsUsing(ctx context.Context, a *app.App, assetID string, nested bool) ([
 	return out, nil
 }
 
-// nestedPlays reports whether a cut a spec nests plays the asset, at any depth.
-func nestedPlays(ctx context.Context, a *app.App, s *editspec.Spec, assetID string, depth int) bool {
+// nestedPlays reports whether a cut a spec nests uses the asset, at any depth.
+func nestedPlays(ctx context.Context, a *app.App, s *editspec.Spec, uses func(*editspec.Spec) bool, depth int) bool {
 	if depth > editspec.MaxNestDepth {
 		return false
 	}
@@ -117,7 +159,7 @@ func nestedPlays(ctx context.Context, a *app.App, s *editspec.Spec, assetID stri
 		if err := a.DB.GetByID(ctx, store.CRevisions, a.WorkspaceID(), revID, &r); err != nil {
 			continue
 		}
-		if slices.Contains(editspec.AssetIDs(&r.Spec), assetID) || nestedPlays(ctx, a, &r.Spec, assetID, depth+1) {
+		if uses(&r.Spec) || nestedPlays(ctx, a, &r.Spec, uses, depth+1) {
 			return true
 		}
 	}

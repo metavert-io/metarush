@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -479,8 +480,20 @@ type ResourceSource struct {
 	Tool    string            `bson:"tool,omitempty" json:"tool,omitempty"`
 	Lineage []ResourceLineage `bson:"lineage,omitempty" json:"lineage,omitempty"`
 	// Asset is the clip these bytes were first imported as (older imports of images).
-	AssetID string    `bson:"assetId,omitempty" json:"assetId,omitempty"`
-	At      time.Time `bson:"at" json:"at"`
+	AssetID string `bson:"assetId,omitempty" json:"assetId,omitempty"`
+	// FrameOf is the clip a still frame was taken from (footage frames, D457).
+	// A frame of a reference — someone else's video — is treated like the
+	// reference itself: no cut shows it and nothing is made from it.
+	FrameOf *ResourceFrame `bson:"frameOf,omitempty" json:"frameOf,omitempty"`
+	At      time.Time      `bson:"at" json:"at"`
+}
+
+// ResourceFrame is where a still frame was taken: the clip, its title then and
+// the time.
+type ResourceFrame struct {
+	AssetID string  `bson:"assetId,omitempty" json:"assetId,omitempty" jsonschema:"description=The clip (empty when it was taken in another workspace)."`
+	Title   string  `bson:"title,omitempty" json:"title,omitempty"`
+	At      float64 `bson:"at" json:"at" jsonschema:"description=Seconds into the clip."`
 }
 
 // ResourceLineage is one input of a generated version.
@@ -516,6 +529,14 @@ func (s ResourceSource) Provenance() string {
 		}
 		return page
 	}
+	if f := s.FrameOf; f != nil { // a still frame of a clip (D457)
+		at := int(f.At)
+		clip := "a clip"
+		if f.Title != "" {
+			clip = "“" + f.Title + "”"
+		}
+		return fmt.Sprintf("a frame of %s at %d:%02d", clip, at/60, at%60)
+	}
 	return ""
 }
 
@@ -533,6 +554,41 @@ func (r *Resource) Version(sha string) *ResourceVersion {
 		if r.Versions[i].SHA256 == sha {
 			return &r.Versions[i]
 		}
+	}
+	return nil
+}
+
+// FrameOf is the clip a version was taken from as a still frame, following
+// the versions of this picture it was made from (a fixed copy of a frame is
+// still that frame, D457); nil when it wasn't. sha "" is the version new uses
+// get; the start of a SHA-256 (six characters or more) finds its version.
+func (r *Resource) FrameOf(sha string) *ResourceFrame {
+	v := r.Latest()
+	if sha != "" {
+		v = r.Version(sha)
+		if v == nil && len(sha) >= 6 {
+			for i := range r.Versions {
+				if strings.HasPrefix(r.Versions[i].SHA256, sha) {
+					v = &r.Versions[i]
+				}
+			}
+		}
+	}
+	seen := map[string]bool{}
+	for v != nil && !seen[v.SHA256] {
+		seen[v.SHA256] = true
+		if v.Source.FrameOf != nil {
+			return v.Source.FrameOf
+		}
+		var from *ResourceVersion
+		for _, l := range v.Source.Lineage {
+			if l.ResourceID == "" || l.ResourceID == r.ID {
+				if from = r.Version(l.SHA256); from != nil {
+					break
+				}
+			}
+		}
+		v = from
 	}
 	return nil
 }

@@ -395,6 +395,10 @@ func (e *exporter) pictures(d *models.RecipeDoc) error {
 		if r.Kind == models.ResourceRepo {
 			continue // a repository is never drawn itself
 		}
+		if ref := resources.FrameReference(e.ctx, e.a, &r, w.sha); ref != nil { // D457
+			e.leave("“"+title+"”", "it is a frame of “"+ref.DisplayTitle()+"”, a reference: someone else's video, kept here to learn from")
+			continue
+		}
 		if why := e.kept([]string{r.ProjectID}, []string{models.LeavePictures}, "“"+title+"”"); why != "" {
 			e.leave("“"+title+"”", why)
 			continue
@@ -427,6 +431,11 @@ func (e *exporter) pictures(d *models.RecipeDoc) error {
 // workspace knows (folders, projects, machines, records).
 func cleanSource(s models.ResourceSource) models.ResourceSource {
 	s.Path, s.Machine, s.FolderID, s.RelPath, s.ProjectID, s.ResourceID, s.AssetID = "", "", "", "", "", "", ""
+	if s.FrameOf != nil { // the clip is this workspace's
+		f := *s.FrameOf
+		f.AssetID = ""
+		s.FrameOf = &f
+	}
 	for i := range s.Lineage {
 		s.Lineage[i].ResourceID = ""
 	}
@@ -500,6 +509,10 @@ func (e *exporter) footage(d *models.RecipeDoc, list []string, input bool) error
 		title := as.DisplayTitle()
 		if as.Source != nil && as.Source.Generated != nil && as.Source.Generated.Likeness {
 			e.leave("“"+title+"”", "it is a generated shot that shows a real person, whose consent covers projects in this workspace only")
+			continue
+		}
+		if as.IsReference() { // someone else's video stays where it was kept (D456)
+			e.leave("“"+title+"”", "it is a reference: someone else's video, kept here to learn from")
 			continue
 		}
 		if as.State != models.AssetAvailable {

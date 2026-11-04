@@ -894,8 +894,14 @@ Read `docs/architecture.md` before structural changes.
   work refuse one (`ops.RefuseReference`, D441); the ship gate's `reference` hold (with the gate off too; sent anyway
   with a note; `GateHold.holding`) keeps a version that plays one from delivery, timelines, posts and review links;
   its voices and faces keep no fingerprints, are never recognized, counted or named (`speakers.forgetVoices`,
-  `faces.forgetFaces`, D443) and "mine" listens and looks again; inputs and source footage leave it out, and
-  `footage.reference.mine` is people only. `footage.whatItDoes`
+  `faces.forgetFaces`, D443), marking takes back what they taught (profiles holding its fingerprints rebuilt, the
+  library scored again, D455) and "mine" listens and looks again, carrying dismissed questions (D458); inputs and
+  source footage leave it out, abilities refuse it, a timeline never copies it into a footage folder and recipe files
+  leave it out (D456), and `footage.reference.mine` is people only. A picture taken from one counts as it (D457):
+  `footage frames|sheet` write the clip into the JPEG (`resources.MarkFrame`), `AddFile` keeps it as
+  `source.frameOf`, and the cut check (`ResourceInfo.Reference`), `ops.ReferencesUsed`/the gate, `HeadsPlaying`, AI
+  work and generated video (`generate` pictures), abilities, Remotion pictures and recipe files read it live
+  (`resources.FrameReference`, `RefuseFrameOfReference`). `footage.whatItDoes`
   is a deterministic card from the evidence MetaRush keeps, with no AI calls (hook, intro, parts, call to action and end
   card with times; pacing, voices, burned-in captions, graphics, the music bed; what's on screen on a Mac).
   `recipe.fromVideo` drafts through `recipe.write` once the looks are done (`asset.startFrom`, the `OnSourceFacts`

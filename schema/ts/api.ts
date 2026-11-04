@@ -3341,6 +3341,7 @@ soundTracks: number
 markers: number
 duration: number
 notes: string[]
+warnings: string[]
 summary: string
 open: string
 }

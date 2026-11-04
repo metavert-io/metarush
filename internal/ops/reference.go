@@ -3,6 +3,8 @@ package ops
 import (
 	"context"
 	"fmt"
+	"slices"
+	"sort"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -70,7 +72,7 @@ func MarkReference(ctx context.Context, a *app.App, as *models.Asset, why string
 	if as.IsReference() {
 		return nil
 	}
-	uses, err := HeadsPlaying(ctx, a, as.ID) // anywhere a latest version plays it, nested cuts too (D440)
+	uses, err := HeadsPlaying(ctx, a, as.ID) // anywhere a latest version plays it or shows a picture taken from it, nested cuts too (D440, D457)
 	if err != nil {
 		return apperr.Wrap(apperr.Database, err, "MetaRush couldn't look at which cuts play “%s”.", as.DisplayTitle())
 	}
@@ -83,7 +85,7 @@ func MarkReference(ctx context.Context, a *app.App, as *models.Asset, why string
 			}
 			where = append(where, "“"+branchWords(u.Project.Name, u.Branch)+"”")
 		}
-		return apperr.New(apperr.Conflict, "“%s” plays in the latest version of %s, so it can't be a reference while a cut uses it.", as.DisplayTitle(), joinAnd(where)).
+		return apperr.New(apperr.Conflict, "The latest version of %s uses “%s” (its footage, or a picture taken from it), so it can't be a reference while a cut uses it.", joinAnd(where), as.DisplayTitle()).
 			WithHint("Take it out of those cuts first, or keep it as your own footage.").
 			WithDetails(map[string]any{"reason": "used_in_cut", "cuts": len(uses)})
 	}
@@ -153,14 +155,31 @@ func RefuseReference(as *models.Asset, doing string) error {
 		WithDetails(map[string]any{"reason": "reference", "assetId": as.ID})
 }
 
-// ReferencesPlayed lists the references a spec plays, in the cuts it nests too
-// (D441): what holds a version back from going out.
-func ReferencesPlayed(ctx context.Context, a *app.App, s *editspec.Spec) ([]models.Asset, error) {
-	ids := map[string]bool{}
+// ReferenceUse is a reference a version uses: its footage plays, or pictures
+// taken from it show (D457).
+type ReferenceUse struct {
+	Asset models.Asset
+	Plays bool
+	// Pictures are the titles of the pictures taken from it that it shows.
+	Pictures []string
+}
+
+// ReferencesUsed lists the references a spec uses — footage it plays and
+// pictures taken from them that it shows — in the cuts it nests too (D441,
+// D457): what holds a version back from going out.
+func ReferencesUsed(ctx context.Context, a *app.App, s *editspec.Spec) ([]ReferenceUse, error) {
+	played := map[string]bool{}
+	pins := map[string]map[string]bool{} // picture → versions shown
 	var collect func(s *editspec.Spec, depth int)
 	collect = func(s *editspec.Spec, depth int) {
 		for _, id := range editspec.AssetIDs(s) {
-			ids[id] = true
+			played[id] = true
+		}
+		for _, pin := range s.Resources {
+			if pins[pin.ID] == nil {
+				pins[pin.ID] = map[string]bool{}
+			}
+			pins[pin.ID][pin.SHA256] = true
 		}
 		if depth > editspec.MaxNestDepth {
 			return
@@ -175,6 +194,36 @@ func ReferencesPlayed(ctx context.Context, a *app.App, s *editspec.Spec) ([]mode
 		}
 	}
 	collect(s, 1)
+	ids := map[string]bool{}
+	for id := range played {
+		ids[id] = true
+	}
+	shows := map[string][]string{} // clip → titles of pictures taken from it
+	if len(pins) > 0 {
+		list := make([]string, 0, len(pins))
+		for id := range pins {
+			list = append(list, id)
+		}
+		var rs []models.Resource
+		if err := a.DB.Find(ctx, store.CResources, a.WorkspaceID(), bson.M{"_id": bson.M{"$in": list}}, &rs,
+			options.Find().SetSort(bson.D{{Key: "_id", Value: 1}})); err != nil {
+			return nil, err
+		}
+		for i := range rs {
+			for sha := range pins[rs[i].ID] {
+				if f := rs[i].FrameOf(sha); f != nil && f.AssetID != "" {
+					ids[f.AssetID] = true
+					title := rs[i].Title
+					if title == "" {
+						title = rs[i].Name
+					}
+					if !slices.Contains(shows[f.AssetID], title) {
+						shows[f.AssetID] = append(shows[f.AssetID], title)
+					}
+				}
+			}
+		}
+	}
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -182,12 +231,45 @@ func ReferencesPlayed(ctx context.Context, a *app.App, s *editspec.Spec) ([]mode
 	for id := range ids {
 		list = append(list, id)
 	}
-	var out []models.Asset
-	if err := a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), bson.M{"_id": bson.M{"$in": list}, "reference": bson.M{"$exists": true}}, &out,
+	var refs []models.Asset
+	if err := a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), bson.M{"_id": bson.M{"$in": list}, "reference": bson.M{"$exists": true}}, &refs,
 		options.Find().SetSort(bson.D{{Key: "_id", Value: 1}})); err != nil {
 		return nil, err
 	}
+	out := make([]ReferenceUse, 0, len(refs))
+	for _, as := range refs {
+		pics := shows[as.ID]
+		sort.Strings(pics)
+		out = append(out, ReferenceUse{Asset: as, Plays: played[as.ID], Pictures: pics})
+	}
 	return out, nil
+}
+
+// ReferencesPlayed lists the references whose footage a spec plays, in the
+// cuts it nests too (D441): what a timeline would copy.
+func ReferencesPlayed(ctx context.Context, a *app.App, s *editspec.Spec) ([]models.Asset, error) {
+	used, err := ReferencesUsed(ctx, a, s)
+	if err != nil {
+		return nil, err
+	}
+	var out []models.Asset
+	for _, u := range used {
+		if u.Plays {
+			out = append(out, u.Asset)
+		}
+	}
+	return out, nil
+}
+
+// RefusedAsReference reports an error that refuses a reference or a picture
+// taken from one (details.reason "reference").
+func RefusedAsReference(err error) bool {
+	ae := apperr.From(err)
+	if ae == nil {
+		return false
+	}
+	d, _ := ae.Details.(map[string]any)
+	return d != nil && d["reason"] == "reference"
 }
 
 // ReferenceWords says a reference clip plainly for refusals elsewhere ("“X” is
@@ -222,3 +304,12 @@ func VisualsPossible(ctx context.Context, a *app.App) bool { return visualsPossi
 
 // CutsOf are a clip's hard cuts from its stored technical evidence.
 func CutsOf(ev *evidence.Stored) []float64 { return cutsOf(ev) }
+
+// quotedList names pictures in quotes, “A”, “B” and “C”.
+func quotedList(titles []string) string {
+	q := make([]string, len(titles))
+	for i, t := range titles {
+		q[i] = "“" + t + "”"
+	}
+	return joinAnd(q)
+}

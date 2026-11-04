@@ -20,6 +20,7 @@ import (
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/notify"
+	"github.com/metavert-io/metarush/internal/resources"
 	"github.com/metavert-io/metarush/internal/speakers"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/todos"
@@ -392,6 +393,11 @@ func init() {
 			p := filepath.Join(dir, strings.ReplaceAll(derive.Timecode(t), ":", "m")+".jpg")
 			if err := d.Frame(ctx, src, p, t, in.Width); err != nil {
 				return nil, err
+			}
+			// The frame says where it was taken (D457): added to Resources, a
+			// frame of a reference is treated like the reference itself.
+			if err := resources.MarkFrame(p, a.WorkspaceID(), as.ID, t); err != nil {
+				return nil, apperr.Wrap(apperr.ToolFailed, err, "MetaRush couldn't finish the frame at %.1f s of “%s”.", t, as.DisplayTitle())
 			}
 			out.Frames = append(out.Frames, FrameFile{At: t, Path: p})
 		}

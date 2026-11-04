@@ -16,6 +16,7 @@ import (
 	"github.com/metavert-io/metarush/internal/derive"
 	"github.com/metavert-io/metarush/internal/evidence"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/resources"
 	"github.com/metavert-io/metarush/internal/store"
 )
 
@@ -282,6 +283,9 @@ func init() {
 		p := filepath.Join(dir, name)
 		if _, err := (&derive.Deriver{T: a.Tools}).LabeledSheet(ctx, src, p, a.Cfg.Scratch.Dir, &as.Media, tiles); err != nil {
 			return nil, err
+		}
+		if err := resources.MarkFrame(p, a.WorkspaceID(), as.ID, kf.From); err != nil { // where it was taken (D457)
+			return nil, apperr.Wrap(apperr.ToolFailed, err, "MetaRush couldn't finish the contact sheet of “%s”.", as.DisplayTitle())
 		}
 		return &SheetOut{Path: p, Mode: mode, Times: times, Tiles: kf.Tiles, Note: kf.Note}, nil
 	})

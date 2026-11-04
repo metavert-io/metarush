@@ -377,3 +377,36 @@ func TestPicturesChangeMovesTheLatestCut(t *testing.T) {
 		t.Fatalf("audited: %d", len(audits))
 	}
 }
+
+// A picture taken from a reference — a still frame of someone else's video —
+// never replaces a picture in a Remotion video (D457): refused in plain words,
+// with the command a person runs if the video is theirs.
+func TestAPictureTakenFromAReferenceIsNeverPutInAVideo(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	s := newSource(t, a, "teaser")
+	approve(t, a, s, pictureVersion(t, a, s, "a", ""))
+	if err := a.DB.Insert(ctx, store.CProjects, &models.Project{ID: s.ProjectID, WorkspaceID: a.WorkspaceID(), Name: "Teaser"}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	theirs := models.Asset{ID: ids.New(ids.Asset), WorkspaceID: a.WorkspaceID(), Kind: "video", Name: "their-hook.mp4", Title: "Their hook", State: models.AssetAvailable,
+		ProjectIDs: []string{}, Media: models.MediaInfo{Streams: []models.Stream{}}, Variants: map[string]models.Variant{}, CreatedAt: now, UpdatedAt: now,
+		Reference: &models.AssetReference{At: now, Why: models.ReferenceStartFrom}}
+	if err := a.DB.Insert(ctx, store.CAssets, theirs); err != nil {
+		t.Fatal(err)
+	}
+	added, err := resources.AddFile(ctx, a, writePNG(t, t.TempDir(), "hook-still.png", 40, 40, color.RGBA{20, 30, 200, 255}), resources.AddOptions{ProjectID: s.ProjectID, Via: "cli"})
+	if err != nil || added.Resource == nil {
+		t.Fatalf("add: %v %+v", err, added)
+	}
+	if _, err := a.DB.C(store.CResources).UpdateOne(ctx, bson.M{"_id": added.Resource.ID}, bson.M{"$set": bson.M{"versions.$[].source.frameOf": models.ResourceFrame{AssetID: theirs.ID, At: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(RemotionPicturesSetIn{Source: "teaser", Set: []RemotionPictureSet{{Name: "HERO", Resource: added.Resource.Name}}})
+	_, err = ops.Call(ctx, a, "remotion.pictures.set", b, ops.Caller{})
+	if ae := apperr.From(err); ae == nil || ae.Code != apperr.Conflict || !strings.Contains(ae.Message, "is a frame of “Their hook”, a reference: someone else's video, kept to learn from, so MetaRush doesn't put it in a video") ||
+		ae.Command() != "metarush footage reference "+theirs.ID+" --mine" {
+		t.Fatalf("a picture taken from a reference: %v", err)
+	}
+}

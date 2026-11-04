@@ -245,5 +245,5 @@ run fetches; the run fetches only those, keeps them by their content and records
 - `E_NOT_FOUND`: no such recipe or run (`metarush recipe list`); a Google Drive folder or file that isn't there.
 - `E_NOT_CONFIGURED`: rclone or its Google Drive isn't set up on this computer (`metarush doctor` says how).
 - `E_INTEGRITY`: a recipe file that was damaged or changed; nothing came in.
-- A cut's check with `reference_footage`: a clip is a reference (someone else's video). Choose the person's own
-  footage; only they say a video is theirs (on its page).
+- A cut's check with `reference_footage`: a clip is a reference (someone else's video), or a picture was taken from
+  one. Choose the person's own footage and pictures; only they say a video is theirs (on its page).

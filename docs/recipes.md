@@ -562,19 +562,34 @@ MetaRush can start a recipe: `recipe.fromVideo` (`metarush recipe from-video <li
      cutaways, a narration line's take or the narration recording, the mix's copies, and inside a cut it nests. The
      edit and cut checks refuse it (`reference_footage`), saying how a person who made it says so (**This is mine…**
      on the clip's page, `metarush footage reference <clip> --mine`: people only). Marking a clip a reference
-     (`footage.reference`) is refused while any cut's latest version plays it, nested cuts too.
+     (`footage.reference`) is refused while any cut's latest version plays it, or shows a picture taken from it,
+     nested cuts too.
    - **Nothing is made from a reference**: no generated shot from or ending on its frames, extending or editing it,
-     no dubbing, voice change, cloud transcription, lip sync or voice copy of it — refused before anything is priced
-     or sent, since what came back would be ordinary footage made from someone else's video.
-   - **A version that plays one is held from going out** (the ship gate's `reference` hold, with the gate off too):
-     delivery, timelines into a delivery folder, posts and review links wait until a person says the video is theirs
-     or sends the version out anyway with a note. Renders stay allowed: they stay on this computer.
+     no dubbing, voice change, cloud transcription, lip sync or voice copy of it, and no ability takes it (planned or
+     started) — refused before anything is priced or sent, since what came back would be ordinary footage made from
+     someone else's video.
+   - **A picture taken from a reference counts as the reference.** `footage frames` and `footage sheet` write where a
+     picture was taken (the workspace, the clip and the time) into the JPEG itself; added to Resources it keeps that
+     (`source.frameOf`: "a frame of “…” at 0:12") and, while the clip is a reference, says so (the picture's
+     `reference` line and a **from a reference** badge). No cut shows it (`reference_footage` on the cut's pin), a
+     version that shows it is held like one that plays the clip, and AI work, generated video, looks, abilities,
+     Remotion pictures and recipe files refuse it. Whether the clip is a reference is read when it matters, so
+     marking it later, or saying it's yours, counts for its pictures too. A picture edited elsewhere and saved again
+     loses the note, like any other comment in a file.
+   - **A version that plays one is held from going out** (the ship gate's `reference` hold, with the gate off too;
+     `deliver ready` says so and how to clear it): delivery, timelines into a delivery folder, posts and review links
+     wait until a person says the video is theirs or sends the version out anyway with a note. Renders stay allowed:
+     they stay on this computer. A timeline never copies a reference into a footage folder (refused, in plain words);
+     without one it points at MetaRush's own copy and warns not to hand that on.
    - **Nobody in it is asked about, recognized or named**: its voices and faces keep no fingerprints, never take the
      names of your people (its transcript and what it does name nobody), never count as anyone's appearances and never
-     teach anyone's voice or face; naming a voice or a face in it is refused. Marking a clip clears what was there;
-     saying it's yours listens and looks again.
+     teach anyone's voice or face; naming a voice or a face in it is refused. Marking a clip takes back what it
+     taught: everyone whose voice was learned from it is learned again from your own footage only (someone named only
+     there has no voice to recognize), and names, suggestions and questions that came from its voices and faces go
+     where they no longer hold; names a person gave in your own clips stay. Saying it's yours listens and looks
+     again, and a question you dismissed stays dismissed.
    - No recipe run takes one as footage (a project's or a collection's newest footage leaves references out; one
-     given by name is refused).
+     given by name is refused), and a recipe file leaves references and pictures taken from them out, saying so.
 2. **MetaRush looks at it** like any footage — its words and voices, its cuts, pauses and loudness, and on a Mac
    what's on screen — and then says **what it does** (`footage.whatItDoes`, `metarush footage what-it-does <clip>`, the
    clip's **What it does** tab), read from that evidence on this computer with no AI service:

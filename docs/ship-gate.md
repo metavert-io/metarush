@@ -22,7 +22,7 @@ for review copies, `--preset` for some shapes) — and lists what holds it:
 | `qa-errors` | "The quality check found 2 problems in its final render." with each problem, its time and its fix | Fix it (the problem's own change, saved as a new version), See the problems, Check it again | yes |
 | `signoff` | "Still waiting for the sign-off “Lena OKs the final version”." (house ones say whose settings) | Tick it (a person) | yes |
 | `consent` | "At 0:02 Ada Lovelace says “fifteen” (words changed with AI in their voice copy), but her consent … is no longer in force …" (or a mouth matched to them) | Take them out (`cut.say.undo`, a new version) | no: it holds with the gate off too |
-| `reference` | "Version 5 plays “Their video”, a reference: someone else's video, kept to learn from. …" (anywhere it plays, nested cuts too) | It's mine (`footage.reference.mine`, a person), or take it out and make a new version | yes, with a note; it holds with the gate off too |
+| `reference` | "Version 5 plays “Their video”, a reference: someone else's video, kept to learn from. …" (anywhere it plays, nested cuts too), or "Version 5 shows “Hook still”, taken from “Their video”, a reference …" (a picture taken from one) | It's mine (`footage.reference.mine`, a person), or take it out and make a new version | yes, with a note; it holds with the gate off too |
 
 Things worth checking (warnings) never hold. `--json` gives every hold with its stable `key`, `kind`, `says`,
 `problems` (message, time, fix, the fix's edit ops) and `paths` (the op and input the dashboard runs, the command),
@@ -45,10 +45,14 @@ the renders and their checks, the promises as measured, and every note that sent
 - **Posting** (`publish.plan|send`) holds what the gate holds.
 
 A reference (someone else's video, kept to learn from; [recipes.md](recipes.md#start-from-a-video-you-like)) can't
-go into a new version, but one saved before the clip was marked, or one that nests a cut playing it, would still go
-out: so `reference` holds delivery, timelines into a delivery folder, posts and review links with the gate off too,
-until a person says the video is theirs or sends the version out anyway with a note. Renders stay allowed — review
-copies and final renders stay on this computer — and show the hold on the version's page.
+go into a new version, nor can a picture taken from one, but one saved before the clip was marked, or one that nests
+a cut playing it, would still go out: so `reference` holds delivery, timelines into a delivery folder, posts and
+review links with the gate off too, until a person says the video is theirs or sends the version out anyway with a
+note. With the gate off, `deliver ready` and the version's page say that a reference still holds it, the line to say
+the video is yours and the one to send it out anyway. Renders stay allowed — review copies and final renders stay on
+this computer — and show the hold on the version's page. A timeline never copies a reference into a footage folder,
+wherever it goes (refused, saying so); without a footage folder it points at MetaRush's own copy and warns not to
+hand that on.
 
 ## Whether it is on
 

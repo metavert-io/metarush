@@ -35,7 +35,8 @@ and [reference/editorial.md](reference/editorial.md).
 4. **Measure (evidence).** `metarush footage what-it-does <ast> --json` says how a whole video is built: its
    sections with times (hook, intro, parts, call to action, end card), pacing, who speaks, burned-in captions, words
    on screen, what plays under the voices and how it ends (`card.lines` read plainly). A clip marked a **reference**
-   (`clip.reference`) is someone else's video kept to learn from: review it, never put it in a cut.
+   (`clip.reference`) is someone else's video kept to learn from: review it, never put it in a cut. Frames you take
+   of it (`footage frames`) are for looking at: added to Resources, a picture taken from it counts as the video itself.
    `metarush footage moments --project <prj> --json` for pauses/scenes across the project
    (speech moments carry who said them); `metarush footage evidence <ast> --json` for loudness, black/frozen frames and
    technical problems (describe loudness in plain words, such as "a little quiet for phones", not LUFS or peak numbers).

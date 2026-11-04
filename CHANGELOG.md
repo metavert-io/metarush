@@ -19,6 +19,16 @@
   that plays one is held from delivery, posting and review links until a person says it's theirs or sends it anyway
   with a note, and Recipes never take one as footage. Its voices and faces are never recognized, named or learned
   from. A file already in MetaRush stays yours; `metarush import --reference` brings links in as references.
+- **Marking a reference takes back what it taught**. When a clip turns out to be someone else's video, the voices and
+  faces learned from it are learned again from your own footage only: someone named only there is no longer
+  recognized anywhere, and names and "Is this …?" questions that came from it go; names you gave in your own clips
+  stay. When you say a reference is yours, it is heard again and a question you dismissed stays dismissed.
+- **A picture taken from a reference counts as the reference**. Frames and contact sheets MetaRush takes say which clip
+  they came from, and Resources keeps that ("a frame of “…” at 0:12"). While the clip is a reference the picture says
+  so, no cut shows it, a version that shows it waits like one that plays the clip, and AI work, generated video,
+  abilities, Remotion pictures and recipe files leave it out. Abilities never take a reference either, a timeline
+  never copies one into a footage folder, and recipe files leave references out, saying so. With the ship gate off,
+  **Deliver ready** now says when a reference still holds a version, and how to clear it.
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says

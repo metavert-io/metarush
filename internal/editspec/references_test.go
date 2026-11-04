@@ -140,3 +140,52 @@ func (f refNestFacts) Nested(projectID, revisionID string) (*NestedSource, bool)
 	}
 	return src, ok
 }
+
+// picturesFromAReference: the self-test's photo is a frame taken from a
+// reference ("Their hook"), wherever it is pinned, nested cuts too.
+type picturesFromAReference struct{ nestTestFacts }
+
+const photoID = "res_selftestphotoaaaaaaaaaaaaa"
+
+func (f picturesFromAReference) Resource(id, sha string) (ResourceInfo, bool) {
+	ri, ok := f.nestTestFacts.Resource(id, sha)
+	if ok && id == photoID {
+		ri.Reference = &ReferenceClip{ID: "ast_theirhook", Name: "Their hook"}
+	}
+	return ri, ok
+}
+
+func (f picturesFromAReference) Nested(projectID, revisionID string) (*NestedSource, bool) {
+	src, ok := f.nestTestFacts.Nested(projectID, revisionID)
+	if src != nil && src.Spec != nil {
+		if revisionID == nestRevision(4) { // the innermost cut pins the photo
+			src.Spec.Resources = map[string]ResourcePin{"photo": {ID: photoID, SHA256: selftestPhotoSHA}}
+		}
+		src.Facts = f
+	}
+	return src, ok
+}
+
+// A picture taken from a reference — a still frame of someone else's video —
+// is in no cut (D457): the cut check refuses its pin with the words and the
+// command a person runs if the video is theirs, and a cut nesting a cut that
+// shows one is refused too. The same picture from the person's own footage is
+// fine.
+func TestAPictureTakenFromAReferenceIsInNoCut(t *testing.T) {
+	s := &Spec{SchemaVersion: 1, Output: Output{Width: 1280, Height: 720, FPS: 30, Platform: "youtube"}, Clips: []Clip{{ID: "a", AssetID: "blue", In: 0.5, Out: 2.5}},
+		Resources: map[string]ResourcePin{"photo": {ID: photoID, SHA256: selftestPhotoSHA}}}
+	Normalize(s)
+	is := Validate(Clone(s), picturesFromAReference{nestTestFacts{visible: true}}, nil, false)
+	refusedAt(t, "a pinned picture", is, "/resources/photo", "ast_theirhook")
+	if i, _ := referenceAt(is, "/resources/photo"); !strings.Contains(i.Message, "The picture “Selftest photo” is a frame of “Their hook”, which is a reference") {
+		t.Errorf("the words: %q", i.Message)
+	}
+	if is := Validate(Clone(s), nestTestFacts{visible: true}, nil, false); hasCode(is, "reference_footage") {
+		t.Errorf("a picture from the person's own footage is refused: %+v", is)
+	}
+	outer := &Spec{SchemaVersion: 1, Output: Output{Width: 1280, Height: 720, FPS: 30, Platform: "youtube"},
+		Clips: []Clip{{ID: "intro", AssetID: NestedKey(nestProject(3), nestRevision(3)), In: 0, Out: 2}}}
+	Normalize(outer)
+	is = Validate(Clone(outer), picturesFromAReference{nestTestFacts{visible: true}}, nil, false)
+	refusedAt(t, "a nested cut showing it", is, "/clips/0/assetId", "ast_theirhook")
+}

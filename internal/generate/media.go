@@ -210,6 +210,11 @@ func pictureOf(ctx context.Context, a *app.App, projectID, ref string, asIs bool
 			return nil, nil, "", apperr.New(apperr.NotFound, "“%s” has no version %s.", r.Title, version)
 		}
 	}
+	// A picture taken from someone else's video is never sent or made into
+	// anything (D457): AI work, generated video and looks all come here.
+	if err := resources.RefuseFrameOfReference(ctx, a, r, sha, "send it to an AI service or make anything from it"); err != nil {
+		return nil, nil, "", err
+	}
 	path, v, err := resources.LocalFile(ctx, a, r, sha, 0)
 	if err != nil {
 		return nil, nil, "", err

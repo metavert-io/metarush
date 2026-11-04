@@ -11929,6 +11929,7 @@ removed?: boolean
 folder?: ResourceFolderRow
 source: ResourceSource
 provenance?: string
+reference?: string
 repo?: RepoSummary
 site?: SiteSnapshot
 thumbUrl: string
@@ -11988,6 +11989,7 @@ resourceId?: string
 tool?: string
 lineage?: ResourceLineage[]
 assetId?: string
+frameOf?: ResourceFrame
 at: string
 }
 /**
@@ -12033,6 +12035,21 @@ sha256: string
  * What was done (converted from HEIC, page 3 of the PDF…).
  */
 step?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ResourceFrame".
+ */
+export interface ResourceFrame {
+/**
+ * The clip (empty when it was taken in another workspace).
+ */
+assetId?: string
+title?: string
+/**
+ * Seconds into the clip.
+ */
+at: number
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -18947,6 +18964,7 @@ soundTracks: number
 markers: number
 duration: number
 notes: string[]
+warnings: string[]
 summary: string
 open: string
 }

@@ -2,6 +2,10 @@ package ops
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -255,5 +259,67 @@ func TestAVersionPlayingAReferenceIsHeld(t *testing.T) {
 	}
 	if _, h = gate(); h.Key != "" {
 		t.Fatalf("theirs: no reference hold: %+v", h)
+	}
+}
+
+// A timeline never copies someone else's video into a footage folder (D456):
+// a version that plays a reference — saved before the clip was marked — is
+// refused in plain words with the footage folder asked for, with the command a
+// person runs if the video is theirs, and nothing is copied; without a footage
+// folder the timeline is written, pointing at MetaRush's own copy, with a
+// warning not to hand that on.
+func TestATimelineNeverCopiesAReferenceIntoAFootageFolder(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	p := call[ProjectOut](t, a, "project.create", ProjectCreateIn{Name: "Teaser"})
+	video := models.MediaInfo{Duration: 30, HasVideo: true, HasAudio: true, Width: 1920, Height: 1080, FPS: 30}
+	own := storedAsset(t, a, p.Project.ID, "Ours.mov", "video", video)
+	theirs := storedAsset(t, a, p.Project.ID, "Their hook.mov", "video", video)
+	plan := fmt.Sprintf(`{"projectId":%q,"spec":{"schemaVersion":1,"title":"Cut","output":{"preset":"landscape-1080p","fps":30},
+		"clips":[{"id":"a","assetId":%q,"in":1,"out":5},{"id":"b","assetId":%q,"in":2,"out":6}]}}`, p.Project.ID, own.ID, theirs.ID)
+	chk := call[EditCheckOut](t, a, "edit.check", EditCheckIn{Plan: json.RawMessage(plan)})
+	if !chk.Valid {
+		t.Fatalf("plan: %+v", chk.Errors)
+	}
+	rev := call[EditApplyOut](t, a, "edit.apply", EditApplyIn{Plan: json.RawMessage(plan), ConfirmToken: chk.ConfirmToken})
+	// Marked after the version was saved (as an older build or a database edit could leave it).
+	if _, err := a.DB.C(store.CAssets).UpdateOne(ctx, bson.M{"_id": theirs.ID}, bson.M{"$set": bson.M{"reference": models.AssetReference{By: a.Actor, At: time.Now().UTC(), Why: models.ReferenceMarked}}}); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	footage := filepath.Join(dir, "Footage")
+	_, err := CallTyped[ExportTimelineOut](ctx, a, "export.timeline", ExportTimelineIn{RevisionID: rev.Revision.ID, Format: "otio", Out: filepath.Join(dir, "cut"), Media: footage}, Caller{})
+	ae := apperr.From(err)
+	if ae == nil || ae.Code != apperr.Conflict || !strings.Contains(ae.Message, "Version 1 plays “Their hook”, a reference: someone else's video, kept to learn from, so MetaRush doesn't copy it into a footage folder") ||
+		ae.Command() != "metarush footage reference "+theirs.ID+" --mine" {
+		t.Fatalf("a footage folder with a reference in it: %v", err)
+	}
+	if d, _ := ae.Details.(map[string]any); d["reason"] != "reference" {
+		t.Fatalf("details: %+v", ae.Details)
+	}
+	if entries, _ := os.ReadDir(footage); len(entries) != 0 {
+		t.Fatalf("nothing is copied: %v", entries)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "cut.otio")); err == nil {
+		t.Fatal("no timeline is written")
+	}
+	// Without a footage folder: written, pointing at MetaRush's own copies, with a warning.
+	out := call[ExportTimelineOut](t, a, "export.timeline", ExportTimelineIn{RevisionID: rev.Revision.ID, Format: "otio", Out: filepath.Join(dir, "cut")})
+	if len(out.Warnings) != 1 || !strings.Contains(out.Warnings[0], "Version 1 plays “Their hook”, a reference: someone else's video") ||
+		!strings.Contains(out.Warnings[0], "don't hand that on") || out.MediaDir != "" {
+		t.Fatalf("the warning: %+v", out.Warnings)
+	}
+	for _, m := range out.Media {
+		if m.How != "cache" {
+			t.Fatalf("%s was %s", m.Name, m.How)
+		}
+	}
+	// The person's own footage only: no warning.
+	ownPlan := fmt.Sprintf(`{"projectId":%q,"baseRevisionId":%q,"spec":{"schemaVersion":1,"title":"Cut","output":{"preset":"landscape-1080p","fps":30},
+		"clips":[{"id":"a","assetId":%q,"in":1,"out":5}]}}`, p.Project.ID, rev.Revision.ID, own.ID)
+	chk = call[EditCheckOut](t, a, "edit.check", EditCheckIn{Plan: json.RawMessage(ownPlan)})
+	rev2 := call[EditApplyOut](t, a, "edit.apply", EditApplyIn{Plan: json.RawMessage(ownPlan), ConfirmToken: chk.ConfirmToken})
+	if out := call[ExportTimelineOut](t, a, "export.timeline", ExportTimelineIn{RevisionID: rev2.Revision.ID, Format: "otio", Out: filepath.Join(dir, "own"), Media: footage}); len(out.Warnings) != 0 || len(out.Media) != 1 {
+		t.Fatalf("own footage: %+v", out)
 	}
 }

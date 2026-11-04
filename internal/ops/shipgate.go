@@ -180,7 +180,7 @@ func GateFor(ctx context.Context, a *app.App, projectID string) (on bool, why st
 				case models.GateOn:
 					return true, whose + " hold every version until the quality check and the sign-offs are done.", true
 				case models.GateOff:
-					return false, whose + " only remind about the quality check and sign-offs: nothing is held.", true
+					return false, whose + " only remind about the quality check and sign-offs.", true
 				}
 			}
 		}
@@ -462,14 +462,20 @@ func ShipGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Re
 	}
 	out.Holds = append(out.Holds, saidHolds(p, rev, heard)...)
 	out.heard = heard
-	// A reference it plays, someone else's video (D441), nested cuts too.
-	refs, err := ReferencesPlayed(ctx, a, &rev.Spec)
+	// A reference it plays, someone else's video (D441), or a picture taken
+	// from one that it shows (D457), nested cuts too.
+	refs, err := ReferencesUsed(ctx, a, &rev.Spec)
 	if err != nil {
 		return nil, err
 	}
-	for _, as := range refs {
-		out.Holds = append(out.Holds, GateHold{ShipHold: models.ShipHold{Key: "reference:" + as.ID + "@" + rev.ID, Kind: models.HoldReference,
-			Says: fmt.Sprintf("%s plays “%s”, a reference: someone else's video, kept to learn from. If it's your own video, say so; otherwise take it out and make a new version.", version, as.DisplayTitle())},
+	for _, u := range refs {
+		as := u.Asset
+		says := fmt.Sprintf("%s plays “%s”, a reference: someone else's video, kept to learn from. If it's your own video, say so; otherwise take it out and make a new version.", version, as.DisplayTitle())
+		if !u.Plays {
+			says = fmt.Sprintf("%s shows %s, taken from “%s”, a reference: someone else's video, kept to learn from. If it's your own video, say so; otherwise take the picture out and make a new version.",
+				version, quotedList(u.Pictures), as.DisplayTitle())
+		}
+		out.Holds = append(out.Holds, GateHold{ShipHold: models.ShipHold{Key: "reference:" + as.ID + "@" + rev.ID, Kind: models.HoldReference, Says: says},
 			Paths: []GatePath{{Label: "It's mine", Op: "footage.reference.mine", Input: map[string]any{"assetId": as.ID}, Command: "metarush footage reference " + as.ID + " --mine", People: true}}})
 	}
 	// What a person already sent it out past.
@@ -482,6 +488,14 @@ func ShipGate(ctx context.Context, a *app.App, p *models.Project, rev *models.Re
 			}
 		}
 		h.Holding = !h.Covered && (!h.Overridable || out.On || alwaysHolds[h.Kind])
+	}
+	if !out.On {
+		for _, h := range out.Holds {
+			if h.Holding && alwaysHolds[h.Kind] { // the gate's setting isn't all that holds it (D459)
+				out.Why += " Even so, a reference holds this version: someone else's video goes out only when a person says it's theirs, or sends it out anyway with a note."
+				break
+			}
+		}
 	}
 	consent := false
 	for _, h := range out.Holds {

@@ -20940,6 +20940,12 @@
           },
           "type": "array"
         },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "summary": {
           "type": "string"
         },
@@ -20961,6 +20967,7 @@
         "markers",
         "duration",
         "notes",
+        "warnings",
         "summary",
         "open"
       ]
@@ -58106,6 +58113,26 @@
         "relPath"
       ]
     },
+    "ResourceFrame": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "description": "The clip (empty when it was taken in another workspace)."
+        },
+        "title": {
+          "type": "string"
+        },
+        "at": {
+          "type": "number",
+          "description": "Seconds into the clip."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at"
+      ]
+    },
     "ResourceLineage": {
       "properties": {
         "resourceId": {
@@ -58850,6 +58877,9 @@
         "provenance": {
           "type": "string"
         },
+        "reference": {
+          "type": "string"
+        },
         "repo": {
           "$ref": "#/$defs/RepoSummary"
         },
@@ -58996,6 +59026,9 @@
         },
         "assetId": {
           "type": "string"
+        },
+        "frameOf": {
+          "$ref": "#/$defs/ResourceFrame"
         },
         "at": {
           "type": "string",

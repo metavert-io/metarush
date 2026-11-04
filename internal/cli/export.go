@@ -38,6 +38,9 @@ func exportCmd() *cobra.Command {
 				if r.Captions != "" {
 					fmt.Println("The captions are also in an .srt file next to it.")
 				}
+				for _, w := range r.Warnings {
+					fmt.Println(w)
+				}
 				if len(r.Notes) > 0 {
 					fmt.Println("Not carried exactly:")
 					for _, n := range r.Notes {

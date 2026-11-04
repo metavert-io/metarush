@@ -2932,6 +2932,12 @@
           },
           "type": "array"
         },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "summary": {
           "type": "string"
         },
@@ -2953,6 +2959,7 @@
         "markers",
         "duration",
         "notes",
+        "warnings",
         "summary",
         "open"
       ]

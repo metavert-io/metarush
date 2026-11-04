@@ -10,11 +10,13 @@ import (
 // conversation's recordings and cutaways, narration (a line's take, one
 // continuous recording, their cleaned-up copies), the mix's copies, and inside
 // a nested cut at any depth. The check is one pass over AssetIDs, the list of
-// every place a spec plays footage, so a place added there is checked too. The
-// words say how a person who made the video says so; the command is behind
-// Details.
+// every place a spec plays footage, so a place added there is checked too. A
+// picture taken from a reference (a still frame of it, D457) is refused the
+// same way where the cut pins it. The words say how a person who made the
+// video says so; the command is behind Details.
 
-// referenceIssues refuses every reference the spec plays.
+// referenceIssues refuses every reference the spec plays, and every picture
+// it pins that was taken from one (D457).
 func referenceIssues(s *Spec, facts Facts) []Issue {
 	var out []Issue
 	for _, id := range AssetIDs(s) {
@@ -24,6 +26,19 @@ func referenceIssues(s *Spec, facts Facts) []Issue {
 		}
 		path, who := wherePlays(s, id)
 		out = append(out, referenceIssue(path, who, a))
+	}
+	for _, n := range ResourceNames(s) {
+		info, ok := resourceInfo(facts, s.Resources[n])
+		if !ok || info.Reference == nil {
+			continue
+		}
+		title := info.Title
+		if title == "" {
+			title = n
+		}
+		is := errI("reference_footage", "/resources/"+n, "The picture “%s” is a frame of “%s”, which is a reference: someone else's video, kept to learn from, so no cut shows it. If it's your own video, say so on its page (This is mine) and check the change again; otherwise choose a picture of your own.", title, info.Reference.Name)
+		is.Command = "metarush footage reference " + info.Reference.ID + " --mine"
+		out = append(out, is)
 	}
 	nf, _ := facts.(*nestFacts)
 	if nf == nil {
@@ -53,11 +68,17 @@ func referenceIssue(path, who string, a AssetFacts) Issue {
 	return is
 }
 
-// firstReference is the first reference a spec plays, in its nested cuts too.
+// firstReference is the first reference a spec plays (or shows a picture
+// taken from), in its nested cuts too.
 func firstReference(s *Spec, facts Facts, depth int) (AssetFacts, bool) {
 	for _, id := range AssetIDs(s) {
 		if a, ok := facts.Asset(id); ok && a.Reference {
 			return a, true
+		}
+	}
+	for _, n := range ResourceNames(s) {
+		if info, ok := resourceInfo(facts, s.Resources[n]); ok && info.Reference != nil {
+			return AssetFacts{ID: info.Reference.ID, Name: info.Reference.Name, Reference: true}, true
 		}
 	}
 	nf, _ := facts.(*nestFacts)

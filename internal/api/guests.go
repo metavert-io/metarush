@@ -109,7 +109,9 @@ func (s *Server) GuestHandler(port int) http.Handler {
 }
 
 func (g *guestGate) handler() http.Handler {
-	r := mux.NewRouter()
+	// SkipClean: an address with ".." in it matches nothing (never a redirect
+	// to some other path).
+	r := mux.NewRouter().SkipClean(true)
 	r.HandleFunc("/", g.page).Methods("GET", "HEAD")
 	r.HandleFunc(guests.WelcomePath, g.page).Methods("GET", "HEAD")
 	r.HandleFunc("/guest/api/health", g.health).Methods("GET")

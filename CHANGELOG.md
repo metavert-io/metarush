@@ -20,11 +20,12 @@
   what setup would ask on this computer with its suggested answers and the components it ticks, changing nothing;
   `metarush service status --json` adds the MetaRush running for the home, the version and commit it answers with and
   the copy of MetaRush it runs (`daemon`: `program`, `sameCopy`, `newer`; `otherCopy` when the service starts another
-  copy, or one through a link); `metarush doctor --json` carries each check's plain words (`say`, `do`). When another
+  copy); `metarush doctor --json` carries each check's plain words (`say`, `do`). When another
   copy of MetaRush runs the background service, `metarush setup` leaves it as it is unless asked
   (`--take-over-service`, or yes at its question) and never lets an older copy take a newer one's place; setting the
   service up again keeps a worker without the dashboard a worker. `metarush service install --keep-newer` changes
-  nothing when a newer copy runs. The background service is never set to run from the temporary copy macOS makes of
+  nothing when a newer copy runs, or one that doesn't say which version it is; `metarush version --compare <version>`
+  says whether this MetaRush is newer, the same or older. The background service is never set to run from the temporary copy macOS makes of
   an app opened where it was downloaded.
 - **Delivered videos can carry Content Credentials**. Turn them on in Settings → Delivery (or `metarush credentials
   on`; a client's Content Settings can say on, required or off for their projects) and every final video MetaRush

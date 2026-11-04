@@ -81,7 +81,8 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
   Decisions live in `MetaRushCore` (tested headlessly); the app target stays thin; the app never asks for or keeps a
   password or key. Text it shows goes in `Words.swift` (checked by `TestAppSpeaksPlainly`).
 - Its updates are EdDSA-signed (Sparkle), the feed too, and checked before anything is unpacked
-  (`SURequireSignedFeed`, `SUVerifyUpdateBeforeExtraction` in `desktop/mac/Info.plist`: keep both): no private key
+  (`SURequireSignedFeed`, `SUVerifyUpdateBeforeExtraction`, `SUSignedFeedFailureExpirationInterval` 0 in
+  `desktop/mac/Info.plist`: keep all three; updates are zips only): no private key
   and no real public key in the repository; the test key is made at run time. A change to an answer the app reads
   regenerates its fixtures (`TestMacAppFixtures`, from typed outputs, never hand-written maps). Tests never run the
   built app or its program against a real home, service or `~/.local/bin`, never write the person's preferences and

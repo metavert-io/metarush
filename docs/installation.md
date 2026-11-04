@@ -154,7 +154,8 @@ list is Home's Getting started and `metarush setup status`), whether **Claude Co
 - **Another copy of MetaRush in the background** (Homebrew's, or one a script installed): setup leaves its service as
   it is unless you say yes to its own question (unattended: `--take-over-service`), and never lets an older copy take
   a newer one's place. Setting the service up again keeps a worker without the dashboard a worker.
-  `metarush service install --keep-newer` likewise changes nothing when a newer copy runs.
+  `metarush service install --keep-newer` likewise changes nothing when a newer copy runs, or one that doesn't say
+  which version it is.
 - **Run by an AI app** (Claude Code in a terminal, `--agent`): setup does everything else but adds no component;
   it lists them for a person (`components.forAPerson`, `next`). **Without a terminal** (a script, CI) setup installs
   only the components named with `--components`; the suggested ones are listed for a person. Installing programs is

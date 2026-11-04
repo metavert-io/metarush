@@ -64,10 +64,11 @@ setup leaves it as it is unless it gets `--take-over-service`, which it refuses 
 Claude Code's skills and your terminal call MetaRush by name. With your yes, the app puts a link in your own programs
 folder, `~/.local/bin/metarush`, pointing at the program inside the app, so they always use the app's copy and it
 stays up to date with the app. If another `metarush` is already there (installed with Homebrew or by hand), the app
-asks first, showing both versions (**Keep the Other One** is the default), and keeps the other one beside it as
-`metarush.before-app`. When MetaRush's background service starts MetaRush from that very path, the app says that the
-service then runs the app's copy from its next start; when the copy running there is newer than the app, the link
-isn't offered. The menu's **Let Your Terminal Use MetaRush…** does the same later. If your terminal still can't find
+asks first, showing both versions (**Keep the Other One** is the default; the other program is asked its version, and
+the app's own program says which is newer: `metarush version --compare <version>`), and keeps the other one beside it
+as `metarush.before-app`. When MetaRush's background service starts MetaRush from that very path, the app says that
+the service then runs the app's copy from its next start; when the copy there, or the one running from it, is newer
+than the app or doesn't say which version it is, the link isn't offered — whether MetaRush is running or not. The menu's **Let Your Terminal Use MetaRush…** does the same later. If your terminal still can't find
 it, add `~/.local/bin` to your shell's `PATH`.
 
 ## The menu
@@ -95,9 +96,12 @@ headlines from CHANGELOG.md), downloads it, checks it, replaces the app and open
 
 - **Every update is signed, and so is the feed.** Sparkle checks the archive's EdDSA (Ed25519) signature against the
   public key inside the app before it unpacks anything (`SUVerifyUpdateBeforeExtraction`: an archive with a wrong or
-  missing signature, or changed, is refused, and the app's code signature is never a way around it), and takes only a
-  feed signed with the same key (`SURequireSignedFeed`: an unsigned or changed feed is refused before anything
-  downloads). Both settings are in the app from its first release. The private key exists only in the keychain of the
+  missing signature, or changed, is refused). Updates are the app's zip only (`appcast` and `sign-update` refuse
+  anything else): for a zip the app's code signature is never a way around the key, while Sparkle would take a disk
+  image signed by the same Developer ID team. It takes only a feed signed with the same key (`SURequireSignedFeed`: an
+  unsigned or changed feed is refused before anything downloads), and never relaxes that
+  (`SUSignedFeedFailureExpirationInterval` 0: Sparkle's default lets an unsigned feed through after 20 days of failed
+  checks). These settings are in the app from its first release. The private key exists only in the keychain of the
   Mac that makes releases. A build without a real key (any build from a checkout, unless you give it one) never
   updates.
 - **The feed's address** is a setting. Each build carries one (by default the repository's latest release:
@@ -114,13 +118,15 @@ headlines from CHANGELOG.md), downloads it, checks it, replaces the app and open
   is done the menu offers **Finish the Update…**, which shows the steps with Try Again — nothing restarts by itself at
   later starts.
 - **Another copy running here.** Before any step, the app looks at what runs MetaRush for this Mac: each MetaRush
-  records the copy it runs (`service status --json`: `daemon.program`, `sameCopy`, `newer`), and a background
-  service that starts MetaRush through a link (`~/.local/bin/metarush`) counts as another copy, since the link could
-  lead elsewhere later. When another copy runs it — the background service, or one opened by its dashboard — nothing
-  is changed or stopped: the app says so and asks, **Keep the Other One** being the default. **Use This App's
-  MetaRush** has the service run the app's copy from then on (`service install --keep-newer`, with `--worker-only` for
-  a worker), or restarts one opened by its dashboard as the app's copy. When that copy is newer than the app, the app
-  only says so; `--keep-newer` refuses too, for a copy that isn't running and so only its program can say its version.
+  records the copy it runs (`service status --json`: `daemon.program`, `sameCopy`, `newer`), so a link changed later
+  can't make another copy pass for the app's; a background service that starts MetaRush through a link that leads to
+  the app's copy (`~/.local/bin/metarush`) is the app's. When another copy runs it — the background service, or one
+  opened by its dashboard — nothing is changed or stopped: the app says so and asks, **Keep the Other One** being the
+  default. **Use This App's MetaRush** has the service run the app's copy from then on (`service install
+  --keep-newer`, with `--worker-only` for a worker), or restarts one opened by its dashboard as the app's copy. When
+  that copy is newer than the app, the app only says so. `--keep-newer` asks both the copy running and the program the
+  service starts (so an older copy opened by its dashboard can't hide a newer one), takes the newer, and refuses when
+  it is newer than this one or when neither says which version it is.
 
 ## Building
 
@@ -225,9 +231,12 @@ appcast names the archive at `https://github.com/<owner>/<repo>/releases/downloa
   signature is refused before anything is unpacked (and a control without `SUVerifyUpdateBeforeExtraction` shows
   Sparkle would otherwise unpack it first); an older release isn't offered. Sparkle's installer keeps a preference and
   a cache folder under the test's own bundle identifier (`io.metarush.app-update-test`) in your Library, and the test
-  removes them. The same package checks that its feed signature is the one Sparkle's `sign_update` verifies, and runs
-  `scripts/mac-app.sh appcast` (a release signed with another key, or an app without one, stops there) and the
-  build's refusals (a plain-http feed, a key that isn't the keychain's).
+  removes them, as it does the harness's own preferences (`io.metarush.app-update-test.harness`, linked into it, where
+  Sparkle keeps the date a signed feed first failed). With that date a month back, an unsigned feed is still refused,
+  and a control without `SUSignedFeedFailureExpirationInterval` shows Sparkle's default would take it. The same
+  package checks that its feed signature is the one Sparkle's `sign_update` verifies, and runs
+  `scripts/mac-app.sh appcast` (a release signed with another key, an app without one, or anything but a zip stops
+  there) and the build's refusals (a plain-http feed, a key that isn't the keychain's).
 - **Plain words**: `TestAppSpeaksPlainly` runs every string the app shows through the same check as the CLI and the
   dashboard.
 - CI builds the app with the dashboard and runs these on macOS when the app, or what it runs and reads, changes

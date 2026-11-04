@@ -191,11 +191,14 @@ async function main() {
   await page.locator('[data-background-off]').click();
   const out = await until(async () => ((await headBackground(page)).background ? null : true), 20_000);
   check('Take the background out saves a version without it', !!out);
-  const undo = page.getByRole('button', { name: 'Undo' });
-  await undo.first().waitFor({ timeout: 10_000 });
-  await undo.first().click();
+  // The Undo of the toast that says so (the timeline has an Undo of its own).
+  const undo = page.locator('[data-toasts] [role="status"]', { hasText: 'Background taken out' }).getByRole('button', { name: 'Undo' });
+  await undo.waitFor({ timeout: 10_000 });
+  await undo.click();
   const back = await until(async () => ((await headBackground(page)).background?.colour === '#00b140' ? true : null), 20_000);
-  check('Undo puts it back', !!back);
+  const said = (await page.locator('[data-toasts]').innerText().catch(() => '')).replace(/\s+/g, ' ');
+  check('Undo puts it back', !!back, back ? '' : said);
+  await shot(page, 'put-back-desktop-dark');
   check('no native dialogs, page errors or horizontal overflow (desktop)', problems.length === 0, problems.join(' | '));
   await ctx.close();
 

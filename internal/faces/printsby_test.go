@@ -2,11 +2,14 @@ package faces
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"math"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/faceid"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/models"
@@ -75,5 +78,79 @@ func TestQuestionsFollowWhatFoundTheFace(t *testing.T) {
 	}
 	if printsBy([]models.FaceTrack{{}, face}) != visual.BackendOpenModels {
 		t.Fatal("a group's faces say what found them")
+	}
+}
+
+// printsClip stores a clip whose one face (0–4 s) has the fingerprint v, in an
+// index the given backend made.
+func printsClip(t *testing.T, a *app.App, name string, v []float32, backend string) string {
+	t.Helper()
+	ctx := context.Background()
+	now := time.Now().UTC()
+	as := models.Asset{ID: ids.New(ids.Asset), WorkspaceID: a.WorkspaceID(), ProjectIDs: []string{}, Kind: "video", Name: name + ".mov", Title: name,
+		Size: 1, MIME: "video/quicktime", StorageKey: "k", State: models.AssetAvailable,
+		Media: models.MediaInfo{Duration: 4, HasVideo: true, Width: 1280, Height: 720, Streams: []models.Stream{}}, Variants: map[string]models.Variant{},
+		CreatedAt: now, UpdatedAt: now}
+	sum := sha256.Sum256([]byte(as.ID))
+	as.SHA256 = hex.EncodeToString(sum[:])
+	if err := a.DB.Insert(ctx, store.CAssets, as); err != nil {
+		t.Fatal(err)
+	}
+	var samples []visual.Sample
+	for i := 0; i < 4; i++ {
+		f := vision.Frame{W: 1280, H: 720, Faces: []vision.Face{{Conf: 1, Box: vision.Box{0.3, 0.2, 0.2, 0.35}, Quality: q(0.7)}}}
+		samples = append(samples, visual.Sample{At: float64(i) + 0.5, Frame: f, Prints: [][]float32{v}})
+	}
+	idx := visual.Build(samples, 1, 4, nil, "proxy")
+	idx.Backend = backend
+	if err := a.DB.Insert(ctx, store.CInsights, models.Insight{ID: ids.New(ids.Insight), WorkspaceID: a.WorkspaceID(), AssetID: as.ID, Kind: visual.InsightKind,
+		Provider: "test", Digest: "d", Data: visual.ToMap(idx), CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(ctx, a, as.ID, idx); err != nil {
+		t.Fatal(err)
+	}
+	return as.ID
+}
+
+// Re-scoring the library after a correction reads what found each face from
+// the database (D466): a group of faces the open models found, 0.40 like Ada,
+// isn't asked about at 0.41 and stays so, so its clip isn't redone on every
+// correction; the same faces found by Apple Vision are asked about.
+func TestRefreshKeepsTheOpenModelsThreshold(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	ada := make([]float32, faceid.Dim)
+	ada[0] = 1
+	like := make([]float32, faceid.Dim)
+	like[0], like[1] = 0.40, float32(math.Sqrt(1-0.40*0.40))
+	adas := printsClip(t, a, "Ada alone", ada, visual.BackendAppleVision)
+	if _, err := Confirm(ctx, a, faceOf(t, a, adas, 1).ID, person(t, a, "Ada")); err != nil {
+		t.Fatal(err)
+	}
+	open := printsClip(t, a, "Porch", like, visual.BackendOpenModels)
+	if _, _, err := Recognize(ctx, a, open); err != nil {
+		t.Fatal(err)
+	}
+	if f := faceOf(t, a, open, 1); f.PrintsBy != visual.BackendOpenModels || f.Candidate != nil {
+		t.Fatalf("the open models' face: %+v", f.Candidate)
+	}
+	ch, err := Refresh(ctx, a, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ch.Clips != 0 {
+		t.Fatalf("a correction redid %d clips that hadn't changed", ch.Clips)
+	}
+	if f := faceOf(t, a, open, 1); f.Candidate != nil {
+		t.Fatalf("re-scored at Apple Vision's threshold: %+v", f.Candidate)
+	}
+	// Apple Vision's faces at the same likeness are asked about.
+	apple := printsClip(t, a, "Garden", like, visual.BackendAppleVision)
+	if _, _, err := Recognize(ctx, a, apple); err != nil {
+		t.Fatal(err)
+	}
+	if f := faceOf(t, a, apple, 1); f.Candidate == nil || f.Candidate.Name != "Ada" {
+		t.Fatalf("Apple Vision's face: %+v", f.Candidate)
 	}
 }

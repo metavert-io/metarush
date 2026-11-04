@@ -283,11 +283,18 @@ func TestPhotoBackgroundNeedsTheSubject(t *testing.T) {
 	if n := notes(addPicture(t, a, p.ID, "garden.png", photo(0))); len(n) != 1 || !strings.Contains(n[0], "needs a Mac") {
 		t.Fatalf("no subject finder: %v", n)
 	}
-	fixes.SegmentSubject = func(context.Context, *app.App, string, string) error { return fixes.ErrNoSubject }
+	// A computer with neither Apple Vision nor the cut-out model says what to add.
+	fixes.SegmentSubject = func(context.Context, *app.App, string, string) (string, error) {
+		return "", &fixes.ErrCantSegment{Why: "the cut-out model isn't on this computer (Settings → Components)"}
+	}
+	if n := notes(addPicture(t, a, p.ID, "lawn.png", photo(20))); len(n) != 1 || !strings.Contains(n[0], "cut-out model") {
+		t.Fatalf("can't cut out here: %v", n)
+	}
+	fixes.SegmentSubject = func(context.Context, *app.App, string, string) (string, error) { return "", fixes.ErrNoSubject }
 	if n := notes(addPicture(t, a, p.ID, "sky.png", photo(40))); len(n) != 1 || !strings.Contains(n[0], "no clear subject") {
 		t.Fatalf("no subject: %v", n)
 	}
-	fixes.SegmentSubject = func(_ context.Context, _ *app.App, in, out string) error {
+	fixes.SegmentSubject = func(_ context.Context, _ *app.App, in, out string) (string, error) {
 		cut := image.NewNRGBA(image.Rect(0, 0, 240, 160))
 		for y := 40; y < 120; y++ {
 			for x := 60; x < 180; x++ {
@@ -296,7 +303,7 @@ func TestPhotoBackgroundNeedsTheSubject(t *testing.T) {
 		}
 		var buf bytes.Buffer
 		_ = png.Encode(&buf, cut)
-		return os.WriteFile(out, buf.Bytes(), 0o644)
+		return "BiRefNet", os.WriteFile(out, buf.Bytes(), 0o644)
 	}
 	r := addPicture(t, a, p.ID, "porch.png", photo(80))
 	if n := notes(r); len(n) != 0 {
@@ -306,7 +313,7 @@ func TestPhotoBackgroundNeedsTheSubject(t *testing.T) {
 	if err := a.DB.GetByID(context.Background(), store.CSourceCopies, a.WorkspaceID(), getResource(t, a, r.ID).Fixes.Copy.ID, &c); err != nil {
 		t.Fatal(err)
 	}
-	if len(c.FixSteps.Steps) != 1 || c.FixSteps.Steps[0].Engine != "subject mask" {
+	if len(c.FixSteps.Steps) != 1 || c.FixSteps.Steps[0].Engine != "subject mask" || c.FixSteps.Steps[0].Tool != "BiRefNet" {
 		t.Fatalf("steps %+v", c.FixSteps.Steps)
 	}
 }

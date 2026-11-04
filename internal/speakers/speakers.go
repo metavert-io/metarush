@@ -239,7 +239,12 @@ func StoreWith(ctx context.Context, a *app.App, as *models.Asset, d *Detection, 
 		for _, s := range c.Samples {
 			sp.Samples = append(sp.Samples, models.TimeSpan{From: s.From, To: s.To})
 		}
-		if len(c.Centroid) > 0 {
+		// A reference's voices — someone else's video (D398, D443) — keep no
+		// fingerprint and are never recognized as anyone: they can't match or
+		// teach a profile. A person who says the video is theirs gets them back
+		// (footage.reference.mine listens again).
+		ref := as.IsReference()
+		if len(c.Centroid) > 0 && !ref {
 			sp.Model, sp.Centroid = voice.ModelName, c.Centroid
 			for _, x := range c.Exemplars {
 				sp.Exemplars = append(sp.Exemplars, x.Vec)
@@ -249,6 +254,9 @@ func StoreWith(ctx context.Context, a *app.App, as *models.Asset, d *Detection, 
 		k := carried[c.Label]
 		sp.Rejected = k.rejected
 		dec := d.Decision[c.Label]
+		if ref {
+			dec = voice.Decision{}
+		}
 		switch {
 		case k.person != nil:
 			// A person said who this is before: that stands.
@@ -289,6 +297,14 @@ func StoreWith(ctx context.Context, a *app.App, as *models.Asset, d *Detection, 
 		Minor: len(d.Result.Clusters) - d.Result.Speakers(), Named: named, Notes: d.Notes, Fingerprints: d.Prints, UpdatedAt: now}
 	if err := a.DB.Update(ctx, store.CAssets, ws, as.ID, bson.M{"$set": bson.M{"speakers": st, "transcript.speakers": len(d.Result.Clusters), "updatedAt": now}}); err != nil {
 		return nil, err
+	}
+	// A question a person dismissed stays dismissed for the voice heard again (D458).
+	for _, sp := range docs {
+		if k := carried[sp.Label]; k.dismissed != nil && sp.Name == "" {
+			if err := keepDismissed(ctx, a, sp, k.dismissed); err != nil {
+				return nil, err
+			}
+		}
 	}
 	// Lines a person fixed keep their speaker, even if detection heard them differently now.
 	if err := reapplyConfirmed(ctx, a, as, d.Previous, carried, ch); err != nil {

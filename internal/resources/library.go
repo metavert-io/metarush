@@ -572,7 +572,7 @@ func Refresh(ctx context.Context, a *app.App, r *models.Resource) ([]string, err
 			pagePaths = append(pagePaths, p)
 		}
 	}
-	look := TagInput{Name: r.Title + "." + v.Ext, Kind: r.Kind, Version: v, Path: path, Pages: pagePaths, Palette: palette, Tools: a.Tools}
+	look := TagInput{Name: r.Title + "." + v.Ext, Kind: r.Kind, Version: v, Path: path, Pages: pagePaths, Palette: palette, Tools: a.Tools, Cfg: a.Cfg}
 	tags := AutoTags(ctx, look)
 	set["autoTags"] = mergeAuto(nil, append(filenameKept(r.AutoTags), tags...))
 	if t := FindText(ctx, look); t != "" {

@@ -5,6 +5,7 @@ import { Button, ErrorPanel, SectionTitle, Skeleton, Theirs, Thumb } from '../..
 import { recipesLink } from './api';
 import { useRunDialog } from './RunDialog';
 import { StarterRecipes } from './Starters';
+import { StartFromVideo } from './StartFromVideo';
 
 /*
  * "Start from a recipe" on Studio's Home (D212): the recipes that can run —
@@ -12,6 +13,8 @@ import { StarterRecipes } from './Starters';
  * Run with… (the run dialog: the inputs, the plan and its estimate, then Run);
  * all of them are on the Library's Recipes tab. With none yet, one line says
  * how to save one, and the starter recipes not added yet are offered (D293).
+ * Below them, Start from a video you like (D403): a link or a file becomes a
+ * draft shaped like that video.
  */
 
 /** How many recipes Home shows (the newest first). */
@@ -55,6 +58,7 @@ export function StartFromRecipe({ className }: { className?: string }) {
             </span>
           </div>
           <StarterRecipes compact className="mt-2" />
+          <StartFromVideo compact className="mt-2" />
         </>
       ) : (
         <ul className="space-y-1.5" aria-label="Recipes you can run">
@@ -85,6 +89,7 @@ export function StartFromRecipe({ className }: { className?: string }) {
           ) : null}
         </ul>
       )}
+      {runnable.length > 0 ? <StartFromVideo compact className="mt-2" /> : null}
     </section>
   );
 }

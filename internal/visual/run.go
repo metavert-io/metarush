@@ -82,6 +82,26 @@ type Printer interface {
 type RunOptions struct {
 	// Prints makes face fingerprints (nil: faces are found but not fingerprinted).
 	Prints Printer
+	// Looker looks at the frames: this computer's way (looker.Open; D408).
+	// nil is the on-screen helper (Apple Vision).
+	Looker Looker
+}
+
+// Looker looks at frames (looker.Looker): Apple Vision's helper or the open
+// models on this computer.
+type Looker interface {
+	Backend() string
+	Sees() []string
+	Analyze(ctx context.Context, dir string, o vision.Options, each func(vision.Frame)) error
+}
+
+// helperLooker is the on-screen helper, for runs that name no looker.
+type helperLooker struct{ ts *tools.Set }
+
+func (helperLooker) Backend() string { return BackendAppleVision }
+func (helperLooker) Sees() []string  { return nil }
+func (h helperLooker) Analyze(ctx context.Context, dir string, o vision.Options, each func(vision.Frame)) error {
+	return vision.Analyze(ctx, h.ts, dir, o, each)
 }
 
 // Faces smaller than faceid.MinEyes between the eyes (pixels of the frame
@@ -149,9 +169,13 @@ func Run(ctx context.Context, ts *tools.Set, src string, dur float64, extra, cut
 		progress = func(int, int) {}
 	}
 	var samples []Sample
+	lk := o.Looker
+	if lk == nil {
+		lk = helperLooker{ts}
+	}
 	vo := vision.Options{AnyLanguage: true, Landmarks: o.Prints != nil, Attention: true, Hands: true, Pose: true}
 	look := func(dir string, at map[string]float64) error {
-		return vision.Analyze(ctx, ts, dir, vo, func(f vision.Frame) {
+		return lk.Analyze(ctx, dir, vo, func(f vision.Frame) {
 			if t, ok := at[f.File]; ok {
 				s := Sample{At: t, Frame: f}
 				if o.Prints != nil && f.Error == "" {
@@ -211,5 +235,10 @@ func Run(ctx context.Context, ts *tools.Set, src string, dur float64, extra, cut
 		done += len(more)
 		progress(done, total)
 	}
-	return Build(samples, step, dur, cuts, source), nil
+	idx := Build(samples, step, dur, cuts, source)
+	idx.Backend = lk.Backend()
+	if sees := lk.Sees(); len(sees) > 0 && lk.Backend() != BackendAppleVision {
+		idx.Sees = append([]string{}, sees...)
+	}
+	return idx, nil
 }

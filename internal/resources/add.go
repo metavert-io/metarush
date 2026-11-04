@@ -102,6 +102,18 @@ type AddResult struct {
 var MayStore func(ctx context.Context, a *app.App, projectID, what string) error
 
 func AddFile(ctx context.Context, a *app.App, path string, o AddOptions) (*AddResult, error) {
+	res, err := addFile(ctx, a, path, o)
+	if err == nil && res != nil && res.Resource != nil {
+		// A picture taken from a reference says so as it comes in (D457).
+		if ref := FrameReference(ctx, a, res.Resource, res.SHA256); ref != nil {
+			res.Notes = append(res.Notes, fmt.Sprintf("It's a frame of “%s”, a reference: someone else's video, kept to learn from. No cut shows it and nothing is made from it until you say the video is yours (This is mine, on its page).",
+				strings.TrimSpace(ref.DisplayTitle())))
+		}
+	}
+	return res, err
+}
+
+func addFile(ctx context.Context, a *app.App, path string, o AddOptions) (*AddResult, error) {
 	name := o.FileName
 	if name == "" {
 		name = filepath.Base(path)
@@ -124,6 +136,11 @@ func AddFile(ctx context.Context, a *app.App, path string, o AddOptions) (*AddRe
 	if sn.Route != RouteResource {
 		res.Status, res.Message = StatusSkipped, name+" isn't a picture, SVG, PDF or font."
 		return res, ErrNotResource
+	}
+	// A frame MetaRush took of a clip keeps where it came from (D457).
+	var frame *models.ResourceFrame
+	if sn.Kind == models.ResourceImage && sn.Format == "jpeg" {
+		frame = frameOf(ctx, a, path)
 	}
 	o.FileName = name
 	scope, err := scopeOf(ctx, a, &o)
@@ -256,6 +273,9 @@ func AddFile(ctx context.Context, a *app.App, path string, o AddOptions) (*AddRe
 	if v.Source.Kind == "" {
 		v.Source.Kind = models.FromFile
 	}
+	if v.Source.FrameOf == nil {
+		v.Source.FrameOf = frame
+	}
 	if v.Source.Name == "" {
 		v.Source.Name = name
 	}
@@ -334,7 +354,7 @@ func AddFile(ctx context.Context, a *app.App, path string, o AddOptions) (*AddRe
 	if _, err := a.Cache.Adopt(prepared, sha); err != nil && o.Defer {
 		return nil, fmt.Errorf("keep a local copy of %s: %w", name, err)
 	}
-	look := TagInput{Name: name, Kind: sn.Kind, Version: &v, Path: prepared, Pages: pagePaths, Palette: palette, Tools: a.Tools}
+	look := TagInput{Name: name, Kind: sn.Kind, Version: &v, Path: prepared, Pages: pagePaths, Palette: palette, Tools: a.Tools, Cfg: a.Cfg}
 	tags := AutoTags(ctx, look)
 	if t := FindText(ctx, look); t != "" {
 		v.Text = t
@@ -390,7 +410,7 @@ func AddFile(ctx context.Context, a *app.App, path string, o AddOptions) (*AddRe
 			} else {
 				o.ResourceID = DriveFileResource(ctx, a, o.DriveFile.ID).ID
 			}
-			return AddFile(ctx, a, path, o)
+			return addFile(ctx, a, path, o)
 		}
 		return nil, err
 	}

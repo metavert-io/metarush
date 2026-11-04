@@ -27,8 +27,9 @@ func visualsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "visuals <asset-id>",
 		Short: "What's on screen in a clip, line by line: shot type, faces and whose, setting, things, on-screen text",
-		Long: "Reads the on-screen index MetaRush makes on a Mac with Apple Vision (about one frame a second plus the moments the picture changes;\n" +
-			"nothing is uploaded). A face shows a name only where a person confirmed it. Look at frames before claiming anything visual.",
+		Long: "Reads the on-screen index MetaRush makes on a computer in the workspace — Apple Vision on a Mac, the open models elsewhere — about one\n" +
+			"frame a second plus the moments the picture changes; nothing is uploaded. A face shows a name only where a person confirmed it. Look at\n" +
+			"frames before claiming anything visual.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			in.AssetID = args[0]
@@ -38,6 +39,9 @@ func visualsCmd() *cobra.Command {
 					fmt.Println(v.Note)
 				} else {
 					fmt.Printf("%s: %s\n", v.Title, v.Summary)
+					if v.LookedWith == "open-models" {
+						fmt.Println("(Looked at with the open models: faces, the words on screen and what stands out; they don't name places, things or animals, or see gestures.)")
+					}
 					for _, l := range v.Lines {
 						fmt.Println("  " + l.Line)
 					}
@@ -77,7 +81,7 @@ func visualsCmd() *cobra.Command {
 	cmd.Flags().Float64Var(&in.To, "to", 0, "range end (s)")
 	addDetails(cmd, &details)
 	cmd.AddCommand(&cobra.Command{
-		Use: "status", Short: "Whether clips get looked at (Apple Vision on a Mac) and how many are done", Args: cobra.NoArgs,
+		Use: "status", Short: "Whether clips get looked at (Apple Vision on a Mac, the open models elsewhere) and how many are done", Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			return runOp(c, "footage.visuals.status", ops.VisualStatusIn{}, func(o any) {
 				s := o.(*ops.VisualStatusOut)

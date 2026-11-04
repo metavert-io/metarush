@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -189,6 +190,10 @@ func shapeIssues(d *models.RecipeDoc) []models.RecipeIssue {
 	}
 	if len(d.Sections) == 0 {
 		add("sections", "", "The recipe has no sections, so a run would make an empty video.")
+	}
+	if r := d.Reference; r != nil && r.URL != "" && !webAddress(r.URL) {
+		// Drafted from a video someone liked (D400): its link is shown to open, so only a web address.
+		add("reference", "", "The link to the video it was drafted from isn't a web address.")
 	}
 	inputs := inputByName(d)
 	seen := map[string]bool{}
@@ -430,4 +435,11 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// webAddress reports whether s is an http or https address with a host and no
+// sign-in in it.
+func webAddress(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil
 }

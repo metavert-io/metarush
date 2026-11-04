@@ -13,7 +13,7 @@ sign up for:
 | Music | Lyria 3.5 (a song, priced per song) | Eleven Music v2 and v2.5 (priced per minute) | Sources, as a clip |
 | Dubs | — | ElevenLabs dubbing | Sources, as a new clip (the picture kept, the sound dubbed) |
 | Transcripts in the cloud (on request) | Gemini 3.5 Transcribe | Scribe v2 | the clip's words |
-| A picture's background taken away | — | — | the resources library (on this computer: Apple Vision) |
+| A picture's background taken away | — | — | the resources library (on this computer: Apple Vision on a Mac, BiRefNet elsewhere) |
 | A picture made larger | — | — | the resources library (on this computer: Real-ESRGAN) |
 | Lip sync (with consent) | — | — | Sources, as a clip (sync., its own key: lipsync-2, lipsync-2-pro, sync-3) |
 
@@ -39,6 +39,7 @@ allows them (nothing of the client's leaves), unless the settings name `local` a
 | AI speech | Kokoro v1.0: 41 voices in English (American, British), Spanish, French, Hindi, Italian, Portuguese | Apache-2.0 | `metarush ai local setup kokoro-v1` (about 370 MB: the speech program and the model) | 29 s of speech in 8.8 s (0.30× real time) |
 | AI speech | Kitten nano: 8 English voices | Apache-2.0 | `metarush ai local setup kitten-nano` (about 50 MB) | 52 s of speech in 8.1 s (0.16×) |
 | Background removal | Apple Vision subject lifting (Mac, macOS 14+) | your picture | nothing: MetaRush's own helper | 0.24 s a picture (512 × 512) |
+| Background removal | BiRefNet general, Swin-T (`birefnet`; Linux, or a Mac told to use the open models) | MIT | the **Cutting out a picture's subject** component (`metarush components add cut-outs`, about 225 MB) | about 5 s a picture (at 1024 × 1024, on a busy Mac mini) |
 | Larger pictures | Real-ESRGAN general x4v3 (2× or 4×) | BSD-3-Clause | `metarush ai local setup real-esrgan-x4v3` (about 5 MB) | 512 × 512 out in 0.45 s; 4096 × 4096 in 12 s |
 
 `metarush ai local` lists them with whether each can run here and what setting it up downloads; `ai local setup` is
@@ -69,7 +70,9 @@ down at setup before every run. Tests never download (`go test` reaches only a s
   zebra's stripes +1.9 dB), slightly behind on smooth areas — and visibly sharper, with clean edges and no seams
   between its 128-pixel tiles. PSNR favours smooth guesses, so the gain people see is larger than the number.
 - **Background removal**: the same subject mask as the pictures fix "Remove the background", 5 of 5 photos cut
-  out. A cut-out is the person's own picture with nothing new made, so it isn't marked as AI-generated (its
+  out. BiRefNet (where the open models look, [visual-index.md](visual-index.md#off-the-mac-the-open-models)) gave
+  the same answer as Apple Vision on 7 of 7 pictures (6 subjects, 1 without), its cut-out overlapping Apple's by 0.99
+  on 5 of them and 0.77 on one (`go test -tags screeneval -run TestCompareCutOuts ./internal/visionmodels/`). A cut-out is the person's own picture with nothing new made, so it isn't marked as AI-generated (its
   lineage says how it was changed); a larger picture's detail is made up by the model, so it is.
 
 ## Lip sync
@@ -80,8 +83,9 @@ heard in it, and the voice in the new sound, must have consented to lip sync wit
 (`metarush looks consent record … --uses lip-sync --services sync`; an AI voice's voice copy consent counts only if it
 says so too). Footage MetaRush hasn't looked at, or where it can tell no face apart, is refused, and so is anyone
 recorded as a child or a public figure. The on-screen look samples about once a second, so before anything is sent
-MetaRush looks at every quarter second of the part (on a Mac, with Apple Vision) and stops if a moment shows more faces
-than people named there; a computer that can't look at what's on screen doesn't send lip sync. What it makes is marked as a likeness. The sound may not be longer than the
+MetaRush looks at every quarter second of the part (on a Mac, with Apple Vision; this check doesn't use the open models
+yet) and stops if a moment shows more faces than people named there; a computer that can't look with Apple Vision
+doesn't send lip sync. What it makes is marked as a likeness. The sound may not be longer than the
 footage. The first provider
 is sync. (its own API key, `metarush providers set sync`): $0.05 a second of footage with lipsync-2, $0.083 with
 lipsync-2-pro, $0.13 with sync-3 (its Hobbyist and Creator prices of 25 October 2026; bigger plans pay less, and its

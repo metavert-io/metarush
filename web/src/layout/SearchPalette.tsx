@@ -253,7 +253,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
                 <>
                   <div className="text-[13.5px] font-medium text-fg">Nothing matches “{debounced}”</div>
                   <div className="mx-auto mt-1 max-w-[44ch] text-[12.5px] leading-relaxed text-muted">
-                    Search looks through what was said in your footage (whole words and the start of words), what is on screen (things, animals, places and text, found on a Mac), the names of people you named, video titles and filenames, projects, versions and comments.
+                    Search looks through what was said in your footage (whole words and the start of words), what is on screen (faces and text; things, animals and places where a Mac looked), the names of people you named, video titles and filenames, projects, versions and comments.
                   </div>
                 </>
               ) : (

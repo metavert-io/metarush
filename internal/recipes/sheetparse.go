@@ -91,7 +91,7 @@ func sortProblems(ps []cutsheet.Problem) []cutsheet.Problem {
 
 // ---- settings ----
 
-const sheetKeys = "recipe, name, base, format, title, makes, length, lands, settings, from"
+const sheetKeys = "recipe, name, base, format, title, makes, length, lands, settings, from, reference"
 
 func (p *sheetParser) settings(lines []string, first int) {
 	seen := map[string]int{}
@@ -159,6 +159,8 @@ func (p *sheetParser) settings(lines []string, first int) {
 			}
 		case "from":
 			p.from(value, ln, vcol)
+		case "reference":
+			p.reference(value, ln, vcol)
 		default:
 			p.errAt(ln, 1, col, "unknown_setting", fmt.Sprintf("MetaRush doesn't know the setting %q.", strings.TrimSpace(k)), "Settings are: "+sheetKeys+".")
 		}
@@ -245,6 +247,32 @@ func (p *sheetParser) from(v string, ln, col int) {
 	var f models.RecipeFrom
 	if p.decode(m, &f, ln, col, "from") {
 		p.doc.From = &f
+	}
+}
+
+// reference reads the video a recipe was drafted from (D400).
+func (p *sheetParser) reference(v string, ln, col int) {
+	m := map[string]json.RawMessage{}
+	for _, c := range splitClauses(v, col) {
+		s := c.text
+		switch {
+		case strings.HasPrefix(s, "clip "):
+			p.setToken(m, "assetId", strings.TrimPrefix(s, "clip "), ln, c)
+		case strings.HasPrefix(s, "link "):
+			p.setText(m, "url", strings.TrimPrefix(s, "link "), ln, c)
+		case strings.HasPrefix(s, "on "):
+			p.setToken(m, "platform", strings.TrimPrefix(s, "on "), ln, c)
+		case strings.HasPrefix(s, "by "):
+			p.setText(m, "who", strings.TrimPrefix(s, "by "), ln, c)
+		case strings.HasPrefix(s, "{"):
+			p.block(m, s, ln, c)
+		default:
+			p.unknownClause(ln, c, "clip, link, on, by")
+		}
+	}
+	var r models.RecipeReference
+	if p.decode(m, &r, ln, col, "reference") {
+		p.doc.Reference = &r
 	}
 }
 

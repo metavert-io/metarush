@@ -318,6 +318,9 @@ func resShowCmd() *cobra.Command {
 				if out.Row.Provenance != "" && out.Row.Kind != models.ResourceWebsite {
 					fmt.Println("From " + out.Row.Provenance + ".")
 				}
+				if out.Row.Reference != "" {
+					fmt.Println(out.Row.Reference)
+				}
 				printRepoDetails(out.Repo, out.Made)
 				printSite(out.Row.Site, out.Row.PagePictures)
 				if len(out.UsedIn) == 0 {

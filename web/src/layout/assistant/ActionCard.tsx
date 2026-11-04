@@ -75,6 +75,8 @@ const verb: Record<string, string> = {
   'recipe.picks': 'Keep them',
   'recipe.write': 'Save the draft',
   'recipe.suggestions.save': 'Save the draft',
+  'recipe.fromVideo': 'Start the draft',
+  'footage.reference': 'Mark it',
   'delivery.notes.set': 'Keep them',
   'captions.translate': 'Keep them',
   'captions.translation.remove': 'Take them off',

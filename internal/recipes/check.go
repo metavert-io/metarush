@@ -181,6 +181,18 @@ func checkDoc(ctx context.Context, a *app.App, d *models.RecipeDoc) *models.Reci
 	as := assemble(assemblyIn{Doc: d, Values: values, Changed: changed, Voice: voice, DefaultVoice: defVoice, Run: "a check"})
 	spec := as.Spec
 	editspec.Normalize(spec)
+	if len(spec.Clips) == 0 && footageFromRuns(d) {
+		// Every section chooses from footage each run gives (a draft from a
+		// video someone liked, D400): there is nothing to assemble until a run
+		// gives it, and the run's own check tries the video then.
+		warn("footage_from_runs", "", "It has no footage of its own: each run gives it, and the video is checked when a run makes it.")
+		for _, o := range spec.Overlays {
+			for _, is := range editspec.ValidateTemplateParams(o.Template, o.Params, "") {
+				problem("cut_"+is.Code, "", "%s: %s", upperFirst(graphicWords(&o)), strings.TrimSuffix(is.Message, ".")+".")
+			}
+		}
+		return finish(out)
+	}
 	facts, err := ops.LoadFacts(ctx, a, factsProject, spec)
 	if err != nil {
 		problem("internal", "", "MetaRush couldn't read the footage the recipe uses.")
@@ -301,4 +313,17 @@ func templateField(template, field string) (limit int, text, known bool) {
 func recordCheck(ctx context.Context, a *app.App, v *models.RecipeVersion, c *models.RecipeCheck) {
 	v.Check = c
 	_, _ = a.DB.C(store.CRecipeVersions).UpdateOne(ctx, map[string]any{"_id": v.ID, "workspaceId": a.WorkspaceID()}, map[string]any{"$set": map[string]any{"check": c}})
+}
+
+// footageFromRuns reports a recipe whose every section chooses from a footage
+// input that has none of its own: each run gives it (D400).
+func footageFromRuns(d *models.RecipeDoc) bool {
+	inputs := inputByName(d)
+	for _, s := range d.Sections {
+		in := inputs[s.From]
+		if s.Kind != models.RecipeChosen || len(s.Clips) > 0 || in == nil || in.Kind != models.RecipeFootage || len(in.Default.Items) > 0 || in.From != nil {
+			return false
+		}
+	}
+	return len(d.Sections) > 0
 }

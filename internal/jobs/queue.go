@@ -439,13 +439,20 @@ func (q *Queue) Fail(ctx context.Context, j *models.Job, owner string, cause err
 // dropped, the attempt does not count and the next worker starts it afresh.
 // It is never a failure.
 func (q *Queue) Release(ctx context.Context, j *models.Job, owner string) error {
+	return q.ReleaseFor(ctx, j, owner, "waiting (the worker running it stopped)")
+}
+
+// ReleaseFor is Release with what the job says while it waits: why the
+// computer that had it handed it back (D446: it can't run it after all, and
+// another computer can).
+func (q *Queue) ReleaseFor(ctx context.Context, j *models.Job, owner, waiting string) error {
 	// Handing a job back goes through a move's freeze: it puts the database
 	// at rest (the move waits for running work, D335).
 	ctx = store.WriteThroughFreeze(ctx)
 	now := q.DB.NowOrLocal(ctx)
 	res, err := q.DB.C(store.CJobs).UpdateOne(ctx,
 		bson.M{"_id": j.ID, "workspaceId": q.WorkspaceID, "lease.owner": owner, "state": models.JobRunning},
-		bson.M{"$set": bson.M{"state": models.JobQueued, "updatedAt": now, "progress": models.Progress{Message: "waiting (the worker running it stopped)"},
+		bson.M{"$set": bson.M{"state": models.JobQueued, "updatedAt": now, "progress": models.Progress{Message: waiting},
 			"attempts.$[last].endedAt": now, "attempts.$[last].outcome": "released"},
 			"$currentDate": bson.M{"nextRunAt": true}, // due now by the server's time
 			"$inc":         bson.M{"attemptCount": -1},

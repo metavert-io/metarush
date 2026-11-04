@@ -21,6 +21,8 @@ func init() {
 		// Starter recipes (D293) and a sample first (D294).
 		"recipe.starters": "look at the starter recipes", "recipe.starters.add": "add the starter recipes as drafts",
 		"recipe.sample": "decide on a recipe run's sample",
+		// Start from a video someone liked (D400).
+		"recipe.fromVideo": "start a recipe from a video",
 	} {
 		opBase[k] = v
 	}

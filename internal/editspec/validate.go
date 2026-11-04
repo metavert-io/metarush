@@ -418,6 +418,7 @@ func Validate(s *Spec, facts Facts, base *Spec, allowUnlock bool) []Issue {
 	out = append(out, validateResources(s, facts)...)
 	out = append(out, nestedIssues(s, facts)...)
 	out = append(out, conversationIssues(s, facts, clips)...)
+	out = append(out, referenceIssues(s, facts)...) // wherever the cut plays footage, nested cuts too (D398, D440)
 	out = append(out, layoutStyleIssues(s)...)
 	out = append(out, fixedIssues(s, facts)...)
 	out = append(out, motionShapeIssues(s, facts)...)

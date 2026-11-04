@@ -58,7 +58,7 @@ fi
 vlabel() { if [ -n "$1" ]; then printf '%s' "$1"; else printf 'system-default'; fi; }
 
 # ------------------------------------------------------------ idempotence ---
-OUTPUTS="interview-a.mov interview-b.mp4 broll-c.mp4 phone-rotated.mov vfr.mp4 music-bed.m4a two-speakers.wav not-a-video.mp4 long-silence.mp4 visual-a.mp4 visual-b.mp4 call-speaker-view.mp4"
+OUTPUTS="interview-a.mov interview-b.mp4 broll-c.mp4 phone-rotated.mov vfr.mp4 music-bed.m4a two-speakers.wav not-a-video.mp4 long-silence.mp4 visual-a.mp4 visual-b.mp4 call-speaker-view.mp4 reference-short.mp4"
 IMAGES="$ROOT/tests/fixtures/images"
 STAMP="$(
   { cat "${BASH_SOURCE[0]}" "$IMAGES"/*.jpg; echo "$VOICE_A|$VOICE_B|$VOICE_PHONE|$VOICE_VFR|$VOICE_S1|$VOICE_S2"; "$FFMPEG" -version | head -1; } \
@@ -507,6 +507,102 @@ cat > "$TRUTH/call-speaker-view.json" <<EOF
   "printed_names": {"corner": "bottom-left", "box": [0.014, 0.903, 0.199, 0.076]},
   "images": "tests/fixtures/images (public domain, see SOURCES.md)",
   "notes": "Speaker view: the picture switches at exactly 6, 12 and 18 s (frames 180, 360, 540); each shot shows the call app's name tile at the bottom left. A clip from 5.8 s opens with a split-second (6 frames) of Lena before Maya appears; a clip ending at 18.25 s ends with a split-second of Maya."
+}
+EOF
+
+# ======================================================= 13. reference-short ==
+# 720x1280 (vertical), 30 fps, H.264 + AAC 48 kHz stereo, 26 s: a short made the
+# way many are, for "Start from a video you like" (D399, D400): a question as the
+# hook, an intro, three points of a list, a call to action and an end card, with
+# a title at the top over the hook, captions burned in low in the picture (two or
+# three words of each line, in capitals, while it is said) and a quiet chord bed
+# under the voice that plays on over the end card. Seven shots joined by hard
+# cuts at 3.2, 6.5, 10.5, 14.5, 18.5 and 22 s; each line starts at a fixed time.
+RS_LINES=(
+  "0.40|Why do people stop watching so fast?|WHY DO PEOPLE"
+  "3.50|Here are three fixes that work.|THREE FIXES"
+  "6.80|First, lead with your strongest moment.|STRONGEST MOMENT"
+  "10.80|Second, cut every slow pause.|CUT EVERY PAUSE"
+  "14.80|Third, add big captions for silent viewers.|BIG CAPTIONS"
+  "18.80|Follow for more tips every week.|FOLLOW FOR TIPS"
+)
+# caption <TEXT> <from> <to>: the label centred low in the picture, shown only then.
+caption() {
+  local n=${#1} s=7
+  local x0=$(( (720 - (n*6*s - s)) / 2 ))
+  label "$1" "$x0" 960 "$s" white | sed "s/:t=fill/:t=fill:enable='between(t,$2,$3)'/g"
+}
+rs_parts=(); rs_t=0; rs_json=""; rs_caps=""; RS_CAPTION_FILTERS=""; k=0
+for line in "${RS_LINES[@]}"; do
+  start="${line%%|*}"; rest="${line#*|}"; text="${rest%%|*}"; cap="${rest#*|}"
+  speak "$VOICE_A" "$text" "$WORK/rs$k.wav" $SR
+  silence "$(awk -v a="$start" -v b="$rs_t" 'BEGIN{printf "%.6f", a-b}')" "$WORK/rsg$k.wav" $SR
+  rs_parts+=("$WORK/rsg$k.wav" "$WORK/rs$k.wav")
+  end="$(fsum "$start" "$(wav_dur "$WORK/rs$k.wav")")"; rs_t="$end"
+  if [ $k -gt 0 ]; then rs_json="$rs_json,"; rs_caps="$rs_caps,"; fi
+  rs_json="$rs_json
+    {\"start_s\": $start, \"end_s\": $end, \"text\": \"$(json_escape "$text")\"}"
+  rs_caps="$rs_caps
+    {\"text\": \"$cap\", \"from_s\": $start, \"to_s\": $end}"
+  RS_CAPTION_FILTERS="${RS_CAPTION_FILTERS:+$RS_CAPTION_FILTERS,}$(caption "$cap" "$start" "$end")"
+  k=$((k+1))
+done
+concat_wavs "$WORK/rsv0.wav" "${rs_parts[@]}"
+"${FF[@]}" -i "$WORK/rsv0.wav" -af "apad=whole_dur=26" -t 26 -c:a pcm_s16le "$WORK/rsv.wav"
+# The chord bed (as music-bed, quieter), mixed under the voice for the whole video.
+RSC='mod(floor(t/2),4)'
+RSR="if(eq($RSC,0),261.63,if(eq($RSC,1),220.00,if(eq($RSC,2),174.61,196.00)))"
+RST="if(eq($RSC,0),329.63,if(eq($RSC,1),261.63,if(eq($RSC,2),220.00,246.94)))"
+RSBED="(0.55+0.45*exp(-3*mod(t,0.5)))*(0.012*sin(2*PI*$RSR*t)+0.009*sin(2*PI*$RST*t)+0.012*sin(PI*$RSR*t))"
+"${FF[@]}" -f lavfi -i "aevalsrc='$RSBED':s=$SR:d=26" -i "$WORK/rsv.wav" \
+  -filter_complex "[0:a]afade=t=out:st=25:d=1[bed];[1:a][bed]amix=inputs=2:normalize=0[a]" -map "[a]" -c:a pcm_s16le "$WORK/rs.wav"
+"${FF[@]}" \
+  -loop 1 -framerate 30 -t 3.2 -i "$IMAGES/portrait.jpg" \
+  -loop 1 -framerate 30 -t 3.3 -i "$IMAGES/portrait-b.jpg" \
+  -loop 1 -framerate 30 -t 4 -i "$IMAGES/beach.jpg" \
+  -loop 1 -framerate 30 -t 4 -i "$IMAGES/person.jpg" \
+  -loop 1 -framerate 30 -t 4 -i "$IMAGES/dog.jpg" \
+  -loop 1 -framerate 30 -t 3.5 -i "$IMAGES/portrait.jpg" \
+  -f lavfi -i "color=c=0x1d2b3a:s=720x1280:r=30:d=4" \
+  -i "$WORK/rs.wav" \
+  -filter_complex "\
+[0:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,$(label "STOP SCROLLING" 24 110 8 0xFFE070),noise=alls=5:allf=t,format=yuv420p[r1];\
+[1:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,noise=alls=4:allf=t,format=yuv420p[r2];\
+[2:v]scale=-2:1280,crop=720:1280:x='60+t*40':y=0,setsar=1,noise=alls=4:allf=t,format=yuv420p[r3];\
+[3:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,noise=alls=4:allf=t,format=yuv420p[r4];\
+[4:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,noise=alls=4:allf=t,format=yuv420p[r5];\
+[5:v]scale=900:1600:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,noise=alls=5:allf=t,format=yuv420p[r6];\
+[6:v]$(label "FOLLOW FOR MORE" 47 600 7 white),format=yuv420p[r7];\
+[r1][r2][r3][r4][r5][r6][r7]concat=n=7:v=1:a=0,$RS_CAPTION_FILTERS[v]" \
+  -map "[v]" -map 7:a -t 26 "${X264[@]}" -r 30 -fps_mode cfr -af "aresample=$SR,pan=stereo|c0=c0|c1=c0" "${AAC[@]}" \
+  -movflags +faststart "${BITEXACT[@]}" "$GEN/reference-short.mp4"
+for line in "${RS_LINES[@]}"; do rest="${line#*|}"; printf '%s\n' "${rest%%|*}"; done > "$TRUTH/reference-short.txt"
+cat > "$TRUTH/reference-short.json" <<EOF
+{
+  "file": "reference-short.mp4",
+  "duration_s": 26,
+  "width": 720,
+  "height": 1280,
+  "voice": "$(json_escape "$(vlabel "$VOICE_A")")",
+  "lines": [$rs_json
+  ],
+  "captions": [$rs_caps
+  ],
+  "cuts_s": [3.2, 6.5, 10.5, 14.5, 18.5, 22],
+  "title": {"text": "STOP SCROLLING", "from_s": 0, "to_s": 3.2},
+  "end_card": {"text": "FOLLOW FOR MORE", "from_s": 22, "to_s": 26},
+  "sections": [
+    {"kind": "hook", "name": "hook", "from_s": 0, "to_s": 3.2},
+    {"kind": "intro", "name": "intro", "from_s": 3.2, "to_s": 6.5},
+    {"kind": "body", "name": "part-1", "from_s": 6.5, "to_s": 10.5},
+    {"kind": "body", "name": "part-2", "from_s": 10.5, "to_s": 14.5},
+    {"kind": "body", "name": "part-3", "from_s": 14.5, "to_s": 18.5},
+    {"kind": "call-to-action", "name": "call-to-action", "from_s": 18.5, "to_s": 22},
+    {"kind": "end-card", "name": "end-card", "from_s": 22, "to_s": 26}
+  ],
+  "music": "a chord bed well under the voice, all the way through (it fades out over the last second)",
+  "images": "tests/fixtures/images (public domain, see SOURCES.md)",
+  "notes": "A short in the usual shape: the hook asks a question (with a title at the top), the intro says what comes, three points of a list, a call to action, then an end card with words in the middle and the music still playing. Each line's first words show as a caption low in the picture while it is said."
 }
 EOF
 

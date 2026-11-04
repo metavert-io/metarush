@@ -824,6 +824,20 @@ func rewriteDoc(d *models.RecipeDoc, f *RecipeFile, m *importMaps, home string) 
 	}
 	d.Settings = ""
 	d.From = &models.RecipeFrom{ProjectID: home}
+	// The video it was drafted from (D400) stays in its workspace: its link
+	// comes along, its clip doesn't (a recipe file never holds a reference's footage).
+	if r := d.Reference; r != nil {
+		if r.URL != "" && !platformVideoLink(r.URL) { // only a public video page's link comes in (D444)
+			r.URL, r.Platform, r.Who = "", "", ""
+			notes = append(notes, "The link to the video it was drafted from was left out: it isn't a public video page.")
+		}
+		if r.AssetID != "" {
+			r.AssetID = ""
+			if r.URL != "" {
+				notes = append(notes, "The video it was drafted from stayed in the other workspace; its link came along.")
+			}
+		}
+	}
 	// Pictures the cut pins.
 	for name, pin := range d.Cut.Resources {
 		if np, ok := m.pictures[pin.ID]; ok {

@@ -55,6 +55,46 @@
   vouches for. Invite links work with it, two sign-ins in two tabs both finish, and `metarush dashboard` at this
   computer still opens MetaRush if the provider ever stops working. In a terminal: `metarush auth sso
   status|set|secret|test|discard` and `metarush auth method sso` (the secret through a pipe, or typed without echo).
+- **Start from a video you like**. Paste a link to a video you like (YouTube, TikTok, X) or choose its file on the
+  Recipes tab or Home (or `metarush recipe from-video`). It comes in as a reference — someone else's video, kept to
+  learn from, that no cut plays — and once MetaRush has looked at it, it drafts a recipe shaped like it for your own
+  footage: sections with their lengths, its shape and captions, rules (its length, a short hook) and hints (pacing,
+  your layout pack's title card and end screen, music under the voices). The draft says where it came from and holds
+  none of the video's footage, words or pictures; a person makes it current. In the Claude panel it is a card, and
+  Claude hears when the draft is saved.
+- **What a video does**. A clip's new **What it does** tab (and `metarush footage what-it-does`) says how a video is
+  built — its hook, intro, parts, call to action and end card with times, its pacing, who speaks and how much,
+  burned-in captions, titles and other words on screen, what plays under the voices and how it ends — read from what
+  MetaRush found in it, on this computer.
+- **Reference clips never play in a cut**. A clip marked a reference (someone else's video, kept to learn from) is
+  refused wherever a cut would play it — a clip, the sound, a conversation's recordings and cutaways, narration, a
+  cut it nests — with how to say it's yours if it is: **This is mine…** on its page, or `metarush footage reference
+  <clip> --mine` in your own terminal (people only). Nothing is generated or sent to an AI service from one, a version
+  that plays one is held from delivery, posting and review links until a person says it's theirs or sends it anyway
+  with a note, and Recipes never take one as footage. Its voices and faces are never recognized, named or learned
+  from. A file already in MetaRush stays yours; `metarush import --reference` brings links in as references.
+- **Marking a reference takes back what it taught**. When a clip turns out to be someone else's video, the voices and
+  faces learned from it are learned again from your own footage only: someone named only there is no longer
+  recognized anywhere, and names and "Is this …?" questions that came from it go; names you gave in your own clips
+  stay. When you say a reference is yours, it is heard again and a question you dismissed stays dismissed.
+- **A picture taken from a reference counts as the reference**. Frames and contact sheets MetaRush takes say which clip
+  they came from, and Resources keeps that ("a frame of “…” at 0:12"). While the clip is a reference the picture says
+  so, no cut shows it, a version that shows it waits like one that plays the clip, and AI work, generated video,
+  abilities, Remotion pictures and recipe files leave it out. Abilities never take a reference either, a timeline
+  never copies one into a footage folder, and recipe files leave references out, saying so. With the ship gate off,
+  **Deliver ready** now says when a reference still holds a version, and how to clear it.
+- **MetaRush sees what's on screen on Linux too**. Off the Mac, open models on your computer now look at every clip —
+  faces and people, the words on screen (Latin, Greek, Chinese and Japanese writing) and what stands out — free and
+  with nothing uploaded, into the same index a Mac makes: faces are recognized across clips, framing follows them,
+  search finds the words, names shown on screen suggest who is who, and the quality check sees faces and text in your
+  renders. Add **Seeing what's on screen** in Settings → Components (about 31 MB). A Mac keeps Apple Vision, which also
+  names places, things and animals and sees gestures, and gets the first look at new clips while it is about; a Mac can
+  use the open models too, to compare (Settings → Footage → Looking at your footage). Face recognition stays as careful
+  as before: in our measurement no face was named as the wrong person with either, nor with the two mixed in one
+  library. A shot made vertical over a blurred copy of itself doesn't count the copy's faces — a face cam or a picture
+  in picture laid over the copy keeps its own — and a clip Apple Vision looked at keeps its places, things and animals.
+- **Remove the background on Linux**. The new **Cutting out a picture's subject** component (about 225 MB) cuts a
+  photo's subject out with an open model where Apple Vision isn't there: the pictures fix and AI cut-outs use it.
 - **Changing your password keeps this browser signed in on a busy computer**. A new password signs you out
   everywhere else and this browser carries on, but on a computer working hard MetaRush could misjudge the time by a
   second or two and sign this browser out as well. It now asks the database for the time when they disagree.

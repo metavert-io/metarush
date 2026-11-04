@@ -19,7 +19,9 @@ pictures as settings (a clip's own pictures on `remotion.use`); the dashboard's 
 as an input](#a-google-drive-folder-as-an-input) without syncing it; in Claude's panel,
 keeping or changing first picks, saving a sheet and saving suggested changes are cards too. MetaRush also comes with
 [starter recipes](#starter-recipes) — a call becomes an episode with shorts; a release tag becomes a release
-video — brought in as drafts, and a run with an expensive kind of work makes [a sample first](#a-sample-first).
+video — brought in as drafts, and a run with an expensive kind of work makes [a sample first](#a-sample-first). A
+recipe can also [start from a video you like](#start-from-a-video-you-like): someone else's video comes in as a
+reference no cut plays, and what it does becomes a draft for your own footage.
 
 ## A recipe and its versions
 
@@ -45,6 +47,7 @@ The document holds:
 | `bindings` | where each input goes: `clip:<clip>`, `param:<graphic>.<field>`, `resource:<name>`, `words:<clip>.<KEY>` (a Remotion word setting), `pictures:<clip>.<NAME>` (a Remotion picture setting), `line:<line>`, `prompt:<clip>` (a generated shot made again), `voice`, `title` |
 | `rules`, `signoffs`, `hints` | the run project's rules (measured by the quality check where they can be; the others become sign-offs a person ticks), the OKs its cut needs, and hints that guide Claude |
 | `pack` | the other videos every run makes: shorts of a conversation the video plays, each its own project — or of a footage input, each a new cut of the run's project |
+| `reference` | the video a draft was made from ([start from a video you like](#start-from-a-video-you-like)): the reference clip, its link, the site and who posted it — provenance only |
 
 ## Making a recipe
 
@@ -65,6 +68,9 @@ version current (`recipe publish`); the answer names rules the new version no lo
 
 **Writing one from scratch**: a sheet with a new `name:` and no `base:` saves as a new recipe, a draft.
 
+**From a video you like** (`recipe from-video`): someone else's video comes in as a reference, and what it does is
+drafted as a recipe for your own footage — [below](#start-from-a-video-you-like).
+
 ## The recipe sheet
 
 A recipe version as Markdown people and Claude read, write, review and keep in git: `metarush recipe checkout
@@ -83,6 +89,7 @@ length: 7–11 s
 lands: new cuts in prj_…   # “App teaser”        or: a new project each time · named "{title} {n}"
 settings: prj_…   # “App teaser”                  whose Content Settings runs follow
 from: project prj_… · cut main · version 4 · revision rev_… · approved
+reference: clip ast_… · link "https://…" · on youtube · by "@handle"   a video it was drafted from (when it was)
 ---
 
 > One widescreen video, 7–11 s; each run makes a new cut in “App teaser”.      (lines with > are notes, ignored)
@@ -119,6 +126,7 @@ cut: 1
 - Every item is `- name: kind · clause · clause` (sections numbered); words go in JSON "quotes"; ranges are `1–3`,
   `2` (exactly), `up to 3`, `at least 1`, `any` (seconds: `15–60 s`); numbers are written exactly. Plain words stay
   plain where they read back the same (titles, rules, hints); anything else is quoted.
+- `reference:` takes `clip`, `link`, `on` (the site) and `by` (who posted it).
 - Inputs take `default`, `items`, `required`, `up to N characters`, `choices`, `count`, `from folder|collection|project|repo|path`
   (`from nowhere`), `label`; sections `from`, `count`, `length`, `clips` (their clips in the cut, in order) and
   `purpose`; the pack `count`, `length`, `from conversation`, `from footage`, `shape`, `style`, `captions on|off`, `purpose`, `named`;
@@ -538,6 +546,100 @@ fresh workspace. The starters are written in Go (`internal/recipes/starters_def_
 by `TestStarterFiles` (`METARUSH_UPDATE_STARTERS=1 go test ./internal/recipes -run TestStarterFiles`; a changed starter
 gets a new version, its lineage kept).
 
+## Start from a video you like
+
+A link to a video someone liked (YouTube, TikTok, X or another video site), a video file, or a clip already in
+MetaRush can start a recipe: `recipe.fromVideo` (`metarush recipe from-video <link | clip | file> [--project P]
+[--name N] [--title T] [--wait] --json`; **Start from a video you like** on the Recipes tab and Home's Start from).
+
+1. **It comes in as a reference, not footage.** A link goes through the link import (`ingest.url` with `reference`:
+   the downloader on this computer, copy-protected videos refused, a browser's sign-in only when a person chooses it);
+   a file is added like a drop. Either is marked a **reference** (`asset.reference`): someone else's video, kept to
+   learn from — only a clip the import or the upload made: a file that is already in MetaRush (the same bytes, the
+   person's own footage) stays what it is, and the answer says so. A clip already in MetaRush stays what it is too
+   (`--reference` marks it).
+   - **No cut plays a reference**, wherever it would play it: a clip, the cut's sound, a conversation's recordings and
+     cutaways, a narration line's take or the narration recording, the mix's copies, and inside a cut it nests. The
+     edit and cut checks refuse it (`reference_footage`), saying how a person who made it says so (**This is mine…**
+     on the clip's page, `metarush footage reference <clip> --mine`: people only). Marking a clip a reference
+     (`footage.reference`) is refused while any cut's latest version plays it, or shows a picture taken from it,
+     nested cuts too.
+   - **Nothing is made from a reference**: no generated shot from or ending on its frames, extending or editing it,
+     no dubbing, voice change, cloud transcription, lip sync or voice copy of it, and no ability takes it (planned or
+     started) — refused before anything is priced or sent, since what came back would be ordinary footage made from
+     someone else's video.
+   - **A picture taken from a reference counts as the reference.** `footage frames` and `footage sheet` write where a
+     picture was taken (the workspace, the clip and the time) into the JPEG itself; added to Resources it keeps that
+     (`source.frameOf`: "a frame of “…” at 0:12") and, while the clip is a reference, says so (the picture's
+     `reference` line and a **from a reference** badge). No cut shows it (`reference_footage` on the cut's pin), a
+     version that shows it is held like one that plays the clip, and AI work, generated video, looks, abilities,
+     Remotion pictures and recipe files refuse it. Whether the clip is a reference is read when it matters, so
+     marking it later, or saying it's yours, counts for its pictures too. A picture edited elsewhere and saved again
+     loses the note, like any other comment in a file.
+   - **A version that plays one is held from going out** (the ship gate's `reference` hold, with the gate off too;
+     `deliver ready` says so and how to clear it): delivery, timelines into a delivery folder, posts and review links
+     wait until a person says the video is theirs or sends the version out anyway with a note. Renders stay allowed:
+     they stay on this computer. A timeline never copies a reference into a footage folder (refused, in plain words);
+     without one it points at MetaRush's own copy and warns not to hand that on.
+   - **Nobody in it is asked about, recognized or named**: its voices and faces keep no fingerprints, never take the
+     names of your people (its transcript and what it does name nobody), never count as anyone's appearances and never
+     teach anyone's voice or face; naming a voice or a face in it is refused. Marking a clip takes back what it
+     taught: everyone whose voice was learned from it is learned again from your own footage only (someone named only
+     there has no voice to recognize), and names, suggestions and questions that came from its voices and faces go
+     where they no longer hold; names a person gave in your own clips stay. Saying it's yours listens and looks
+     again, and a question you dismissed stays dismissed.
+   - No recipe run takes one as footage (a project's or a collection's newest footage leaves references out; one
+     given by name is refused), and a recipe file leaves references and pictures taken from them out, saying so.
+2. **MetaRush looks at it** like any footage — its words and voices, its cuts, pauses and loudness, and on a Mac
+   what's on screen — and then says **what it does** (`footage.whatItDoes`, `metarush footage what-it-does <clip>`, the
+   clip's **What it does** tab), read from that evidence on this computer with no AI service:
+   - its length and shape;
+   - its **sections** with times: the hook (the first sentence, else the first pause or cut, within a fifth of the
+     video), an intro (to the strongest pause or cut a few seconds later), the body's parts (at its strongest pauses,
+     cuts and new words on screen; a part per point of a list — "First, … Second, …" — or per point the hook or
+     intro announces, "three fixes", so a point whose first word wasn't heard keeps its part), a call to action (the
+     last stretch asking people to follow, subscribe, visit…), an end card (after the last words, when a cut, words
+     on screen or black say so); each says what happens in it in MetaRush's own words ("a question to camera, with
+     words on screen", "one person speaks to camera", "a voice over pictures");
+   - pacing: shots and their lengths, words a minute, how much of it someone speaks, pauses;
+   - who speaks and how much;
+   - captions burned in: words on screen that are what is being said then — how much of the speech they cover, how
+     many words at a time, where, in capitals, the closest caption look;
+   - titles, lower thirds, names that stay on screen and the end card's words (the video's own, shown as theirs);
+   - what plays under the voices: how loud the pauses are against the voices — quiet, room sound, or something that
+     keeps playing (likely music) and how many dB under — and whether it plays on over the end card;
+   - how it ends.
+   `--details` (the dashboard's Details) adds the numbers; the card says what it still waits for, and what no
+   computer here can look at (what's on screen needs a Mac).
+3. **The draft** is made once that look is done — by whichever computer finishes the last look, as the person who
+   asked, once (`asset.startFrom`: waiting → making → made) — and saved through `recipe.write` like any sheet:
+   - one required footage input: the person's own footage, given each run;
+   - a chosen section per section of the video, with its length (a fifth either side) and a purpose that describes it
+     ("a hook, about 3 s: a question to camera");
+   - the video's shape at its preset, for the platform it came from, and its captions as the cut's captions when
+     they are burned in;
+   - rules: its length (measured), how short the hook is (a sign-off a person ticks), captions wherever someone speaks
+     (measured), the voices over the music (measured);
+   - hints for Claude: the pacing, a question first, the layout pack's title card and end screen, music under the
+     voices;
+   - `reference:` — the clip and its link, where it came from: only a link anyone may open (a public video page the
+     link import brought in), never a cloud folder's or this computer's address. A file's draft is titled in
+     MetaRush's own words ("Like a 26-second vertical video you liked"), never the clip's title.
+
+   It never holds the video's footage, its words or its pictures: every section is the person's own footage, and
+   nothing the video says or shows is copied into it. Its check passes without footage of its own (`footage_from_runs`:
+   each run gives it, and the run's cut is checked then), so a person can make it current after a look; a run without
+   footage says it needs some.
+4. Asking again with the same link or clip gives the draft back (`existing`); another `--name` makes another one. One
+   computer drafts it, under a claim by the server's time (asking while another drafts says so); a draft a computer
+   stopped making is made by any running MetaRush's sweep. The draft is changed like any other — on its page, or by
+   Claude through its sheet — and only a person makes it current.
+
+Nothing about the card or the draft leaves this computer: the link import only downloads. A recipe file of a draft
+carries a public video page's link, never the reference clip or a private address (it says what it left out); an
+import keeps only a YouTube, TikTok or X video page's link. In Claude's panel `recipe from-video` is a card
+([below](#in-claudes-panel)); `footage what-it-does` is a read Claude may run (it shows words).
+
 ## In Claude's panel
 
 Claude's `metarush recipe run|again|save|update|publish` are refused on its read-only channel and become cards built by
@@ -553,6 +655,7 @@ the server (`internal/assistant/recipe_actions.go`), each needing a person:
 | `recipe picks <recipe#N> --keep` / `--part … --n … --from … --to … [--why …]` / `--drop` | what it keeps or changes, and the run's picks as they stand (first, stand-in, kept, changed) | **Keep them** / **Change it**; the run goes on once every pick is kept or changed, and is the card's work |
 | `recipe check <sheet> --save [--note …]` | the sheet from the conversation's proposals folder: what it changes from the version it was written from (or a new recipe), its problems by line, its check | saved as a draft (**Save the draft**) |
 | `recipe suggestions <recipe> --save [--only <key>]…` | each reason, what the draft changes from the current version, its check (none to save: says so) | saved as a draft |
+| `recipe from-video <link or clip> [--project …] [--name …]` | the video it starts from, that it comes in as a reference no cut plays, what the draft will be — and what the video does when MetaRush has looked at it already; never a file on the computer or a browser's sign-in (the person uses Start from a video you like) | **Start from this video**: the draft follows once MetaRush has looked at it, and is the card's work (Claude hears once it is saved, with how to refine its sheet) |
 
 **None runs by itself**: Auto never starts a run, not even for a person whose estimates are off, and never
 runs these cards; Approve all never includes a run, a run again or making a version current (`assistant.act` refuses
@@ -568,7 +671,8 @@ person does them on the recipe's or the run's page). Reading, checking, planning
 
 ## Surfaces
 
-- **CLI**: `metarush recipe list|show|propose|save|update|checkout|check|publish|archive|plan|run|again|runs|picks|compare|diff|continue|stop|suggestions|triggers|export|import|starters|sample`,
+- **CLI**: `metarush recipe list|show|propose|save|update|checkout|check|publish|archive|plan|run|again|runs|picks|compare|diff|continue|stop|suggestions|triggers|export|import|starters|sample|from-video`,
+  `metarush footage what-it-does|reference`,
   `--json` everywhere; starting shows the plan and its estimate (`--details` adds each part's rate) and asks the person
   to type `start` (`--max-cost` agrees to more; with estimates off, no price is asked about; refused without a
   terminal: people only).
@@ -609,6 +713,11 @@ person does them on the recipe's or the run's page). Reading, checking, planning
   not added yet.
 - **Starter recipes** on the Library's Recipes tab: the starters not added yet, each with what it makes and what
   a run gives it, **Use this one** and **Add the starter recipes**.
+- **Start from a video you like** on the Recipes tab and in Home's Start from: a link or **Choose a video file**; it
+  follows the video coming in and MetaRush looking at it (what it does fills in as each look is done), then shows what
+  the video does and the draft with **Open the draft**. The recipe's page says where a draft came from (**What the
+  video does**, **Open the original**); the clip's page has a **What it does** tab, and a reference's note with
+  **This is mine…** (a styled question; people only).
 - **A sample first**: Run with… shows the sample (each kind, its price and the kind's in the whole run) and
   **Make the sample first (about $0.06)**, with **Skip the sample…** asking why; the run's page plays the sample's review
   copy with **Approve the sample** and **Not quite…**, then Go on for the rest; To-dos say **Watch the sample**.
@@ -636,6 +745,9 @@ Recipes are workspace-wide; what they use stays where it is and is reached by re
 the recipe's project). Clearing a project out for good keeps recipes and their versions (one that adds cuts to
 it says so when checked or planned), keeps its runs' records (marked, one still going is stopped) and drops an example
 that was in it. Words from inputs go on screen as given; text from repositories, pages and footage is data.
+
+A reference clip (someone else's video, kept to learn from) never plays in a cut and never feeds a run; a draft from
+one holds where it came from, never its footage, words or pictures.
 
 Known limits: inputs are things already in MetaRush (clips, collections, pictures, linked folders, a
 repository's folder of pictures) — files on disk are added first, and a repository's newer art comes with a refresh;
@@ -667,6 +779,14 @@ run dialog and inputs, Save as a recipe…, Made with…, the To-dos actions, Co
 and suggestions cards in `recipe_actions.go`; `export.go` and `importfile.go`, `internal/cli/recipe_files.go`,
 `internal/api/recipes.go`, `motion.Keep`/`Kept`, `remotion.ImportFromFile`, `web/src/components/recipes/Files.tsx`;
 `drive.go` and `internal/drive`, the `driveFile` tie in `internal/resources`, `internal/cli/doctor_drive.go`.
+Start from a video you like: `fromvideo.go` (`recipe.fromVideo`, `DraftFromCard`, `DraftWhenLooked`), the card
+`internal/breakdown` (`footage.whatItDoes`: `card.go` reads the evidence, `load.go` gathers it), references
+`internal/ops/reference.go` (`footage.reference[.mine]`, `MarkReference`, `AskStartFrom`) and the edit check's
+`reference_footage`, the link import's `reference` and `StartFrom`, `internal/cli/recipe_fromvideo.go` and
+`whatitdoes.go`, the panel's `fromvideo` card and its `draft` work in `recipe_actions.go`,
+`web/src/components/recipes/StartFromVideo.tsx` and `web/src/components/WhatItDoes.tsx`; tests `fromvideo_test.go`,
+`internal/breakdown/*_test.go` (the fixture `reference-short.mp4`: seven sections at the truth's times from the
+evidence job and, on a Mac, Apple Vision) and `scripts/start-from-video-e2e.sh`.
 Starter recipes and a sample first: `starters.go` (`recipe.starters[.add]`, the embedded `starters/`),
 `starters_def_test.go` (their source and generator), `sample.go` (`recipe.sample`, planning and making the sample,
 `planRest`), shorts of footage in `pack.go` and `picksop.go`, `followFootage` in `assemble.go`,

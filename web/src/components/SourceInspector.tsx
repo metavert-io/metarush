@@ -21,6 +21,7 @@ import { SpeakerLane, SpeakersPanel, voiceMap } from './Speakers';
 import { sourceRows } from './LinkImports';
 import { WaveLegend, Waveform, type WaveLayers } from './Waveform';
 import { OnScreenPanel, clock } from './OnScreen';
+import { ReferenceNote, WhatItDoesPanel } from './WhatItDoes';
 import { FrameGrid } from './FrameGrid';
 import { MarkBar } from './studio/SourceMarks';
 import { markedRange, setMark, useMarks } from '../lib/marks';
@@ -35,9 +36,9 @@ export interface SeekRequest {
   play?: boolean;
 }
 
-export type Panel = 'transcript' | 'speakers' | 'onscreen' | 'sheet' | 'evidence' | 'details';
+export type Panel = 'transcript' | 'speakers' | 'onscreen' | 'sheet' | 'evidence' | 'does' | 'details';
 
-const PANELS: Panel[] = ['transcript', 'speakers', 'onscreen', 'sheet', 'evidence', 'details'];
+const PANELS: Panel[] = ['transcript', 'speakers', 'onscreen', 'sheet', 'evidence', 'does', 'details'];
 
 /** A `panel` deep-link parameter (e.g. `panel=speakers` from job details), if valid. */
 export function panelParam(v: string | null | undefined): Panel | undefined {
@@ -80,8 +81,11 @@ export function SourceInspector({ asset, seek, onTime, range, compact, mini, hig
   const [rate, setRate] = useState(1);
   // A tab this clip does not have (Speakers without sound, Frame grid for audio) falls back to the transcript.
   // Words to highlight (a search hit) open the transcript, whatever tab was used last.
-  const fits = (p: Panel | undefined): p is Panel => !!p && !(p === 'speakers' && !asset.hasAudio) && !((p === 'sheet' || p === 'onscreen') && asset.kind !== 'video');
-  const wanted = (): Panel | undefined => (fits(openPanel) ? openPanel : highlight?.length && asset.hasAudio ? 'transcript' : undefined);
+  const fits = (p: Panel | undefined): p is Panel =>
+    !!p && !(p === 'speakers' && !asset.hasAudio) && !((p === 'sheet' || p === 'onscreen' || p === 'does') && asset.kind !== 'video');
+  // A reference (someone else's video, kept to learn from, D398) opens on what it does.
+  const wanted = (): Panel | undefined =>
+    fits(openPanel) ? openPanel : highlight?.length && asset.hasAudio ? 'transcript' : asset.reference && asset.kind === 'video' ? 'does' : undefined;
   const [panel, setPanel] = useState<Panel>(() => wanted() ?? (fits(loadPref<Panel>('sourcePanel', 'transcript')) ? loadPref<Panel>('sourcePanel', 'transcript') : 'transcript'));
   const hlKey = highlight?.join('|') ?? '';
   useEffect(() => {
@@ -320,6 +324,9 @@ export function SourceInspector({ asset, seek, onTime, range, compact, mini, hig
       </div>
 
       <div className={cx('flex min-w-0 flex-col', compact ? '' : 'xl:max-h-[min(78dvh,760px)]')}>
+        {asset.reference && panel !== 'does' ? (
+          <ReferenceNote className="mb-3" clip={{ id: asset.id, title: asset.title, link: asset.source?.url, who: asset.source?.handle || asset.source?.uploader }} />
+        ) : null}
         <Tabs<Panel>
           label="About this clip"
           value={panel}
@@ -329,6 +336,7 @@ export function SourceInspector({ asset, seek, onTime, range, compact, mini, hig
             ...(asset.hasAudio ? [{ value: 'speakers' as Panel, label: 'Speakers', count: transcript.data?.speakers.filter((v) => !v.minor || v.name).length || undefined }] : []),
             ...(isVideo ? [{ value: 'onscreen' as Panel, label: 'On screen' }, { value: 'sheet' as Panel, label: 'Frame grid' }] : []),
             { value: 'evidence', label: 'Scenes & pauses' },
+            ...(isVideo ? [{ value: 'does' as Panel, label: 'What it does' }] : []),
             { value: 'details', label: 'Details' },
           ]}
         />
@@ -360,6 +368,8 @@ export function SourceInspector({ asset, seek, onTime, range, compact, mini, hig
             <FrameGrid asset={asset} onSeek={(t) => seekTo(t)} />
           ) : panel === 'evidence' ? (
             <EvidencePanel loading={evidence.isLoading} error={evidence.error} onRetry={() => void evidence.refetch()} data={evidence.data} tech={tech} onSeek={(t) => seekTo(t)} />
+          ) : panel === 'does' ? (
+            <WhatItDoesPanel assetId={asset.id} onSeek={(t) => seekTo(t)} />
           ) : (
             <DetailsPanel asset={asset} />
           )}

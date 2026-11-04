@@ -8,10 +8,10 @@ looking, and where that knowledge stops.
 |---|---|---|---|
 | Visual changes: cuts, slow changes, movement, activity per second | every machine (ffmpeg) | free, part of the evidence job | `footage evidence` (`visualChanges`, `activity`), `footage moments` (kind `visual`), smart sheets |
 | Smart contact sheets | every machine | free | `footage sheet`, `footage keyframes`, the Frame grid tab, skills |
-| On-screen index: things, animals, people, faces, gestures, text in any language, shot type, where the eye is drawn | a Mac (Apple Vision) | free, a heavy job | `footage visuals`, `footage faces`, search, the On screen tab, People, To-dos |
-| Faces recognized across clips | the Mac that indexes (SFace through onnxruntime) | free; a 39 MB model downloaded once | People, the On screen tab, `footage faces`, To-dos, the bell |
+| On-screen index: things, animals, people, faces, gestures, text in any language, shot type, where the eye is drawn | a Mac (Apple Vision); any other computer with **Seeing what's on screen** added (open models: faces, words, shot type, where the eye is drawn) | free, a heavy job | `footage visuals`, `footage faces`, search, the On screen tab, People, To-dos |
+| Faces recognized across clips | the computer that indexes (SFace through onnxruntime) | free; a 39 MB model downloaded once | People, the On screen tab, `footage faces`, To-dos, the bell |
 | Framing that follows movement | every machine, from the index | free | `framing: follow`, **Follow movement** under the player, `metarush cut framing` |
-| What's on screen in renders | every machine (the plan and the index); a Mac also reads the rendered frames | free, part of every quality check | `qa show`, the review page, the video-qa skill |
+| What's on screen in renders | every machine (the plan and the index); a computer that can look also reads the rendered frames | free, part of every quality check | `qa show`, the review page, the video-qa skill |
 | Written scene descriptions | where Claude Code is signed in | your Claude Code usage; off by default | `footage describe`, search, the On screen tab |
 
 All but the last run entirely on your machine and upload nothing. The last is your own Claude Code session looking
@@ -99,6 +99,8 @@ The helper speaks protocol 2 (landmarks, attention, hands, poses, languages); a 
 an older MetaRush, where Swift isn't there to build it again, still indexes clips without them. All of these exist
 since macOS 11 (finding the language since macOS 13); the helper needs macOS 12 or newer and the Xcode Command Line
 Tools to build.
+On Linux, and on a Mac told to, open models on the computer do the same look into the same index: faces with the same
+five points, the words on screen and where the eye is drawn (see **Off the Mac: the open models** below).
 From the frames, MetaRush builds a compact timeline per clip (insight kind `visual`): label spans (scene, things,
 animals, people), on-screen text spans (repeated readings merged; lone or garbled readings dropped; each showing keeps
 where it was, so a call's name tile in speaker view and under a gallery tile are two places), face tracks (one
@@ -126,8 +128,9 @@ with the time it shows up. The clip's On screen tab in Sources shows the same li
 How it runs: new clips are queued after their proxy (job `visual`, a heavy job, so the battery rule applies). While
 a clip is still being prepared, the activity bar shows it as one more step of that clip ("What's on screen"); on its
 own it says "Looking at what's on screen in “Kitchen chat”", and the bell says when it is done for clips someone
-asked about. Older clips catch up through the `visual-index` catch-up step, which runs only on a Mac (elsewhere it
-waits for one, without reporting a problem). Re-indexing keeps every name a person gave a face. A 30-second clip took
+asked about. Older clips catch up through the `visual-index` catch-up step, which runs on any computer that can look
+(a Mac, or one with Seeing what's on screen added; elsewhere it waits, without reporting a problem) and again as soon
+as a computer gains that component. Re-indexing keeps every name a person gave a face. A 30-second clip took
 5.5 s on an M2 Max (31 frames, including extracting them). Frames are written to the machine's scratch folder and
 deleted afterwards. The index's version is `vision-2` (face fingerprints, attention, the footage's cuts,
 gestures, text in any language): the `visual-index` catch-up step (version 2) looks again at clips an older index
@@ -138,8 +141,8 @@ The helper's source is embedded in the `metarush` binary, so the helper always m
 into `bin/`, and `metarush doctor` or the worker (before the first clip it looks at) build it into
 `<home>/tools/metarush-vision` when it is missing or built from another version (one build per source version is kept
 in the user's cache folder, so homes on one Mac share it). It is an allowlisted tool like ffmpeg: fixed options and folders MetaRush wrote, never text from a model.
-On Linux or Windows the index is simply not there: `doctor` says so, `footage visuals` says a Mac in the workspace can
-index the clips, and everything else works.
+On a computer that can't look (Windows, or Linux without the component), `doctor` says so, `footage visuals` says
+what would look at the clip (a Mac in the workspace, or adding Seeing what's on screen), and everything else works.
 
 ### Faces and people
 A face gets a name from a person, and MetaRush also recognizes a face a person has named in other clips —
@@ -171,7 +174,7 @@ the way voices are recognized, never by guessing from one look.
 
 `metarush footage faces <asset>`, `footage faces name <face> "Maya"` and `footage faces reject <face>` (which also
 takes back a name given by looks) do the same from a terminal; renaming or merging people carries their faces along.
-`metarush doctor` says whether this Mac recognizes faces.
+`metarush doctor` says whether this computer recognizes faces.
 
 #### One question per person, not per appearance
 **Why.** Asking once per face *appearance* (a face track) asks about one person dozens of times in a long call:
@@ -188,7 +191,7 @@ before anything is asked:
 2. **By who is speaking while they are on screen.** For every face, MetaRush counts the seconds it is alone on screen
    while each voice talks (the same count the old question used). Two clusters that are on screen alone with the same
    voice (≥ 6 s, ≥ 60% of the talking then) and look at least a little alike (average ≥ 0.30) are one group; a face
-   without a fingerprint (too small, or face recognition not set up on this Mac) joins the group whose voice it is on
+   without a fingerprint (too small, or face recognition not set up on this computer) joins the group whose voice it is on
    screen with and whose place in the picture it shares (box overlap ≥ 0.3), otherwise it stays on its own.
 3. **Groups keep their identity.** A group is an ID on its faces (`faces.group`, `fgr_…`); indexing the clip again
    carries it over like a name, so a question asked, answered or skipped stays that way. Faces that arrive later
@@ -326,7 +329,7 @@ the better of the similarity to the mean and the mean of the three closest finge
 | Decision | Bar (cosine) |
 |---|---|
 | Named automatically | ≥ 0.60 and at least 0.15 above the runner-up; ≥ 0.66 while fewer than two other people have confirmed faces |
-| Asked about ("Is this …?") | ≥ 0.38 |
+| Asked about ("Is this …?") | ≥ 0.38 (≥ 0.41 for a face the open models found, D448) |
 | A confirmed face asked about again | < 0.30 against the person's other confirmed faces (three or more) |
 
 **The model's licence.** OpenCV Zoo's `models/face_recognition_sface` says "All files in this directory are licensed
@@ -451,8 +454,9 @@ placement, including a path that follows movement) and finds:
 | **Captions over the footage's own text** (`text_under_captions`) | 30% of a sign or burned-in title under the caption band while a caption shows | move the captions clear of it (`setCaptions`) |
 
 Each finding names the clip and, where a person confirmed (or MetaRush recognized) the face, whose face ("the crop cuts
-off Ada's face at the right edge"). Stretches shorter than ¾ s are passing moments and are not reported. On a Mac the
-check also reads the rendered frames in the middle of each stretch with the same helper (at most 40): a face at the
+off Ada's face at the right edge"). Stretches shorter than ¾ s are passing moments and are not reported. Where the
+computer can look (Apple Vision, or the open models), the check also reads the rendered frames in the middle of each
+stretch the same way (at most 40): a face at the
 very edge of the rendered picture, words drawn over a face, or the footage's own words read in the caption band make
 the finding **observed**; otherwise it is **heuristic** (from the plan and the index). Without an index for the
 footage the check says it couldn't run and why. The geometry is checked against real renders by the `qa-zones`
@@ -471,26 +475,160 @@ the head, a **thumbs up** and an **open hand**. Joints less sure than 0.3, or ha
 a gesture is kept when it shows in two frames looked at (one very clear one is enough). The readout says it ("0:12–0:15
 medium shot · 1 face · no text · pointing left"), search finds it (`points`, `pointing`, `thumbs up`, `hand raised`,
 `gesture`), and `footage visuals --json` lists `gestures` per line. On-screen text is read in any language Apple Vision
-knows (it finds the language itself on macOS 13 and newer).
+knows (it finds the language itself on macOS 13 and newer). Gestures, labels, animals and bodies come only from Apple
+Vision: an index the open models made says it didn't look for them, so nothing reads their absence as "not there".
 
 Not built: tracking an object from frame to frame for B-roll (Apple's `VNTrackObjectRequest` needs many frames a second
 around each moment; the index looks once a second). Where the eye is drawn (attention, above) already says where the
 subject of a shot without a face is, which is what framing needs.
 
-## On Linux and Windows
-The on-screen index stays Mac-only: Apple Vision is what finds faces and their landmarks, reads text and labels
-things. What is already cross-platform: the face fingerprint (SFace through onnxruntime, the same model and code on
-macOS and Linux; `internal/onnx`, `internal/faceid`, and their tests run wherever onnxruntime is installed), framing
-that follows movement and the render checks (both Go, from whatever index the workspace has), and everything else
-MetaRush does. Recognition, following and the checks work for clips a Mac indexed, from any machine.
+## Off the Mac: the open models
+Every computer can look at what's on screen. A Mac uses Apple Vision (above); Linux, and a Mac told to, uses open
+models that run on the computer through onnxruntime, the library that already fingerprints faces and scores voices
+(`internal/visionmodels`, chosen by `internal/looker`). They answer in the helper's own terms, so the index is the
+same `vision-2` and everything that reads it works the same: faces and recognition across clips, framing that follows
+movement, the render checks, names shown on screen, moments, search, the On screen tab. The index records which looked
+(`backend`: `apple-vision` or `open-models`; older indexes are Apple Vision's) and, for the open models, what they
+look for (`sees`: faces, landmarks, text, attention); the insight's provider and model say the same. `footage visuals`
+says it in its note and `--json` (`lookedWith`, `notLookedFor`).
 
-Finding faces and their landmarks, reading text, labelling things and places, and attention need Apple Vision today;
-elsewhere the `visual` job says so (`catchup.ErrNotHere`).
+| Model | What it does | Licence (read from its own repository) | Size |
+|---|---|---|---|
+| YuNet 2026may (OpenCV Zoo) | finds faces and their five points (eyes, nose tip, mouth corners), which align a face for SFace exactly as Apple's do | MIT | 0.2 MB |
+| PP-OCRv5 mobile text detection (PaddleOCR) | finds the lines of text | Apache-2.0 | 4.8 MB |
+| PP-OCRv6 small text recognition + its character list (PaddleOCR) | reads each line | Apache-2.0 | 21 MB |
+| U²-Net-p (rembg's ONNX export) | where the eye is drawn when no face is in the picture | Apache-2.0 (the export MIT) | 4.6 MB |
+| BiRefNet general, Swin-T (its own release) | cuts a photo's subject out (the **Cutting out a picture's subject** component) | MIT | 224 MB |
 
-MetaRush itself does not build for Windows (process groups and free-space checks use Unix calls in `internal/tools`
-and `internal/storagemove`), and `internal/onnx` reports
-onnxruntime as unavailable there (`onnx_other.go`), so the clarity score and face fingerprints say so instead of
-failing.
+Each file is a pinned download (address and SHA-256, `internal/visionmodels` `Files`, appended to
+`components/pins.go`), checked again before every use; a file changed after it was added isn't used, and doctor
+says so. None is GPL or for non-commercial use only; what they were trained on is their publishers' (WIDER Face,
+PaddleOCR's text sets, DUTS, DIS5K and others), noted and not resolved, as for SFace.
+
+**Words on screen** are read in Latin script (English and the other languages written in it, accents included),
+Greek, Chinese (simplified and traditional) and Japanese. Not Cyrillic, Korean, Arabic, Hebrew, Thai or the Indic
+scripts: a sign in those is missed. Apple Vision reads more.
+
+**What they don't look for**: things, places and animals (labels), bodies, hands and so gestures. Shot types still come
+from faces (the index's own rule); a frame with no face is "no people" rather than a body's medium shot.
+
+**Made to mean the same as Apple's** (D407), so no threshold changed: faces are looked for on the frame and on a copy
+at half size (big faces), kept from 0.6, except a shape found at under 0.7 whose aligned face has no detail at all (a
+call's blurred, enlarged background showed such shapes, which Apple Vision never takes for faces); the box is made square like Apple's (side 0.89 × YuNet's height, its middle
+0.08 × the height lower: measured, Apple's side ÷ this side has a median of 1.000); the five points come in the
+helper's order. How usable a face is as a picture (capture quality, which decides fingerprints from 0.15) is a
+documented rule: `0.72 × √confidence × sharpness × facing the camera × size`, sharpness being the Laplacian variance
+of the aligned 112 px face; it follows Apple's at a correlation of 0.64. Text uses PaddleOCR's own preparation; lines
+under 2% of the picture's height are left out as Apple's are (`minimumTextHeight`), and the confidence is mapped so
+the readers' cut-offs mean the same (0.55 → 0, 0.95 → 1). Where the eye is drawn is the faces when there are faces
+(as Apple's attention follows them), else U²-Net-p's map: its weighted middle, spread, peak and the regions above half.
+
+**Choosing.** `screenIndex.backend` in config.yaml: `auto` (Apple Vision on a Mac, the open models elsewhere),
+`apple-vision` (refused off a Mac) or `open-models`. `metarush worker configure --screen-index open-models` and, on a Mac,
+Settings → Footage → Looking at your footage (Apple Vision | Open models) write it, and a running MetaRush takes it at once;
+`METARUSH_SCREEN_INDEX` overrides it for one process (measurements, tests). `metarush footage faces prints --with
+open-models` fingerprints a folder of photos with either.
+
+**Setting up.** The **Seeing what's on screen** component (`metarush components add screen-index`, setup's checklist,
+Settings → Components) is the helper on a Mac and the open models (about 31 MB) elsewhere; they need FFmpeg and
+Transcription on this computer (whose install brings onnxruntime). **Recognizing faces across clips** works on any
+computer with both. Doctor checks each. Workers take the `visual` job wherever the component is ready, and a
+computer that gains it looks at the clips nobody looked at yet (catch-up on start and whenever a component is added).
+
+**Fills** (D445, D465): a landscape shot made vertical, square or 4:5 (or a portrait shot made landscape) over a
+blurred, enlarged copy of itself shows the copy's faces too, larger and blurred. Apple Vision rarely takes them for
+faces; YuNet often did, so following movement moved into the blur and one person became two. The open models now find
+such a frame — the picture centred along the frame's long side, bands beside it with little detail next to it (most of
+their rows, and all of one band's, so a face cam or a title laid over the other doesn't hide the fill), straight lines
+where the picture ends, and bands that follow the picture enlarged and blurred (what is laid over them left out of the
+comparison) — and leave out the faces mostly outside the picture that are as plain there as the copy is. A face cam
+or a picture in picture laid over the copy is sharp, so its faces stay. Plain walls, studio backdrops and letterbox bars
+don't follow the picture, so they aren't fills; a fill whose picture is itself plain near its edges (graphics, screen
+recordings) may not be found, and then its copy's faces count, as they often do with Apple Vision. Measured on the
+faceset made into fills (`TestFillsOnTheFaceset`): faces in the copy that Apple Vision didn't see went from 38 to 1
+(9:16, blur 8), 12 to 0 (blur 16), 7 to 0 (1:1), 9 to 0 (4:5) and 20 to 1 (portrait made landscape), with 183–186 of
+186 fills found. With something laid over the copy: a 110-pixel face cam in the top band 8 to 0, a 160-pixel one in the
+bottom band 12 to 0, MetaRush's vertical picture in picture over a fill 6 to 1 — and none of the inset's faces Apple
+Vision found (129, 155 and 157) was left out, where leaving out every face outside the picture would have dropped
+129, 155 and 150 of them. No face Apple Vision found was left out anywhere: in the fills, the insets, a plain vertical
+picture in picture, or the photos and video frames that aren't fills (as they are, cropped, blurred all over, small,
+letterboxed). The garden call made 9:16: Apple Vision saw 12 faces in the copy, the open models none.
+
+**A Mac gets the first look** (D410): a computer with the open models leaves a new clip alone for two minutes at a
+time, at most five times, while a Mac in the workspace that uses Apple Vision, takes big jobs, offers to look and lacks
+nothing for it was seen in the last two minutes; then it looks itself. The job's wait says why. A Mac whose person left
+Seeing what's on screen out, with no helper built, doesn't offer to look, so nothing waits for it (D446). A computer
+that finds it can't look after all (a helper that didn't build, a model changed after it was added) stops offering to
+until its components or settings change, and hands the clip back, not counted as a try, when another computer that
+looks was seen in the last day; with none, the clip fails as before, with the one step that fixes it.
+
+**Apple Vision's indexes stay Apple Vision's** (D447, D467): a clip Apple Vision looked at is looked at again (a
+person asking, or catch-up after an upgrade) only by a Mac while one that looks was seen in the last 30 days — the
+computer with the open models puts it back, waiting longer each time, at most three hours. After 30 days without one
+it looks itself and keeps what Apple Vision saw that the open models don't look for: the places, things, animals and
+gestures (`kept` in the index, said in the readout's note); looking again later keeps what that look kept (D468). It
+is the index of the media the clip plays now that counts: a fixed copy nothing looked at yet gets a first look like
+any new clip (a Mac about now gets it first), even when Apple Vision looked at the original, and keeps the original's
+places, things and animals but not its gestures — where a hand was in the original's picture says nothing about a
+steadied copy's. The original's index stays as it was.
+
+**Fingerprints say what found the face** (D448, `printsBy`): `apple-vision` or `open-models` (older ones are Apple
+Vision's). Matching treats both alike — one library can hold both, where a workspace has a Mac and a computer without
+one — except that a face the open models found is asked about ("Is this Ada?") from 0.41 rather than 0.38: at 0.38 they
+asked about the wrong person more often than Apple Vision does; at 0.41 no more often. The same holds when a
+correction re-scores the groups (Refresh).
+
+**What stays on Apple Vision**: lip sync's check that every face in the part it changes is named (D279) still looks
+with the helper, so on Linux it asks for a Mac. Cutting a photo's subject out uses Apple's mask on a Mac that keeps
+Apple Vision and BiRefNet elsewhere (the fix **A photo's subject**, and AI work's background removal with model
+`birefnet`); without either, removing a background works only for plain-colour backgrounds.
+
+#### Measured
+`go test -tags screeneval ./internal/visionmodels` (`TestCompareBackends`, `TestCompareCutOuts`; the models from `go
+run ./scripts/fetchscreenmodels <folder>` in `METARUSH_SCREEN_MODELS`) looks at the same frames with both on a Mac;
+`tools/vision/eval/faces.py --metarush bin/metarush --with open-models` plays the recognition rules out on the faceset
+(`--mix`: both ways in one library).
+Measured 3 Nov 2026 on an M5 Pro Mac mini shared with other builds (a load around 17, so the times are long for both):
+
+| | Apple Vision | The open models |
+|---|---|---|
+| Faces found in the fixtures and the call (150 frames) | 148 | 148, the same ones |
+| Box overlap with Apple's (IoU, median) | – | 0.895 |
+| Five points, off from Apple's (of the eye distance, mean) | – | 0.114 |
+| Capture quality, mean (correlation with Apple's) | 0.594 | 0.551 (0.64) |
+| Words on screen the fixtures show | 32 of 32 | 32 of 32 |
+| Shot type at the same moment | – | the same at 91.3% (272 of 298; the rest close-up vs medium on one call) |
+| The fixtures' people: same person / others | 0.80, 0.79, 0.76 / 0.22–0.25 | 0.79, 0.77, 0.72 / 0.22–0.24 |
+| Faceset, 200 draws: precision with 1 / 2 / 3 faces confirmed | **1.00 / 1.00 / 1.00** | **1.00 / 1.00 / 1.00** |
+| Recall (named automatically) with 1 / 2 / 3 faces confirmed | 0.445 / 0.641 / 0.725 | 0.417 / 0.570 / 0.659 |
+| Recall with only 1 / only 2 people known | 0.52 / 0.495 | 0.426 / 0.425 |
+| Asked about the wrong person (of known faces), 1 / 2 / 3 confirmed | 0.73% / 0.53% / 0.27% | 0.33% / 0.28% / 0.24% (0.73% / 0.77% / 0.76% asking from 0.38) |
+| Named or asked about the right person, 1 / 2 / 3 confirmed | 0.81 / 0.88 / 0.91 | 0.70 / 0.81 / 0.84 (0.71 / 0.83 / 0.85 from 0.38) |
+| Strangers asked about, 1 / 2 / 3 confirmed | 3.7% / 6.7% / 7.1% | 0.9% / 2.3% / 3.1% |
+| Nearest face is the same person | 152 of 163 | 150 of 167 |
+| Most alike different people (the bar is 0.60) | 0.497 | 0.521 |
+| Time a frame (proxy at 960 px) | 73 ms | 194 ms |
+| Cut-outs (7 pictures) | – | the same answer on 7 (6 subjects, 1 none); overlap 0.99 on 5, 0.77 on 1; about 5 s a picture |
+
+No face was named as the wrong person with either. The open models name a little less on their own (they find
+slightly different faces in the faceset's photos, so a few more are asked about instead), and they read fewer
+scripts and none of the labels, animals or gestures: that is why a Mac keeps Apple Vision and gets the first look.
+
+**Both ways in one library** (`faces.py --mix`, the 161 photos fingerprinted both ways, 200 draws each): the same
+photo's two fingerprints are 0.94 alike (median); different people across the two ways at most 0.488 (0.521 within
+one). Precision stays 1.00 whichever way faces were confirmed and asked about:
+
+| Confirmed / asked about | Recall, 1 / 2 / 3 confirmed | Only 1 / 2 people known | Wrong person asked, 1 / 2 / 3 | Most alike wrong person |
+|---|---|---|---|---|
+| Apple Vision / Apple Vision | 0.448 / 0.666 / 0.753 | 0.536 / 0.488 | 0.72% / 0.28% / 0.19% | 0.521 |
+| Open models / open models | 0.415 / 0.564 / 0.653 | 0.466 / 0.422 | 0.34% / 0.30% / 0.25% | 0.536 |
+| Apple Vision / open models | 0.432 / 0.622 / 0.701 | 0.529 / 0.460 | 0.28% / 0.08% / 0.17% | 0.504 |
+| Open models / Apple Vision | 0.432 / 0.602 / 0.692 | 0.486 / 0.428 | 0.28% / 0.27% / 0.13% | 0.524 |
+| Each face either way at random | 0.436 / 0.603 / 0.697 | 0.438 / 0.472 | 0.44% / 0.30% / 0.18% | 0.521 |
+
+**Windows**: MetaRush itself does not build for Windows yet (process groups and free-space checks use Unix calls in
+`internal/tools` and `internal/storagemove`), and `internal/onnx` reports onnxruntime as unavailable there
+(`onnx_other.go`), so the clarity score, face fingerprints and the open models say so instead of failing.
 
 ## Written scene descriptions
 Off by default. A person turns them on for the workspace or one project (Settings → Footage → Looking at your footage, or

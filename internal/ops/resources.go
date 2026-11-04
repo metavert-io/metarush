@@ -57,6 +57,11 @@ type ResourceRow struct {
 	// Provenance says exactly where it came from: repo@commit:path:lines for
 	// what MetaRush made from a repository, the page and day for a snapshot.
 	Provenance string `json:"provenance,omitempty"`
+	// Reference says, in plain words, that the version new uses get was taken
+	// from a reference — someone else's video, kept to learn from (D457): no
+	// cut shows it and nothing is made from it until a person says the video
+	// is theirs.
+	Reference string `json:"reference,omitempty"`
 	// Repo is a repository's current version; Site a web page's snapshot.
 	Repo *RepoSummary         `json:"repo,omitempty"`
 	Site *models.SiteSnapshot `json:"site,omitempty"`
@@ -105,6 +110,37 @@ func ResourceRowOf(e resources.Entry, view *projectlinks.View, folders map[strin
 		row.Tags = []string{}
 	}
 	return row
+}
+
+// markFramesOfReferences says on each row taken from a reference that it was
+// (D457): one look at the clips the pictures were taken from.
+func markFramesOfReferences(ctx context.Context, a *app.App, list []resources.Entry, rows []ResourceRow) {
+	clips := bson.A{}
+	for i := range list {
+		if f := list[i].Resource.FrameOf(""); f != nil && f.AssetID != "" {
+			clips = append(clips, f.AssetID)
+		}
+	}
+	if len(clips) == 0 {
+		return
+	}
+	var refs []models.Asset
+	if err := a.DB.Find(ctx, store.CAssets, a.WorkspaceID(), bson.M{"_id": bson.M{"$in": clips}, "reference": bson.M{"$exists": true}}, &refs); err != nil {
+		return
+	}
+	byID := map[string]*models.Asset{}
+	for i := range refs {
+		byID[refs[i].ID] = &refs[i]
+	}
+	for i := range list {
+		if f := list[i].Resource.FrameOf(""); f != nil && byID[f.AssetID] != nil && i < len(rows) {
+			rows[i].Reference = referenceFrameWords(byID[f.AssetID])
+		}
+	}
+}
+
+func referenceFrameWords(ref *models.Asset) string {
+	return fmt.Sprintf("Taken from “%s”, a reference: someone else's video, kept to learn from. No cut shows it and nothing is made from it until you say the video is yours (This is mine, on its page).", ref.DisplayTitle())
 }
 
 // folderNames maps linked folder IDs to their names.
@@ -282,6 +318,7 @@ func init() {
 				out.Linked++
 			}
 		}
+		markFramesOfReferences(ctx, a, list, out.Resources)
 		out.Summary = listSummary(out.Here, out.Workspace, out.Linked, view, out.Resources, pid)
 		return out, nil
 	})
@@ -299,6 +336,9 @@ func init() {
 		}
 		folders := folderNames(ctx, a)
 		out := &ResourceShowOut{Row: ResourceRowOf(*e, view, folders), Resource: e.Resource, UsedIn: uses}
+		if ref := resources.FrameReference(ctx, a, &e.Resource, ""); ref != nil {
+			out.Row.Reference = referenceFrameWords(ref)
+		}
 		if e.Resource.Kind == models.ResourceRepo {
 			out.Repo = repoDetails(ctx, a, &e.Resource, e.Resource.Latest())
 			var made []models.Resource

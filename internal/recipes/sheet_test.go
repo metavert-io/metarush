@@ -251,6 +251,14 @@ func randomDoc(r *rand.Rand, s *editspec.Spec) *models.RecipeDoc {
 		d.Hints = append(d.Hints, pick()+".")
 		d.Signoffs = append(d.Signoffs, pick())
 	}
+	switch r.Intn(4) { // the video it was drafted from (D400): all of it, a link alone, odd words
+	case 0:
+		d.Reference = &models.RecipeReference{AssetID: specgen.Assets[r.Intn(4)], URL: "https://www.youtube.com/watch?v=abc#t=" + pick(), Platform: "youtube", Who: pick()}
+	case 1:
+		d.Reference = &models.RecipeReference{URL: pick(), Who: "@" + pick()}
+	case 2:
+		d.Reference = &models.RecipeReference{}
+	}
 	if r.Intn(2) == 0 {
 		d.Pack = []models.RecipeOutput{{Name: "shorts", Kind: models.RecipeShorts, Count: &models.RecipeRange{Max: 3}, Purpose: pick(), Named: pick()}}
 		if r.Intn(2) == 0 {
@@ -278,6 +286,7 @@ func TestSheetSpellsEveryField(t *testing.T) {
 		"doc.pack": true, "doc.pack.name": true, "doc.pack.kind": true, "doc.pack.conversation": true, "doc.pack.count": true, "doc.pack.count.min": true, "doc.pack.count.max": true,
 		"doc.pack.length": true, "doc.pack.length.min": true, "doc.pack.length.max": true, "doc.pack.purpose": true, "doc.pack.shape": true, "doc.pack.style": true,
 		"doc.pack.captions": true, "doc.pack.named": true, "doc.pack.footage": true,
+		"doc.reference": true, "doc.reference.assetId": true, "doc.reference.url": true, "doc.reference.platform": true, "doc.reference.who": true,
 	}
 	seen := map[string]bool{}
 	var walk func(rt reflect.Type, prefix string)

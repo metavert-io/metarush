@@ -133,7 +133,8 @@
             "render",
             "qa",
             "jobs",
-            "run"
+            "run",
+            "draft"
           ]
         },
         "renderId": {
@@ -146,6 +147,9 @@
           "type": "array"
         },
         "runId": {
+          "type": "string"
+        },
+        "assetId": {
           "type": "string"
         },
         "what": {
@@ -3310,6 +3314,12 @@
           },
           "type": "array"
         },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "summary": {
           "type": "string"
         },
@@ -3331,6 +3341,7 @@
         "markers",
         "duration",
         "notes",
+        "warnings",
         "summary",
         "open"
       ]
@@ -5433,7 +5444,8 @@
             "publish",
             "picks",
             "sheet",
-            "suggested"
+            "suggested",
+            "fromvideo"
           ]
         },
         "recipe": {
@@ -5555,6 +5567,21 @@
         },
         "new": {
           "type": "boolean"
+        },
+        "video": {
+          "type": "string",
+          "description": "The video it starts from, as people name it."
+        },
+        "videoFrom": {
+          "type": "string",
+          "description": "Where the video came from (its link)."
+        },
+        "does": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "What the video does, in plain words."
         }
       },
       "additionalProperties": false,
@@ -6694,7 +6721,8 @@
             "qa-errors",
             "signoff",
             "consent",
-            "credentials"
+            "credentials",
+            "reference"
           ]
         },
         "says": {

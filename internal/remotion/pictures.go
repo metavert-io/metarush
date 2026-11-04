@@ -266,6 +266,9 @@ func pictureValueOf(ctx context.Context, a *app.App, s *models.RemotionSource, v
 	if ver == nil {
 		return val, apperr.New(apperr.NotFound, "“%s” has no versions yet.", r.Title)
 	}
+	if err := resources.RefuseFrameOfReference(ctx, a, &r, ver.SHA256, "put it in a video"); err != nil { // D457
+		return val, err
+	}
 	if ver.Size > maxPictureBytes {
 		return val, apperr.New(apperr.InvalidInput, "“%s” is larger than %d MB, the most a picture in a video can be.", r.Title, maxPictureBytes>>20).WithHint("Use a smaller copy of it.")
 	}

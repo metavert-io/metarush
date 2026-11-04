@@ -127,7 +127,7 @@ func (e *Env) add(ctx context.Context, c *Component, o AddOptions, seen map[stri
 			o.Say(c.Name, msg)
 		}
 	}
-	out := &ComponentAdded{Name: c.Name, Title: c.Title, Unlocks: c.Unlocks, Licence: c.Licence}
+	out := &ComponentAdded{Name: c.Name, Title: c.Title, Unlocks: e.unlocksOf(c), Licence: e.licenceOf(c)}
 	f := e.Find(ctx, c)
 	if f.NotHere != "" {
 		return nil, apperr.New(apperr.NotConfigured, "%s can't be added on this computer: %s", c.Title, lowerStart(f.NotHere)).WithDetails(map[string]any{"component": c.Name})
@@ -140,7 +140,7 @@ func (e *Env) add(ctx context.Context, c *Component, o AddOptions, seen map[stri
 	if p := e.adding(c.Name); p != nil && p.PID != os.Getpid() {
 		return nil, apperr.New(apperr.Conflict, "%s is being added already.", c.Title).WithHint("It's ready when that finishes; Settings → Components shows how far along it is.")
 	}
-	for _, n := range c.Needs {
+	for _, n := range e.needsOf(c) {
 		need, ok := Get(n)
 		if !ok || !need.on(e.goos()) || e.Find(ctx, need).Ready {
 			continue
@@ -190,7 +190,7 @@ func (e *Env) add(ctx context.Context, c *Component, o AddOptions, seen map[stri
 	}
 	_ = os.Remove(e.errorFile(c.Name))
 	_ = choice.Set(e.Home(), map[string]bool{c.Name: true}, o.By)
-	out.Done, out.Says = true, c.Title+" is added: "+lowerStart(c.Unlocks)
+	out.Done, out.Says = true, c.Title+" is added: "+lowerStart(e.unlocksOf(c))
 	return out, nil
 }
 

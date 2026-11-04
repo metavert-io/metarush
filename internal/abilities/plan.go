@@ -353,11 +353,18 @@ func resolveFile(ctx context.Context, a *app.App, kind, ref, projectID string, v
 		if cur == nil {
 			return nil, apperr.New(apperr.NotFound, "“%s” has no file yet.", r.Title)
 		}
+		// A picture taken from someone else's video goes nowhere (D457).
+		if err := resources.RefuseFrameOfReference(ctx, a, &r, cur.SHA256, "hand it to an ability"); err != nil {
+			return nil, err
+		}
 		return &fileInput{Kind: kind, Ref: r.ID, Title: r.Title, SHA256: cur.SHA256, Key: cur.StorageKey, Size: cur.Size}, nil
 	}
 	as, err := ops.ResolveFootage(ctx, a, ref, projectID)
 	if err != nil {
 		return nil, err
+	}
+	if as.IsReference() { // someone else's video is never sent out or made into anything (D441, D456)
+		return nil, ops.RefuseReference(as, "hand it to an ability")
 	}
 	if as.StorageKey == "" || as.SHA256 == "" {
 		return nil, apperr.New(apperr.Validation, "“%s” isn't stored yet.", as.DisplayTitle())

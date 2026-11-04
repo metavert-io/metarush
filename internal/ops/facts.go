@@ -282,6 +282,7 @@ func loadFactsWith(ctx context.Context, a *app.App, projectID string, view *proj
 			FPS: as.Media.FPS, VFR: as.Media.VFR, HDR: as.Media.HDR}
 		_, af.HasMezzanine = as.Variants[models.VariantMezzanine]
 		af.RightsRecorded = as.Rights != nil && as.Rights.License != ""
+		af.Reference = as.IsReference() // someone else's video, kept to learn from (D398)
 		// The words: as they are now, or the ones a saved version was made with.
 		segs, prec, ok, err := transcripts.For(ctx, a, as, pins)
 		if err != nil {

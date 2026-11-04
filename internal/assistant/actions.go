@@ -268,6 +268,24 @@ func (m *Manager) describeAction(ctx context.Context, c *conv, call *cliCall, a 
 		m.describeCutCaptions(ctx, call, a)
 	case "footage short":
 		m.describeFootageShort(ctx, call, a)
+	case "footage reference":
+		// A reference no cut plays (D398): marking one is a card; saying a
+		// video is yours is a person's, on its page, never a card.
+		if hasBool(call, "mine") {
+			incomplete(a, "Say a video is yours", "Only a person says a video is theirs, on its page (This is mine…).")
+			return
+		}
+		if arg == "" {
+			incomplete(a, "Mark a clip as a reference", "Claude did not say which clip.")
+			return
+		}
+		name := m.lookupName(ctx, arg)
+		if name == "" {
+			name = "the clip"
+		}
+		a.Title = "Mark " + name + " as a reference"
+		a.Details = []string{"Someone else's video, kept to learn from: no cut plays it. If it's yours, say so on its page."}
+		setInput(a, "footage.reference", ops.FootageReferenceIn{AssetID: arg})
 	case "cut add", "cut move", "cut trim", "cut split", "cut delete", "cut delete-range", "cut remove-words", "cut pauses", "cut flashes", "cut names", "cut use-fixed", "content pack apply":
 		m.describeCutEdit(ctx, call, a)
 	case "qa run":

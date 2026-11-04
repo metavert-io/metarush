@@ -22,6 +22,7 @@ import (
 	"github.com/metavert-io/metarush/internal/cutsheet"
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/fixes"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/providers"
 	"github.com/metavert-io/metarush/internal/sound"
@@ -110,6 +111,7 @@ var opsSchemaNames = map[reflect.Type]string{
 	reflect.TypeOf(cutsheet.Anchor{}):    "WordAnchor",       // editspec.Anchor (narration) keeps "Anchor"
 	reflect.TypeOf(sound.ShowOut{}):      "SoundShowOut",     // voiceover.ShowOut keeps "ShowOut"
 	reflect.TypeOf(sound.PreviewOut{}):   "SoundPreviewOut",  // voiceover.PreviewOut keeps "PreviewOut"
+	reflect.TypeOf(looker.Status{}):      "ScreenIndexHere",  // providers.Status keeps "Status"
 	// A source's fixes and info card (D151, D152): named for what they are.
 	reflect.TypeOf(fixes.View{}):       "FixesView",
 	reflect.TypeOf(fixes.Row{}):        "FixRow",

@@ -153,7 +153,11 @@ func (fp FirstPartyAbility) requires() []string {
 		out = append(out, "Claude Code")
 	}
 	if n.Setup != "" {
-		out = append(out, setupWords(n.Setup))
+		if n.Partly != "" && len(n.OS) == 0 {
+			out = append(out, setupWords(n.Setup)+" (without it, "+n.Partly+")")
+		} else {
+			out = append(out, setupWords(n.Setup))
+		}
 	}
 	return out
 }
@@ -217,7 +221,8 @@ func setupWords(name string) string {
 
 // setupNames say what each setup check is about.
 var setupNames = map[string]string{"studio-voices": "the studio voice cleaner, set up once by a person",
-	"on-screen-helper":    "the helper that looks at the picture, which MetaRush builds",
+	"on-screen-helper":    "what looks at the picture: on a Mac the helper MetaRush builds, elsewhere the open models a person adds",
+	"cut-outs":            "what cuts a subject out: Apple Vision on a Mac, elsewhere the cut-out model a person adds",
 	"content-credentials": "a signing certificate, set up once by an owner on this computer"}
 
 func article(s string) string {
@@ -311,7 +316,11 @@ func (h *hereFacts) fill(e *Entry, fp FirstPartyAbility) {
 				if needs == "" {
 					needs = setupWords(n.Setup)
 				}
-				missing = append(missing, needs)
+				if n.Partly != "" && len(n.OS) == 0 {
+					e.Partly = n.Partly // without it, it works here in part
+				} else {
+					missing = append(missing, needs)
+				}
 			}
 		}
 	}
@@ -498,8 +507,8 @@ func FirstPartyFromOfferings(offered []ops.OpOffering, retired map[string]string
 		if contains(n.Works, "transcripts") && !contains(n.Works, "editing") {
 			problems = append(problems, o.ID+": transcripts need FFmpeg too (works: transcripts and editing)")
 		}
-		if n.Partly != "" && len(n.OS) == 0 {
-			problems = append(problems, o.ID+": partly says what it does where its systems leave it out, so name its systems")
+		if n.Partly != "" && len(n.OS) == 0 && n.Setup == "" {
+			problems = append(problems, o.ID+": partly says what it does where its systems or its setup leave it out, so name its systems or the setup")
 		}
 		if (len(n.Keys) > 0 || n.Claude) && strings.TrimSpace(n.Leaves) == "" {
 			problems = append(problems, o.ID+": it uses a key or Claude Code, so say what leaves this computer (needs.Leaves)")

@@ -543,7 +543,7 @@ func footageCmd() *cobra.Command {
 	var an ops.AnalyzeIn
 	var noTx, noVisual, wait bool
 	analyze := &cobra.Command{
-		Use: "analyze", Short: "Prepare footage (again): transcripts, pauses and loud parts, and on a Mac what's on screen",
+		Use: "analyze", Short: "Prepare footage (again): transcripts, pauses and loud parts, and what's on screen where a computer can look",
 		RunE: func(c *cobra.Command, args []string) error {
 			if noTx {
 				f := false
@@ -602,6 +602,7 @@ func footageCmd() *cobra.Command {
 	cmd.AddCommand(visualsCmd())
 	cmd.AddCommand(facesCmd())
 	cmd.AddCommand(describeCmd())
+	cmd.AddCommand(footageWhatItDoesCmd(), footageReferenceCmd()) // what a video does, reference clips (whatitdoes.go, D398, D399)
 	cmd.AddCommand(&cobra.Command{
 		Use: "evidence <asset-id>", Short: "What MetaRush measured in a clip: pauses, cuts and picture changes, black or frozen picture, loudness", Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {

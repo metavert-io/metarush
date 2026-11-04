@@ -16,6 +16,7 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/leave"
+	"github.com/metavert-io/metarush/internal/linkimport"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/motion"
 	"github.com/metavert-io/metarush/internal/ops"
@@ -237,6 +238,16 @@ func Export(ctx context.Context, a *app.App, in *RecipeExportIn, w io.Writer) (*
 	e.file.Recipe.Name, e.file.Recipe.Title, e.file.Recipe.Makes = r.Name, r.Title, r.Makes
 	e.file.Version.Number, e.file.Version.Hash, e.file.Version.Note, e.file.Version.State = v.Number, v.Hash, v.Note, v.State
 	d := &e.file.Doc
+	// The video it was drafted from (D400, D444): never its clip, and its link
+	// only when anyone may open it — a public video page — never a cloud
+	// folder's or this computer's address.
+	if ref := d.Reference; ref != nil {
+		ref.AssetID = ""
+		if ref.URL != "" && !publicReferenceLink(ctx, a, v.Doc.Reference) {
+			ref.URL, ref.Platform, ref.Who = "", "", ""
+			e.leave("the link to the video it was drafted from", "it isn't a public video page")
+		}
+	}
 	if err := e.pictures(d); err != nil {
 		return nil, err
 	}
@@ -254,7 +265,9 @@ func Export(ctx context.Context, a *app.App, in *RecipeExportIn, w io.Writer) (*
 		return nil, apperr.New(apperr.InvalidInput, "What “%s” always uses is %s, more than the %s a recipe file may hold.", r.Title, sizeWords(e.total), sizeWords(e.max)).
 			WithHint("Give it more room (the most it may hold, in MB).")
 	}
-	sheet := printVersion(ctx, a, r, v)
+	vv := *v
+	vv.Doc = *Clone(d) // the sheet says what the file holds
+	sheet := printVersion(ctx, a, r, &vv)
 	if err := e.write(w, r.Name, sheet); err != nil {
 		return nil, err
 	}
@@ -382,6 +395,10 @@ func (e *exporter) pictures(d *models.RecipeDoc) error {
 		if r.Kind == models.ResourceRepo {
 			continue // a repository is never drawn itself
 		}
+		if ref := resources.FrameReference(e.ctx, e.a, &r, w.sha); ref != nil { // D457
+			e.leave("“"+title+"”", "it is a frame of “"+ref.DisplayTitle()+"”, a reference: someone else's video, kept here to learn from")
+			continue
+		}
 		if why := e.kept([]string{r.ProjectID}, []string{models.LeavePictures}, "“"+title+"”"); why != "" {
 			e.leave("“"+title+"”", why)
 			continue
@@ -414,6 +431,11 @@ func (e *exporter) pictures(d *models.RecipeDoc) error {
 // workspace knows (folders, projects, machines, records).
 func cleanSource(s models.ResourceSource) models.ResourceSource {
 	s.Path, s.Machine, s.FolderID, s.RelPath, s.ProjectID, s.ResourceID, s.AssetID = "", "", "", "", "", "", ""
+	if s.FrameOf != nil { // the clip is this workspace's
+		f := *s.FrameOf
+		f.AssetID = ""
+		s.FrameOf = &f
+	}
 	for i := range s.Lineage {
 		s.Lineage[i].ResourceID = ""
 	}
@@ -487,6 +509,10 @@ func (e *exporter) footage(d *models.RecipeDoc, list []string, input bool) error
 		title := as.DisplayTitle()
 		if as.Source != nil && as.Source.Generated != nil && as.Source.Generated.Likeness {
 			e.leave("“"+title+"”", "it is a generated shot that shows a real person, whose consent covers projects in this workspace only")
+			continue
+		}
+		if as.IsReference() { // someone else's video stays where it was kept (D456)
+			e.leave("“"+title+"”", "it is a reference: someone else's video, kept here to learn from")
 			continue
 		}
 		if as.State != models.AssetAvailable {
@@ -659,3 +685,32 @@ func (e *exporter) write(w io.Writer, name, sheet string) error {
 
 // recipeJSON is the description's name in a recipe file.
 const recipeJSON = "recipe.json"
+
+// publicReferenceLink reports whether the link to the video a recipe was
+// drafted from is one anyone may open (D444): the clip's own public link
+// when the clip is here, else a video page on YouTube, TikTok or X.
+func publicReferenceLink(ctx context.Context, a *app.App, r *models.RecipeReference) bool {
+	if r == nil || r.URL == "" {
+		return false
+	}
+	if r.AssetID != "" {
+		var as models.Asset
+		if a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), r.AssetID, &as) == nil {
+			return as.Source.PublicLink() == r.URL
+		}
+	}
+	return platformVideoLink(r.URL)
+}
+
+// platformVideoLink reports a link to one video on YouTube, TikTok or X.
+func platformVideoLink(u string) bool {
+	l, err := linkimport.Classify(u)
+	if err != nil || l.Many() {
+		return false
+	}
+	switch l.Platform {
+	case models.PlatformYouTube, models.PlatformTikTok, models.PlatformX:
+		return true
+	}
+	return false
+}

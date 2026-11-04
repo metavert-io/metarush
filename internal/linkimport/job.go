@@ -15,6 +15,7 @@ import (
 	"github.com/metavert-io/metarush/internal/ingest"
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/tools"
 )
@@ -49,6 +50,11 @@ type Payload struct {
 	// Title and Who are filled in after the lookup (activity, job details).
 	Title string `json:"title,omitempty" bson:"title,omitempty"`
 	Who   string `json:"who,omitempty" bson:"who,omitempty"`
+	// Reference: a new clip comes in as a reference (D398), someone else's
+	// video kept to learn from; StartFrom is a draft asked for from it (D401),
+	// recorded on the clip once it is in.
+	Reference bool                   `json:"reference,omitempty" bson:"reference,omitempty"`
+	StartFrom *models.StartFromVideo `json:"startFrom,omitempty" bson:"startFrom,omitempty"`
 }
 
 // payloadOf reads an import job's payload (BSON round trip: nested documents
@@ -268,6 +274,9 @@ func Run(ctx context.Context, a *app.App, j *models.Job, report Report) (map[str
 		if res.Status == "duplicate" && j.ProjectID != "" {
 			linkProject(ctx, &ia, res.AssetID, j.ProjectID)
 		}
+		if err := afterAdding(ctx, &ia, j, res.AssetID, res.Status == "ingested" || res.Status == "resumed"); err != nil {
+			return nil, err // tried again: the clip is found and marked then (made by this import)
+		}
 		_ = os.Remove(path) // the canonical store and the cache hold the bytes now
 		row := map[string]any{"assetId": res.AssetID, "status": res.Status, "title": clipTitle, "videoId": src.VideoID, "url": src.URL}
 		if res.Duplicate != nil {
@@ -333,6 +342,11 @@ func findImported(ctx context.Context, a *app.App, platform, videoID string) *mo
 func already(ctx context.Context, a *app.App, j *models.Job, p Payload, as *models.Asset) (map[string]any, error) {
 	if j.ProjectID != "" {
 		linkProject(ctx, a, as.ID, j.ProjectID)
+	}
+	// This import may have made the clip on an earlier try (its ingest session
+	// names the job): it is marked as asked then, never another person's clip.
+	if err := afterAdding(ctx, a, j, as.ID, madeBy(ctx, a, as.ID, j.ID)); err != nil {
+		return nil, err
 	}
 	title := as.DisplayTitle()
 	if p.Title == "" {
@@ -405,4 +419,41 @@ func IdempotencyKey(installationID string, l Link, projectID string) string {
 		id = "list:" + l.URL
 	}
 	return "import:" + installationID + ":" + l.Platform + ":" + id + ":" + projectID
+}
+
+// afterAdding does what an import was asked for beyond bringing the video in
+// (D398, D401), read from the job as it is now (a later paste may have asked
+// while it ran): a clip this import made comes in as a reference; a draft
+// asked for from it is recorded on the clip, made once MetaRush has looked at
+// the video. A clip that was in MetaRush already stays what it is.
+func afterAdding(ctx context.Context, a *app.App, j *models.Job, assetID string, made bool) error {
+	if assetID == "" {
+		return nil
+	}
+	p := payloadOf(j)
+	if fresh, err := a.Queue.Get(ctx, j.ID); err == nil {
+		p = payloadOf(fresh)
+	}
+	if p.Reference && made {
+		var as models.Asset
+		if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), assetID, &as); err != nil {
+			return err
+		}
+		if err := ops.MarkReference(ctx, a, &as, models.ReferenceStartFrom); err != nil { // a clip just made plays in no cut
+			return err
+		}
+	}
+	if p.StartFrom != nil {
+		if _, err := ops.AskStartFrom(ctx, a, assetID, *p.StartFrom); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// madeBy reports whether an import job made a clip (on an earlier try): its
+// ingest session names the job.
+func madeBy(ctx context.Context, a *app.App, assetID, jobID string) bool {
+	n, err := a.DB.C(store.CIngest).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "assetId": assetID, "jobId": jobID})
+	return err == nil && n > 0
 }

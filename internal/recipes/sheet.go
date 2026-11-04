@@ -33,6 +33,7 @@ import (
 //	lands: new cuts in prj_…                or: a new project each time · named "{title} {n}"
 //	settings: prj_…
 //	from: project prj_… · cut main · version 4 · revision rev_… · approved
+//	reference: clip ast_… · link "https://…" · on youtube · by "@handle"   a video it was drafted from
 //	---
 //	## Inputs
 //	- headline: words · default "Read free" · up to 40 characters · label "The headline"
@@ -187,7 +188,40 @@ func (p *sheetPrinter) frontMatter() {
 	if d.From != nil {
 		p.line(p.fromLine(d.From))
 	}
+	if d.Reference != nil {
+		p.line(p.referenceLine(d.Reference))
+	}
 	p.line("---")
+}
+
+// referenceLine writes the video a recipe was drafted from (D400):
+// reference: clip ast_… · link "https://…" · on youtube · by "@handle".
+func (p *sheetPrinter) referenceLine(r *models.RecipeReference) string {
+	m := membersOf(r)
+	var parts []string
+	if m.has("assetId") {
+		m.take("assetId")
+		parts = append(parts, "clip "+token(r.AssetID))
+	}
+	if m.has("url") {
+		m.take("url")
+		parts = append(parts, "link "+jsonText(r.URL))
+	}
+	if m.has("platform") {
+		m.take("platform")
+		parts = append(parts, "on "+token(r.Platform))
+	}
+	if m.has("who") {
+		m.take("who")
+		parts = append(parts, "by "+jsonText(r.Who))
+	}
+	if rest := m.rest(); rest != "" {
+		parts = append(parts, rest)
+	}
+	if len(parts) == 0 {
+		parts = append(parts, "{}")
+	}
+	return withComment("reference: "+strings.Join(parts, " · "), quoted(p.title(r.AssetID)))
 }
 
 func quoted(s string) string {

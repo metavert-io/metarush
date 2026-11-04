@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -14,13 +15,14 @@ import (
 	"github.com/metavert-io/metarush/internal/fixes"
 	"github.com/metavert-io/metarush/internal/localdb"
 	"github.com/metavert-io/metarush/internal/localmodels"
+	"github.com/metavert-io/metarush/internal/looker"
 	"github.com/metavert-io/metarush/internal/onnx"
 	"github.com/metavert-io/metarush/internal/renderer"
 	"github.com/metavert-io/metarush/internal/sandbox"
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/transcribe"
 	"github.com/metavert-io/metarush/internal/version"
-	"github.com/metavert-io/metarush/internal/vision"
+	"github.com/metavert-io/metarush/internal/visionmodels"
 )
 
 const (
@@ -208,39 +210,81 @@ var registry = []*Component{
 		removeSays: "It came from Homebrew or your system's packages; remove it there if nothing else uses it.",
 	},
 	{
-		Name: "screen-index", Title: "Seeing what's on screen", Thing: "the on-screen helper", Feature: "Seeing what's on screen", Suggested: true, Systems: []string{mac},
-		Unlocks:    "Looks at every clip with Apple Vision on this Mac, nothing uploaded: people and faces, places, things and words on screen, and framing that follows faces.",
+		Name: looker.Component, Title: "Seeing what's on screen", Thing: screenThing, Feature: "Seeing what's on screen", Suggested: true,
+		Unlocks:    "Looks at every clip on this computer, nothing uploaded: faces and people, the words on screen, and framing that follows faces; on a Mac Apple Vision also names places, things and animals and sees gestures.",
 		Features:   []string{"Faces and people", "Words on screen", "Framing that follows faces"},
-		DownloadMB: 0, DiskMB: 5, Minutes: 1, Needs: []string{"ffmpeg"}, Tools: []string{tools.Vision, tools.Swiftc},
+		DownloadMB: screenDownloadMB, DiskMB: screenDiskMB, Minutes: 1, Needs: []string{"ffmpeg", "transcription"}, Tools: []string{tools.Vision, tools.Swiftc},
+		here: func(e *Env) Here {
+			if e.looksWith() == looker.AppleVision {
+				return Here{Needs: []string{"ffmpeg"}, DiskMB: 5,
+					Unlocks: "Looks at every clip with Apple Vision on this Mac, nothing uploaded: people and faces, places, things and words on screen, and framing that follows faces."}
+			}
+			return Here{Needs: []string{"ffmpeg", "transcription"}, DownloadMB: openModelsMB,
+				Unlocks: "Looks at every clip with open models on this computer, nothing uploaded: faces and people, the words on screen (Latin, Greek, Chinese and Japanese writing) and what stands out, and framing that follows faces.",
+				Licence: "The open models are YuNet (MIT), PaddleOCR's text models (Apache-2.0) and U²-Net-p (Apache-2.0)."}
+		},
 		detect: func(ctx context.Context, e *Env) Found {
-			st := vision.Check(ctx, e.Tools)
-			f := Found{Ready: st.Ready && !st.Stale, Path: st.Path, Detail: st.Text}
-			if !st.Supported {
-				f.NotHere = "It needs a Mac; a Mac in your workspace can look at your clips."
+			st := looker.CheckBackend(ctx, e.Tools, e.looksWith())
+			if st.Backend == looker.AppleVision {
+				f := Found{Ready: st.Ready && !st.Stale, Path: st.Path, Detail: st.Text}
+				if !st.Supported {
+					f.NotHere = "It needs a Mac; a Mac in your workspace can look at your clips."
+				}
+				return f
+			}
+			f := Found{Ready: st.Ready, Path: st.Path, Detail: "the open models"}
+			switch {
+			case !st.Supported:
+				f.NotHere = "It isn't made for this kind of computer yet; a Mac or a Linux computer in your workspace can look at your clips."
+			case !st.Ready && visionmodels.StoreIn(e.Tools.ModelsDir()).Present(visionmodels.PartIndex):
+				f.Partly = st.Text
 			}
 			return f
 		},
 		ways: []Way{
-			{When: func(e *Env) bool { return e.Tools.Has(tools.Swiftc) }, Step: "vision"},
-			{Says: "Install Apple's Command Line Tools (a window asks first), then add this again.", Command: "xcode-select --install"},
+			{When: usesOpenModels, Pins: screenIndexPins()},
+			{Systems: []string{mac}, When: func(e *Env) bool { return e.Tools.Has(tools.Swiftc) }, Step: "vision"},
+			{Systems: []string{mac}, Says: "Install Apple's Command Line Tools (a window asks first), then add this again.", Command: "xcode-select --install"},
 		},
-		remove: removeVision,
+		remove: removeScreenIndex,
 	},
 	{
-		Name: "faces", Title: "Recognizing faces across clips", Thing: "the face model", Feature: "Recognizing faces across clips", Suggested: true, Systems: []string{mac},
+		Name: "faces", Title: "Recognizing faces across clips", Thing: "the face model", Feature: "Recognizing faces across clips", Suggested: true,
 		Unlocks:    "Recognizes the people you named in every clip, so you're asked once per person, not once per appearance.",
 		Features:   []string{"Faces recognized across clips"},
-		DownloadMB: 40, Minutes: 1, Needs: []string{"screen-index", "transcription"},
+		DownloadMB: 40, Minutes: 1, Needs: []string{looker.Component, "transcription"},
 		detect: func(_ context.Context, e *Env) Found {
 			model := faceid.Setup{Home: e.Home()}.Model()
 			f := Found{Ready: model != "" && onnx.Library(e.Tools.Path(tools.Sherpa)) != "", Path: model}
 			if model != "" && !f.Ready {
 				f.Partly = "The face model is here, but the transcription program that runs it isn't."
 			}
+			if !onnx.Available {
+				f.NotHere = "It isn't made for this kind of computer yet."
+			}
 			return f
 		},
 		ways:   []Way{{Step: "faces"}},
 		remove: removeFile(func(e *Env) string { return faceid.Setup{Home: e.Home()}.Path() }),
+	},
+	{
+		Name: looker.CutOutComponent, Title: "Cutting out a picture's subject", Thing: "the cut-out model", Feature: "Cutting out a picture's subject",
+		Unlocks:    "Takes the background out of photos with an open model on this computer, nothing uploaded: Remove the background for pictures, and AI cut-outs.",
+		Features:   []string{"Removing a photo's background", "AI cut-outs"},
+		DownloadMB: cutOutMB, Minutes: 3, Needs: []string{"transcription"}, Licence: "The model is BiRefNet (MIT).",
+		detect: func(_ context.Context, e *Env) Found {
+			if e.looksWith() == looker.AppleVision {
+				return Found{NotHere: "On this Mac, Apple Vision cuts a picture's subject out; it comes with Seeing what's on screen."}
+			}
+			st := looker.CheckCutOutBackend(e.Tools, looker.OpenModels)
+			f := Found{Ready: st.Ready, Path: st.Path, Detail: st.Engine}
+			if !onnx.Available {
+				f.NotHere = "It isn't made for this kind of computer yet."
+			}
+			return f
+		},
+		ways:   []Way{{Pins: []string{looker.CutOutComponent}}},
+		remove: removePins(looker.CutOutComponent),
 	},
 	{
 		Name: "clean-voice", Title: "Clearer voices on this computer", Thing: "the voice cleaner", Feature: "Making voices clearer", Suggested: true,
@@ -510,6 +554,53 @@ func removeVision(_ context.Context, e *Env) error {
 	p := config.VisionToolPath(e.Home())
 	_ = os.Remove(p + ".source-sha256")
 	return os.RemoveAll(p)
+}
+
+// removeScreenIndex takes away what looks at the picture here: the helper
+// MetaRush built, and the open models it downloaded.
+func removeScreenIndex(ctx context.Context, e *Env) error {
+	if err := removePins(screenIndexPins()...)(ctx, e); err != nil {
+		return err
+	}
+	return removeVision(ctx, e)
+}
+
+// usesOpenModels: this computer looks at what's on screen with the open models.
+func usesOpenModels(e *Env) bool { return e.looksWith() == looker.OpenModels }
+
+// looksWith is how this computer looks at what's on screen (D408).
+func (e *Env) looksWith() string { return looker.ChosenOn(e.Cfg, e.goos()) }
+
+// The open models' downloads (D406), in megabytes.
+var (
+	openModelsMB = int((visionmodels.Store{}.Bytes(visionmodels.PartIndex) + 500_000) / 1_000_000)
+	cutOutMB     = int((visionmodels.Store{}.Bytes(visionmodels.PartCutOut) + 500_000) / 1_000_000)
+)
+
+// What looks at the picture, as a missing component says it: on a Mac the
+// helper MetaRush builds (Apple Vision), elsewhere the open models it
+// downloads (a Mac that chose the open models sees their size in Settings →
+// Components, through the component's here).
+var screenThing, screenDownloadMB, screenDiskMB = func() (string, int, int) {
+	if runtime.GOOS == mac {
+		return "the on-screen helper", 0, 5
+	}
+	return "the open models that look at the picture", openModelsMB, 0
+}()
+
+// The open models' own words when a person left them out (looker.Open says
+// them; one sentence, the component's).
+func init() {
+	looker.LeftOutWords = func() string { return Missing(looker.Component).Message }
+}
+
+// screenIndexPins are the open models' pins.
+func screenIndexPins() []string {
+	var out []string
+	for _, f := range (visionmodels.Store{}).Part(visionmodels.PartIndex) {
+		out = append(out, f.ID)
+	}
+	return out
 }
 
 // removeRenderer removes this version's renderer unless a render is using

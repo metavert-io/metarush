@@ -53,7 +53,8 @@ dashboard.
   Windows, use the dashboard.
 - **Send to an editing app** writes a timeline whose clips point at files on the host; after copying the footage to
   your PC, relink them in your editing app.
-- Recognizing faces and what's on screen needs a Mac in the workspace.
+- Recognizing faces and what's on screen is done by a Mac or a Linux computer in the workspace (Linux with Seeing
+  what's on screen added), not by the Windows PC.
 
 ## When something goes wrong
 

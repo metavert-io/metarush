@@ -349,7 +349,7 @@ func detect(ctx context.Context, a *app.App, c *models.Conversation, kinds map[s
 			}
 		}
 		if len(unseen) > 0 {
-			notes = append(notes, possessive(joinAnd(unseen))+" picture hasn't been looked at yet (on a Mac), so the app's chrome wasn't checked.")
+			notes = append(notes, possessive(joinAnd(unseen))+" picture hasn't been looked at yet (on a Mac, or a computer with Seeing what's on screen added), so the app's chrome wasn't checked.")
 		}
 	}
 	step("Done")

@@ -4219,7 +4219,8 @@
             "render",
             "qa",
             "jobs",
-            "run"
+            "run",
+            "draft"
           ]
         },
         "renderId": {
@@ -4232,6 +4233,9 @@
           "type": "array"
         },
         "runId": {
+          "type": "string"
+        },
+        "assetId": {
           "type": "string"
         },
         "what": {
@@ -5259,6 +5263,12 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "reference": {
+          "$ref": "#/$defs/AssetReference"
+        },
+        "startFrom": {
+          "$ref": "#/$defs/StartFromVideo"
         }
       },
       "additionalProperties": false,
@@ -5604,6 +5614,31 @@
         "assetId"
       ]
     },
+    "AssetReference": {
+      "properties": {
+        "by": {
+          "$ref": "#/$defs/Actor"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "why": {
+          "type": "string",
+          "enum": [
+            "",
+            "start-from",
+            "marked"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "by",
+        "at"
+      ]
+    },
     "AssetRightsIn": {
       "properties": {
         "assetId": {
@@ -5919,6 +5954,12 @@
         },
         "fixesFit": {
           "type": "integer"
+        },
+        "reference": {
+          "$ref": "#/$defs/AssetReference"
+        },
+        "startFrom": {
+          "$ref": "#/$defs/StartFromVideo"
         }
       },
       "additionalProperties": false,
@@ -22063,6 +22104,12 @@
           },
           "type": "array"
         },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "summary": {
           "type": "string"
         },
@@ -22084,6 +22131,7 @@
         "markers",
         "duration",
         "notes",
+        "warnings",
         "summary",
         "open"
       ]
@@ -24130,6 +24178,44 @@
         "note"
       ]
     },
+    "FootageReferenceIn": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The clip: its ID or its name."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId"
+      ]
+    },
+    "FootageReferenceOut": {
+      "properties": {
+        "clip": {
+          "$ref": "#/$defs/AssetSummary"
+        },
+        "reference": {
+          "type": "boolean"
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "clip",
+        "reference",
+        "changed",
+        "message"
+      ]
+    },
     "FootageShortIn": {
       "properties": {
         "projectId": {
@@ -24590,7 +24676,8 @@
             "qa-errors",
             "signoff",
             "consent",
-            "credentials"
+            "credentials",
+            "reference"
           ]
         },
         "says": {
@@ -24603,6 +24690,9 @@
           "type": "boolean"
         },
         "anyway": {
+          "type": "boolean"
+        },
+        "holding": {
           "type": "boolean"
         },
         "problems": {
@@ -24625,6 +24715,7 @@
         "kind",
         "says",
         "overridable",
+        "holding",
         "paths"
       ]
     },
@@ -28240,6 +28331,10 @@
         "dryRun": {
           "type": "boolean",
           "description": "Look the links up (title, account, length, license) without importing anything."
+        },
+        "reference": {
+          "type": "boolean",
+          "description": "Bring new videos in as references: someone else's videos, kept to learn from, that no cut plays. A video already in MetaRush stays what it is."
         }
       },
       "additionalProperties": false,
@@ -31708,6 +31803,12 @@
         },
         "fixesFit": {
           "type": "integer"
+        },
+        "reference": {
+          "$ref": "#/$defs/AssetReference"
+        },
+        "startFrom": {
+          "$ref": "#/$defs/StartFromVideo"
         },
         "where": {
           "type": "string"
@@ -47007,7 +47108,8 @@
             "publish",
             "picks",
             "sheet",
-            "suggested"
+            "suggested",
+            "fromvideo"
           ]
         },
         "recipe": {
@@ -47129,6 +47231,21 @@
         },
         "new": {
           "type": "boolean"
+        },
+        "video": {
+          "type": "string",
+          "description": "The video it starts from, as people name it."
+        },
+        "videoFrom": {
+          "type": "string",
+          "description": "Where the video came from (its link)."
+        },
+        "does": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "What the video does, in plain words."
         }
       },
       "additionalProperties": false,
@@ -47726,6 +47843,9 @@
           },
           "type": "array",
           "maxItems": 10
+        },
+        "reference": {
+          "$ref": "#/$defs/RecipeReference"
         }
       },
       "additionalProperties": false,
@@ -47970,6 +48090,110 @@
         "projectId",
         "revisionId",
         "number"
+      ]
+    },
+    "RecipeFromVideoIn": {
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 2000,
+          "minLength": 1,
+          "description": "A link to the video (YouTube, TikTok, X or another video site) or a clip already in MetaRush (its ID or name)."
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Runs make new cuts in this project (a video from a link comes in there too); without one each run makes a project of its own and the video goes to the Inbox."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$",
+          "description": "The recipe's short name (default: one made from its title)."
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "The recipe's title (default: Like \u003cwho\u003e's video)."
+        },
+        "reference": {
+          "type": "boolean",
+          "description": "For a clip already in MetaRush: mark it as a reference too (someone else's video, kept to learn from, that no cut plays). A video from a link always comes in as one."
+        },
+        "browserSignIn": {
+          "type": "string",
+          "enum": [
+            "chrome",
+            "safari",
+            "firefox",
+            "brave",
+            "edge"
+          ],
+          "description": "Download the link with this browser's sign-in (for a bot check or sign-in wall)."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from"
+      ]
+    },
+    "RecipeFromVideoOut": {
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "importing",
+            "looking",
+            "drafted"
+          ],
+          "description": "importing: the video is being brought in; looking: MetaRush is looking at it and the draft follows by itself; drafted: the draft is saved."
+        },
+        "clip": {
+          "$ref": "#/$defs/WhatClip"
+        },
+        "card": {
+          "$ref": "#/$defs/WhatItDoes"
+        },
+        "recipe": {
+          "$ref": "#/$defs/RecipeRow"
+        },
+        "version": {
+          "$ref": "#/$defs/RecipeVersionRow"
+        },
+        "sheet": {
+          "type": "string"
+        },
+        "existing": {
+          "type": "boolean"
+        },
+        "waiting": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "jobIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "import": {
+          "$ref": "#/$defs/ImportOut"
+        },
+        "message": {
+          "type": "string"
+        },
+        "next": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "state",
+        "waiting",
+        "jobIds",
+        "message"
       ]
     },
     "RecipeImportCheck": {
@@ -49059,6 +49283,27 @@
       "required": [
         "recipe"
       ]
+    },
+    "RecipeReference": {
+      "properties": {
+        "assetId": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "platform": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "who": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "RecipeRow": {
       "properties": {
@@ -59219,6 +59464,26 @@
         "relPath"
       ]
     },
+    "ResourceFrame": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "description": "The clip (empty when it was taken in another workspace)."
+        },
+        "title": {
+          "type": "string"
+        },
+        "at": {
+          "type": "number",
+          "description": "Seconds into the clip."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "at"
+      ]
+    },
     "ResourceLineage": {
       "properties": {
         "resourceId": {
@@ -59975,6 +60240,9 @@
         "provenance": {
           "type": "string"
         },
+        "reference": {
+          "type": "string"
+        },
         "repo": {
           "$ref": "#/$defs/RepoSummary"
         },
@@ -60121,6 +60389,9 @@
         },
         "assetId": {
           "type": "string"
+        },
+        "frameOf": {
+          "$ref": "#/$defs/ResourceFrame"
         },
         "at": {
           "type": "string",
@@ -62226,6 +62497,57 @@
         "revisionId"
       ]
     },
+    "ScreenIndexHere": {
+      "properties": {
+        "backend": {
+          "type": "string",
+          "enum": [
+            "apple-vision",
+            "open-models"
+          ]
+        },
+        "supported": {
+          "type": "boolean"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "canSetUp": {
+          "type": "boolean"
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
+        },
+        "fix": {
+          "type": "string"
+        },
+        "engine": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sees": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "backend",
+        "supported",
+        "ready",
+        "text",
+        "engine",
+        "sees"
+      ]
+    },
     "ScriptView": {
       "properties": {
         "hasOriginal": {
@@ -63903,7 +64225,8 @@
             "qa-errors",
             "signoff",
             "consent",
-            "credentials"
+            "credentials",
+            "reference"
           ]
         },
         "says": {
@@ -66856,6 +67179,62 @@
         "cutTitle",
         "inCut",
         "says"
+      ]
+    },
+    "StartFromVideo": {
+      "properties": {
+        "for": {
+          "$ref": "#/$defs/Actor"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "waiting",
+            "making",
+            "made",
+            "failed"
+          ]
+        },
+        "makingAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "recipeId": {
+          "type": "string"
+        },
+        "recipe": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "madeAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "problem": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "for",
+        "at",
+        "state"
       ]
     },
     "Stats": {
@@ -72219,6 +72598,12 @@
         "fixesFit": {
           "type": "integer"
         },
+        "reference": {
+          "$ref": "#/$defs/AssetReference"
+        },
+        "startFrom": {
+          "$ref": "#/$defs/StartFromVideo"
+        },
         "where": {
           "type": "string"
         },
@@ -73003,7 +73388,7 @@
       "properties": {
         "supported": {
           "type": "boolean",
-          "description": "This is a Mac (Apple Vision exists here)."
+          "description": "This computer can look at what's on screen at all (a Mac with Apple Vision, or macOS and Linux with the open models)."
         },
         "ready": {
           "type": "boolean"
@@ -73011,6 +73396,22 @@
         "canBuild": {
           "type": "boolean",
           "description": "The Xcode Command Line Tools can build the helper here."
+        },
+        "backend": {
+          "type": "string",
+          "enum": [
+            "apple-vision",
+            "open-models"
+          ]
+        },
+        "engine": {
+          "type": "string"
+        },
+        "sees": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "text": {
           "type": "string"
@@ -73025,6 +73426,9 @@
         "supported",
         "ready",
         "canBuild",
+        "backend",
+        "engine",
+        "sees",
         "text"
       ]
     },
@@ -73070,7 +73474,7 @@
         },
         "possible": {
           "type": "boolean",
-          "description": "This Mac or another Mac in the workspace can look at clips."
+          "description": "This computer or another computer in the workspace can look at clips."
         },
         "clips": {
           "type": "integer",
@@ -73140,6 +73544,20 @@
         },
         "summary": {
           "type": "string"
+        },
+        "lookedWith": {
+          "type": "string",
+          "enum": [
+            "",
+            "apple-vision",
+            "open-models"
+          ]
+        },
+        "notLookedFor": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "lines": {
           "items": {
@@ -73913,6 +74331,476 @@
         "canReveal"
       ]
     },
+    "WhatCaptions": {
+      "properties": {
+        "looked": {
+          "type": "boolean"
+        },
+        "burned": {
+          "type": "boolean"
+        },
+        "covers": {
+          "type": "number"
+        },
+        "wordsAtATime": {
+          "type": "number"
+        },
+        "position": {
+          "type": "string",
+          "enum": [
+            "",
+            "bottom",
+            "lower",
+            "middle",
+            "top"
+          ]
+        },
+        "capitals": {
+          "type": "boolean"
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "",
+            "small",
+            "medium",
+            "large"
+          ]
+        },
+        "look": {
+          "type": "string"
+        },
+        "said": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "looked",
+        "burned",
+        "covers",
+        "wordsAtATime",
+        "said"
+      ]
+    },
+    "WhatClip": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "reference": {
+          "type": "boolean"
+        },
+        "link": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "who": {
+          "type": "string"
+        },
+        "startFrom": {
+          "$ref": "#/$defs/StartFromVideo"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ]
+    },
+    "WhatEnd": {
+      "properties": {
+        "from": {
+          "type": "number"
+        },
+        "to": {
+          "type": "number"
+        },
+        "text": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sound": {
+          "type": "boolean"
+        },
+        "said": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "said"
+      ]
+    },
+    "WhatGraphic": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "title",
+            "lower-third",
+            "end-card",
+            "label",
+            "words"
+          ]
+        },
+        "from": {
+          "type": "number"
+        },
+        "to": {
+          "type": "number"
+        },
+        "where": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind",
+        "from",
+        "to",
+        "where",
+        "text",
+        "size"
+      ]
+    },
+    "WhatItDoes": {
+      "properties": {
+        "ready": {
+          "type": "boolean"
+        },
+        "waiting": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "missing": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "length": {
+          "type": "number"
+        },
+        "shape": {
+          "type": "string",
+          "enum": [
+            "",
+            "vertical",
+            "landscape",
+            "square"
+          ]
+        },
+        "shapeWords": {
+          "type": "string"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/WhatSection"
+          },
+          "type": "array"
+        },
+        "pacing": {
+          "$ref": "#/$defs/WhatPacing"
+        },
+        "speakers": {
+          "items": {
+            "$ref": "#/$defs/WhatSpeaker"
+          },
+          "type": "array"
+        },
+        "captions": {
+          "$ref": "#/$defs/WhatCaptions"
+        },
+        "graphics": {
+          "items": {
+            "$ref": "#/$defs/WhatGraphic"
+          },
+          "type": "array"
+        },
+        "sound": {
+          "$ref": "#/$defs/WhatSound"
+        },
+        "end": {
+          "$ref": "#/$defs/WhatEnd"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ready",
+        "waiting",
+        "missing",
+        "summary",
+        "lines",
+        "length",
+        "sections",
+        "pacing",
+        "speakers",
+        "captions",
+        "graphics",
+        "sound"
+      ]
+    },
+    "WhatItDoesIn": {
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The clip: its ID or its name."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId"
+      ]
+    },
+    "WhatItDoesOut": {
+      "properties": {
+        "clip": {
+          "$ref": "#/$defs/WhatClip"
+        },
+        "card": {
+          "$ref": "#/$defs/WhatItDoes"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "clip",
+        "card",
+        "message"
+      ]
+    },
+    "WhatPacing": {
+      "properties": {
+        "shots": {
+          "type": "integer"
+        },
+        "shotSeconds": {
+          "type": "number"
+        },
+        "medianShot": {
+          "type": "number"
+        },
+        "shortest": {
+          "type": "number"
+        },
+        "longest": {
+          "type": "number"
+        },
+        "words": {
+          "type": "integer"
+        },
+        "wordsPerMinute": {
+          "type": "number"
+        },
+        "talking": {
+          "type": "number"
+        },
+        "pauses": {
+          "type": "integer"
+        },
+        "longestPause": {
+          "type": "number"
+        },
+        "said": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "shots",
+        "shotSeconds",
+        "medianShot",
+        "shortest",
+        "longest",
+        "words",
+        "wordsPerMinute",
+        "talking",
+        "pauses",
+        "longestPause",
+        "said"
+      ]
+    },
+    "WhatSection": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "hook",
+            "intro",
+            "body",
+            "call-to-action",
+            "end-card"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "from": {
+          "type": "number"
+        },
+        "to": {
+          "type": "number"
+        },
+        "length": {
+          "type": "number"
+        },
+        "does": {
+          "type": "string"
+        },
+        "found": {
+          "type": "string"
+        },
+        "shots": {
+          "type": "integer"
+        },
+        "words": {
+          "type": "integer"
+        },
+        "speech": {
+          "type": "number"
+        },
+        "question": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "boolean"
+        },
+        "faces": {
+          "type": "integer"
+        },
+        "shot": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind",
+        "name",
+        "title",
+        "from",
+        "to",
+        "length",
+        "does",
+        "found",
+        "shots",
+        "words",
+        "speech"
+      ]
+    },
+    "WhatSound": {
+      "properties": {
+        "measured": {
+          "type": "boolean"
+        },
+        "bed": {
+          "type": "string",
+          "enum": [
+            "",
+            "none",
+            "room",
+            "sound"
+          ]
+        },
+        "speech": {
+          "type": "number"
+        },
+        "under": {
+          "type": "number"
+        },
+        "below": {
+          "type": "number"
+        },
+        "throughout": {
+          "type": "boolean"
+        },
+        "said": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "measured",
+        "said"
+      ]
+    },
+    "WhatSpeaker": {
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "seconds": {
+          "type": "number"
+        },
+        "share": {
+          "type": "number",
+          "description": "Its share of the speech, 0 to 1."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "label",
+        "seconds",
+        "share"
+      ]
+    },
     "Word": {
       "properties": {
         "w": {
@@ -74135,6 +75023,14 @@
           "maximum": 100,
           "minimum": 0,
           "description": "Defer heavy jobs only on battery"
+        },
+        "screenIndex": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "apple-vision",
+            "open-models"
+          ]
         }
       },
       "additionalProperties": false,
@@ -74223,6 +75119,14 @@
             "$ref": "#/$defs/WorkerLack"
           },
           "type": "array"
+        },
+        "screenIndex": {
+          "type": "string",
+          "enum": [
+            "",
+            "apple-vision",
+            "open-models"
+          ]
         },
         "concurrency": {
           "type": "integer"
@@ -74331,6 +75235,23 @@
         "configPath": {
           "type": "string"
         },
+        "screenIndex": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "apple-vision",
+            "open-models"
+          ]
+        },
+        "looksWith": {
+          "$ref": "#/$defs/ScreenIndexHere"
+        },
+        "screenIndexChoices": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "note": {
           "type": "string"
         }
@@ -74343,7 +75264,10 @@
         "heavyEnabled",
         "battery",
         "deferringHeavy",
-        "configPath"
+        "configPath",
+        "screenIndex",
+        "looksWith",
+        "screenIndexChoices"
       ]
     },
     "WorksItem": {
@@ -78766,7 +79690,7 @@
         "input",
         "output"
       ],
-      "description": "Schedule local analysis (transcript, technical evidence, and what's on screen on a Mac) for an asset or a whole project"
+      "description": "Schedule local analysis (transcript, technical evidence, and what's on screen where a computer can look) for an asset or a whole project"
     },
     "footage.captions": {
       "properties": {
@@ -79005,6 +79929,40 @@
         "output"
       ],
       "description": "List grounded, timestamped candidate moments (speech, pauses, scene changes) across a project"
+    },
+    "footage.reference": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/FootageReferenceIn"
+        },
+        "output": {
+          "$ref": "#/$defs/FootageReferenceOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Mark a clip as a reference: someone else's video, kept to learn from (what it does, how it is paced), that no cut plays; refused while a cut's latest version plays it"
+    },
+    "footage.reference.mine": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/FootageReferenceIn"
+        },
+        "output": {
+          "$ref": "#/$defs/FootageReferenceOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Say a reference clip is your own video, so cuts can play it again — people only"
     },
     "footage.sheet": {
       "properties": {
@@ -79259,7 +80217,24 @@
         "input",
         "output"
       ],
-      "description": "Say whether clips get looked at (Apple Vision on a Mac), on this machine and in the workspace, and how many are done"
+      "description": "Say whether clips get looked at (Apple Vision on a Mac, the open models elsewhere), on this machine and in the workspace, and how many are done"
+    },
+    "footage.whatItDoes": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/WhatItDoesIn"
+        },
+        "output": {
+          "$ref": "#/$defs/WhatItDoesOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Say what a video does, from what MetaRush found in it (no AI service): its length and shape, its sections with times (hook, intro, parts, call to action, end card), pacing (shots, words a minute), who speaks and how much, captions burned in, titles and words on screen, what plays under the voices, and how it ends"
     },
     "generate.again": {
       "properties": {
@@ -81708,6 +82683,23 @@
         "output"
       ],
       "description": "Export a version of a recipe to a file another workspace can bring in: its document and sheet, the pictures it pins, the footage its cut plays and the approved code it uses by hash (motion graphics, shared libraries, Remotion versions)"
+    },
+    "recipe.fromVideo": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/RecipeFromVideoIn"
+        },
+        "output": {
+          "$ref": "#/$defs/RecipeFromVideoOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Start a recipe from a video you like: a link (YouTube, TikTok, X) or a clip comes in as a reference (someone else's video, kept to learn from, never played in a cut); once MetaRush has looked at it, what it does becomes a recipe draft — your footage in sections shaped like its sections, with their lengths, captions, rules and hints — saved as a draft only a person makes current"
     },
     "recipe.import": {
       "properties": {
@@ -84767,7 +85759,7 @@
         "input",
         "output"
       ],
-      "description": "Change this installation's worker settings (heavy-job battery threshold) in its config.yaml; owners"
+      "description": "Change this installation's worker settings (heavy-job battery threshold, how it looks at what's on screen) in its config.yaml; owners"
     },
     "worker.list": {
       "properties": {
@@ -84801,7 +85793,7 @@
         "input",
         "output"
       ],
-      "description": "Show this installation's battery state and heavy-job battery policy"
+      "description": "Show this installation's battery state, heavy-job battery policy and how it looks at what's on screen"
     },
     "workspace.adopt": {
       "properties": {
@@ -85132,6 +86124,8 @@
     "footage.language",
     "footage.language.set",
     "footage.moments",
+    "footage.reference",
+    "footage.reference.mine",
     "footage.sheet",
     "footage.short",
     "footage.speakers",
@@ -85147,6 +86141,7 @@
     "footage.transcript",
     "footage.visuals",
     "footage.visuals.status",
+    "footage.whatItDoes",
     "generate.again",
     "generate.cancel",
     "generate.configure",
@@ -85291,6 +86286,7 @@
     "recipe.continue",
     "recipe.diff",
     "recipe.export",
+    "recipe.fromVideo",
     "recipe.import",
     "recipe.list",
     "recipe.picks",

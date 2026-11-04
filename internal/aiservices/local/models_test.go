@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -80,11 +81,36 @@ func TestBackgroundRemovalConforms(t *testing.T) {
 	if len(*handed) == 0 || (*handed)[0] != "image/png" {
 		t.Fatalf("the mask was handed %v", *handed)
 	}
-	local.Masker = func(context.Context, aiservices.Env, string, string) (bool, error) { return false, nil }
+	local.Masker = func(context.Context, aiservices.Env, string, string, string) (bool, error) { return false, nil }
 	m, _ := aiservices.ModelFor(local.Name, aiservices.KindBackground, "")
 	req := aiconformance.SampleRequest(t, m, t.TempDir())
 	if _, err := a.Submit(aiservices.WithEnv(context.Background(), e), "", req); err == nil || !strings.Contains(err.Error(), "No subject was found") {
 		t.Errorf("no subject: %v", err)
+	}
+}
+
+// BiRefNet cuts subjects out wherever its engine and model are. Without them
+// it says which component adds them, its runner says when the model can't be
+// loaded, and a request that names no model takes the kind's usual one.
+func TestCutOutsSayWhatTheyNeedHere(t *testing.T) {
+	if err := local.MaskerReady(aiservices.Env{}, local.ModelCutOut); err == nil || !strings.Contains(err.Error(), "transcriber's engine") {
+		t.Fatalf("no engine: %v", err)
+	}
+	e := aiservices.Env{Tools: &tools.Set{}, Cfg: &config.Config{}, Home: t.TempDir()}
+	if err := local.MaskerReady(e, local.ModelCutOut); err == nil {
+		t.Fatal("the cut-out model was ready with nothing set up")
+	}
+	out := filepath.Join(t.TempDir(), "cut-out.png")
+	if _, err := local.Masker(context.Background(), e, local.ModelCutOut, filepath.Join(t.TempDir(), "in.png"), out); err == nil || !strings.Contains(err.Error(), "couldn't be loaded") {
+		t.Fatalf("no model to load: %v", err)
+	}
+	a, _ := aiservices.Get(local.Name, aiservices.KindBackground)
+	usual, err := aiservices.ModelFor(local.Name, aiservices.KindBackground, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := a.(aiservices.Here).Ready(aiservices.Env{}, ""), local.MaskerReady(aiservices.Env{}, usual.ID); (got == nil) != (want == nil) {
+		t.Fatalf("no model named: %v, the usual one (%s): %v", got, usual.ID, want)
 	}
 }
 

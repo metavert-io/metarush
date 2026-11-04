@@ -484,3 +484,72 @@ func TestImportedCodeWaitsForAPerson(t *testing.T) {
 		t.Fatal("a Remotion project with another tool's settings came in")
 	}
 }
+
+// A recipe file never carries someone else's video (D456, D457): a clip the
+// recipe's cut plays (its fixed intro) or an input gives by default (the
+// interview its chosen sections take) that is a reference, and a picture
+// taken from one, stay out of the file and are listed with why, the way
+// likeness shots are; the other workspace never gets them.
+func TestARecipeFileLeavesReferencesOut(t *testing.T) {
+	f := setup(t)
+	f.save(RecipeSaveIn{})
+	for _, id := range []string{f.intro, f.interview} {
+		if _, err := f.a.DB.C(store.CAssets).UpdateOne(f.ctx, bson.M{"_id": id}, bson.M{"$set": bson.M{"reference": models.AssetReference{By: f.a.Actor, At: time.Now().UTC(), Why: models.ReferenceMarked}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The hero picture was a frame taken from the interview.
+	if _, err := f.a.DB.C(store.CResources).UpdateOne(f.ctx, bson.M{"_id": f.hero.ID}, bson.M{"$set": bson.M{"versions.$[].source.frameOf": models.ResourceFrame{AssetID: f.interview, Title: "interview", At: 2}}}); err != nil {
+		t.Fatal(err)
+	}
+	titleOf := func(id string) string {
+		var as models.Asset
+		if err := f.a.DB.GetByID(f.ctx, store.CAssets, f.a.WorkspaceID(), id, &as); err != nil {
+			t.Fatal(err)
+		}
+		return as.DisplayTitle()
+	}
+	file := filepath.Join(t.TempDir(), "app-teaser.recipe.zip")
+	ex := must[RecipeExportOut](t, f.a, "recipe.export", RecipeExportIn{Recipe: "app-teaser", Out: file}, false)
+	rf, blobs, _ := readZip(t, file)
+	for _, c := range rf.Footage {
+		if c.ID == f.intro || c.ID == f.interview {
+			t.Errorf("a reference is in the file: %+v", c)
+		}
+	}
+	for _, p := range rf.Pictures {
+		if p.ID == f.hero.ID {
+			t.Errorf("a picture taken from a reference is in the file: %+v", p)
+		}
+	}
+	for _, id := range []string{f.intro, f.interview} {
+		var as models.Asset
+		_ = f.a.DB.GetByID(f.ctx, store.CAssets, f.a.WorkspaceID(), id, &as)
+		if _, ok := blobs[as.SHA256]; ok {
+			t.Errorf("the bytes of a reference are in the file: %s", id)
+		}
+	}
+	left := map[string]string{}
+	for _, l := range rf.LeftOut {
+		left[l.What] = l.Why
+	}
+	for _, id := range []string{f.intro, f.interview} {
+		if why := left["“"+titleOf(id)+"”"]; why != "it is a reference: someone else's video, kept here to learn from" {
+			t.Errorf("why %s is left out: %q (%v)", titleOf(id), why, left)
+		}
+	}
+	if why := left["“"+f.hero.Title+"”"]; !strings.Contains(why, "it is a frame of “"+titleOf(f.interview)+"”, a reference: someone else's video") {
+		t.Errorf("why the picture is left out: %q (%v)", why, left)
+	}
+	if ex.Footage != len(rf.Footage) || ex.Pictures != len(rf.Pictures) {
+		t.Errorf("what the export says it holds: %+v", ex)
+	}
+	// The other workspace gets the draft without them.
+	b := otherWorkspace(t, f, "Acme")
+	in := must[RecipeImportOut](t, b, "recipe.import", RecipeImportIn{File: file}, false)
+	var refs int64
+	refs, _ = b.DB.C(store.CAssets).CountDocuments(f.ctx, bson.M{"workspaceId": b.WorkspaceID(), "name": bson.M{"$in": bson.A{"intro.mp4", "interview.mp4"}}})
+	if in.Recipe == nil || refs != 0 {
+		t.Fatalf("brought in: %+v, references there: %d", in, refs)
+	}
+}

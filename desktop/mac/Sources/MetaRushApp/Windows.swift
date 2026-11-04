@@ -10,6 +10,7 @@ final class Window {
 
     func show<V: View>(_ title: String, width: CGFloat = 560, _ view: V) {
         let host = NSHostingController(rootView: view.frame(width: width).fixedSize(horizontal: false, vertical: true))
+        host.sizingOptions = [.preferredContentSize] // the window follows the page's height
         if let window {
             window.contentViewController = host
             window.title = title

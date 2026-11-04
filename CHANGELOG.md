@@ -1,6 +1,22 @@
 # Changelog
 
 ## Unreleased
+- **On a Mac, MetaRush is an app that sets itself up and keeps itself up to date**. MetaRush.app is a small menu-bar
+  app: drag it into Applications, open it, and its panels ask setup's questions with the suggested answers — where
+  footage and projects are kept, MetaRush starting when you log in, Claude Code's skills, the optional components —
+  then set MetaRush up and open the dashboard. It never asks for a password or a key: a cloud bucket or a database you
+  already have is set up in Terminal. Its menu says whether MetaRush is running, its version and the first problems
+  the checkup found, and has Open MetaRush, Check for Updates…, Start/Stop MetaRush and Show Logs. Updates come
+  signed and are checked before anything changes; after each one the app brings MetaRush up to date (Claude Code's
+  skills, the renderer, your projects' records), restarts it and checks the new version is the one running. It
+  carries the metarush program and, if you agree, links it so your terminal and Claude Code find it (another copy
+  already there is kept). Linux keeps its background service and Windows the browser. How it works and how it is
+  built and released: docs/mac-app.md.
+- **Setup's questions, and which MetaRush is running, for scripts and apps**. `metarush setup questions --json` gives
+  what setup would ask on this computer with its suggested answers and the components it ticks, changing nothing;
+  `metarush service status --json` adds the MetaRush running for the home and the version and commit it answers with
+  (`daemon`); `metarush doctor --json` carries each check's plain words (`say`, `do`). The background service is never
+  set to run from the temporary copy macOS makes of an app opened where it was downloaded.
 - **Generated shots are made in your cut's shape, and you see which before you pay**. Generate a shot sent every
   request wide, so a vertical project paid for wide shots and cropped them. A shot you don't choose a shape for is now
   made in the shape of the cut it is for (`--cut`), else the project's, as near as the service makes; the price says

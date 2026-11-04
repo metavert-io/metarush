@@ -31,6 +31,9 @@ func RoleKinds(role string, fromFootage bool) []string {
 	case "look-clip", "input-video", "footage":
 		// "footage": a presenter's training take, the person talking to the camera (D273).
 		return []string{models.LeaveFootage, models.LeaveFaces, models.LeaveVoices}
+	case "clip":
+		// A clip's picture without its sound (background removal for video, D505).
+		return []string{models.LeaveFootage, models.LeaveFaces}
 	case "audio", "media", "sample", "consent":
 		return []string{models.LeaveVoices}
 	}
@@ -39,9 +42,10 @@ func RoleKinds(role string, fromFootage bool) []string {
 
 // FileKinds are the kinds one file sent carries, by its role and its type: a
 // video (lip sync's part of a clip, D279) is footage, with faces and voices,
-// whatever its role.
+// whatever its role — but a clip's picture sent without its sound (role
+// "clip", D505) is footage and faces only.
 func FileKinds(role, mime string, fromFootage bool) []string {
-	if strings.HasPrefix(mime, "video/") {
+	if strings.HasPrefix(mime, "video/") && role != "clip" {
 		return []string{models.LeaveFootage, models.LeaveFaces, models.LeaveVoices}
 	}
 	return RoleKinds(role, fromFootage)

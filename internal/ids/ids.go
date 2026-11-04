@@ -78,6 +78,8 @@ const (
 	// that a service's training opt-out is set (D276).
 	Presenter      = "prs"
 	TrainingOptOut = "opt"
+	// A clip's cut-out for background removal in video (D505).
+	Matte = "mte"
 	// SpokenChange is a word changed in the speaker's own voice (D308).
 	SpokenChange = "swc"
 	// A screen recording made in the dashboard: its screen, camera and voice (D260).

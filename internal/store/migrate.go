@@ -222,6 +222,16 @@ var Migrations = []Migration{
 			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "sso.key", Value: 1}},
 				options.Index().SetName("sso_account").SetUnique(true).SetPartialFilterExpression(bson.M{"sso.key": bson.M{"$exists": true}})))
 	}},
+	// v67–v69 belong to builds merged in parallel.
+	{Version: 70, Name: "clips' cut-outs for background removal in video", Up: func(ctx context.Context, d *DB) error {
+		// One cut-out per fingerprint (D505): two computers asked for the same
+		// one at the same moment make one record; a clip's cut-outs are listed
+		// together; a version's pinned file is found by its SHA-256.
+		return createIndexes(ctx, d, CMattes,
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "fingerprint", Value: 1}}, options.Index().SetName("matte_once").SetUnique(true)),
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "assetId", Value: 1}, {Key: "createdAt", Value: -1}}),
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "file.sha256", Value: 1}}))
+	}},
 }
 
 // migratePresenters indexes people's own presenters (D273: one per short

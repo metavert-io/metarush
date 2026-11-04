@@ -19,9 +19,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -34,15 +36,30 @@ import (
 
 // Protocol is the helper output format this build asks for. Protocol 2 adds
 // face landmarks, attention, hands and body poses, and text in any language;
-// a protocol 1 helper (built by an older MetaRush, where Swift is missing to
-// build it again) still works, without them.
-const Protocol = "2"
+// protocol 3 adds telling people from their background in footage (segment,
+// D507). Helpers of older protocols (built by an older MetaRush, where Swift
+// is missing to build it again) still work, without what came later.
+const Protocol = "3"
 
-// oldProtocol is the older output format this build still reads.
-const oldProtocol = "1"
+// richProtocol is the first protocol with landmarks, attention, hands, poses
+// and text in any language.
+const richProtocol = 2
 
 // knownProtocol reports a helper output format this build reads.
-func knownProtocol(p string) bool { return p == Protocol || p == oldProtocol }
+func knownProtocol(p string) bool { return p == "1" || p == "2" || p == Protocol }
+
+// protocolOf is a helper's protocol as a number (0 when unknown).
+func protocolOf(p string) int {
+	switch p {
+	case "1":
+		return 1
+	case "2":
+		return 2
+	case Protocol:
+		return 3
+	}
+	return 0
+}
 
 // ErrNotMac means Apple Vision is not available on this operating system.
 var ErrNotMac = errors.New("seeing what's on screen uses Apple Vision, which only runs on a Mac")
@@ -112,8 +129,11 @@ func Check(ctx context.Context, ts *tools.Set) Status {
 	case !knownProtocol(st.Protocol):
 		st.Text = "The on-screen helper on this Mac is from another version of MetaRush."
 		st.Stale = true
-	case st.Protocol != Protocol:
+	case protocolOf(st.Protocol) < richProtocol:
 		st.Text = "Ready, but built by an older MetaRush: it doesn't recognize faces or follow movement until it is built again."
+		st.Stale, st.Ready = true, true
+	case st.Protocol != Protocol:
+		st.Text = "Ready, but built by an older MetaRush: it can't tell people from their background in footage until it is built again."
 		st.Stale, st.Ready = true, true
 	case st.Stale:
 		st.Text = "Ready, but built from an older MetaRush; it is rebuilt automatically."
@@ -415,7 +435,13 @@ type Options struct {
 
 // Rich reports whether the helper here answers the protocol 2 requests.
 func Rich(ctx context.Context, ts *tools.Set) bool {
-	return runtime.GOOS == "darwin" && ts.Has(tools.Vision) && ts.Version(ctx, tools.Vision) == Protocol
+	return runtime.GOOS == "darwin" && ts.Has(tools.Vision) && protocolOf(ts.Version(ctx, tools.Vision)) >= richProtocol
+}
+
+// CanSegment reports whether the helper here tells people from their
+// background in footage (protocol 3, D507).
+func CanSegment(ctx context.Context, ts *tools.Set) bool {
+	return runtime.GOOS == "darwin" && ts.Has(tools.Vision) && protocolOf(ts.Version(ctx, tools.Vision)) >= 3
 }
 
 // Analyze looks at every JPEG in dir (sorted by name) and calls each with the
@@ -535,4 +561,44 @@ func Mask(ctx context.Context, ts *tools.Set, in, out string) (found bool, err e
 		return false, errors.New("the helper wrote no picture")
 	}
 	return res.Found, nil
+}
+
+// Segment qualities: Apple Vision's person segmentation levels. Accurate
+// refines the edges (hair, hands) and is the slowest; fast is meant for live
+// video.
+const (
+	SegmentAccurate = "accurate"
+	SegmentBalanced = "balanced"
+	SegmentFast     = "fast"
+)
+
+// Segment tells the people in a stream of frames from their background (D507,
+// protocol 3): frames, w×h pixels of four bytes each (blue, green, red, one
+// unused), are read from in, and for each frame in order its matte (w×h bytes,
+// 0 the background, 255 a person) is written to out. One request runs the
+// whole stream, so what Apple Vision saw in the frames before steadies the
+// next. It ends when in ends between frames; canceling ctx stops the helper.
+func Segment(ctx context.Context, ts *tools.Set, w, h int, quality string, in io.Reader, out io.Writer) error {
+	if runtime.GOOS != "darwin" {
+		return ErrNotMac
+	}
+	if !ts.Has(tools.Vision) {
+		return &tools.ErrMissing{Name: tools.Vision}
+	}
+	switch quality {
+	case "":
+		quality = SegmentAccurate
+	case SegmentAccurate, SegmentBalanced, SegmentFast:
+	default:
+		return fmt.Errorf("unknown segment quality %q", quality)
+	}
+	if w < 16 || h < 16 || w > 8192 || h > 8192 {
+		return fmt.Errorf("frames of %d×%d can't be segmented", w, h)
+	}
+	if !CanSegment(ctx, ts) {
+		return errors.New("the on-screen helper here is from an older MetaRush and can't tell people from their background; it is built again on its next use")
+	}
+	_, err := ts.Run(ctx, tools.Spec{Tool: tools.Vision, Args: []string{"segment", "--width", strconv.Itoa(w), "--height", strconv.Itoa(h), "--quality", quality},
+		Stdin: in, Stdout: out, Background: true})
+	return err
 }

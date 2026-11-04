@@ -459,7 +459,7 @@ func checkOutput(t *testing.T, a aiservices.Adapter, key string, tk *aiservices.
 		ok = strings.HasPrefix(got, "audio/") || got == "video/mp4"
 	case aiservices.OutputMedia:
 		ok = strings.HasPrefix(got, "audio/") || strings.HasPrefix(got, "video/")
-	case aiservices.OutputVideo:
+	case aiservices.OutputVideo, aiservices.OutputMatte:
 		ok = strings.HasPrefix(got, "video/")
 	}
 	if !ok {
@@ -512,6 +512,10 @@ func SampleRequest(t *testing.T, m *aiservices.Model, dir string) *aiservices.Re
 		req.Options.WordTimes = true
 	case aiservices.KindLipSync:
 		req.Inputs = []aiservices.Media{WriteMedia(t, dir, "footage.mp4", "video/mp4", aiservices.RoleMedia, SampleMP4(), 3), sound(aiservices.RoleAudio, 2)}
+	case aiservices.KindVideoBackground:
+		// The part of a clip, picture only (a model on this computer reads a
+		// stretch of the clip's own file instead: its harness builds a real one).
+		req.Inputs = []aiservices.Media{WriteMedia(t, dir, "footage.mp4", "video/mp4", aiservices.RoleClip, SampleMP4(), 3)}
 	case aiservices.KindBackground, aiservices.KindUpscale:
 		req.Inputs = []aiservices.Media{WriteMedia(t, dir, "picture.png", "image/png", aiservices.RolePicture, SamplePicture(48, 32), 0)}
 		if len(m.Limits.Scales) > 0 {

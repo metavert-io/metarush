@@ -231,6 +231,7 @@ func Catalog() aiservices.ProviderInfo {
 			m("fake-background-removal", aiservices.KindBackground, []string{aiservices.TaskCutOut}, aiservices.Limits{MaxInputs: 1}),
 			m("fake-upscale", aiservices.KindUpscale, []string{aiservices.TaskUpscale}, aiservices.Limits{MaxInputs: 1, Scales: []int{2, 4}}),
 			m("fake-lip-sync", aiservices.KindLipSync, []string{aiservices.TaskLipSync}, aiservices.Limits{MaxSeconds: 300}),
+			m("fake-video-background", aiservices.KindVideoBackground, []string{aiservices.TaskMatte}, aiservices.Limits{MaxSeconds: 600, MaxInputs: 1}),
 		},
 		Prices: []aiservices.Price{pic,
 			p("fake-voice", aiservices.KindVoice, "thousand-characters", 0.05),
@@ -245,6 +246,7 @@ func Catalog() aiservices.ProviderInfo {
 			p("fake-background-removal", aiservices.KindBackground, "picture", 0.02),
 			p("fake-upscale", aiservices.KindUpscale, "picture", 0.03),
 			p("fake-lip-sync", aiservices.KindLipSync, "second", 0.05),
+			p("fake-video-background", aiservices.KindVideoBackground, "second", 0.04),
 		}}
 }
 
@@ -506,6 +508,10 @@ func (a *adapter) result(req *aiservices.Request, id string) (*aiservices.Status
 	case aiservices.KindPresenter:
 		in := req.Input(aiservices.RoleAudio)
 		o.MIME, o.Data = "video/mp4", a.f.video(h, in)
+		st.Usage.Seconds = in.Seconds
+	case aiservices.KindVideoBackground:
+		in := req.Input(aiservices.RoleClip)
+		o.MIME, o.Data = "video/mp4", a.f.matte(h, in)
 		st.Usage.Seconds = in.Seconds
 	}
 	st.Outputs = []aiservices.Output{o}
@@ -773,6 +779,28 @@ func (f *Fake) video(hash string, in *aiservices.Media) []byte {
 		"-movflags", "+faststart", out)
 	if err := cmd.Run(); err != nil {
 		return append([]byte("\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom"), make([]byte, 64)...)
+	}
+	b, _ := os.ReadFile(out)
+	return b
+}
+
+// matte is a clip's matte as the fake makes it: what is bright in the
+// footage is the person (a real MP4 of the same frames when ffmpeg is here,
+// else the start of one).
+func (f *Fake) matte(hash string, in *aiservices.Media) []byte {
+	stub := append([]byte("\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom"), make([]byte, 64)...)
+	ff, err := exec.LookPath("ffmpeg")
+	if err != nil || f.videoDir == "" || in == nil || in.Path == "" {
+		return stub
+	}
+	out := filepath.Join(f.videoDir, hash[:16]+"-matte.mp4")
+	if b, err := os.ReadFile(out); err == nil {
+		return b
+	}
+	cmd := exec.Command(ff, "-hide_banner", "-loglevel", "error", "-y", "-i", in.Path, "-map", "0:v:0",
+		"-vf", "format=gray,lut=y='if(gt(val,110),255,0)',format=yuv420p", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "10", "-movflags", "+faststart", out)
+	if err := cmd.Run(); err != nil {
+		return stub
 	}
 	b, _ := os.ReadFile(out)
 	return b

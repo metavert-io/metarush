@@ -13,7 +13,8 @@
     "presenter-make": "d-id/express",
     "background-removal": "local/apple-vision",
     "upscale": "local/real-esrgan-x4v3",
-    "lip-sync": "sync/lipsync-2"
+    "lip-sync": "sync/lipsync-2",
+    "video-background": "local/apple-vision"
   },
   "providers": [
     {
@@ -266,6 +267,20 @@
           "notes": ["Runs on this computer through the transcriber's onnxruntime, on macOS and Linux; a person adds it once (about 224 MB: Cutting out a picture's subject, in Settings → Components).", "The general model on its lighter backbone: people, animals and things in front; a picture without a clear subject says so. A few seconds a picture."]
         },
         {
+          "id": "apple-vision", "title": "Apple Vision person segmentation", "kind": "video-background", "tasks": ["matte"], "stage": "ga", "since": "2021-10-25", "retiredOn": "", "rank": 4,
+          "limits": {"maxInputs": 1},
+          "licence": {"summary": "The footage is yours: macOS's Vision framework only works out which part of each frame is a person; nothing new is made.", "commercial": "yes", "broadcast": "yes", "source": "https://developer.apple.com/documentation/vision/vngeneratepersonsegmentationrequest", "checked": "2026-11-03"},
+          "docs": "docs/background-removal.md", "checked": "2026-11-03",
+          "notes": ["On a Mac with macOS 12 or later, through MetaRush's own helper; nothing is downloaded.", "People only: it tells people from everything else in each frame, keeping what it saw in the frames before so the edges hold steady. About as fast as the footage plays."]
+        },
+        {
+          "id": "modnet", "title": "MODNet", "kind": "video-background", "tasks": ["matte"], "stage": "ga", "since": "2020-11-24", "retiredOn": "", "rank": 3,
+          "limits": {"maxInputs": 1},
+          "licence": {"summary": "The footage is yours: the model only works out which part of each frame is a person; nothing new is made. MODNet's code and models are under the Apache License 2.0, which allows commercial use.", "commercial": "yes", "broadcast": "yes", "source": "https://github.com/ZHKKKe/MODNet/blob/28165a451e4610c9d77cfdf925a94610bb2810fb/README.md#license", "checked": "2026-11-03"},
+          "docs": "docs/background-removal.md", "checked": "2026-11-03",
+          "notes": ["Runs on this computer through the transcriber's onnxruntime, on macOS and Linux; a person adds it once (about 26 MB: Replacing a video's background, in Settings → Components).", "Made for people facing the camera: talking heads, interviews, presenters. Slower than the footage plays on most computers."]
+        },
+        {
           "id": "real-esrgan-x4v3", "title": "Real-ESRGAN general x4v3", "kind": "upscale", "tasks": ["upscale"], "stage": "ga", "since": "2022-04-20", "retiredOn": "", "rank": 3,
           "limits": {"maxInputs": 1, "scales": [2, 4], "maxPixels": 4194304},
           "licence": {"summary": "Real-ESRGAN is under the BSD-3-Clause licence, which allows commercial use; the detail it adds is made up by the model.", "commercial": "yes", "broadcast": "yes", "source": "https://github.com/xinntao/Real-ESRGAN/blob/master/LICENSE", "checked": "2026-10-25"},
@@ -292,6 +307,8 @@
         {"model": "kitten-nano", "kind": "voice", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "second", "usd": 0},
         {"model": "apple-vision", "kind": "background-removal", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "picture", "usd": 0},
         {"model": "birefnet", "kind": "background-removal", "effective": "2026-10-25", "checked": "2026-11-03", "source": "docs/visual-index.md", "unit": "picture", "usd": 0},
+        {"model": "apple-vision", "kind": "video-background", "effective": "2026-10-25", "checked": "2026-11-03", "source": "docs/background-removal.md", "unit": "second", "usd": 0},
+        {"model": "modnet", "kind": "video-background", "effective": "2026-10-25", "checked": "2026-11-03", "source": "docs/background-removal.md", "unit": "second", "usd": 0},
         {"model": "real-esrgan-x4v3", "kind": "upscale", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "picture", "usd": 0},
         {"model": "parakeet-v2", "kind": "transcription", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "minute", "usd": 0},
         {"model": "whisper-cpp", "kind": "transcription", "effective": "2026-10-25", "checked": "2026-10-25", "source": "docs/ai-services.md", "unit": "minute", "usd": 0}

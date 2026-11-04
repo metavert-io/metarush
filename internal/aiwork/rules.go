@@ -195,6 +195,49 @@ type choice struct {
 // Content Settings pin, else MetaRush's usual one — or, when Content
 // Settings forbid its provider, the best ranked model they allow.
 func choose(ctx context.Context, a *app.App, projectID, kind, asked string, now time.Time) (*choice, error) {
+	return chooseWith(ctx, a, projectID, kind, asked, now, func(provider, kind, model string) error { return readyHere(a, provider, kind, model) })
+}
+
+// Choice is a model chosen for work and why (default | asked | content-settings).
+type Choice struct {
+	Model *aiservices.Model
+	By    string
+}
+
+// ChooseWhere picks the model for work that may run on another computer of
+// the workspace (a clip's cut-out, D505) by the same rules as every other
+// kind of AI work — asked, else Content Settings' pin, else the usual one,
+// never a paid service by itself — with ready saying whether a model that
+// runs on a computer can run on one of the workspace's.
+func ChooseWhere(ctx context.Context, a *app.App, projectID, kind, asked string, ready func(provider, kind, model string) error) (*Choice, error) {
+	now, err := planNow(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	c, err := chooseWith(ctx, a, projectID, kind, asked, now, ready)
+	if err != nil {
+		return nil, err
+	}
+	return &Choice{Model: c.model, By: c.by}, nil
+}
+
+// Allows reports whether a project's Content Settings allow a provider for
+// a kind of work (D225): the kind, and the provider.
+func Allows(ctx context.Context, a *app.App, projectID, kind, provider string) error {
+	rules, owner, err := rulesFor(ctx, a, projectID)
+	if err != nil {
+		return err
+	}
+	if !rules.AllowsKind(kind) {
+		return kindForbidden(ctx, a, rules, owner, kind)
+	}
+	if !allows(rules, provider) {
+		return forbidden(ctx, a, rules, owner, provider)
+	}
+	return nil
+}
+
+func chooseWith(ctx context.Context, a *app.App, projectID, kind, asked string, now time.Time, ready func(provider, kind, model string) error) (*choice, error) {
 	aiservices.Refresh(ctx, a) // abilities that provide a kind of work (D281)
 	rules, owner, err := rulesFor(ctx, a, projectID)
 	if err != nil {
@@ -232,8 +275,8 @@ func choose(ctx context.Context, a *app.App, projectID, kind, asked string, now 
 		// A usual model that runs on this computer and can't here (Apple
 		// Vision on Linux) gives way to one of the kind that can (D414),
 		// on this computer too: never to a paid service by itself.
-		if aiservices.IsLocal(m.Provider) && readyHere(a, m.Provider, kind, m.ID) != nil {
-			if alt := bestLocalHere(a, rules, kind, now); alt != nil {
+		if aiservices.IsLocal(m.Provider) && ready(m.Provider, kind, m.ID) != nil {
+			if alt := bestLocal(rules, kind, now, ready); alt != nil {
 				c.model = alt
 			}
 		}
@@ -241,7 +284,7 @@ func choose(ctx context.Context, a *app.App, projectID, kind, asked string, now 
 			var best *aiservices.Model
 			for _, x := range aiservices.ModelsOf(kind) {
 				x := x
-				if !allows(rules, x.Provider) || x.Retired(now) || x.GatewayOnly() || !built(x.Provider, kind) || readyHere(a, x.Provider, kind, x.ID) != nil {
+				if !allows(rules, x.Provider) || x.Retired(now) || x.GatewayOnly() || !built(x.Provider, kind) || ready(x.Provider, kind, x.ID) != nil {
 					continue
 				}
 				if best == nil || x.Rank > best.Rank {
@@ -260,13 +303,14 @@ func choose(ctx context.Context, a *app.App, projectID, kind, asked string, now 
 	return c, nil
 }
 
-// bestLocalHere is the best ranked model of a kind that runs on this
-// computer, is ready here and is allowed (nil when there is none).
-func bestLocalHere(a *app.App, rules *models.AIServiceRules, kind string, now time.Time) *aiservices.Model {
+// bestLocal is the best ranked model of a kind that runs on a computer, is
+// ready (on this one, or for work that may run elsewhere, on one of the
+// workspace's) and is allowed (nil when there is none).
+func bestLocal(rules *models.AIServiceRules, kind string, now time.Time, ready func(provider, kind, model string) error) *aiservices.Model {
 	var best *aiservices.Model
 	for _, x := range aiservices.ModelsOf(kind) {
 		x := x
-		if !aiservices.IsLocal(x.Provider) || !allows(rules, x.Provider) || x.Retired(now) || !built(x.Provider, kind) || readyHere(a, x.Provider, kind, x.ID) != nil {
+		if !aiservices.IsLocal(x.Provider) || !allows(rules, x.Provider) || x.Retired(now) || !built(x.Provider, kind) || ready(x.Provider, kind, x.ID) != nil {
 			continue
 		}
 		if best == nil || x.Rank > best.Rank {

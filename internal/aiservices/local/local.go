@@ -56,13 +56,13 @@ func (base) Poll(_ context.Context, _ string, t *aiservices.Ticket) (*aiservices
 	return nil, &videogen.Error{Kind: videogen.KindExpired, Provider: Name, Message: "It was made on this computer and nothing is kept to ask about later."}
 }
 
-// Fetch writes an output's bytes.
+// Fetch writes an output's bytes (or its file, for a clip's matte).
 func (base) Fetch(_ context.Context, _ string, _ *aiservices.Ticket, out *aiservices.Output, dst io.Writer) (int64, error) {
-	if len(out.Data) == 0 {
+	n, ok, err := out.WriteFile(dst)
+	if !ok {
 		return 0, &videogen.Error{Kind: videogen.KindExpired, Provider: Name, Message: "Nothing was made to keep."}
 	}
-	n, err := dst.Write(out.Data)
-	return int64(n), err
+	return n, err
 }
 
 // Cancel has nothing to stop: the call has ended.

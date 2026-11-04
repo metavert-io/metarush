@@ -160,6 +160,23 @@ hour per link, 2,000 characters, a 60-character name), as comments marked "(outs
 Making, re-sending and taking back a link are people's steps; owners decide who and for how long; What may leave
 decides whose things may go. Tailscale Funnel stays refused.
 
+## Guests ([guests.md](guests.md))
+Guests are people outside the workspace an owner shares versions with. They reach MetaRush only through the guest
+listener: a second web server bound to 127.0.0.1 alone (never 0.0.0.0, `::` or a network's address), off unless an
+owner turns guests on at this computer, with **its own router** — the guest page, its sign-in steps, `/guest/api/*`
+and `/guest/media/*`; the dashboard, `/api/ops`, `/media`, `/ext`, the one-time `/auth` link, the members' sign-in
+and every setting don't exist there. In this release nothing is reachable from the internet: the guest address is
+this computer's own.
+
+| Area | Control |
+|---|---|
+| Requests | The Host must be the guest address exactly (another name for this computer, or DNS rebinding, gets nothing). `Tailscale-*` identity headers and every forwarded-address header (`X-Forwarded-*`, `Forwarded`, `X-Real-IP` and the like) are taken off each request before anything reads it: none is believed, and the visitor's address is the connection's. Bodies are a few KB of exact JSON (unknown fields, a second value or a larger body refused), the API takes no query, IDs are checked by their shape, addresses are bounded, paths are never cleaned into another route. Changes need the guest page's own header from the same origin. Every address has a limit per minute, the sign-in steps a tighter one. |
+| What a guest reaches | Only new guest operations (what was shared with them, a version's review copy, their comments), called as the guest whose sign-in was checked; a guest caller reaches no other operation, and nobody else acts as a guest (owners may look at what a guest sees, read only). Every request is held to the guest's grants that work now (by the database server's clock): another version or project, one deleted since, an archived project or an AI app's draft all get the same "That isn't shared with you". What may leave is asked again for every version opened; versions that play someone else's video or changed words whose consent is gone are never shown. |
+| Video | From a cloud bucket, a link signed straight from it for 10 minutes (never through this computer); from a folder on this computer, the guest listener with ranges, checking the sign-in and the grant on every request, and stopping a video being sent within seconds of its grant being taken back. |
+| Sign-in | No passwords. A one-time link: 256 random bits in the address's fragment (never sent to a server), kept only as a SHA-256, working once for a day at most (never past the grant), claimed by a check-and-set when the guest presses the page's button; a new link takes back the guest's unused ones. Or the organization's account: the members' setup and every check of `internal/sso`, on the guest listener's own begin and callback addresses at 127.0.0.1 (never localhost), a purpose only that callback finishes (the dashboard's refuses it), its own cookie for sign-ins in progress; the provider's email must be one it vouches for (never a Microsoft guest or personal account) and the guest's, and the first account a guest uses is theirs. |
+| Sessions | A new 256-bit cookie at every sign-in (never one a browser brought), kept as its SHA-256, at most 12 hours and ended after 2 unused (the database server's clock), `mr_guest` on the guest address only (`__Host-` and Secure over HTTPS), HttpOnly, SameSite=Strict. Each request reads the session, the guest, their grants and the workspace's switch again: taking back a guest or their last grant deletes their sessions, and turning guests off ends every one. |
+| Record | Every guest request is recorded (who, from which address, what, when, what was turned away) and goes to the activity log; owners see the list and hear of unusual volume. Links and sessions are left out of workspace exports. |
+
 ## Google Drive through the person's rclone
 A recipe input can read a Google Drive folder without syncing it ([recipes.md](recipes.md#a-google-drive-folder-as-an-input)).
 Threats: MetaRush holding Google credentials, a folder's address that makes rclone read this computer's files or

@@ -43,6 +43,7 @@ const GUEST = 'dana@client.example';
 
 const results = [];
 const problems = [];
+let probing = false;
 function check(name, ok, detail = '') {
   results.push({ name, ok: !!ok, detail });
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` - ${detail}` : ''}`);
@@ -78,6 +79,8 @@ function watch(page) {
   const seen = { requests: [], media: [] };
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
+    // The run's own probe of the dashboard from the guest page is refused by the page's policy, as it should be.
+    if (probing && /Content Security Policy|api\/session/.test(m.text())) return;
     if (m.type() === 'error' && !/status of 4\d\d/.test(m.text())) problems.push(`console: ${m.text()}`);
   });
   page.on('dialog', (d) => {
@@ -87,6 +90,7 @@ function watch(page) {
   page.on('request', (r) => seen.requests.push(r.url()));
   page.on('response', (r) => {
     if (r.url().includes('/guest/media/')) seen.media.push({ status: r.status(), type: r.headers()['content-type'] ?? '' });
+    if (r.status() >= 500) problems.push(`${r.status()} from ${r.url().replace(/[?#].*/, '')}`);
   });
   return seen;
 }
@@ -239,6 +243,7 @@ async function main() {
     cookies.length === 1 && cookies[0].name === 'mr_guest' && cookies[0].httpOnly && cookies[0].sameSite === 'Strict' && cookies[0].domain === '127.0.0.1',
     JSON.stringify(cookies.map((c) => ({ name: c.name, httpOnly: c.httpOnly, sameSite: c.sameSite, domain: c.domain }))),
   );
+  probing = true;
   const dash = await g.evaluate(async (u) => {
     try {
       const r = await fetch(`${u}/api/session`, { credentials: 'include' });
@@ -247,7 +252,9 @@ async function main() {
       return 0;
     }
   }, base);
-  check('the guest is nobody to the dashboard', dash !== 200, String(dash));
+  await g.waitForTimeout(300);
+  probing = false;
+  check('the guest page can’t reach the dashboard (its policy refuses it)', dash !== 200, String(dash));
   // On a phone, dark.
   const phone = await newPage(browser, { theme: 'dark', mobile: true });
   await phone.ctx.addCookies(cookies.map((c) => ({ ...c })));

@@ -238,7 +238,7 @@ func activity(ctx context.Context, a *app.App, in *GuestsActivityIn) (*GuestsAct
 			revs[r.RevisionID] = 0
 		}
 	}
-	var pl, rl []string
+	pl, rl := []string{}, []string{}
 	for k := range projects {
 		pl = append(pl, k)
 	}

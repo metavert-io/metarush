@@ -1,6 +1,17 @@
 # Changelog
 
 ## Unreleased
+- **Share versions with guests outside the workspace**. **Share with a guest…** on a version's page shares that
+  version, or every version of the project with a review copy, with someone outside the workspace — as a viewer or a
+  commenter, until a day you choose (at most 90 days at once) — and makes a one-time sign-in link to send them. Guests
+  open MetaRush's guest page, never the dashboard: what was shared with them, its review copies, and for commenters
+  their own comments pinned to times, which come back to the version marked "(guest)". They sign in with the link or,
+  when people here sign in with your organization's account, with an account whose email the provider vouches for —
+  no passwords. Taking something back, or turning guests off, signs them out at once. Owners turn guests on, share
+  and take things back in Settings → People → Guests (or `metarush guests …`), see every guest request in plain words
+  and hear when a guest asks unusually often; a client's What may leave can keep their things from guests. **Nothing
+  is reachable from the internet yet**: the guest address is this computer's own (`http://127.0.0.1:4846`), served
+  by a web server of its own on 127.0.0.1 only; a later release gives guests a public address.
 - **Delivered videos can carry Content Credentials**. Turn them on in Settings → Delivery (or `metarush credentials
   on`; a client's Content Settings can say on, required or off for their projects) and every final video MetaRush
   delivers carries a signed record, in the open C2PA format, that it was made with MetaRush, which footage, sound and

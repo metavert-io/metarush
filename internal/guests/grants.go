@@ -547,7 +547,7 @@ func list(ctx context.Context, a *app.App, in *GuestsListIn) (*GuestsListOut, er
 	}
 	gq := bson.M{}
 	if in.ProjectID != "" {
-		var idList []string
+		idList := []string{}
 		for id := range byGuest {
 			idList = append(idList, id)
 		}
@@ -687,7 +687,7 @@ func sessionsByGuest(ctx context.Context, a *app.App) map[string]int {
 
 func projectNames(ctx context.Context, a *app.App, grants []models.GuestGrant) map[string]string {
 	out := map[string]string{}
-	var list []string
+	list := []string{}
 	for _, g := range grants {
 		if _, ok := out[g.ProjectID]; !ok {
 			out[g.ProjectID] = "a project"

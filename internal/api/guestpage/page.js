@@ -146,7 +146,7 @@
         var card = el('section', 'share');
         card.setAttribute('data-guest-share', '');
         card.appendChild(el('h3', '', '“' + sh.project + '”'));
-        var meta = 'You can ' + (sh.canComment ? 'watch and comment' : 'watch') + ' ' + sh.endsWords + (sh.from ? ' · shared by ' + sh.from : '');
+        var meta = 'You can ' + (sh.canComment ? 'watch and comment' : 'watch') + ' until ' + (when(sh.ends) || sh.endsWords.replace(/^until /, '')) + (sh.from ? ' · shared by ' + sh.from : '');
         card.appendChild(el('p', 'share-meta', meta));
         if (sh.message) card.appendChild(el('p', 'note', sh.message));
         if (sh.kept) card.appendChild(el('p', 'hint', 'The owner’s rules keep this project’s videos from guests right now.'));

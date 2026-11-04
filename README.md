@@ -1072,6 +1072,23 @@ an account ([outside reviewers](docs/outside-reviewers.md)).
 - A link ends by itself, its last comments in first, when the media moves, the client's rules or someone's consent
   change, or owners turn links off, and you hear why on the bell. `metarush share …`.
 
+### Guests: people outside the workspace on a page of their own
+**Share with a guest…** on a version's page shares that version — or every version of the project with a review copy —
+with someone outside the workspace, as a viewer or a commenter, until a day you choose (at most 90 days at once);
+**Make a sign-in link** gives a one-time link to send them ([guests](docs/guests.md)). **Nothing is reachable from
+the internet yet**: the guest address is this computer's own (`http://127.0.0.1:4846`), so for now a guest opens it on
+the computer that runs MetaRush; a later release gives guests a public address.
+- Guests open MetaRush's guest page, served by a web server of its own on 127.0.0.1 that has nothing of the dashboard:
+  what was shared with them, the review copies (straight from your cloud bucket through short-lived links, or from this
+  computer), and, for commenters, their own comments pinned to times, which come back to the version marked
+  "(guest)". Anything else — another version or project, one deleted since — is the same "That isn't shared with you".
+- They sign in with the link (it works once, for a day at most, in the browser that presses its button) or, when
+  people here sign in with your organization's account, with an account whose email the provider vouches for and
+  you shared with. No passwords. Taking something back, or turning guests off, signs them out at once.
+- Owners turn guests on (Settings → People → Guests), share, send links, take things back and see every guest request
+  in plain words, and hear when a guest asks unusually often. What may leave has a place for guests: a client's
+  rules can keep their things from guests. `metarush guests …`.
+
 ## Delivering
 
 ### Delivery
@@ -1616,6 +1633,9 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush share plan\|create <project> [--version rN] [--days 7] [--words [--speakers names\|labels\|none]] [--download] [--for <name>] [--message <note>] [--as-draft] [--anyway <note>]` | Share a version for review with someone outside the workspace: what a link would show and whether it may be made; making one is a person's step and prints the link to send |
 | `metarush share list [<project>] [--version rN] [--all]` / `share link\|revoke <link>` / `share sync [<link>]` | the review links sent (what each shows, until when, comments back); the link again; take one back (its page and video at once, its comment slots once their last comments are in); bring in new comments now |
 | `metarush share settings [set --on\|--off --owners-only\|--everyone --max-days N]` | who may send review links and for how long (changing it: owners) |
+| `metarush guests status` / `guests on [--port N]` / `guests off` / `guests set --port N` | guests: whether they are let in, where this computer answers them (127.0.0.1 only), how they sign in / turn them on or off, move the port (owners, a person's step) |
+| `metarush guests share <project> --email <email> --role viewer\|commenter (--days N\|--until <day>) [--version rN] [--name …] [--message …] [--dry-run]` / `guests link <email>` | share a project or some versions with a guest (owners, a person's step; What may leave is asked) / a one-time sign-in link to send them |
+| `metarush guests list [<project>] [--all]` / `guests revoke <email>\|--grant <id>` / `guests activity [--guest <email>] [--refused]` / `guests view <email> [--version <id>]` / `guests comments <email> --version <id>` | who has what; take back everything or one thing (they are signed out at once); what guests did (owners); what a guest sees and their comments (owners) |
 | `metarush project receipt <project> [--version rN]` | the receipt: every request to outside AI services, Claude's conversations and whose account answered, generated media, Auto's spending, the cost at cost per version and project, and what left this computer |
 | `metarush project leaves <project>` | what of a project left this computer and where (AI services, Claude and AI apps, abilities, delivery, people outside the workspace, cloud storage), and what its What may leave kept here |
 
@@ -1714,6 +1734,9 @@ support `${VAR}` / `${VAR:default}`.
   `dashboard.tailscaleLogins` (the Tailscale accounts signed in by themselves) and `dashboard.machineName` (this
   computer's name for people elsewhere), all three set by `metarush remote` and applied without a restart;
   `tools.tailscale` (default: on PATH or in the Tailscale app).
+- **Guests**: `guests.listen` (this computer answers guests; off unless an owner turns guests on here) and
+  `guests.port` (where, on 127.0.0.1 only; default 4846), set by `metarush guests on|off|set` or Settings → People →
+  Guests and applied without a restart ([guests](docs/guests.md)).
 - **Workers and the watched folder**: `worker.{concurrency,heavyRenders,heavyBatteryThreshold}` (big jobs wait on
   battery below this percent; default 25, 0 = never), `worker.watch.{enabled,dir,stableSeconds,moveProcessed,projectId}`
   (the watched folder; edited by `metarush watch` and the dashboard, applied without a restart).
@@ -1766,7 +1789,7 @@ support `${VAR}` / `${VAR:default}`.
 [installation](docs/installation.md) · [deployment, service and releases](docs/deployment.md) ·
 [collaboration](docs/collaboration.md) · [add a machine](docs/runbook-add-machine.md) · [edit schema](docs/edit-schema.md) ·
 [cut sheets](docs/cut-sheet.md) · [security](docs/security.md) ·
-[render QA](docs/qa.md) · [outside reviewers](docs/outside-reviewers.md) · [exporting and restoring a workspace](docs/workspace-export.md) · [moving the database](docs/database-move.md) ·
+[render QA](docs/qa.md) · [outside reviewers](docs/outside-reviewers.md) · [guests](docs/guests.md) · [exporting and restoring a workspace](docs/workspace-export.md) · [moving the database](docs/database-move.md) ·
 [speakers, people and to-dos](docs/speakers.md) · [motion graphics as code](docs/motion-graphics-as-code.md) ·
 [browser extension](docs/browser-extension.md) · [what MetaRush sees](docs/visual-index.md) · [resources, project links and nested cuts](docs/resources.md) · [timeline export](docs/timeline-export.md) · [timelines from other editors](docs/timeline-import.md) · [posting to video platforms](docs/publishing.md) · [Google Drive and Dropbox folders](docs/cloud-folders.md) · [the plugin](docs/plugin.md) · [MCP](docs/mcp.md) · [the catalogue](docs/catalogue.md) · [Remotion sources](docs/remotion-sources.md) · [recipes](docs/recipes.md) · [abilities](docs/abilities.md) · [testing](docs/testing.md) · [the review desk](docs/review-desk.md) · [Content Credentials](docs/content-credentials.md)
 

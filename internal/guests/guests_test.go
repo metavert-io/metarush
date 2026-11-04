@@ -717,6 +717,10 @@ func TestWatchingMediaKeptHereGoesThroughTheGuestListener(t *testing.T) {
 func TestGuestsListAndStatusSayItPlainly(t *testing.T) {
 	w := newWorld(t, testapp.Options{})
 	ctx := context.Background()
+	// A project nothing of is shared yet (the version page asks first).
+	if none := call[guests.GuestsListOut](t, ctx, w.a, "guests.list", guests.GuestsListIn{ProjectID: w.p.ID}, ops.Caller{}); len(none.Guests) != 0 || none.Summary == "" {
+		t.Fatalf("nothing shared: %+v", none)
+	}
 	w.share(t, "dana@client.example", models.GuestCommenter, w.revs[0])
 	w.signIn(t, "dana@client.example")
 	mctx, mc := member()

@@ -20,5 +20,7 @@ separately.
   may leave your computer, and the receipt that proves what did.
 - [docs/abilities.md](docs/abilities.md): how added abilities run in the
   operating system's sandbox, reaching only the hosts they declare.
+- [docs/guests.md](docs/guests.md): guests outside the workspace, on a web
+  server of their own on 127.0.0.1 that has nothing of the dashboard.
 - README, "Your rules": consent for faces and voices, budgets, and the ship
   gate.

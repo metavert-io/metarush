@@ -138,7 +138,7 @@ func Status(ctx context.Context, a *app.App) *GuestsStatusOut {
 	if out.SSOCallback != "" {
 		line("For guests to sign in with " + out.SSO + ", add " + out.SSOCallback + " to the app's addresses at the provider.")
 	}
-	line(fmt.Sprintf("%s with something shared now (%s), %s signed in.", plural(out.Guests, "guest"), plural(out.Grants, "grant"), plural(out.SignedIn, "browser")))
+	line(fmt.Sprintf("%s with something shared now, %s signed in.", plural(out.Guests, "guest"), plural(out.SignedIn, "browser")))
 	return out
 }
 

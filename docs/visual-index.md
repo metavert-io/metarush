@@ -535,17 +535,23 @@ Transcription on this computer (whose install brings onnxruntime). **Recognizing
 computer with both. Doctor checks each. Workers take the `visual` job wherever the component is ready, and a
 computer that gains it looks at the clips nobody looked at yet (catch-up on start and whenever a component is added).
 
-**Fills** (D445): a landscape shot made vertical, square or 4:5 (or a portrait shot made landscape) over a blurred,
-enlarged copy of itself shows the copy's faces too, larger and blurred. Apple Vision rarely takes them for faces; YuNet
-often did, so following movement moved into the blur and one person became two. The open models now find such a frame
-— the picture centred along the frame's long side, bands beside it with little detail next to it, straight lines where
-the picture ends, and bands that follow the picture enlarged and blurred — and leave out faces mostly outside the
-picture. Plain walls, studio backdrops and letterbox bars don't follow the picture, so they aren't fills; a fill whose
-picture is itself plain near its edges (graphics, screen recordings) may not be found, and then its copy's faces
-count, as they often do with Apple Vision. Measured on the faceset made into fills (`TestFillsOnTheFaceset`): faces in
-the copy that Apple Vision didn't see went from 38 to 0 (9:16, blur 8), 12 to 0 (blur 16), 7 to 0 (1:1), 9 to 0 (4:5)
-and 20 to 0 (portrait made landscape), with 183–186 of 186 fills found; no face Apple Vision found was left out, in the
-fills or in 1,591 faces of photos and video frames that aren't fills (as they are, cropped, blurred all over, small,
+**Fills** (D445, D465): a landscape shot made vertical, square or 4:5 (or a portrait shot made landscape) over a
+blurred, enlarged copy of itself shows the copy's faces too, larger and blurred. Apple Vision rarely takes them for
+faces; YuNet often did, so following movement moved into the blur and one person became two. The open models now find
+such a frame — the picture centred along the frame's long side, bands beside it with little detail next to it (most of
+their rows, and all of one band's, so a face cam or a title laid over the other doesn't hide the fill), straight lines
+where the picture ends, and bands that follow the picture enlarged and blurred (what is laid over them left out of the
+comparison) — and leave out the faces mostly outside the picture that are as plain there as the copy is. A face cam
+or a picture in picture laid over the copy is sharp, so its faces stay. Plain walls, studio backdrops and letterbox bars
+don't follow the picture, so they aren't fills; a fill whose picture is itself plain near its edges (graphics, screen
+recordings) may not be found, and then its copy's faces count, as they often do with Apple Vision. Measured on the
+faceset made into fills (`TestFillsOnTheFaceset`): faces in the copy that Apple Vision didn't see went from 38 to 1
+(9:16, blur 8), 12 to 0 (blur 16), 7 to 0 (1:1), 9 to 0 (4:5) and 20 to 1 (portrait made landscape), with 183–186 of
+186 fills found. With something laid over the copy: a 110-pixel face cam in the top band 8 to 0, a 160-pixel one in the
+bottom band 12 to 0, MetaRush's vertical picture in picture over a fill 6 to 1 — and none of the inset's faces Apple
+Vision found (129, 155 and 157) was left out, where leaving out every face outside the picture would have dropped
+129, 155 and 150 of them. No face Apple Vision found was left out anywhere: in the fills, the insets, a plain vertical
+picture in picture, or the photos and video frames that aren't fills (as they are, cropped, blurred all over, small,
 letterboxed). The garden call made 9:16: Apple Vision saw 12 faces in the copy, the open models none.
 
 **A Mac gets the first look** (D410): a computer with the open models leaves a new clip alone for two minutes at a
@@ -556,16 +562,21 @@ that finds it can't look after all (a helper that didn't build, a model changed 
 until its components or settings change, and hands the clip back, not counted as a try, when another computer that
 looks was seen in the last day; with none, the clip fails as before, with the one step that fixes it.
 
-**Apple Vision's indexes stay Apple Vision's** (D447): a clip Apple Vision looked at is looked at again (a person
-asking, or catch-up after an upgrade) only by a Mac while one that looks was seen in the last 30 days — the computer
-with the open models puts it back, waiting longer each time, at most three hours. After 30 days without one it looks
-itself and keeps what Apple Vision saw that the open models don't look for: the places, things, animals and gestures
-(`kept` in the index, said in the readout's note).
+**Apple Vision's indexes stay Apple Vision's** (D447, D467): a clip Apple Vision looked at is looked at again (a
+person asking, or catch-up after an upgrade) only by a Mac while one that looks was seen in the last 30 days — the
+computer with the open models puts it back, waiting longer each time, at most three hours. After 30 days without one
+it looks itself and keeps what Apple Vision saw that the open models don't look for: the places, things, animals and
+gestures (`kept` in the index, said in the readout's note); looking again later keeps what that look kept (D468). It is the
+index of the media the clip plays now that counts: a fixed copy nothing looked at yet gets a first look like any new
+clip (a Mac about now gets it first), even when Apple Vision looked at the original, and keeps the original's places,
+things and animals but not its gestures — where a hand was in the original's picture says nothing about a steadied
+copy's. The original's index stays as it was.
 
 **Fingerprints say what found the face** (D448, `printsBy`): `apple-vision` or `open-models` (older ones are Apple
 Vision's). Matching treats both alike — one library can hold both, where a workspace has a Mac and a computer without
 one — except that a face the open models found is asked about ("Is this Ada?") from 0.41 rather than 0.38: at 0.38 they
-asked about the wrong person more often than Apple Vision does; at 0.41 no more often.
+asked about the wrong person more often than Apple Vision does; at 0.41 no more often. The same holds when a
+correction re-scores the groups (Refresh).
 
 **What stays on Apple Vision**: lip sync's check that every face in the part it changes is named (D279) still looks
 with the helper, so on Linux it asks for a Mac. Cutting a photo's subject out uses Apple's mask on a Mac that keeps

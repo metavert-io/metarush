@@ -2,6 +2,9 @@ package macapp
 
 import (
 	"encoding/xml"
+	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -233,5 +236,32 @@ func TestNotes(t *testing.T) {
 	}
 	if !strings.Contains(got, "<li>Updates install themselves</li>") || !strings.Contains(got, "<li>and 1 smaller change</li>") {
 		t.Errorf("headlines and the technical entry:\n%s", got)
+	}
+}
+
+// Sparkle is pinned once (D471): the app's binary target (desktop/mac/Package.swift,
+// by version and SHA-256), the release tools scripts/mac-app.sh fetches and the
+// notice the app carries (desktop/mac/THIRD_PARTY.md) name the same release.
+func TestSparkleIsPinnedOnce(t *testing.T) {
+	read := func(p string) string {
+		t.Helper()
+		b, err := os.ReadFile(filepath.Join("..", "..", p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	pkg := regexp.MustCompile(`Sparkle/releases/download/(\d+\.\d+\.\d+)/Sparkle-for-Swift-Package-Manager\.zip",\s*checksum: "([0-9a-f]{64})"`).
+		FindStringSubmatch(read("desktop/mac/Package.swift"))
+	script := regexp.MustCompile(`(?m)^SPARKLE_VERSION=(\S+)$`).FindStringSubmatch(read("scripts/mac-app.sh"))
+	if pkg == nil || script == nil {
+		t.Fatalf("Sparkle's pin not found: %v %v", pkg, script)
+	}
+	if pkg[1] != script[1] {
+		t.Errorf("Package.swift pins Sparkle %s, scripts/mac-app.sh %s", pkg[1], script[1])
+	}
+	notice := read("desktop/mac/THIRD_PARTY.md")
+	if !strings.Contains(notice, "Sparkle "+pkg[1]) || !strings.Contains(notice, pkg[2]) {
+		t.Errorf("THIRD_PARTY.md doesn't name Sparkle %s and its SHA-256", pkg[1])
 	}
 }

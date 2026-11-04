@@ -9,7 +9,7 @@ import Sparkle
 //                                             (as a person pressing Install would): {"installed": true} or
 //                                             {"error": code, "message": …}
 //   AppHarness finish <bundle> [--home H]     the steps after an update with <bundle>'s own metarush
-//   AppHarness compare <a> <b>                Sparkle's order of two bundle versions: -1, 0 or 1
+//   AppHarness compare <a> <b> [<a> <b>…]     Sparkle's order of each pair of bundle versions: -1, 0 or 1
 //   AppHarness icon <folder.iconset>          the app's icon at every size (scripts/mac-app.sh)
 
 func out(_ value: [String: Any]) {
@@ -128,9 +128,13 @@ case "finish" where args.count >= 2:
     }
     done.wait()
 
-case "compare" where args.count == 3:
-    let r = SUStandardVersionComparator.default.compareVersion(args[1], toVersion: args[2])
-    out(["order": r == .orderedAscending ? -1 : (r == .orderedDescending ? 1 : 0)])
+case "compare" where args.count >= 3 && args.count % 2 == 1:
+    var orders: [Int] = []
+    for i in stride(from: 1, to: args.count, by: 2) {
+        let r = SUStandardVersionComparator.default.compareVersion(args[i], toVersion: args[i + 1])
+        orders.append(r == .orderedAscending ? -1 : (r == .orderedDescending ? 1 : 0))
+    }
+    out(["orders": orders])
 
 case "icon" where args.count == 2:
     let folder = URL(fileURLWithPath: args[1])
@@ -145,6 +149,6 @@ case "icon" where args.count == 2:
     out(["icons": Mark.iconSet.count])
 
 default:
-    say("usage: AppHarness apply-update <bundle> <feed> | finish <bundle> [--home H] | compare <a> <b> | icon <folder.iconset>")
+    say("usage: AppHarness apply-update <bundle> <feed> | finish <bundle> [--home H] | compare <a> <b> [<a> <b>…] | icon <folder.iconset>")
     exit(64)
 }

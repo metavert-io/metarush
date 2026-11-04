@@ -157,7 +157,7 @@ an ability found stays a plain "Picture". At most 200 parts are listed.
 | The video otherwise | `composite` |
 | Generated video, AI pictures, AI voices (narration), new words in someone's own voice copy, presenters, AI music, AI sound effects, AI dubs | `trainedAlgorithmicMedia` (created using generative AI) |
 | A mouth matched to new words (lip sync), a voice changed by AI | `compositeWithTrainedAlgorithmicMedia` (edited using generative AI) |
-| A picture's background taken away, a picture made larger, a voice made clearer, a narration line cleaned up | `algorithmicallyEnhanced` (changed by an algorithm, its main content kept) |
+| A picture's background taken away, a clip's background replaced (its cut-out: [background-removal.md](background-removal.md)), a picture made larger, a voice made clearer, a narration line cleaned up | `algorithmicallyEnhanced` (changed by an algorithm, its main content kept) |
 | Footage, sound, music and pictures nothing AI touched | none (MetaRush doesn't claim how they were captured) |
 
 ## What delivery writes

@@ -481,3 +481,37 @@ func TestAnAbilitysAIWorkIsInTheDeliveryRecord(t *testing.T) {
 		}
 	}
 }
+
+// A clip whose background is replaced is footage changed with AI (D511): its
+// cut-out is an ingredient whose source type is algorithmically enhanced,
+// with what found the people when its record says, and the video stays a
+// composite (nothing generated).
+func TestAReplacedBackgroundIsFootageChangedWithAI(t *testing.T) {
+	it := aiVersion()
+	it.rev.Spec = editspec.Spec{Clips: []editspec.Clip{{ID: "c1", AssetID: "ast_footage", In: 0, Out: 2,
+		Background: &editspec.ClipBackground{With: editspec.BackgroundColour, Colour: "#00b140", Matte: hx(30)}}}}
+	m := manifestFor(t.Context(), nil, it, &DeliverySidecar{})
+	d, def := readManifest(t, m)
+	var cutOut bool
+	for _, ing := range d.Ingredients {
+		if ing.Title == "Footage changed with AI 1" && ing.Source == c2pa.SourceEnhanced && ing.InstanceID == "sha256:"+hx(30) {
+			cutOut = true
+		}
+	}
+	if !cutOut || m.SourceType() != c2pa.SourceComposite {
+		t.Fatalf("the cut-out in the manifest (%s): %s", m.SourceType(), def)
+	}
+	if _, generative, changed := m.Counts(); generative != 0 || changed != 1 {
+		t.Fatalf("%d generative, %d changed", generative, changed)
+	}
+	// What found the people, from the cut-out's record.
+	asset := func(id string) (models.Asset, bool) { a, ok := it.assets[id]; return a, ok }
+	matte := func(sha string) (*models.Matte, bool) {
+		return &models.Matte{ProviderTitle: "This computer", ModelTitle: "Apple Vision person segmentation"}, sha == hx(30)
+	}
+	pieces := aiPieces([]cutUse{{spec: &it.rev.Spec, asset: asset, take: func(string) (models.VoiceTake, bool) { return models.VoiceTake{}, false }, matte: matte}}, nil)
+	if len(pieces) != 1 || pieces[0].Kind != "video-background" || pieces[0].Work != models.AIWorkEnhanced || pieces[0].What != "footage" ||
+		pieces[0].made() != "This computer, Apple Vision person segmentation" || !strings.HasSuffix(pieces[0].Title, "over a new background") {
+		t.Fatalf("the piece: %+v", pieces)
+	}
+}

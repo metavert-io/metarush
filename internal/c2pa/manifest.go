@@ -192,6 +192,8 @@ func partWord(p Part) string {
 		switch p.What {
 		case "picture":
 			return "Picture changed with AI"
+		case "footage":
+			return "Footage changed with AI" // a clip's background replaced (D511)
 		case "sound", "voice":
 			return "Sound cleaned up with AI"
 		}

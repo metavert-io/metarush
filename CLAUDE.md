@@ -1144,8 +1144,10 @@ Read `docs/architecture.md` before structural changes.
   `guest_grants`, `ggr_`: a project — every version with a review copy — or `revisionIds`, role viewer | commenter,
   approver refused until approvals by guests; `endsAt` required, ≤ 90 days, the server's time; migrations 68–69),
   never a member. Owners, people only: `guests.share` (a `dryRun` plan; What may leave's place `guests` asked with
-  `leave.Check` for every project the versions touch, quietly again at every watch; a reference or withdrawn consent
-  is never shown), `guests.link` (256 random bits in the address's fragment, SHA-256 in `guest_links`, once, ≤ 24 h
+  `leave.Check` for every project the versions touch (`leave.RevisionTouchesChecked`: a lookup that didn't answer
+  refuses), quietly again at every watch; a reference — sent out anyway or not — anything made with a withdrawn
+  consent (`internal/withdrawn`, shared with review links; past `withdrawn.MaxNested` nested cuts refused too) or
+  changed words whose consent is gone is never shown: `mayShow`, failing closed), `guests.link` (256 random bits in the address's fragment, SHA-256 in `guest_links`, once, ≤ 24 h
   and never past a grant, the page's button claims it), `guests.revoke` (a grant or the guest: last grant or the guest
   gone deletes `guest_sessions`), `guests.settings.set` (the workspace's `guests.on` + this computer's config.yaml
   `guests.listen|port`; on only at this computer; off ends every session); `guests.status|list` open,
@@ -1159,7 +1161,8 @@ Read `docs/architecture.md` before structural changes.
   (`ops.Flags.Guest`: `guest.shared|watch|comments|comment`, HumanOnly) answer for `guests.SignedFrom(ctx)` with
   `Caller.Guest`; dispatch refuses a guest caller on any other op and members on mutating guest ops (owners read
   with `as`); `guests.Check` re-reads session, guest, live grants and the switch on every request; anything not
-  named is `notShared`. Video: bucket → `PresignGet` 10 min (never through the host; a store that can't sign
+  named is `notShared` (a project's grant names only versions with a finished review copy, as its page lists).
+  The log keeps a guest op's input as IDs and sizes only (`logbook.GuestInput`, channel `guest`). Video: bucket → `PresignGet` 2 min, renewed by the page (never through the host; a store that can't sign
   refuses); folder store → `/guest/media/<rev>/<render>` with ranges, `MediaFor` per request, `whileShown` cuts a
   stream within `guestRecheck` once its version isn't the guest's to watch (`StillShown`); only tokens found are
   kept out of the log (`logbook.RememberSecret` after the lookup, never what a visitor sent). Sign-in: `mr_guest`
@@ -1169,8 +1172,10 @@ Read `docs/architecture.md` before structural changes.
   with live grants; Microsoft guests refused; first account linked, another of the scope refused). Comments carry
   `Comment.guest`, are quoted for AI readers (`QuoteOutside`), ring the sharer (`guest_comments`). Every request →
   `guests.Record` (`guest_activity`, the log's `guest` channel, phrases in `logbook/describe_guests.go`; ranges and
-  anonymous refusals once a minute; `VolumePerHour` → `guest_volume` to owners; `guests.Run` tidies, honouring
-  `DeletionsPaused`). Browser run `scripts/guests-e2e.sh` (ports 5820–5829, `scripts/guestseed`).
+  anonymous requests once a minute per address and kind; `VolumePerHour` → `guest_volume` to owners; `guests.Run` tidies, honouring
+  `DeletionsPaused`). Emails match through
+  `internal/emailkey` (ASCII letters folded only; migration 69 recomputes stored keys). Browser run
+  `scripts/guests-e2e.sh` (ports 5820–5829, `scripts/guestseed`).
 - **Exporting and restoring a workspace** (D329–D333, `internal/wsarchive`, `internal/ops/workspacearchive.go`,
   `internal/cli/workspace_archive.go`, `web/src/screens/settings/WorkspaceExport.tsx`, docs/workspace-export.md): an
   archive is a private folder (0700/0600) or `--tar` file: `manifest.json` (format, maker, the migration level as every

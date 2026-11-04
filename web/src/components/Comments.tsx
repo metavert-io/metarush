@@ -91,7 +91,7 @@ export function Comments({ projectId, revisionId, assetId, time, timeLabel = 'cu
                   </button>
                 ) : null}
               </div>
-              <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-fg">{c.outside ? <Theirs>{c.body}</Theirs> : c.body}</p>
+              <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-fg">{c.outside || c.guest ? <Theirs>{c.body}</Theirs> : c.body}</p>
             </li>
           ))}
         </ul>

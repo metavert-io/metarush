@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -981,5 +982,73 @@ func TestTheForwardedAddressHasOneSeam(t *testing.T) {
 		if from, https := g.visitor(on(relayPort, said)); from != "127.0.0.1" || https {
 			t.Fatalf("%q believed: %s %v", said, from, https)
 		}
+	}
+}
+
+// A code made up by someone who began a sign-in of their own reaches the
+// provider through the guest callback with a real state: the provider
+// refuses it, and it is no secret — the activity log and a workspace export
+// keep that word as written (a code is kept out of the log only once the
+// provider takes it).
+func TestAMadeUpCodeOnTheGuestCallbackIsNoSecret(t *testing.T) {
+	r := newGuestRig(t)
+	p := r.guestSSO(sso.OIDC, "")
+	r.share("dana@client.example", models.GuestCommenter)
+	b := r.browser()
+	res, env, raw := b.do("POST", "/guest/api/sso/start", map[string]any{}, true)
+	if res.StatusCode != 200 {
+		t.Fatalf("start: %d %s", res.StatusCode, raw)
+	}
+	var out GuestSSOStartOut
+	_ = json.Unmarshal(env.Data, &out)
+	bu, _ := url.Parse(out.URL)
+	if res, _, _ = b.get(bu.RequestURI()); res.StatusCode != http.StatusFound {
+		t.Fatalf("begin: %d", res.StatusCode)
+	}
+	p.Next = &fakeoidc.Person{Sub: "sub-dana", Email: "dana@client.example", EmailVerified: fakeoidc.Verified(true), Name: "Dana"}
+	pres, err := http.DefaultTransport.RoundTrip(mustGet(res.Header.Get("Location")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pres.Body.Close()
+	cb, _ := url.Parse(pres.Header.Get("Location"))
+	q := cb.Query()
+	if q.Get("state") == "" {
+		t.Fatalf("the provider's answer: %s", cb)
+	}
+	q.Set("code", madeUp)
+	cb.RawQuery = q.Encode()
+	if res, _, _ = b.get(cb.RequestURI()); res.StatusCode == http.StatusFound || b.cookies[guestCookieName] != "" {
+		t.Fatalf("a made-up code signed a guest in: %d", res.StatusCode)
+	}
+	if hidden(r.d, madeUp) || logbook.Remembered(madeUp) {
+		t.Fatalf("%q was taken for a secret", madeUp)
+	}
+	r.d.op("project.create", map[string]any{"name": "Interview with " + madeUp}, nil)
+	if !logSays(t, r.d, madeUp) {
+		t.Fatalf("the activity log lost %q", madeUp)
+	}
+	if !exportSays(t, r.d, store.CProjects, madeUp) {
+		t.Fatalf("the workspace export lost %q", madeUp)
+	}
+}
+
+// "OPTIONS *" goes through the guest listener's own guard like any request
+// (and gets nothing), never net/http's general answer.
+func TestTheGuestListenerAnswersOptionsItself(t *testing.T) {
+	r := newGuestRig(t)
+	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", r.port))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	fmt.Fprintf(conn, "OPTIONS * HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nConnection: close\r\n\r\n", r.port)
+	res, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode == http.StatusOK || res.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("OPTIONS * answered by net/http: %d %v", res.StatusCode, res.Header)
 	}
 }

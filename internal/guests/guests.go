@@ -46,8 +46,10 @@ const (
 	// guest's last grant).
 	LinkLife = 24 * time.Hour
 	// MediaLife is how long a signed link to a review copy in the bucket
-	// works: the page asks for a new one when it ends.
-	MediaLife = 10 * time.Minute
+	// works: the page asks for a new one when it ends, and each new one asks
+	// the grant again. A link handed out can't be called back, so a video
+	// from the bucket stops within MediaLife of being taken back.
+	MediaLife = 2 * time.Minute
 	// KeepActivity is how long guests' requests are kept.
 	KeepActivity = 90 * 24 * time.Hour
 	// MaxComment, MaxName and MaxMessage are lengths in characters;
@@ -116,17 +118,18 @@ func who(g *models.Guest) string {
 
 // Why a guest is turned away (details.reason).
 const (
-	ReasonNotShared  = "not_shared"  // nothing a grant names (or it doesn't exist)
-	ReasonSignedOut  = "signed_out"  // no sign-in, or it ended
-	ReasonGuestsOff  = "guests_off"  // owners turned guests off
-	ReasonKeptHere   = "kept_here"   // a client's rules keep it from guests
-	ReasonNotReady   = "not_ready"   // no review copy yet
-	ReasonHeld       = "held"        // it plays someone else's video or changed words
-	ReasonViewer     = "viewer"      // a viewer can't comment
-	ReasonTooMany    = "too_many"    // too many comments
-	ReasonLinkGone   = "link_gone"   // a link used, ended or taken back
-	ReasonNotTrusted = "not_trusted" // the provider doesn't vouch for the email
-	ReasonMSGuest    = "ms_guest"    // a Microsoft guest or personal account
+	ReasonNotShared  = "not_shared"        // nothing a grant names (or it doesn't exist)
+	ReasonSignedOut  = "signed_out"        // no sign-in, or it ended
+	ReasonGuestsOff  = "guests_off"        // owners turned guests off
+	ReasonKeptHere   = "kept_here"         // a client's rules keep it from guests
+	ReasonNotReady   = "not_ready"         // no review copy yet
+	ReasonHeld       = "held"              // it plays someone else's video or changed words
+	ReasonConsent    = "consent_withdrawn" // it plays something made with a consent that was withdrawn
+	ReasonViewer     = "viewer"            // a viewer can't comment
+	ReasonTooMany    = "too_many"          // too many comments
+	ReasonLinkGone   = "link_gone"         // a link used, ended or taken back
+	ReasonNotTrusted = "not_trusted"       // the provider doesn't vouch for the email
+	ReasonMSGuest    = "ms_guest"          // a Microsoft guest or personal account
 	ReasonOtherAcct  = "other_account"
 	ReasonNoSSO      = "no_sso" // the organization's sign-in isn't how people sign in here
 	ReasonThrottled  = "throttled"

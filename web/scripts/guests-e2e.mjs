@@ -208,6 +208,7 @@ async function main() {
   await cont.waitFor({ timeout: 15_000 });
   const before = await guest.ctx.cookies();
   check('opening the link signs nothing in until its button is pressed', before.length === 0, JSON.stringify(before));
+  check('the link’s secret leaves the address bar as the page opens', !g.url().includes('#'), g.url().replace(/#.*/, '#…'));
   await shot(g, 'guest-welcome-light');
   await cont.click();
   const shares = g.locator('[data-guest-shares]');
@@ -269,6 +270,7 @@ async function main() {
   check('the owner sees the guest’s comment on the version', !!seenComment);
   const bodyText = await page.locator('body').innerText();
   check('…marked as a guest’s', /Dana \(guest\)/.test(bodyText));
+  check('…its words shown as theirs', (await page.locator('[data-user-content]', { hasText: 'hold the last shot longer' }).count()) > 0);
   await page.goto(`${base}/settings/people#guests`);
   const act = page.locator('[data-guests-activity]');
   await act.waitFor({ timeout: 20_000 });

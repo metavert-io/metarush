@@ -20,6 +20,7 @@ import (
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/transcripts"
+	"github.com/metavert-io/metarush/internal/withdrawn"
 )
 
 // plan is a link worked out before anything is made: the version and its
@@ -203,7 +204,7 @@ func makePlan(ctx context.Context, a *app.App, in ShareCreateIn) (*plan, error) 
 
 	// Something it plays was made with a consent that was withdrawn (D227):
 	// it isn't shared, draft or not.
-	if who, bad, err := consentGone(ctx, a, rev.ID); err != nil {
+	if who, bad, err := withdrawn.Version(ctx, a, rev.ID); err != nil {
 		return nil, err
 	} else if bad {
 		pl.stopWith(withdrawnStop(rev.Number, who).WithHint("Make a version without it first.").WithDetails(map[string]any{"reason": "consent_withdrawn", "revisionId": rev.ID}))

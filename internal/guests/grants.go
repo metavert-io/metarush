@@ -21,6 +21,7 @@ import (
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/withdrawn"
 )
 
 // Grants (D490): what a guest may see and do. An owner shares a project —
@@ -253,7 +254,11 @@ func share(ctx context.Context, a *app.App, in *GuestsShareIn) (*GuestsShareOut,
 		if ops.BurnsCaptionsIn(&shown[i]) && !slices.Contains(kinds, models.LeaveWords) {
 			kinds = append(kinds, models.LeaveWords)
 		}
-		for _, x := range leave.RevisionTouches(ctx, a, shown[i].ID) {
+		touched, err := leave.RevisionTouchesChecked(ctx, a, shown[i].ID)
+		if err != nil {
+			return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't check version %d just now.", shown[i].Number).WithHint("Try again in a moment.")
+		}
+		for _, x := range touched {
 			projects[x] = true
 		}
 	}
@@ -300,8 +305,16 @@ func share(ctx context.Context, a *app.App, in *GuestsShareIn) (*GuestsShareOut,
 	} else if err := leave.Check(ctx, a, send); err != nil {
 		return nil, err // recorded: a person asked, and it was kept here
 	}
-	// A version that plays someone else's video, or words changed in
-	// someone's voice whose consent is gone, isn't shown to guests (D441).
+	// A version that plays someone else's video, anything made with a consent
+	// that was withdrawn, or words changed in someone's voice whose consent is
+	// gone, isn't shown to guests (D441, D227) — whatever note sent it out
+	// anyway. A project's versions are asked again whenever a guest opens one.
+	var gone map[string]string
+	if len(revs) > 0 {
+		if gone, err = withdrawn.Made(ctx, a); err != nil {
+			return nil, err
+		}
+	}
 	for i := range revs {
 		why, err := heldWords(ctx, a, p, &revs[i])
 		if err != nil {
@@ -310,6 +323,17 @@ func share(ctx context.Context, a *app.App, in *GuestsShareIn) (*GuestsShareOut,
 		if why != "" {
 			return stop(apperr.New(apperr.Held, "Version %d can't be shared with guests: %s.", revs[i].Number, why).
 				WithHint("Make a version without it first.").WithDetails(map[string]any{"reason": ReasonHeld, "revisionId": revs[i].ID}))
+		}
+		who, bad, err := withdrawn.In(ctx, a, revs[i].ID, gone)
+		if err != nil {
+			return nil, err
+		}
+		if bad {
+			e := apperr.New(apperr.ConsentRequired, "Version %d can't be shared with guests: it plays something made with the consent %s withdrew.", revs[i].Number, ops.Quote(who))
+			if who == "" {
+				e = apperr.New(apperr.ConsentRequired, "Version %d can't be shared with guests: it nests more than %s, too many to check against consents that were withdrawn.", revs[i].Number, plural(withdrawn.MaxNested, "cut"))
+			}
+			return stop(e.WithHint("Make a version without it first.").WithDetails(map[string]any{"reason": ReasonConsent, "revisionId": revs[i].ID}))
 		}
 	}
 	if !On(ctx, a) {
@@ -502,8 +526,9 @@ func ordered(kinds []string) []string {
 
 // heldWords says why a version isn't shown to guests ("" it is): it plays
 // someone else's video (a reference) or words changed in someone's voice whose
-// consent is gone, and no person sent it out anyway with a note. When that
-// can't be told (the database didn't answer), it isn't shown: an error.
+// consent is gone. Guests never see those, even where a person sent the
+// version out anyway with a note. When that can't be told (the database
+// didn't answer), it isn't shown: an error.
 func heldWords(ctx context.Context, a *app.App, p *models.Project, rev *models.Revision) (string, error) {
 	g, err := ops.ShipGate(ctx, a, p, rev, "review", nil)
 	if err != nil {
@@ -511,7 +536,7 @@ func heldWords(ctx context.Context, a *app.App, p *models.Project, rev *models.R
 	}
 	var why []string
 	for _, h := range g.Holds {
-		if h.Covered || (h.Kind != models.HoldReference && h.Kind != models.HoldConsent) {
+		if h.Kind != models.HoldReference && h.Kind != models.HoldConsent {
 			continue
 		}
 		why = append(why, strings.TrimSuffix(lowerFirst(h.Says), "."))

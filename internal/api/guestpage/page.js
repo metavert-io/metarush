@@ -6,7 +6,12 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var current = null; // the version being watched
-  var refreshed = 0; // signed links asked for again for this version
+  var refreshed = 0; // signed links asked for again since the video last played on
+  // A one-time link's secret part: taken out of the address bar (and this
+  // page's place in the history) as the page opens, kept only here until the
+  // guest presses Continue.
+  var linkToken = location.pathname === '/welcome' && location.hash.length > 1 ? location.hash.slice(1) : '';
+  if (linkToken) history.replaceState(null, '', '/welcome');
 
   function show(id) {
     ['welcome', 'signin', 'shares', 'watch'].forEach(function (s) { $(s).hidden = s !== id; });
@@ -76,11 +81,12 @@
   /* ---------- Signing in ---------- */
 
   function start(withState) {
-    var token = location.pathname === '/welcome' && location.hash.length > 1 ? location.hash.slice(1) : '';
+    var token = linkToken;
     if (token) {
       show('welcome');
       $('use-link').onclick = function () {
         $('use-link').disabled = true;
+        linkToken = '';
         ask('POST', '/guest/api/link', { token: token }).then(function () {
           history.replaceState(null, '', '/');
           say('');
@@ -195,7 +201,10 @@
     }).catch(fail);
   }
 
-  // A signed link ends after a few minutes: ask again and go on where it was.
+  // A signed link ends after two minutes: ask again (the grant is checked
+  // each time) and go on where it was. Three tries in a row without the video
+  // playing on in between, and it stops.
+  $('video').addEventListener('playing', function () { refreshed = 0; });
   $('video').addEventListener('error', function () {
     if (!current) return;
     if (refreshed >= 3) {

@@ -864,8 +864,10 @@ func (s *Server) ListenGuests(ctx context.Context, port int) (*http.Server, int,
 		return nil, 0, err
 	}
 	got := ln.Addr().(*net.TCPAddr).Port
+	// DisableGeneralOptionsHandler: "OPTIONS *" reaches the guard and the
+	// router like any request (and gets nothing), never net/http's own answer.
 	srv := &http.Server{Handler: s.GuestHandler(got), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: time.Minute, IdleTimeout: 2 * time.Minute,
-		MaxHeaderBytes: 32 << 10}
+		MaxHeaderBytes: 32 << 10, DisableGeneralOptionsHandler: true}
 	go func() { _ = srv.Serve(ln) }()
 	go func() {
 		<-ctx.Done()

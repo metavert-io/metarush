@@ -39,7 +39,8 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
   and forwarded headers taken off and never believed; strict, bounded inputs; the guest page's header on changes.
   Guest operations (`ops.Flags.Guest`) answer only for the checked guest and hold every request to grants that work
   now by the database server's clock; members never act as a guest; anything not shared gets the one "not shared"
-  answer. Guest links and cookies are 256 random bits kept only as SHA-256, links used once; no passwords for guests.
+  answer. What guests may see fails closed (What may leave's checked walk, `internal/withdrawn`, references whatever
+  the note); emails match through `internal/emailkey` (ASCII letters only), never `strings.ToLower`. Guest links and cookies are 256 random bits kept only as SHA-256, links used once; no passwords for guests.
   A value a visitor sends becomes a log secret (`logbook.RememberSecret`, `Log.Secret`) only once it is found to be ours.
 - Paid AI work is priced first, held to budgets, daily limits and consent, saves its ticket before waiting, and never
   runs twice. Auto spends only within limits a person set.

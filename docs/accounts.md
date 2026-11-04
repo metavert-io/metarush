@@ -28,8 +28,9 @@ to "Just me" signs everyone else out and keeps their records.
 
 ## Accounts
 
-Accounts are the workspace's `users` (`usr_…`): `name`, `email` (and `emailKey`, lower-cased and trimmed, unique per
-workspace), `role` (`owner` | `member`), `state` (`active` | `invited` | `disabled` | `earlier`), `sessionsValidAfter`,
+Accounts are the workspace's `users` (`usr_…`): `name`, `email` (and `emailKey`: trimmed, with only its ASCII letters
+lower-cased, unique per workspace — so `Kate@…` and `kate@…` are one person, while a look-alike character such as the
+Kelvin sign K, which Unicode's lower case turns into k, stays itself; letters beyond ASCII match as written), `role` (`owner` | `member`), `state` (`active` | `invited` | `disabled` | `earlier`), `sessionsValidAfter`,
 the Tailscale `logins` linked to them, and `sso`: the accounts at the organization's provider that are them (a stable
 key per account — Google's account ID, Microsoft's directory and person IDs, another provider's issuer and subject —
 unique in the workspace, with the email it vouched for; never a token). Roles are minimal: owners manage people and the sign-in method and change

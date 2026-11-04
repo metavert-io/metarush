@@ -20,6 +20,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/emailkey"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/notify"
@@ -169,7 +170,7 @@ func FindByEmail(ctx context.Context, a *app.App, email string) (*models.User, e
 		return nil, nil
 	}
 	var us []models.User
-	if err := a.DB.Find(ctx, store.CUsers, a.WorkspaceID(), bson.M{"$or": bson.A{bson.M{"emailKey": key}, bson.M{"email": bson.M{"$regex": "^" + regexQuote(key) + "$", "$options": "i"}}, bson.M{"logins": key}}}, &us); err != nil {
+	if err := a.DB.Find(ctx, store.CUsers, a.WorkspaceID(), bson.M{"$or": bson.A{bson.M{"emailKey": key}, bson.M{"email": bson.M{"$regex": emailkey.Pattern(key)}}, bson.M{"logins": key}}}, &us); err != nil {
 		return nil, err
 	}
 	for i := range us {
@@ -181,17 +182,6 @@ func FindByEmail(ctx context.Context, a *app.App, email string) (*models.User, e
 		return &us[0], nil
 	}
 	return nil, nil
-}
-
-func regexQuote(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		if strings.ContainsRune(`\.+*?()|[]{}^$`, r) {
-			b.WriteRune('\\')
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
 }
 
 // IsOwner reports whether a person is an owner. Until anyone has the owner

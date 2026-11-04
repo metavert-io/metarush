@@ -11,7 +11,6 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
-	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/generate"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/leave"
@@ -21,6 +20,7 @@ import (
 	"github.com/metavert-io/metarush/internal/notify"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/withdrawn"
 )
 
 // Ending a link (D318). Every way a link ends — a person takes it back, its
@@ -365,7 +365,7 @@ func onConsentRevoked(ctx context.Context, a *app.App, c *models.Consent) []stri
 	if err != nil || len(ls) == 0 {
 		return nil
 	}
-	made, err := madeWithConsent(ctx, a, c)
+	made, err := withdrawn.MadeWith(ctx, a, c)
 	if err != nil || len(made) == 0 {
 		return nil
 	}
@@ -375,7 +375,7 @@ func onConsentRevoked(ctx context.Context, a *app.App, c *models.Consent) []stri
 	}
 	var out []string
 	for i := range ls {
-		who, bad, err := withdrawnIn(ctx, a, ls[i].RevisionID, gone)
+		who, bad, err := withdrawn.In(ctx, a, ls[i].RevisionID, gone)
 		if err != nil || !bad {
 			continue
 		}
@@ -390,7 +390,7 @@ func onConsentRevoked(ctx context.Context, a *app.App, c *models.Consent) []stri
 // through everything the version plays.
 func withdrawnWhy(who string) string {
 	if who == "" {
-		return fmt.Sprintf("it nests more than %s, too many to check against consents that were withdrawn", plural(maxNested, "cut"))
+		return fmt.Sprintf("it nests more than %s, too many to check against consents that were withdrawn", plural(withdrawn.MaxNested, "cut"))
 	}
 	return fmt.Sprintf("%s withdrew the consent what it shows of them relied on", ops.Quote(who))
 }
@@ -398,206 +398,9 @@ func withdrawnWhy(who string) string {
 // withdrawnStop says why a version isn't shared (who as withdrawnWhy).
 func withdrawnStop(number int, who string) *apperr.Error {
 	if who == "" {
-		return apperr.New(apperr.ConsentRequired, "Version %d nests more than %s, too many to check against consents that were withdrawn, so it isn't shared with anyone.", number, plural(maxNested, "cut"))
+		return apperr.New(apperr.ConsentRequired, "Version %d nests more than %s, too many to check against consents that were withdrawn, so it isn't shared with anyone.", number, plural(withdrawn.MaxNested, "cut"))
 	}
 	return apperr.New(apperr.ConsentRequired, "Version %d plays something made with the consent %s withdrew, so it isn't shared with anyone.", number, ops.Quote(who))
-}
-
-// withdrawn is what was made with consents that were withdrawn: each clip,
-// take or picture, and whose consent it was.
-func withdrawn(ctx context.Context, a *app.App) (map[string]string, error) {
-	var cs []models.Consent
-	if err := a.DB.Find(ctx, store.CConsents, a.WorkspaceID(), bson.M{"revokedAt": bson.M{"$exists": true, "$ne": nil}}, &cs); err != nil {
-		return nil, err
-	}
-	out := map[string]string{}
-	for i := range cs {
-		made, err := madeWithConsent(ctx, a, &cs[i])
-		if err != nil {
-			return nil, err
-		}
-		for id := range made {
-			if _, ok := out[id]; !ok {
-				out[id] = cs[i].PersonName
-			}
-		}
-	}
-	return out, nil
-}
-
-// withdrawnIn says whether a version plays anything in gone (what was made
-// with withdrawn consents), and whose consent it was.
-func withdrawnIn(ctx context.Context, a *app.App, revisionID string, gone map[string]string) (string, bool, error) {
-	if len(gone) == 0 {
-		return "", false, nil
-	}
-	ps, whole, err := plays(ctx, a, revisionID)
-	if err != nil {
-		return "", false, err
-	}
-	for _, id := range ps {
-		if who, ok := gone[id]; ok {
-			if who == "" {
-				who = "someone it shows"
-			}
-			return who, true, nil
-		}
-	}
-	if !whole {
-		// Too many nested cuts to look through: it can't be said to be clear.
-		return "", true, nil
-	}
-	return "", false, nil
-}
-
-// consentGone is the consent check of one version, as asked when a link is
-// made or sent again: bad, and whose withdrawn consent something it plays
-// was made with (as withdrawnIn).
-func consentGone(ctx context.Context, a *app.App, revisionID string) (string, bool, error) {
-	gone, err := withdrawn(ctx, a)
-	if err != nil {
-		return "", false, err
-	}
-	return withdrawnIn(ctx, a, revisionID, gone)
-}
-
-// plays is every clip, take and picture a version plays: its own, and (as
-// What may leave counts them) those of the cuts it nests, at any depth, and
-// the pictures its graphics pin. whole: every nested cut was looked through
-// (false past maxNested versions).
-func plays(ctx context.Context, a *app.App, revisionID string) (_ []string, whole bool, _ error) {
-	var out []string
-	seen := map[string]bool{}
-	whole = true
-	var walk func(id string) error
-	walk = func(id string) error {
-		if seen[id] {
-			return nil
-		}
-		if len(seen) >= maxNested {
-			whole = false
-			return nil
-		}
-		seen[id] = true
-		var rev models.Revision
-		if err := a.DB.GetByID(ctx, store.CRevisions, a.WorkspaceID(), id, &rev); err != nil {
-			if errors.Is(err, store.ErrNotFound) {
-				return nil
-			}
-			return err
-		}
-		out = append(out, editspec.AssetIDs(&rev.Spec)...)
-		for _, pin := range rev.Spec.Resources {
-			out = append(out, pin.ID)
-		}
-		for _, c := range rev.Spec.Clips {
-			if _, nested, ok := editspec.NestedRef(c.AssetID); ok {
-				if err := walk(nested); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-	err := walk(revisionID)
-	return out, whole, err
-}
-
-// maxNested is how many versions plays looks through for one version.
-var maxNested = 500
-
-// madeWithConsent are the clips, takes and pictures made with a consent:
-//   - AI work that relied on it (a generated picture is a resource);
-//   - a presenter made with it: every clip it presents;
-//   - a voice copy made with it (withdrawn with it, D227): everything said
-//     or changed with that voice, whatever consent later work recorded;
-//   - pictures made from any of those on this computer (made larger, its
-//     background taken away…), followed through their lineage.
-func madeWithConsent(ctx context.Context, a *app.App, c *models.Consent) (map[string]bool, error) {
-	out := map[string]bool{}
-	var gs []models.Generation
-	if err := a.DB.Find(ctx, store.CGenerations, a.WorkspaceID(), bson.M{"consentIds": c.ID}, &gs); err != nil {
-		return nil, err
-	}
-	var presenters []models.Presenter
-	if err := a.DB.Find(ctx, store.CPresenters, a.WorkspaceID(), bson.M{"consentId": c.ID}, &presenters); err != nil {
-		return nil, err
-	}
-	var presenterIDs, voices bson.A
-	for _, p := range presenters {
-		if p.ProviderID != "" {
-			presenterIDs = append(presenterIDs, p.ProviderID)
-		}
-	}
-	for _, g := range gs {
-		if g.Outcome == nil {
-			continue
-		}
-		for _, o := range g.Outcome.Outputs {
-			if o.VoiceID != "" {
-				voices = append(voices, o.VoiceID)
-			}
-			if o.PresenterID != "" {
-				presenterIDs = append(presenterIDs, o.PresenterID)
-			}
-		}
-	}
-	// What was made with its presenters and voice copies.
-	var with bson.A
-	if len(presenterIDs) > 0 {
-		with = append(with, bson.M{"options.presenter": bson.M{"$in": presenterIDs}})
-	}
-	if len(voices) > 0 {
-		with = append(with, bson.M{"options.voice": bson.M{"$in": voices}})
-	}
-	if len(with) > 0 {
-		var more []models.Generation
-		if err := a.DB.Find(ctx, store.CGenerations, a.WorkspaceID(), bson.M{"$or": with}, &more); err != nil {
-			return nil, err
-		}
-		gs = append(gs, more...)
-	}
-	var pictures []string
-	for _, g := range gs {
-		if g.Outcome == nil {
-			continue
-		}
-		for _, o := range g.Outcome.Outputs {
-			if o.AssetID != "" {
-				out[o.AssetID] = true
-			}
-			if o.ResourceID != "" && !out[o.ResourceID] {
-				out[o.ResourceID] = true
-				pictures = append(pictures, o.ResourceID)
-			}
-		}
-	}
-	if len(voices) > 0 {
-		var takes []models.VoiceTake
-		if err := a.DB.Find(ctx, store.CVoiceTakes, a.WorkspaceID(), bson.M{"voiceId": bson.M{"$in": voices}}, &takes); err != nil {
-			return nil, err
-		}
-		for _, t := range takes {
-			if t.AssetID != "" {
-				out[t.AssetID] = true
-			}
-		}
-	}
-	// Pictures made from them, and from those, on this computer.
-	for round := 0; len(pictures) > 0 && round < 20; round++ {
-		var rs []models.Resource
-		if err := a.DB.Find(ctx, store.CResources, a.WorkspaceID(), bson.M{"versions.source.lineage.resourceId": bson.M{"$in": pictures}}, &rs); err != nil {
-			return nil, err
-		}
-		pictures = nil
-		for _, r := range rs {
-			if !out[r.ID] {
-				out[r.ID] = true
-				pictures = append(pictures, r.ID)
-			}
-		}
-	}
-	return out, nil
 }
 
 func init() {

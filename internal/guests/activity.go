@@ -24,9 +24,10 @@ import (
 // (guests.activity, Settings → People → Guests), and an entry in the activity
 // log with a plain phrase (logbook's guest phrases). A video's byte ranges
 // are one record per browser and video a minute (a player asks for dozens),
-// and refusals from one address that isn't signed in one a minute (a flood
-// writes no more than that). Owners are told once a day per guest when a
-// guest asks more than VolumePerHour times in an hour.
+// and what someone not signed in asks — pages, the sign-in state, refusals —
+// one record a minute per address and kind of request (a flood writes no
+// more than that). Owners are told once a day per guest when a guest asks
+// more than VolumePerHour times in an hour.
 
 // Hit is one guest request to record.
 type Hit struct {
@@ -99,7 +100,7 @@ func Record(ctx context.Context, a *app.App, h Hit) {
 	if h.Media != "" && quietFor("media:"+h.Session+":"+h.Media) {
 		return
 	}
-	if h.Guest == nil && h.Refused && quietFor("refused:"+h.From+":"+h.Reason) {
+	if h.Guest == nil && quietFor("anon:"+h.From+":"+h.What+":"+h.Reason) {
 		return
 	}
 	ctx = context.WithoutCancel(ctx)

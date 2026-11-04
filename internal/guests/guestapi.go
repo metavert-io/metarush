@@ -22,6 +22,7 @@ import (
 	"github.com/metavert-io/metarush/internal/notify"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/withdrawn"
 )
 
 // The guest API (D492): new, narrow operations — what was shared with this
@@ -280,9 +281,11 @@ type seen struct {
 	grant *models.GuestGrant
 }
 
-// version finds a version the guest's grants name. Anything else — a
-// version of another project, a project's other versions, one deleted since,
-// an AI app's draft, one that never existed — is notShared.
+// version finds a version the guest's grants name — by the rule their page
+// lists them: a grant's own versions, or for a project's grant every version
+// with a finished review copy. Anything else — a version of another project,
+// a project's version without a review copy, one deleted since, an AI app's
+// draft, one that never existed — is notShared.
 func (s *Signed) version(ctx context.Context, a *app.App, ref string) (*seen, error) {
 	ref = strings.TrimSpace(ref)
 	if !ids.Valid(ids.Revision, ref) {
@@ -293,6 +296,7 @@ func (s *Signed) version(ctx context.Context, a *app.App, ref string) (*seen, er
 		return nil, notShared()
 	}
 	out := &seen{rev: &rev}
+	listed := -1 // whether the version has a review copy, once asked
 	for i := range s.Grants {
 		g := &s.Grants[i]
 		if g.ProjectID != rev.ProjectID {
@@ -300,6 +304,18 @@ func (s *Signed) version(ctx context.Context, a *app.App, ref string) (*seen, er
 		}
 		if len(g.RevisionIDs) > 0 && !contains(g.RevisionIDs, rev.ID) {
 			continue
+		}
+		if len(g.RevisionIDs) == 0 {
+			// A project's grant: only the versions its page lists.
+			if listed < 0 {
+				listed = 0
+				if reviewCopy(ctx, a, &rev) != nil {
+					listed = 1
+				}
+			}
+			if listed == 0 {
+				continue
+			}
 		}
 		if out.grant == nil || (g.Role == models.GuestCommenter && out.role != models.GuestCommenter) {
 			out.grant = g
@@ -328,16 +344,18 @@ func contains(xs []string, x string) bool {
 
 // mayShow says whether a version may be shown to guests now: What may leave
 // (asked quietly: the guest is turned away, and the activity list says why)
-// and the versions guests never see (someone else's video, changed words
-// whose consent is gone).
+// and the versions guests never see (someone else's video, anything made
+// with a consent that was withdrawn, changed words whose consent is gone).
+// It fails closed: a lookup that didn't answer, or a version nesting too many
+// cuts to look through, shows nothing.
 func mayShow(ctx context.Context, a *app.App, v *seen) error {
 	kinds := []string{models.LeaveFootage, models.LeaveVoices, models.LeaveFaces, models.LeavePictures}
 	if ops.BurnsCaptionsIn(v.rev) {
 		kinds = append(kinds, models.LeaveWords)
 	}
-	projects := leave.RevisionTouches(ctx, a, v.rev.ID)
-	if len(projects) == 0 {
-		projects = []string{v.p.ID}
+	projects, err := leave.RevisionTouchesChecked(ctx, a, v.rev.ID)
+	if err != nil {
+		return couldntCheck(v.rev.Number, err)
 	}
 	r, err := leave.Problem(leave.Quiet(ctx), a, leave.Send{Place: models.PlaceGuests, Kinds: kinds, Projects: projects, What: fmt.Sprintf("version %d of “%s” on a guest's page", v.rev.Number, v.p.Name)})
 	if err != nil {
@@ -355,7 +373,18 @@ func mayShow(ctx context.Context, a *app.App, v *seen) error {
 		return apperr.New(apperr.Held, "Version %d can't be shown to guests.", v.rev.Number).WithHint("Ask whoever shared it with you for another version.").
 			WithDetails(map[string]any{"reason": ReasonHeld})
 	}
+	if _, bad, err := withdrawn.Version(ctx, a, v.rev.ID); err != nil {
+		return couldntCheck(v.rev.Number, err)
+	} else if bad {
+		return apperr.New(apperr.ConsentRequired, "Version %d can't be shown to guests.", v.rev.Number).WithHint("Ask whoever shared it with you for another version.").
+			WithDetails(map[string]any{"reason": ReasonConsent})
+	}
 	return nil
+}
+
+// couldntCheck is a check that couldn't be made, so nothing is shown.
+func couldntCheck(number int, err error) error {
+	return apperr.Wrap(apperr.Database, err, "MetaRush couldn't check version %d just now.", number).WithHint("Try again in a moment.")
 }
 
 /* ---------- Watching ---------- */

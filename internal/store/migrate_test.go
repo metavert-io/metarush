@@ -61,3 +61,47 @@ func TestGenerationsAreFoundByTheirJob(t *testing.T) {
 	}
 	t.Fatalf("no (workspaceId, jobId) index on generations: %+v", ixs)
 }
+
+// Emails are matched with only their ASCII letters folded (emailkey): the
+// guests' second migration gives people's and guests' records the key of
+// their email as it is matched now. ASCII emails keep theirs; one written
+// with other capitals gets its key as written, so it is still found; records
+// without a key are left alone.
+func TestEmailKeysFoldOnlyASCII(t *testing.T) {
+	db := testutil.DB(t)
+	ctx := context.Background()
+	ws := "ws_emailkeys"
+	for _, d := range []bson.M{
+		{"_id": "usr_ascii", "workspaceId": ws, "email": "Kate@Client.example", "emailKey": "kate@client.example"},
+		{"_id": "usr_other", "workspaceId": ws, "email": "Émile@Studio.example", "emailKey": "émile@studio.example"},
+		{"_id": "usr_login", "workspaceId": ws, "logins": []string{"Øle@Example.com"}, "emailKey": "øle@example.com"},
+		{"_id": "usr_nokey", "workspaceId": ws, "email": "Ölaf@Example.com"},
+	} {
+		if _, err := db.C(store.CUsers).InsertOne(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.C(store.CGuests).InsertOne(ctx, bson.M{"_id": "gst_other", "workspaceId": ws, "email": "Ännie@Client.example", "emailKey": "ännie@client.example"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.C(store.CMigrations).DeleteOne(ctx, bson.M{"_id": 69}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for coll, want := range map[string]map[string]any{
+		store.CUsers:  {"usr_ascii": "kate@client.example", "usr_other": "Émile@studio.example", "usr_login": "Øle@example.com", "usr_nokey": nil},
+		store.CGuests: {"gst_other": "Ännie@client.example"},
+	} {
+		for id, key := range want {
+			var d bson.M
+			if err := db.C(coll).FindOne(ctx, bson.M{"_id": id}).Decode(&d); err != nil {
+				t.Fatal(err)
+			}
+			if d["emailKey"] != key {
+				t.Errorf("%s %s: key %v, want %v", coll, id, d["emailKey"], key)
+			}
+		}
+	}
+}

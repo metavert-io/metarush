@@ -766,16 +766,21 @@ func TestEveryRequestIsRecordedAndUnusualVolumeTold(t *testing.T) {
 	s, _ := w.signIn(t, "dana@client.example")
 	guests.Record(ctx, w.a, guests.Hit{Guest: &s.Guest, What: "guest.watch", ProjectID: w.p.ID, RevisionID: w.revs[1], From: "127.0.0.1", Status: 200})
 	guests.Record(ctx, w.a, guests.Hit{What: "guest.signin.refused", From: "127.0.0.1", Status: 401, Refused: true, Reason: guests.ReasonLinkGone})
-	// A flood from nobody signed in is one record a minute.
+	// A flood from nobody signed in is one record a minute per address and
+	// kind of request — refusals, and pages and sign-in states that weren't
+	// refused alike.
 	for i := 0; i < 5; i++ {
 		guests.Record(ctx, w.a, guests.Hit{What: "guest.refused", From: "127.0.0.9", Status: 403, Refused: true, Reason: guests.ReasonOther})
+	}
+	for i := 0; i < 80; i++ {
+		guests.Record(ctx, w.a, guests.Hit{What: "guest.page", From: "127.0.0.8", Status: 200})
 	}
 	mctx, mc := member()
 	if _, err := callErr(mctx, w.a, "guests.activity", guests.GuestsActivityIn{}, mc); reason(err) != "owner_only" {
 		t.Fatalf("a member read guests' activity: %v", err)
 	}
 	act := call[guests.GuestsActivityOut](t, ctx, w.a, "guests.activity", guests.GuestsActivityIn{}, ops.Caller{})
-	if len(act.Rows) != 3 {
+	if len(act.Rows) != 4 {
 		t.Fatalf("%d rows: %+v", len(act.Rows), act.Rows)
 	}
 	var says []string

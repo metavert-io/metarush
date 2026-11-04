@@ -34,10 +34,13 @@ A guest can't:
 - see other guests' comments, or members' comments;
 - approve a version or upload anything (approvals by guests come later, behind a grant of their own);
 - keep going once something is taken back: taking back a grant, everything shared with a guest, or turning guests
-  off counts on their very next request, and a video playing stops within seconds.
+  off counts on their very next request; a video playing from this computer stops within seconds, one playing from a
+  cloud bucket within two minutes (see below).
 
-A version that plays someone else's video (a reference) or words changed in someone's voice whose consent is gone is
-never shown to guests. What may leave decides too: a client's Content Settings can keep their things from **guests**
+A version that plays someone else's video (a reference), anything made with a consent that was withdrawn, or words
+changed in someone's voice whose consent is gone is never shown to guests — even where someone sent it out anyway
+with a note. When MetaRush can't check that (a lookup that didn't answer, or more nested cuts than it looks
+through), the version isn't shown either. What may leave decides too: a client's Content Settings can keep their things from **guests**
 (a place of its own), and a guest then can't open their versions — checked when you share and again whenever a guest
 opens a version ([what may leave](what-may-leave.md)).
 
@@ -114,8 +117,10 @@ records every guest request under its own channel; the project's receipt lists w
 ## Where the video comes from
 
 - **Media kept in a cloud bucket**: the guest's browser plays the review copy straight from the bucket, through a
-  link signed for 10 minutes (the page asks for a new one when it ends). The video never goes through this computer.
-  A bucket whose key can't sign links can't be watched by guests.
+  link signed for 2 minutes; the page asks for a new one when it ends, and each new one checks what was shared again.
+  The video never goes through this computer. A link already handed out can't be called back, so a video from the
+  bucket stops within two minutes of being taken back. A bucket whose key can't sign links can't be watched by
+  guests.
 - **Media kept on this computer**: the guest listener plays it, with ranges, checking the guest's sign-in and grant on
   every request.
 
@@ -135,3 +140,23 @@ records every guest request under its own channel; the project's receipt lists w
   clearing a project out ends what was shared of it.
 - `scripts/guests-e2e.sh` (ports 5820–5829) is the browser run: an owner turns guests on and shares a version, the
   guest signs in by link in another browser, watches and comments, the owner takes it back and the guest is out.
+- What a guest typed (a comment) reaches the activity log only as its size; the log keeps the IDs a guest's request
+  named, never their words. A link's secret leaves the page's address as soon as the page opens.
+
+## Before guests get a public address
+
+Things that hold on this computer's own address and need another look when a later release puts something in front
+of the guest listener:
+
+- **Limits per address are one bucket today.** Every guest request comes from 127.0.0.1, so the per-address limits
+  (every request, and the sign-in steps) count all guests together. A relay in front has to carry each visitor's
+  address in a header of its own, believed only on the relay's own port, for the limits and the activity list to tell
+  visitors apart.
+- **Cookies don't keep to a port.** A browser shares `127.0.0.1`'s cookies across its ports, so a page another program
+  serves on this computer could set or clear `mr_guest`. It can't sign anyone in (only a sign-in made here counts) but
+  could sign a guest out. Over a public HTTPS address the cookie is `__Host-mr_guest` (Secure, no domain), which
+  nothing else can set.
+- **Every video request is checked from scratch.** Each range request of a review copy kept on this computer runs the
+  guest's checks again — the sign-in, the grant, What may leave, the versions guests never see — and a video being
+  sent asks again every few seconds. Before many guests watch at once, keep those answers per sign-in for a few
+  seconds.

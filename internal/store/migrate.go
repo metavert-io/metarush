@@ -3,11 +3,14 @@ package store
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	"github.com/metavert-io/metarush/internal/emailkey"
 )
 
 // Migration is one versioned, idempotent schema step. Migrations only ever add
@@ -224,7 +227,7 @@ var Migrations = []Migration{
 	}},
 	// v67 belongs to a build merged in parallel.
 	{Version: 68, Name: "guests: people outside the workspace an owner shares with, what they may see, their sign-in links and browsers", Up: migrateGuests},
-	{Version: 69, Name: "guests' requests, and the comments they leave", Up: migrateGuestActivity},
+	{Version: 69, Name: "guests' requests, and the comments they leave; emails matched with only their ASCII letters folded", Up: migrateGuestActivity},
 }
 
 // migrateGuests indexes guests (D490: one per email in a workspace), their
@@ -263,9 +266,54 @@ func migrateGuestActivity(ctx context.Context, d *DB) error {
 		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "projectId", Value: 1}, {Key: "at", Value: -1}})); err != nil {
 		return fmt.Errorf("%s indexes: %w", CGuestActivity, err)
 	}
-	return createIndexes(ctx, d, CComments,
+	if err := createIndexes(ctx, d, CComments,
 		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "guest.id", Value: 1}, {Key: "revisionId", Value: 1}, {Key: "createdAt", Value: 1}},
-			options.Index().SetPartialFilterExpression(bson.M{"guest.id": bson.M{"$exists": true}})))
+			options.Index().SetPartialFilterExpression(bson.M{"guest.id": bson.M{"$exists": true}}))); err != nil {
+		return err
+	}
+	return asciiEmailKeys(ctx, d)
+}
+
+// asciiEmailKeys keeps people's and guests' email keys in step with how
+// emails are matched now (emailkey: only the ASCII letters folded, D496).
+// Emails written in ASCII keep their key; one with other capitals (Émile@…)
+// gets its key as written. Only records that have a key are looked at, from
+// the email (else the first login) a key is made from; a key that another
+// record holds already is left as it was — which can't happen, as keys that
+// differed before still differ.
+func asciiEmailKeys(ctx context.Context, d *DB) error {
+	for _, coll := range []string{CUsers, CGuests} {
+		cur, err := d.C(coll).Find(ctx, bson.M{"emailKey": bson.M{"$type": "string", "$gt": ""}}, options.Find().SetProjection(bson.M{"email": 1, "emailKey": 1, "logins": 1}))
+		if err != nil {
+			return fmt.Errorf("%s email keys: %w", coll, err)
+		}
+		var rows []struct {
+			ID       string   `bson:"_id"`
+			Email    string   `bson:"email"`
+			EmailKey string   `bson:"emailKey"`
+			Logins   []string `bson:"logins"`
+		}
+		if err := cur.All(ctx, &rows); err != nil {
+			return fmt.Errorf("%s email keys: %w", coll, err)
+		}
+		for _, r := range rows {
+			src := strings.TrimSpace(r.Email)
+			if src == "" && len(r.Logins) > 0 {
+				src = r.Logins[0]
+			}
+			if src == "" {
+				continue
+			}
+			k := emailkey.Of(src)
+			if k == r.EmailKey {
+				continue
+			}
+			if _, err := d.C(coll).UpdateOne(ctx, bson.M{"_id": r.ID, "emailKey": r.EmailKey}, bson.M{"$set": bson.M{"emailKey": k}}); err != nil && !IsDuplicateKey(err) {
+				return fmt.Errorf("%s email keys: %w", coll, err)
+			}
+		}
+	}
+	return nil
 }
 
 // migratePresenters indexes people's own presenters (D273: one per short

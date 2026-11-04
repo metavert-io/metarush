@@ -3831,7 +3831,8 @@
           "type": "boolean"
         },
         "takenBack": {
-          "type": "string"
+          "type": "string",
+          "description": "The catalogue it came from took this version back: why, in the catalogue's words."
         },
         "message": {
           "type": "string"

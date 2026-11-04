@@ -88,7 +88,8 @@ func FolderAt(ctx context.Context, ts *tools.Set, work, repoURL, commit, folder 
 // computer (FolderAt's bare copy, or a maintainer's own checkout).
 func filesAt(ctx context.Context, ts *tools.Set, repo, commit, folder string, lim FolderLimits, name string) ([]FolderFile, error) {
 	var out bytes.Buffer
-	args := []string{"ls-tree", "-r", "-l", "-z", "--full-tree", commit}
+	// --literal-pathspecs: the folder is a path, never a pattern.
+	args := []string{"--literal-pathspecs", "ls-tree", "-r", "-l", "-z", "--full-tree", commit}
 	if folder != "" {
 		args = append(args, "--", folder+"/")
 	}

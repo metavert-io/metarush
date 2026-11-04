@@ -143,7 +143,7 @@ type AbilityShowOut struct {
 	CanApprove bool `json:"canApprove"`
 	// TakenBack says why the community catalogue it came from took this
 	// version back (D488): the catalogue's words.
-	TakenBack string `json:"takenBack,omitempty" jsonschema:"description=The catalogue it came from took this version back: why\, in the catalogue's words."`
+	TakenBack string `json:"takenBack,omitempty" jsonschema:"description=The catalogue it came from took this version back: why\\, in the catalogue's words."`
 	Message   string `json:"message"`
 	Next      string `json:"next,omitempty"`
 	Link      string `json:"link"`

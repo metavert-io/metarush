@@ -5435,6 +5435,9 @@ versions: AbilityVersionRow[]
  */
 runs: AbilityRunRow[]
 canApprove: boolean
+/**
+ * The catalogue it came from took this version back: why, in the catalogue's words.
+ */
 takenBack?: string
 message: string
 next?: string

@@ -21,6 +21,7 @@ func TestSecretInputFieldsAreDeclared(t *testing.T) {
 	notSecret := map[string]string{
 		"ai.rules.set pin":                   "the model each kind of AI work is pinned to",
 		"improve.signals entries.error.code": "the error code (E_…) of a log entry being looked at",
+		"guests.revoke grant":                "the ID of the guest's grant being taken back (gnt_…)",
 	}
 	seen := map[string]bool{}
 	var walk func(op, path string, ty reflect.Type, depth int)

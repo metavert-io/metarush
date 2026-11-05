@@ -118,14 +118,30 @@ func (e *env) cutout(t *testing.T, in mattes.CutoutIn) (*mattes.CutoutOut, error
 	return ops.CallTyped[mattes.CutoutOut](context.Background(), e.a, "footage.cutout", in, ops.Caller{Human: true})
 }
 
-// run does a matte job in this process, as a worker would.
+// run does a matte job in this process and ends it as a worker would: done,
+// failed for good (Final), put back (Wait) or failed for another try.
 func (e *env) run(t *testing.T, jobID string) (map[string]any, error) {
 	t.Helper()
-	j, err := e.a.Queue.LeaseByID(context.Background(), jobs.Worker{ID: e.a.Cfg.Installation.ID, Name: "test", JobTypes: []string{jobs.TypeMatte}, AcceptsHeavy: true}, jobID)
+	ctx := context.Background()
+	w := jobs.Worker{ID: e.a.Cfg.Installation.ID, Name: "test", JobTypes: []string{jobs.TypeMatte}, AcceptsHeavy: true}
+	j, err := e.a.Queue.LeaseByID(ctx, w, jobID)
 	if err != nil || j == nil {
 		t.Fatalf("lease %v %v", j, err)
 	}
-	return mattes.Run(context.Background(), e.a, j, func(float64, string) {})
+	res, err := mattes.Run(ctx, e.a, j, func(float64, string) {})
+	var fin *mattes.Final
+	var wait *mattes.Wait
+	switch {
+	case err == nil:
+		_ = e.a.Queue.Succeed(ctx, j, w.ID, res)
+	case errors.As(err, &fin):
+		_ = e.a.Queue.Fail(ctx, j, w.ID, err, false)
+	case errors.As(err, &wait):
+		_ = e.a.Queue.Postpone(ctx, j, w.ID, 0, wait.Why)
+	default:
+		_ = e.a.Queue.Fail(ctx, j, w.ID, err, true)
+	}
+	return res, err
 }
 
 func (e *env) matte(t *testing.T, id string) *models.Matte {
@@ -587,9 +603,10 @@ func TestAHugePictureIsntDecoded(t *testing.T) {
 	}
 }
 
-// A cut-out is made only where there is room for it: with too little free,
-// the job ends before anything is made, saying how much it needs and how
-// much is free; asked again once there is room, it is made.
+// A cut-out is made only where there is room for it, checked before
+// anything is made and before its record says "making": with too little
+// free and no other computer to take it, the job ends saying how much it
+// needs and how much is free; asked again once there is room, it is made.
 func TestACutOutNeedsRoom(t *testing.T) {
 	e := setup(t)
 	restore := mattes.FreeBytesForTest(func(string) (int64, bool) { return 100 << 20, true })
@@ -605,8 +622,8 @@ func TestACutOutNeedsRoom(t *testing.T) {
 		t.Fatalf("no room: %v", err)
 	}
 	m := e.matte(t, out.Matte.ID)
-	if m.State != models.MatteFailed || !strings.Contains(m.Error, "isn't room") || m.File != nil {
-		t.Fatalf("nothing made: %+v", m)
+	if m.State != models.MatteFailed || !strings.Contains(m.Error, "isn't room") || m.File != nil || m.MadeOnName != "" {
+		t.Fatalf("nothing made, never marked as being made here: %+v", m)
 	}
 	restore()
 	again, err := e.cutout(t, mattes.CutoutIn{})
@@ -618,5 +635,143 @@ func TestACutOutNeedsRoom(t *testing.T) {
 	}
 	if m := e.matte(t, m.ID); m.State != models.MatteReady {
 		t.Fatalf("made with room: %+v", m)
+	}
+}
+
+// With another computer that makes cut-outs, a computer without room puts
+// the work back for it — the record waiting, never failed or "making", and
+// asking again joins that job — at most RoomWaits times in a row (two
+// computers short of room never pass it back and forth for ever); then it
+// ends plainly with the numbers. A try that fails after waits is counted as
+// one try, as the queue counts it.
+func TestACutOutWaitsForRoomElsewhereThenEnds(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	restore := mattes.FreeBytesForTest(func(string) (int64, bool) { return 100 << 20, true })
+	defer restore()
+	out, err := e.cutout(t, mattes.CutoutIn{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Another computer of the workspace makes cut-outs with the same model.
+	if _, err := e.a.DB.C(store.CWorkers).InsertOne(ctx, bson.M{"_id": "ins_other", "workspaceId": e.a.WorkspaceID(), "name": "studio-mac",
+		"jobTypes": bson.A{jobs.TypeMatte}, "mattes": bson.A{out.Matte.Provider + "/" + out.Matte.Model}, "lastHeartbeat": time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	worker := jobs.Worker{ID: e.a.Cfg.Installation.ID, Name: "test", JobTypes: []string{jobs.TypeMatte}, AcceptsHeavy: true}
+	try := func() (*models.Job, error) {
+		t.Helper()
+		j, err := e.a.Queue.LeaseByID(ctx, worker, out.JobID)
+		if err != nil || j == nil {
+			t.Fatalf("lease %v %v", j, err)
+		}
+		_, err = mattes.Run(ctx, e.a, j, func(float64, string) {})
+		return j, err
+	}
+	for i := 0; i < mattes.RoomWaits; i++ {
+		j, err := try()
+		var wait *mattes.Wait
+		if !errors.As(err, &wait) || !strings.Contains(wait.Why, "with room to make the cut-out") {
+			t.Fatalf("wait %d: %v", i+1, err)
+		}
+		if m := e.matte(t, out.Matte.ID); m.State != models.MatteWaiting || m.MadeOnName != "" {
+			t.Fatalf("wait %d: the record %+v", i+1, m)
+		}
+		if again, err := e.cutout(t, mattes.CutoutIn{}); err != nil || again.JobID != out.JobID {
+			t.Fatalf("wait %d: asking again joins the job: %+v %v", i+1, again, err)
+		}
+		if err := e.a.Queue.Postpone(ctx, j, worker.ID, 0, wait.Why); err != nil {
+			t.Fatal(err)
+		}
+	}
+	last, err := try()
+	var fin *mattes.Final
+	if !errors.As(err, &fin) || !strings.Contains(err.Error(), "There isn't room on this computer") ||
+		!strings.Contains(apperr.From(err).Hint, "No computer of this workspace that makes cut-outs took it with room to spare") {
+		t.Fatalf("after the waits: %v", err)
+	}
+	if err := e.a.Queue.Fail(ctx, last, worker.ID, err, false); err != nil { // as the worker ends it
+		t.Fatal(err)
+	}
+	if m := e.matte(t, out.Matte.ID); m.State != models.MatteFailed || !strings.Contains(m.Error, "isn't room") {
+		t.Fatalf("ended plainly: %+v", m)
+	}
+
+	// Asked again, with room now: a try that fails after many waits is one
+	// try of two, so the record waits for the next.
+	restore()
+	again, err := e.cutout(t, mattes.CutoutIn{})
+	if err != nil || again.JobID == "" {
+		t.Fatal(again, err)
+	}
+	m := e.matte(t, out.Matte.ID)
+	for i := 0; i < 3; i++ {
+		j, err := e.a.Queue.LeaseByID(ctx, worker, again.JobID)
+		if err != nil || j == nil {
+			t.Fatalf("lease %v %v", j, err)
+		}
+		if err := e.a.Queue.Postpone(ctx, j, worker.ID, 0, "waiting"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = e.a.Media.Delete(ctx, m.MediaKey) // the clip can't be fetched: an ordinary failure
+	_, _ = e.a.Cache.Remove(m.Media)
+	j, err := e.a.Queue.LeaseByID(ctx, worker, again.JobID)
+	if err != nil || j == nil {
+		t.Fatalf("lease %v %v", j, err)
+	}
+	if _, err := mattes.Run(ctx, e.a, j, func(float64, string) {}); err == nil || errors.As(err, &fin) {
+		t.Fatalf("an ordinary failure: %v", err)
+	}
+	if len(j.Attempts) < 4 || j.AttemptCount != 1 {
+		t.Fatalf("the job's tries: %d attempts, %d counted", len(j.Attempts), j.AttemptCount)
+	}
+	if m := e.matte(t, out.Matte.ID); m.State != models.MatteWaiting {
+		t.Fatalf("one try of two: the record %+v", m)
+	}
+}
+
+// Each disk is checked for what lands on it: where the cut-out is made (the
+// matte and the cut-out) and where copies of footage are kept (the clip when
+// it isn't there, the cut-out kept), each with a margin; one disk holding
+// both counts both, with one margin.
+func TestRoomIsCheckedOnEachDisk(t *testing.T) {
+	e := setup(t)
+	out, err := e.cutout(t, mattes.CutoutIn{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := e.matte(t, out.Matte.ID)
+	scratch, cache := e.a.Cfg.Scratch.Dir, e.a.Cache.Dir
+	free := map[string]int64{}
+	defer mattes.FreeBytesForTest(func(dir string) (int64, bool) { return free[dir], true })()
+	disk := map[string]uint64{scratch: 1, cache: 2}
+	defer mattes.DisksForTest(func(dir string) (uint64, bool) { return disk[dir], true })()
+	gb := int64(1) << 30
+	free[scratch], free[cache] = gb, 100<<20
+	if err := mattes.RoomCheckForTest(e.a, m); err == nil || !strings.Contains(err.Error(), "free on the disk where it keeps copies of footage, and 100 MB is") {
+		t.Fatalf("the copies' disk short: %v", err)
+	}
+	free[scratch], free[cache] = 100<<20, gb
+	if err := mattes.RoomCheckForTest(e.a, m); err == nil || !strings.Contains(err.Error(), "free on the disk where it works, and 100 MB is") {
+		t.Fatalf("the working disk short: %v", err)
+	}
+	free[scratch], free[cache] = gb, gb
+	if err := mattes.RoomCheckForTest(e.a, m); err != nil {
+		t.Fatalf("room on both: %v", err)
+	}
+	// One disk for both: both parts and one margin, said without naming a disk.
+	disk[cache] = 1
+	need := int64(512<<20) + 2*int64((m.To-m.From)*1_600_000)
+	if !e.a.Cache.Has(m.Media, m.MediaSize) {
+		need += m.MediaSize // the clip, fetched first
+	}
+	free[scratch] = need - 1
+	if err := mattes.RoomCheckForTest(e.a, m); err == nil || strings.Contains(err.Error(), "on the disk") {
+		t.Fatalf("one disk, a byte short: %v", err)
+	}
+	free[scratch] = need
+	if err := mattes.RoomCheckForTest(e.a, m); err != nil {
+		t.Fatalf("one disk with room: %v", err)
 	}
 }

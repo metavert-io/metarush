@@ -47,10 +47,13 @@ type Wait struct {
 func (w *Wait) Error() string { return w.Why }
 
 // waitFirst is how long a cut-out waits for another computer the first
-// time; each wait after is twice as long, at most waitMost.
+// time; each wait after is twice as long, at most waitMost. A cut-out waits
+// for a computer with room for it roomWaits times in a row (about an hour and
+// a half), then ends plainly.
 const (
 	waitFirst = 2 * time.Minute
 	waitMost  = 30 * time.Minute
+	roomWaits = 6
 )
 
 // Run makes a cut-out (the matte job, on any computer that can): the
@@ -92,12 +95,28 @@ func Run(ctx context.Context, a *app.App, j *models.Job, report func(pct float64
 		return nil, &Final{Err: apperr.New(apperr.ToolMissing, "No computer of this workspace can make it with %s now: %s", m.ModelTitle, lowerFirst(why)).
 			WithHint(ae.Hint).WithDetails(map[string]any{"component": matting.Component, "model": ref})}
 	}
+	// Room for it here, before anything is made or the record says "making":
+	// another computer that makes cut-outs with the model may have it, for a
+	// while (roomWaits times in a row); after that, or with no other, it ends
+	// plainly with how much it needs and how much is free.
+	if err := roomCheck(a, m); err != nil {
+		if madeElsewhere(ctx, a, ref) && jobs.Postponed(j) < roomWaits {
+			after := min(waitMost, waitFirst<<min(jobs.Postponed(j), 4))
+			return nil, &Wait{After: after, Why: "Waiting for a computer of this workspace with room to make the cut-out; this one hasn't."}
+		}
+		if jobs.Postponed(j) >= roomWaits {
+			err = apperr.From(err).WithHint("No computer of this workspace that makes cut-outs took it with room to spare. Make room on one (Settings → Storage can empty the copies of footage kept there), then make the cut-out again.")
+		}
+		setState(context.WithoutCancel(ctx), a, m, models.MatteFailed, plainWords(err))
+		return nil, &Final{Err: err}
+	}
 	defer func() {
 		if err == nil {
 			return
 		}
 		c := context.WithoutCancel(ctx)
 		var fin *Final
+		var wait *Wait
 		switch {
 		case ctx.Err() != nil:
 			// A person stopped it, or this computer is stopping (the job waits).
@@ -108,7 +127,10 @@ func Run(ctx context.Context, a *app.App, j *models.Job, report func(pct float64
 			}
 		case errors.As(err, &fin):
 			setState(c, a, m, models.MatteFailed, plainWords(fin.Err))
-		case len(j.Attempts) >= j.MaxAttempts:
+		case errors.As(err, &wait):
+			setState(c, a, m, models.MatteWaiting, "") // put back for later: the job waits, so does the record
+		case j.AttemptCount >= j.MaxAttempts:
+			// Its last try (postponed tries don't count, as the queue counts them).
 			setState(c, a, m, models.MatteFailed, plainWords(err))
 		default:
 			setState(c, a, m, models.MatteWaiting, "")
@@ -117,14 +139,6 @@ func Run(ctx context.Context, a *app.App, j *models.Job, report func(pct float64
 	if err := a.DB.Update(ctx, store.CMattes, a.WorkspaceID(), m.ID, bson.M{"$set": bson.M{"state": models.MatteMaking, "jobId": j.ID,
 		"madeOn": a.Cfg.Installation.ID, "madeOnName": a.Cfg.Installation.Name}, "$unset": bson.M{"error": ""}, "$currentDate": bson.M{"updatedAt": true}}); err != nil {
 		return nil, err
-	}
-	// Room for it here first: another computer that makes cut-outs may have it.
-	if err := roomCheck(a, m); err != nil {
-		if madeElsewhere(ctx, a, ref) {
-			after := min(waitMost, waitFirst<<min(jobs.Postponed(j), 4))
-			return nil, &Wait{After: after, Why: "Waiting for a computer of this workspace with room to make the cut-out; this one hasn't."}
-		}
-		return nil, &Final{Err: err}
 	}
 	report(0.01, "Getting the clip")
 	src, err := a.Cache.Ensure(ctx, a.Media, m.MediaKey, m.Media, m.MediaSize, nil)

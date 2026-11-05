@@ -306,6 +306,14 @@ func Make(ctx context.Context, a *app.App, in *CutoutIn) (*CutoutOut, error) {
 	switch {
 	case err == nil:
 		job := Refresh(ctx, a, &same)
+		if j := liveJob(ctx, a, &same); j != nil {
+			// A record that says failed or stopped while its job still waits
+			// or runs (as older builds left it): that job makes it; join it.
+			if res, err := a.DB.C(store.CMattes).UpdateOne(ctx, bson.M{"_id": same.ID, "workspaceId": a.WorkspaceID(), "state": same.State, "jobId": same.JobID},
+				bson.M{"$set": bson.M{"state": models.MatteWaiting}, "$unset": bson.M{"error": ""}, "$currentDate": bson.M{"updatedAt": true}}); err == nil && res.MatchedCount > 0 {
+				same.State, same.Error, job = models.MatteWaiting, "", j
+			}
+		}
 		switch same.State {
 		case models.MatteWaiting, models.MatteMaking:
 			out := &CutoutOut{Matte: ViewOf(&same, title, p.as.Media.Duration, job), JobID: same.JobID, DryRun: in.DryRun, Here: aiservices.IsLocal(same.Provider)}
@@ -341,10 +349,16 @@ func Make(ctx context.Context, a *app.App, in *CutoutIn) (*CutoutOut, error) {
 	now := a.DB.NowOrLocal(ctx)
 	draft.CreatedAt, draft.UpdatedAt = now, now
 	if same.ID != "" {
-		// Asked for before and failed or stopped: made again, the same record.
-		if err := a.DB.Update(ctx, store.CMattes, a.WorkspaceID(), same.ID, bson.M{"$set": bson.M{"state": models.MatteWaiting, "jobId": jobID},
-			"$unset": bson.M{"error": ""}, "$currentDate": bson.M{"updatedAt": true}}); err != nil {
+		// Asked for before and failed or stopped: made again, the same record,
+		// claimed from the state it was read in (one job per record: asking at
+		// the same moment elsewhere joins the job that claimed it).
+		res, err := a.DB.C(store.CMattes).UpdateOne(ctx, bson.M{"_id": same.ID, "workspaceId": a.WorkspaceID(), "state": same.State, "jobId": same.JobID},
+			bson.M{"$set": bson.M{"state": models.MatteWaiting, "jobId": jobID}, "$unset": bson.M{"error": ""}, "$currentDate": bson.M{"updatedAt": true}})
+		if err != nil {
 			return nil, err
+		}
+		if res.MatchedCount == 0 {
+			return Make(ctx, a, in) // claimed by another ask meanwhile: follow that one
 		}
 	} else if err := a.DB.Insert(ctx, store.CMattes, draft); err != nil {
 		if store.IsDuplicateKey(err) {
@@ -366,6 +380,18 @@ func Make(ctx context.Context, a *app.App, in *CutoutIn) (*CutoutOut, error) {
 	out.Summary = fmt.Sprintf("Cutting the people out of “%s” (%s) with %s, on a computer of this workspace: free, and nothing leaves it. It takes about %s.",
 		title, out.Matte.Part, m.Title, durationWords(out.Seconds))
 	return out, nil
+}
+
+// liveJob is the job of a failed or stopped record that still waits or runs.
+func liveJob(ctx context.Context, a *app.App, m *models.Matte) *models.Job {
+	if (m.State != models.MatteFailed && m.State != models.MatteStopped) || m.JobID == "" || m.GenerationID != "" {
+		return nil
+	}
+	j, err := a.Queue.Get(ctx, m.JobID)
+	if err != nil || j.CancelRequested || (j.State != models.JobQueued && j.State != models.JobRunning) {
+		return nil
+	}
+	return j
 }
 
 // makeElsewhere asks a service elsewhere for the matte through AI work

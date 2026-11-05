@@ -1505,7 +1505,7 @@ var waitNouns = map[string][2]string{"transcribe": {"transcription", "transcript
 	"thumbnail": {"thumbnail", "thumbnails"}, "speakers": {"speaker detection", "speaker detections"}, "narration": {"narration job", "narration jobs"},
 	"import": {"video from a link", "videos from links"}, "fetch": {"web page or repository", "web pages or repositories"},
 	"visual": {"check of what's on screen", "checks of what's on screen"}, "describe": {"scene description", "scene descriptions"},
-	"generate": {"generated clip", "generated clips"}}
+	"generate": {"generated clip", "generated clips"}, "cut-out": {"cut-out", "cut-outs"}}
 
 // waitText says what a group of waiting jobs waits for, short enough for the
 // activity bar ("2 transcriptions paused: battery at 18% on laptop").
@@ -1540,6 +1540,9 @@ func waitText(g *WaitGroup, r *jobs.WaitReason, typ string) string {
 		}
 		return fmt.Sprintf("%s waiting %s on %s", what, turn, r.Machine)
 	case jobs.WaitRetry:
+		if strings.Contains(r.Text, putBackText) { // put back for another computer (a cut-out's room or model), not a problem
+			return what + " waiting for another computer"
+		}
 		return what + " trying again after a problem"
 	}
 	return what + " waiting"

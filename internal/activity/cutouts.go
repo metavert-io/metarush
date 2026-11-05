@@ -2,6 +2,7 @@ package activity
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/links"
@@ -9,8 +10,11 @@ import (
 )
 
 // cutOuts shows clips' cut-outs being made (D505): "Cutting the people out
-// of “Kitchen chat”", with how far along, the computer and why it waits; a
-// finished one stays a moment ("The cut-out of “Kitchen chat” is ready").
+// of “Kitchen chat”", with how far along, the computer and why it waits — one
+// put back for another computer (room for it, the model) says so in its own
+// words, as generated video's rows say why they wait, never "it ran into a
+// problem"; a finished one stays a moment ("The cut-out of “Kitchen chat” is
+// ready").
 func (b *builder) cutOuts(other []models.Job) {
 	latest := map[string]models.Job{}
 	for _, j := range other {
@@ -49,6 +53,11 @@ func (b *builder) cutOuts(other []models.Job) {
 			if it.Waiting != nil && it.Waiting.Code != jobs.WaitStarting {
 				it.State, it.Stage, it.StageLabel = StateWaiting, "waiting", "Waiting"
 				it.CanProcessNow, it.ProcessJobIDs = it.Waiting.CanProcessNow, []string{j.ID}
+				if why := putBackFor(j); why != "" && it.Waiting.Code == jobs.WaitRetry {
+					w := *it.Waiting
+					w.Text = why + ". " + putBackText + " " + jobs.PlainIn(j.NextRunAt.Sub(b.now)) + "."
+					it.Waiting, it.StageLabel = &w, "Waiting for another computer"
+				}
 			}
 			if it.Waiting != nil {
 				it.Machine = it.Waiting.Machine
@@ -68,4 +77,21 @@ func (b *builder) cutOuts(other []models.Job) {
 		}
 		b.out.Items = append(b.out.Items, it)
 	}
+}
+
+// putBackText ends the wait line of work put back for another computer ("…;
+// this one hasn't. It looks again in about 4 minutes."): its waiting group says
+// it waits for another computer, not that it ran into a problem.
+const putBackText = "It looks again"
+
+// putBackFor is why a cut-out's job was put back for another computer — its
+// last try was postponed, with the reason as its progress (mattes.Wait):
+// "Waiting for a computer of this workspace with room to make the cut-out;
+// this one hasn't" — or "" when it wasn't (a try that failed waits to try
+// again after a problem).
+func putBackFor(j models.Job) string {
+	if jobs.Postponed(&j) == 0 {
+		return ""
+	}
+	return capFirst(strings.TrimSuffix(strings.TrimSpace(j.Progress.Message), "."))
 }

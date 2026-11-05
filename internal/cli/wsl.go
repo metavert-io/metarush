@@ -106,7 +106,7 @@ func wslChecks(cfg *config.Config, ts *tools.Set, add addCheck) {
 		// Claude Code installed on Windows only (an npm script on Windows'
 		// PATH): named, never run (D518).
 		if win := ts.WindowsCopy(tools.Claude); win != "" {
-			d := orText(w.Distro, "Ubuntu")
+			d := w.DistroWord() // what every other line calls it ("Ubuntu", not WSL's "Ubuntu-24.04")
 			add("windows", "claude code on Windows", "info", "only a Windows copy on PATH: "+win+" (left alone)", "install Claude Code in "+d+": "+firstrun.InstallCommand,
 				"Claude Code is installed on Windows, but MetaRush in "+d+" can't use Windows' copy", "Install Claude Code in "+d+" too, then open it there once and sign in.")
 		}

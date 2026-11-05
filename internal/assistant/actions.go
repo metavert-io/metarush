@@ -490,6 +490,10 @@ func (m *Manager) describeAction(ctx context.Context, c *conv, call *cliCall, a 
 			m.describeRecipe(ctx, c, call, a) // Recipes
 			return
 		}
+		if abilityCommands[call.Path] { // abilities from community catalogues (ability_actions.go, D486)
+			m.describeAbility(ctx, call, a)
+			return
+		}
 		incomplete(a, "Run metarush "+call.Path, "The dashboard cannot run this one for Claude.")
 	}
 }
@@ -621,7 +625,7 @@ func (m *Manager) describeVoicesAndQuestions(ctx context.Context, call *cliCall,
 		} else {
 			a.Details = []string{fmt.Sprintf("Suggested answer %d", suggestion)}
 		}
-		a.HumanOnly = t.Kind == models.TodoRevisionApproval || t.Kind == models.TodoRemotionApproval || t.Kind == models.TodoRecipeRun || t.Kind == models.TodoAbilityApproval || t.Kind == models.TodoShipGate
+		a.HumanOnly = t.Kind == models.TodoRevisionApproval || t.Kind == models.TodoRemotionApproval || t.Kind == models.TodoRecipeRun || t.Kind == models.TodoAbilityApproval || t.Kind == models.TodoShipGate || t.Kind == models.TodoAbilityTakenBack
 		setInput(a, "todos.answer", ops.TodoAnswerIn{ID: id, Answer: answer, Suggestion: suggestion})
 	}
 }

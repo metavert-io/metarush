@@ -49,3 +49,7 @@ func (d *DB) ClockOffset() (time.Duration, bool) {
 	defer d.clock.mu.Unlock()
 	return d.clock.offset, d.clock.ok
 }
+
+// LogScrubBatch is how many log entries migration 71 reads at a time (tests
+// make it small to read in several batches).
+var LogScrubBatch = &scrubBatch

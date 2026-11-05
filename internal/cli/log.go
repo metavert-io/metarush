@@ -45,7 +45,7 @@ func (f *logFilters) add(c *cobra.Command, defLimit int) {
 	fl.StringSliceVar(&f.in.Kind, "kind", nil, "op, op_summary, job, tool, provider, claude, action or event (repeatable)")
 	fl.StringSliceVar(&f.in.Level, "level", nil, "info, warn or error (repeatable)")
 	fl.BoolVar(&f.in.Problems, "problems", false, "only errors and warnings")
-	fl.StringSliceVar(&f.in.Channel, "channel", nil, "cli, dashboard, assistant, worker, watch, skill-eval, claude-terminal, mcp or recipe (Recipes' runs; repeatable)")
+	fl.StringSliceVar(&f.in.Channel, "channel", nil, "cli, dashboard, assistant, worker, watch, skill-eval, claude-terminal, mcp, recipe (Recipes' runs) or guest (guests' requests; repeatable)")
 	fl.StringVar(&f.in.Op, "op", "", "one operation (e.g. render.submit)")
 	fl.StringVar(&f.in.Project, "project", "", "project ID")
 	fl.StringVar(&f.in.Asset, "asset", "", "clip (asset) ID")

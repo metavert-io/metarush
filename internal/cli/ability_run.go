@@ -43,6 +43,9 @@ func readInputs(c *cobra.Command, in *abilities.AbilityPlanIn, inputs []string) 
 
 func printAbilityPlan(p *abilities.AbilityPlanOut, details bool) {
 	fmt.Println(p.Message)
+	if p.TakenBack != "" {
+		fmt.Println("Note: the catalogue it came from took this version back: " + theirs(p.TakenBack))
+	}
 	for _, in := range p.Inputs {
 		switch {
 		case in.Ref != "":

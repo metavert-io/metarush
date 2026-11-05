@@ -19,6 +19,7 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/emailkey"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/media"
 	"github.com/metavert-io/metarush/internal/models"
@@ -501,7 +502,7 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 	var user models.User
 	if o.restored != nil {
 		user = restoredPerson(ctx, db, ws, o.userEmail)
-		if user.ID != "" && !strings.EqualFold(user.Email, o.userEmail) {
+		if user.ID != "" && emailkey.Of(user.Email) != emailkey.Of(o.userEmail) {
 			o.userEmail, o.userName = user.Email, user.Name
 			say("  This computer works as “%s”, the restored workspace's owner (another person: --user-email).", user.Name)
 		}

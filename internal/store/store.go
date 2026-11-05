@@ -96,6 +96,9 @@ const (
 	// CAbilityRuns holds abilities' runs (D234): inputs, the requests they
 	// made through MetaRush, what they made and what they cost.
 	CAbilityRuns = "ability_runs"
+	// CAbilityCatalogues holds the community catalogues of abilities an owner
+	// trusts (D481), each with the last copy of its index MetaRush read.
+	CAbilityCatalogues = "ability_catalogues"
 	// CUserCredentials holds each account's password hash (D183): never in
 	// users, never in an answer, a log or the audit.
 	CUserCredentials = "user_credentials"
@@ -167,6 +170,21 @@ const (
 	// database after the move (lwr_…): new, changed or gone there, the old
 	// database's version, and whether a person carried it over or left it.
 	CLateWrites = "late_writes"
+	// CGuests holds people outside the workspace an owner shared a project or
+	// some of its versions with (gst_…, D490): who they are, never an account.
+	CGuests = "guests"
+	// CGuestGrants holds what each guest may see and do (ggr_…, D490): a
+	// project's versions, a role, until when.
+	CGuestGrants = "guest_grants"
+	// CGuestLinks holds the one-time sign-in links owners send guests, by
+	// their token's SHA-256 (D495).
+	CGuestLinks = "guest_links"
+	// CGuestSessions holds guests' signed-in browsers, by their cookie's
+	// SHA-256 (D494).
+	CGuestSessions = "guest_sessions"
+	// CGuestActivity holds every guest request (gac_…, D497): who, from where,
+	// what, when.
+	CGuestActivity = "guest_activity"
 )
 
 // ErrNotFound is returned when a document does not exist in the workspace.

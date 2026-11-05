@@ -3,9 +3,11 @@ package leave
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/metavert-io/metarush/internal/app"
@@ -60,6 +62,28 @@ type toucher struct {
 	out      []string
 	seen     map[string]bool
 	expanded map[string]bool
+	// err is the first lookup that didn't answer (or ErrTooMany): a walk that
+	// returns it can't say the list is whole (RevisionTouchesChecked).
+	err error
+}
+
+// ErrTooMany is a walk that met more things than one walk looks at
+// (MaxThings): its list can't be said to be whole, however often it is asked.
+var ErrTooMany = errors.New("it uses too many things to look through")
+
+// MaxThings is how many things (clips, versions, pictures…) one walk looks
+// at (a variable for tests).
+var MaxThings = 5000
+
+// fail keeps the first lookup that didn't answer; a record that isn't there
+// (deleted since) is no error.
+func (t *toucher) fail(err error) {
+	if err == nil || errors.Is(err, store.ErrNotFound) || errors.Is(err, mongo.ErrNoDocuments) {
+		return
+	}
+	if t.err == nil {
+		t.err = err
+	}
 }
 
 func newToucher(ctx context.Context, a *app.App) *toucher {
@@ -79,7 +103,11 @@ func (t *toucher) once(key string) bool {
 		return false
 	}
 	t.seen[key] = true
-	return len(t.seen) < 5000
+	if len(t.seen) >= MaxThings {
+		t.fail(ErrTooMany)
+		return false
+	}
+	return true
 }
 
 // asset adds the projects a clip counts under.
@@ -88,9 +116,11 @@ func (t *toucher) asset(id string) {
 		return
 	}
 	var as models.Asset
-	if t.a.DB.GetByID(t.ctx, store.CAssets, t.a.WorkspaceID(), id, &as) == nil {
-		t.add(AssetProjects(&as)...)
+	if err := t.a.DB.GetByID(t.ctx, store.CAssets, t.a.WorkspaceID(), id, &as); err != nil {
+		t.fail(err)
+		return
 	}
+	t.add(AssetProjects(&as)...)
 }
 
 // revision adds a version's project and everything its cut plays.
@@ -102,7 +132,8 @@ func (t *toucher) revision(id string) {
 		ProjectID string        `bson:"projectId"`
 		Spec      editspec.Spec `bson:"spec"`
 	}
-	if t.a.DB.C(store.CRevisions).FindOne(t.ctx, bson.M{"_id": id, "workspaceId": t.a.WorkspaceID()}).Decode(&r) != nil {
+	if err := t.a.DB.C(store.CRevisions).FindOne(t.ctx, bson.M{"_id": id, "workspaceId": t.a.WorkspaceID()}).Decode(&r); err != nil {
+		t.fail(err)
 		return
 	}
 	t.add(r.ProjectID)
@@ -151,7 +182,7 @@ func (t *toucher) project(id string) {
 	t.expanded[id] = true
 	t.assetsWhere(bson.M{"$or": bson.A{bson.M{"projectIds": id}, bson.M{"trash.projectIds": id}}})
 	var links []models.ProjectLink
-	_ = t.a.DB.Find(t.ctx, store.CProjectLinks, t.a.WorkspaceID(), bson.M{"projectId": id}, &links, options.Find().SetLimit(200))
+	t.fail(t.a.DB.Find(t.ctx, store.CProjectLinks, t.a.WorkspaceID(), bson.M{"projectId": id}, &links, options.Find().SetLimit(200)))
 	for _, l := range links {
 		switch ids.Prefix(l.SourceID) {
 		case ids.Collection:
@@ -164,7 +195,9 @@ func (t *toucher) project(id string) {
 	var p struct {
 		Branches map[string]models.BranchHead `bson:"branches"`
 	}
-	if t.a.DB.C(store.CProjects).FindOne(t.ctx, bson.M{"_id": id, "workspaceId": t.a.WorkspaceID()}).Decode(&p) == nil {
+	if err := t.a.DB.C(store.CProjects).FindOne(t.ctx, bson.M{"_id": id, "workspaceId": t.a.WorkspaceID()}).Decode(&p); err != nil {
+		t.fail(err)
+	} else {
 		for _, b := range p.Branches {
 			if b.Head != "" {
 				t.revision(b.Head)
@@ -184,7 +217,7 @@ func (t *toucher) assetsWhere(filter bson.M) {
 			ProjectIDs []string `bson:"projectIds"`
 		} `bson:"trash"`
 	}
-	_ = t.a.DB.Find(t.ctx, store.CAssets, t.a.WorkspaceID(), filter, &rows, options.Find().SetProjection(bson.M{"projectIds": 1, "trash.projectIds": 1}).SetLimit(20000))
+	t.fail(t.a.DB.Find(t.ctx, store.CAssets, t.a.WorkspaceID(), filter, &rows, options.Find().SetProjection(bson.M{"projectIds": 1, "trash.projectIds": 1}).SetLimit(20000)))
 	for _, r := range rows {
 		as := models.Asset{ProjectIDs: r.ProjectIDs}
 		if r.Trash != nil {
@@ -214,7 +247,8 @@ func (t *toucher) doc(coll, id string) {
 		return
 	}
 	var d bson.M
-	if t.a.DB.C(coll).FindOne(t.ctx, bson.M{"_id": id, "workspaceId": t.a.WorkspaceID()}).Decode(&d) != nil {
+	if err := t.a.DB.C(coll).FindOne(t.ctx, bson.M{"_id": id, "workspaceId": t.a.WorkspaceID()}).Decode(&d); err != nil {
+		t.fail(err)
 		return
 	}
 	if coll == store.CCollections {
@@ -362,6 +396,22 @@ func RevisionTouches(ctx context.Context, a *app.App, revisionID string) []strin
 	t := newToucher(ctx, a)
 	t.revision(revisionID)
 	return t.out
+}
+
+// RevisionTouchesChecked is RevisionTouches for a check that must fail
+// closed: an error when any lookup on the way didn't answer, or when the
+// version uses more things than one walk looks at — the list then can't be
+// said to be whole. A version that isn't there is an error too.
+func RevisionTouchesChecked(ctx context.Context, a *app.App, revisionID string) ([]string, error) {
+	t := newToucher(ctx, a)
+	t.revision(revisionID)
+	if t.err != nil {
+		return nil, t.err
+	}
+	if len(t.out) == 0 {
+		return nil, store.ErrNotFound
+	}
+	return t.out, nil
 }
 
 // SpecTouches are the projects a cut touches: its project and what it plays.

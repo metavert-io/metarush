@@ -1087,6 +1087,23 @@ an account ([outside reviewers](docs/outside-reviewers.md)).
 - A link ends by itself, its last comments in first, when the media moves, the client's rules or someone's consent
   change, or owners turn links off, and you hear why on the bell. `metarush share …`.
 
+### Guests: people outside the workspace on a page of their own
+**Share with a guest…** on a version's page shares that version — or every version of the project with a review copy —
+with someone outside the workspace, as a viewer or a commenter, until a day you choose (at most 90 days at once);
+**Make a sign-in link** gives a one-time link to send them ([guests](docs/guests.md)). **Nothing is reachable from
+the internet yet**: the guest address is this computer's own (`http://127.0.0.1:4846`), so for now a guest opens it on
+the computer that runs MetaRush; a later release gives guests a public address.
+- Guests open MetaRush's guest page, served by a web server of its own on 127.0.0.1 that has nothing of the dashboard:
+  what was shared with them, the review copies (straight from your cloud bucket through short-lived links, or from this
+  computer), and, for commenters, their own comments pinned to times, which come back to the version marked
+  "(guest)". Anything else — another version or project, one deleted since — is the same "That isn't shared with you".
+- They sign in with the link (it works once, for a day at most, in the browser that presses its button) or, when
+  people here sign in with your organization's account, with an account whose email the provider vouches for and
+  you shared with. No passwords. Taking something back, or turning guests off, signs them out at once.
+- Owners turn guests on (Settings → People → Guests), share, send links, take things back and see every guest request
+  in plain words, and hear when a guest asks unusually often. What may leave has a place for guests: a client's
+  rules can keep their things from guests. `metarush guests …`.
+
 ## Delivering
 
 ### Delivery
@@ -1163,6 +1180,15 @@ person each time.
   workspace brings in (`ability import`, or Bring in an ability file…) as a draft, never approved or set up there,
   whatever it was where it came from; a person checks it there (`ability check --version`), then an owner approves
   it.
+- **Community catalogues**: a public list of abilities (an index served over HTTPS, often from a GitHub repository)
+  that an owner trusts under **Settings → Abilities** (none by default). Anyone browses what it lists — what each does
+  and needs, its publisher, licence and whether it is here — in **Library → Abilities → Browse catalogues** or
+  `metarush ability browse`: the catalogue's word, "listed, not checked by MetaRush". A person brings one in
+  (**Bring it in…**, `ability import --from-catalogue <catalogue>:<name>`): MetaRush fetches exactly the version
+  listed — from a commit the repository's own branches or tags hold — refuses it unless it is that version and says
+  what the listing says, and it comes in as a draft to check here and approve. When a catalogue takes back a version
+  you brought in, the owners are asked on To-dos. Maintainers make the index with `metarush ability catalogues make`
+  ([community catalogues](docs/ability-catalogue.md)).
 
 ### A starter pack of six abilities
 ([abilities/](abilities/README.md)) Stock videos and photos from Pexels, public-domain and openly licensed media from
@@ -1631,6 +1657,9 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush share plan\|create <project> [--version rN] [--days 7] [--words [--speakers names\|labels\|none]] [--download] [--for <name>] [--message <note>] [--as-draft] [--anyway <note>]` | Share a version for review with someone outside the workspace: what a link would show and whether it may be made; making one is a person's step and prints the link to send |
 | `metarush share list [<project>] [--version rN] [--all]` / `share link\|revoke <link>` / `share sync [<link>]` | the review links sent (what each shows, until when, comments back); the link again; take one back (its page and video at once, its comment slots once their last comments are in); bring in new comments now |
 | `metarush share settings [set --on\|--off --owners-only\|--everyone --max-days N]` | who may send review links and for how long (changing it: owners) |
+| `metarush guests status` / `guests on [--port N]` / `guests off` / `guests set --port N` | guests: whether they are let in, where this computer answers them (127.0.0.1 only), how they sign in / turn them on or off, move the port (owners, a person's step) |
+| `metarush guests share <project> --email <email> --role viewer\|commenter (--days N\|--until <day>) [--version rN] [--name …] [--message …] [--dry-run]` / `guests link <email>` | share a project or some versions with a guest (owners, a person's step; What may leave is asked) / a one-time sign-in link to send them |
+| `metarush guests list [<project>] [--all]` / `guests revoke <email>\|--grant <id>` / `guests activity [--guest <email>] [--refused]` / `guests view <email> [--version <id>]` / `guests comments <email> --version <id>` | who has what; take back everything or one thing (they are signed out at once); what guests did (owners); what a guest sees and their comments (owners) |
 | `metarush project receipt <project> [--version rN]` | the receipt: every request to outside AI services, Claude's conversations and whose account answered, generated media, Auto's spending, the cost at cost per version and project, and what left this computer |
 | `metarush project leaves <project>` | what of a project left this computer and where (AI services, Claude and AI apps, abilities, delivery, people outside the workspace, cloud storage), and what its What may leave kept here |
 
@@ -1656,6 +1685,10 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush ability list` / `ability find "<task>"` / `ability show <name>` | abilities (approved or waiting, set up here, cost, what leaves); at most eight that might do a task, one line each; one with what it may do, inputs, versions and runs |
 | `metarush ability check <folder>` / `ability check --version <name@version>` | check an ability's folder (or a version brought in from another workspace): its manifest, no keys or large files, its test once in the sandbox with the network off; a pass waits for an owner |
 | `metarush ability export <name[@version]> [file]` / `ability import <file> [--dry-run] [--as-version]` | a version as a file another workspace brings in; bring one in as a draft (never approved or set up here) |
+| `metarush ability catalogues [list]` / `catalogues add <https-address> [--name n]` / `catalogues remove <catalogue>` | the community catalogues of abilities this workspace trusts (and the ones this computer suggests); trust one or stop trusting it — owners, at their own terminal |
+| `metarush ability browse [words…] [--catalogue c] [--search …] [--name n] [--refresh]` | what the trusted catalogues list: what each does and needs, its publisher and licence, whether it is here (listed, not checked by MetaRush) |
+| `metarush ability import --from-catalogue <catalogue>:<name>[@version] [--dry-run] [--as-version]` | bring an ability in from a trusted catalogue — a person, at their own terminal: exactly the version listed, as a draft (check it here, an owner approves it) |
+| `metarush ability catalogues make <folder> --out index.json [--name n --title t] [--commit sha] [--repository url] [--publisher p]` | for a catalogue's maintainer: an index of a folder of abilities, each pinned to its repository's commit and its archive's fingerprint |
 | `metarush ability approve <name[@version]> [--reject] [--open-network] [--local-service]` / `ability revoke <name>` | approve (or turn down) a version after reading what it may do (with the whole internet, or the one service on this computer it names), or take an approval back — owners, at an interactive terminal |
 | `metarush ability setup <name> [--program python3=/path] [--file name=/path] [--key name] [--forget]` | set it up on this computer: the programs it runs, pinned by fingerprint; files it reads (a model) and its keys (owners; keys typed) |
 | `metarush footage captions <clip> [--language en] [--save file]` | the captions files kept with a clip (English captions an ability made), one language's words, or that file saved |
@@ -1729,6 +1762,9 @@ support `${VAR}` / `${VAR:default}`.
   `dashboard.tailscaleLogins` (the Tailscale accounts signed in by themselves) and `dashboard.machineName` (this
   computer's name for people elsewhere), all three set by `metarush remote` and applied without a restart;
   `tools.tailscale` (default: on PATH or in the Tailscale app).
+- **Guests**: `guests.listen` (this computer answers guests; off unless an owner turns guests on here) and
+  `guests.port` (where, on 127.0.0.1 only; default 4846), set by `metarush guests on|off|set` or Settings → People →
+  Guests and applied without a restart ([guests](docs/guests.md)).
 - **Workers and the watched folder**: `worker.{concurrency,heavyRenders,heavyBatteryThreshold}` (big jobs wait on
   battery below this percent; default 25, 0 = never), `worker.watch.{enabled,dir,stableSeconds,moveProcessed,projectId}`
   (the watched folder; edited by `metarush watch` and the dashboard, applied without a restart).
@@ -1742,6 +1778,8 @@ support `${VAR}` / `${VAR:default}`.
 - **Rendering**: `tools.videoDir` + `tools.devRenderer` (developers only: render from a live checkout instead of this
   version's own renderer in `<home>/renderer/`; a `videoDir` alone is an older installation's setting and is
   ignored), `tools.npm` (npm's `npm-cli.js`; default: the npm next to Node.js).
+- **Abilities**: `abilities.catalogues.suggested` (addresses of community catalogues Settings → Abilities suggests to
+  owners; empty unless written: MetaRush trusts and suggests no catalogue by itself).
 - **The weekly report and recordings**: `improve.{weekly,day,hour,budgetUsd,model}` (the weekly improvement report;
   off by default), `recordings.{maxGB,minFreeGB,keepDays}` (screen recordings received here: the most one recording
   holds, default 100; the free space its pieces never go below, default 2; how long pieces of a recording nobody
@@ -1781,9 +1819,9 @@ support `${VAR}` / `${VAR:default}`.
 [installation](docs/installation.md) · [deployment, service and releases](docs/deployment.md) ·
 [collaboration](docs/collaboration.md) · [add a machine](docs/runbook-add-machine.md) · [edit schema](docs/edit-schema.md) ·
 [cut sheets](docs/cut-sheet.md) · [security](docs/security.md) ·
-[render QA](docs/qa.md) · [outside reviewers](docs/outside-reviewers.md) · [exporting and restoring a workspace](docs/workspace-export.md) · [moving the database](docs/database-move.md) ·
+[render QA](docs/qa.md) · [outside reviewers](docs/outside-reviewers.md) · [guests](docs/guests.md) · [exporting and restoring a workspace](docs/workspace-export.md) · [moving the database](docs/database-move.md) ·
 [speakers, people and to-dos](docs/speakers.md) · [motion graphics as code](docs/motion-graphics-as-code.md) ·
-[browser extension](docs/browser-extension.md) · [what MetaRush sees](docs/visual-index.md) · [resources, project links and nested cuts](docs/resources.md) · [timeline export](docs/timeline-export.md) · [timelines from other editors](docs/timeline-import.md) · [posting to video platforms](docs/publishing.md) · [Google Drive and Dropbox folders](docs/cloud-folders.md) · [the plugin](docs/plugin.md) · [MCP](docs/mcp.md) · [the catalogue](docs/catalogue.md) · [Remotion sources](docs/remotion-sources.md) · [recipes](docs/recipes.md) · [abilities](docs/abilities.md) · [testing](docs/testing.md) · [the review desk](docs/review-desk.md) · [Content Credentials](docs/content-credentials.md)
+[browser extension](docs/browser-extension.md) · [what MetaRush sees](docs/visual-index.md) · [resources, project links and nested cuts](docs/resources.md) · [timeline export](docs/timeline-export.md) · [timelines from other editors](docs/timeline-import.md) · [posting to video platforms](docs/publishing.md) · [Google Drive and Dropbox folders](docs/cloud-folders.md) · [the plugin](docs/plugin.md) · [MCP](docs/mcp.md) · [the catalogue](docs/catalogue.md) · [community catalogues of abilities](docs/ability-catalogue.md) · [Remotion sources](docs/remotion-sources.md) · [recipes](docs/recipes.md) · [abilities](docs/abilities.md) · [testing](docs/testing.md) · [the review desk](docs/review-desk.md) · [Content Credentials](docs/content-credentials.md)
 
 ## Development
 `./start.sh` runs a local MongoDB replica set, the daemon on :4841 and the Vite dashboard on :4840 against the dev
@@ -1854,6 +1892,11 @@ checks below in order, log each step and end with a table; [testing](docs/testin
   starter pack's ComfyUI ability checked from its folder, approved in the browser with the one local service it
   names, set up and run against a fake ComfyUI on this computer, the picture it brought back; the other starter
   abilities checked and listed.
+- `scripts/ability-catalogue-e2e.sh` runs `web/scripts/ability-catalogue-e2e.mjs` (ports 5810–5819; needs a sandbox,
+  git and python3): a community catalogue made by the generator from a fixture repository and served over HTTPS on
+  this computer; an owner trusts it under Settings → Abilities, Browse catalogues lists it, Bring it in… fetches the
+  ability from the repository's commit as a draft, a terminal checks it, the owner approves it, a listing whose
+  archive lies is refused, the catalogue removed; desktop and 390 px phone in both themes.
 - `scripts/catalogue-e2e.sh` runs `web/scripts/catalogue-e2e.mjs` (ports 5500–5509; needs a sandbox and python3): the
   menu of abilities with what works here, its filters, a built-in ability's page, an added ability approved and set
   up until the menu and the command line say it works here, desktop and 390 px phone in both themes.

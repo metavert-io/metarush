@@ -292,6 +292,10 @@ func LocalAddress(host string) bool {
 	return !strings.Contains(host, ".")
 }
 
+// LocalIP reports an address on this computer or a local network (localIP's
+// line, for other packages' own guarded clients: ability catalogues, D482).
+func LocalIP(ip net.IP) bool { return localIP(ip) }
+
 // localIP: loopback, private, link-local, carrier-grade NAT, benchmark,
 // multicast, broadcast and "this network" addresses, also when an IPv6
 // address carries one (mapped, compatible, NAT64, 6to4), the rest of ::/8,

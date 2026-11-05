@@ -70,8 +70,11 @@ export function Comments({ projectId, revisionId, assetId, time, timeLabel = 'cu
         <ul className="max-h-[320px] space-y-1 overflow-y-auto pr-1">
           {scoped.map((c) => (
             <li key={c.id} className="rounded-[10px] px-2.5 py-2 hover:bg-hover">
-              <div className="flex items-center gap-2 text-[11.5px] text-subtle" data-comment-outside={c.outside ? '' : undefined}>
-                <span className="font-medium text-muted" title={c.outside ? 'Left through a review link by someone outside the workspace' : undefined}>
+              <div className="flex items-center gap-2 text-[11.5px] text-subtle" data-comment-outside={c.outside ? '' : undefined} data-comment-guest={c.guest ? '' : undefined}>
+                <span
+                  className="font-medium text-muted"
+                  title={c.outside ? 'Left through a review link by someone outside the workspace' : c.guest ? 'Left on the guest page by a guest outside the workspace' : undefined}
+                >
                   {c.author.userName ?? 'Someone'}
                 </span>
                 <span title={absolute(c.createdAt)}>{relative(c.createdAt)}</span>
@@ -88,7 +91,7 @@ export function Comments({ projectId, revisionId, assetId, time, timeLabel = 'cu
                   </button>
                 ) : null}
               </div>
-              <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-fg">{c.outside ? <Theirs>{c.body}</Theirs> : c.body}</p>
+              <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-fg">{c.outside || c.guest ? <Theirs>{c.body}</Theirs> : c.body}</p>
             </li>
           ))}
         </ul>

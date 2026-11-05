@@ -112,6 +112,7 @@ history, and stays.
 | Collection | Goes in | Why |
 |---|---|---|
 | `abilities` | as it is | abilities, their checks and owners' approvals |
+| `ability_catalogues` | as it is | the community catalogues of abilities owners trust, each with the last copy MetaRush read |
 | `ability_runs` | as it is | abilities' runs: what each sent, made and cost |
 | `ability_setups` | left out | what each computer set up for an ability (programs and files on that computer, pinned there): set up again on the new computer |
 | `asset_speakers` | as it is | voices heard in each clip |
@@ -135,6 +136,11 @@ history, and stays.
 | `footage_insights` | as it is | what MetaRush learned from the footage (scenes, pauses, what is on screen) |
 | `generation_spend` | as it is | what was spent on AI work, per project and day |
 | `generations` | as it is | AI work that was asked for, what it made and cost (written once) |
+| `guest_activity` | as it is | what guests did: who, from which address, what and when |
+| `guest_grants` | as it is | what each guest may see and until when, as the record of what was shared |
+| `guest_links` | left out | one-time sign-in links sent to guests: credentials; owners send new ones |
+| `guest_sessions` | left out | guests' signed-in browsers: credentials; guests sign in again |
+| `guests` | as it is | guests owners shared versions with: their emails and names |
 | `handovers` | as it is | handovers of a computer's role to another computer and take-overs, as history: which computer took over from which, and when (never a passphrase or a key) |
 | `improvement_items` | as it is | gaps and friction the weekly report found |
 | `improvement_reports` | as it is | the weekly reports |
@@ -145,7 +151,7 @@ history, and stays.
 | `late_looks` | as it is | the looks at an old database after the workspace moved, as history: when, from which computer, how much each found (never an address) |
 | `late_writes` | left out | copies of records written into an old database after the workspace moved, kept a short while for a person to carry over: about that old database only |
 | `linked_folders` | as it is | linked folders' shared records (where each folder is on a computer stays in that computer's settings) |
-| `log_entries` | as it is | the activity log (written without keys or passwords) |
+| `log_entries` | changed | the activity log (written without keys or passwords); passwords older versions wrote into an operation's entry as typed (`account.password`'s current and new) are taken out, as the database's own update does |
 | `looks` | as it is | looks of people and characters |
 | `motion_components` | as it is | motion graphics, their checks and who approved them |
 | `notifications` | as it is | each person's notifications |

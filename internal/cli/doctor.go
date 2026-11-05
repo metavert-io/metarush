@@ -314,6 +314,7 @@ func runDoctor(parent context.Context) []Check {
 	n, _ := db.C(store.CInstallations).CountDocuments(ctx, bson.M{"workspaceId": ws.ID})
 	add("workspace", "workspace", "ok", fmt.Sprintf("%s (%s)", ws.Name, ws.ID), "", fmt.Sprintf("Workspace “%s” (%s)", ws.Name, plural(int(n), "machine")))
 	add("workspace", "installations", "info", fmt.Sprintf("%d machine(s) joined", n), "")
+	guestsCheck(cfg, ws, add) // doctor_guests.go: guests and this computer's guest listener (D503)
 	var self models.Installation
 	if err := db.C(store.CInstallations).FindOne(ctx, bson.M{"_id": cfg.Installation.ID, "workspaceId": ws.ID}).Decode(&self); err == nil && self.State == models.InstallationRevoked {
 		add("workspace", "this installation", "fail", "revoked — its credentials were withdrawn", "ask a workspace admin for a new invite (`metarush machine invite <name>`)",

@@ -132,6 +132,8 @@ const pages = [
   { name: 'settings-storage', path: '/settings/storage' },
   { name: 'brand', path: '/settings/brand' },
   { name: 'integrations', path: '/settings/integrations' },
+  { name: 'settings-abilities', path: '/settings/abilities' },
+  { name: 'abilities-browse', path: '/library/abilities?browse=1' },
   { name: 'log', path: '/settings/log' },
   { name: 'settings-cli', path: '/settings/cli' },
   { name: 'not-found', path: '/nope' },

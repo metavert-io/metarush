@@ -88,6 +88,11 @@ const (
 	ReviewLink = "rvl"
 	// A handover of a computer's role, or a take-over (item 34, D344).
 	Handover = "hov"
+	// Guests (D490): someone outside the workspace an owner shares with, what
+	// they may see and do, and each of their requests.
+	Guest         = "gst"
+	GuestGrant    = "ggr"
+	GuestActivity = "gac"
 )
 
 var pattern = regexp.MustCompile(`^([a-z]{2,4})_([0-9a-z]{26})$`)

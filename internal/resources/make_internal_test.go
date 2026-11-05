@@ -3,6 +3,7 @@ package resources
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -71,8 +72,17 @@ func TestRepoFilesAndGit(t *testing.T) {
 	}
 	readme := entries[slices.IndexFunc(entries, func(e TreeEntry) bool { return e.Path == "README.md" })]
 	var got []byte
-	if err := ReadBlobs(ctx, a.Tools, bare, []string{readme.SHA}, func(_ string, data []byte) error { got = data; return nil }); err != nil || !bytes.Contains(got, []byte("Widget")) {
+	if err := ReadBlobs(ctx, a.Tools, bare, []string{readme.SHA}, 0, 0, func(_ string, data []byte) error { got = data; return nil }); err != nil || !bytes.Contains(got, []byte("Widget")) {
 		t.Fatalf("blob: %q %v", got, err)
+	}
+	// Past a cap, nothing of the blob is read.
+	for what, caps := range map[string][2]int64{"one blob": {1, 0}, "in all": {0, 1}} {
+		var limit *ErrBlobLimit
+		called := false
+		err := ReadBlobs(ctx, a.Tools, bare, []string{readme.SHA}, caps[0], caps[1], func(string, []byte) error { called = true; return nil })
+		if !errors.As(err, &limit) || called || limit.Total != (what == "in all") {
+			t.Fatalf("%s past its cap: %v (read: %v)", what, err, called)
+		}
 	}
 	var out bytes.Buffer
 	if _, err := Git(ctx, a.Tools, bare, nil, &out, "rev-parse", "HEAD"); err != nil || strings.TrimSpace(out.String()) != commit {

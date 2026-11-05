@@ -15,6 +15,7 @@ import (
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/withdrawn"
 )
 
 func init() {
@@ -251,7 +252,7 @@ func again(ctx context.Context, a *app.App, in *ShareIDIn) (*ShareOut, error) {
 	}
 	// Something it plays was made with a consent that was withdrawn: the
 	// link ends, and isn't sent again.
-	if who, bad, err := consentGone(ctx, a, l.RevisionID); err != nil {
+	if who, bad, err := withdrawn.Version(ctx, a, l.RevisionID); err != nil {
 		return nil, err
 	} else if bad {
 		by := a.Actor

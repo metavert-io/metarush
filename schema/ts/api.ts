@@ -16,6 +16,11 @@ linkInfo: LinkInfo
 linkAccept: LinkAccept
 ssoStart: SSOStart
 ssoStartResult: SSOStartResult
+guestState: GuestState
+guestLinkIn: GuestLinkIn
+guestSignedIn: GuestSignedIn
+guestSsoStartOut: GuestSSOStartOut
+guestCommentBody: GuestCommentBody
 opInfo: OpInfo
 upload: UploadRecord
 uploadList: UploadList
@@ -242,6 +247,52 @@ invite?: string
  */
 export interface SSOStartResult {
 url: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "GuestState".
+ */
+export interface GuestState {
+signedIn: boolean
+guest?: GuestSelf
+sso?: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "GuestSelf".
+ */
+export interface GuestSelf {
+name?: string
+email: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "GuestLinkIn".
+ */
+export interface GuestLinkIn {
+token: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "GuestSignedIn".
+ */
+export interface GuestSignedIn {
+guest: GuestSelf
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "GuestSSOStartOut".
+ */
+export interface GuestSSOStartOut {
+url: string
+}
+/**
+ * This interface was referenced by `Api`'s JSON-Schema
+ * via the `definition` "GuestCommentBody".
+ */
+export interface GuestCommentBody {
+at?: number
+body: string
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema

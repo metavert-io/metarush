@@ -64,6 +64,12 @@ type Config struct {
 	Recordings Recordings `yaml:"recordings,omitempty"`
 	// ScreenIndex chooses how this computer looks at what's on screen (D408).
 	ScreenIndex ScreenIndex `yaml:"screenIndex,omitempty"`
+	// Abilities holds settings for abilities on this machine: the community
+	// catalogues it suggests to owners (D481).
+	Abilities Abilities `yaml:"abilities,omitempty"`
+	// Guests is this computer's guest listener (D491): off unless a person
+	// turns guests on here; 127.0.0.1 only. Read it with GuestListener.
+	Guests Guests `yaml:"guests,omitempty"`
 
 	home       string        `yaml:"-"`
 	secretMode string        `yaml:"-"` // inferred from the raw file when Secrets is empty
@@ -243,6 +249,7 @@ type liveSettings struct {
 	threshold   atomic.Int32
 	remote      atomic.Pointer[Remote]
 	screenIndex atomic.Pointer[string]
+	guests      atomic.Pointer[Guests]
 }
 
 // ScreenIndex chooses how this computer looks at what's on screen (D408):
@@ -425,6 +432,19 @@ type Imports struct {
 	// AutoUpdate lets the daemon update yt-dlp about once a week while no
 	// import runs (default on; false turns it off).
 	AutoUpdate *bool `yaml:"autoUpdate,omitempty"`
+}
+
+// Abilities are this installation's settings for abilities (D481).
+type Abilities struct {
+	Catalogues AbilityCatalogues `yaml:"catalogues,omitempty"`
+}
+
+// AbilityCatalogues: Suggested are the addresses (https) of community
+// catalogues of abilities Settings → Abilities and `metarush ability
+// catalogues list` suggest to owners. Empty unless written here: MetaRush
+// trusts no catalogue by itself, and an owner adds each one (D481).
+type AbilityCatalogues struct {
+	Suggested []string `yaml:"suggested,omitempty"`
 }
 
 // Recordings limits the pieces of screen recordings this machine receives

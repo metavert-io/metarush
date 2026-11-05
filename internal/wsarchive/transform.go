@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+
+	"github.com/metavert-io/metarush/internal/secretfields"
 )
 
 // transformFunc changes one document as it goes into an archive. at is when
@@ -14,6 +16,59 @@ type transformFunc func(doc bson.D, at time.Time) (bson.D, bool)
 // out), so a person's "password set" would be untrue in the copy.
 func clearPasswordSet(doc bson.D, _ time.Time) (bson.D, bool) {
 	return unset(doc, "passwordSetAt")
+}
+
+// cleanSecretFields takes out of an operation's log entry the values of its
+// fields that hold a secret though their names don't say so
+// (internal/secretfields: account.password's current and new password),
+// which older versions wrote there as typed. Migration 71 cleans the
+// database; an archive of one not brought up to date yet is cleaned the same
+// way, nothing else of the entry changed.
+func cleanSecretFields(doc bson.D, _ time.Time) (bson.D, bool) {
+	if kind, _ := get(doc, "kind").(string); kind != "op" {
+		return doc, false
+	}
+	op, ok := get(doc, "op").(bson.D)
+	if !ok {
+		return doc, false
+	}
+	name, _ := get(op, "name").(string)
+	in, ok := get(op, "input").(bson.D)
+	if !ok || secretfields.Of(name) == nil {
+		return doc, false
+	}
+	input := make(map[string]any, len(in))
+	for _, e := range in {
+		input[e.Key] = e.Value
+	}
+	errDoc, _ := get(doc, "error").(bson.D)
+	texts := []struct {
+		d    *bson.D
+		key  string
+		text string
+	}{{&doc, "summary", ""}, {&op, "command", ""}, {&errDoc, "message", ""}, {&errDoc, "hint", ""}, {&errDoc, "advice", ""}}
+	ptrs := make([]*string, len(texts))
+	for i := range texts {
+		texts[i].text, _ = get(*texts[i].d, texts[i].key).(string)
+		ptrs[i] = &texts[i].text
+	}
+	if !secretfields.Scrub(name, input, ptrs...) {
+		return doc, false
+	}
+	for i := range in {
+		in[i].Value = input[in[i].Key]
+	}
+	for _, t := range texts {
+		if was, ok := get(*t.d, t.key).(string); ok && was != t.text {
+			*t.d = set(*t.d, t.key, t.text)
+		}
+	}
+	op = set(op, "input", in)
+	doc = set(doc, "op", op)
+	if errDoc != nil {
+		doc = set(doc, "error", errDoc)
+	}
+	return doc, true
 }
 
 // dropUploadSession takes out an unfinished upload's resumable address: a

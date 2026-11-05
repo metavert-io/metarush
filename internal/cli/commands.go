@@ -1492,8 +1492,8 @@ func commentCmd() *cobra.Command {
 						resolved = " (resolved)"
 					}
 					body := cm.Body
-					if cm.Outside != nil && cm.Quoted == "" {
-						body = theirs(body) // someone outside the workspace wrote it (D315)
+					if (cm.Outside != nil || cm.Guest != nil) && cm.Quoted == "" {
+						body = theirs(body) // someone outside the workspace wrote it (D315), or a guest (D492)
 					}
 					fmt.Printf("%s  %s: %s%s%s\n", cm.CreatedAt.Local().Format("2 Jan 15:04"), orWord(cm.Author.UserName, "someone"), at, body, resolved)
 					if cm.Quoted != "" {

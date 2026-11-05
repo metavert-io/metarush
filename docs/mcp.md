@@ -30,7 +30,7 @@ connection is this server's read-only core ([docs/plugin.md](plugin.md)).
   | edit | change cuts, words, sound, narration and graphics | 16 | 22 | 24 |
   | library | footage, collections, imports, pictures and logos, people | 15 | 18 | 24 |
   | admin | the setup: machines, jobs, storage, the log, keys | 14 | 16 | 20 |
-  | all | one tool per operation | 231 | 263 | 458 |
+  | all | one tool per operation | 257 | 289 | 494 |
 
   The guards (`internal/mcp`): the core has at most 12 tools and 2,000 tokens, a toolset at most 25 tools, the
   server's instructions at most 150 words, no two tools in a list are described nearly alike, and no tool both reads

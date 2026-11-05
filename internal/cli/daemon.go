@@ -17,6 +17,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/metavert-io/metarush/internal/abilities"
 	"github.com/metavert-io/metarush/internal/aiwork"
 	"github.com/metavert-io/metarush/internal/api"
 	"github.com/metavert-io/metarush/internal/app"
@@ -25,6 +26,7 @@ import (
 	"github.com/metavert-io/metarush/internal/components"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/generate"
+	"github.com/metavert-io/metarush/internal/guests"
 	"github.com/metavert-io/metarush/internal/handover"
 	"github.com/metavert-io/metarush/internal/improve"
 	"github.com/metavert-io/metarush/internal/ingest"
@@ -238,6 +240,12 @@ func serveCmd() *cobra.Command {
 						}
 					}
 				}
+				// The guest listener (D491): `metarush guests on|off|set` in a
+				// terminal starts, moves or stops it here at once.
+				if before, after := a.Cfg.GuestListener(), cfg.GuestListener(); before != after {
+					a.Cfg.SetGuestListener(after)
+					_ = srv.ApplyGuests(ctx)
+				}
 				wm.Apply(cfg.Worker.Watch)
 				a.Cfg.Resources.Folders = cfg.Resources.Folders
 				fm.Apply(cfg.Resources.Folders)
@@ -270,6 +278,8 @@ func serveCmd() *cobra.Command {
 			// Review links for people outside the workspace (D315): new comments
 			// come in, links whose time is up end and their files are deleted.
 			go reviewlinks.Run(ctx, a, srv.Log)
+			// Guests (D497): their old requests, ended sign-ins and used links go.
+			go guests.Run(ctx, a, srv.Log)
 			// Posts to video platforms MetaRush stopped part-way go on from where
 			// YouTube got to (or are marked as not posted, plainly) (D305).
 			go ops.RunPublishRecovery(ctx, a, srv.Log)
@@ -290,6 +300,9 @@ func serveCmd() *cobra.Command {
 			// Drafts from videos someone liked that no computer finished (its
 			// claim gone stale, or the last look's news missed) are made (D444).
 			go recipes.RunDraftSweep(ctx, a, srv.Log)
+			// Community catalogues of abilities are read again once a day by the
+			// database's clock, and what they take back reaches the owners (D488).
+			go abilities.RunCatalogueRefresh(ctx, a, srv.Log)
 			st := daemonState{PID: os.Getpid(), Port: a.Cfg.Dashboard.Port, StartedAt: time.Now().UTC(), Version: versionString(), Mode: "full", Service: os.Getenv("METARUSH_SERVICE"), Program: service.ThisProgram()}
 			if workerOnly {
 				st.Mode, st.Port = "worker-only", 0

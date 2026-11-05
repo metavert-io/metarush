@@ -9,6 +9,7 @@ import { copyText } from '../lib/hooks';
 import { useDialog } from '../ui/Dialog';
 import { Badge, Button, CopyButton, cx, Details, ErrorPanel, Skeleton, Theirs } from '../ui/primitives';
 import { useToast } from '../ui/Toast';
+import { GuestsOfVersion, ShareWithGuestButton } from './ShareWithGuest';
 
 /*
  * Share for review (D313–D317): a person sends someone outside the workspace
@@ -89,9 +90,13 @@ export function ShareForReview({ projectId, revisionId, number }: { projectId: s
           Shared for review
         </h2>
         {live.length ? <Badge tone="accent">{plural(live.length, 'link')} working</Badge> : null}
-        <Button size="sm" variant="secondary" className="ml-auto" icon={<ShareNetwork size={13} />} onClick={() => void open()} data-share-open>
-          Share for review…
-        </Button>
+        <span className="ml-auto flex flex-wrap gap-1.5">
+          {/* Guests (D502): someone outside the workspace who opens MetaRush's guest page. */}
+          <ShareWithGuestButton projectId={projectId} revisionId={revisionId} number={number} />
+          <Button size="sm" variant="secondary" icon={<ShareNetwork size={13} />} onClick={() => void open()} data-share-open>
+            Share for review…
+          </Button>
+        </span>
       </div>
       {links.isLoading ? (
         <Skeleton className="h-14" />
@@ -149,6 +154,7 @@ export function ShareForReview({ projectId, revisionId, number }: { projectId: s
           ))}
         </ul>
       )}
+      <GuestsOfVersion projectId={projectId} revisionId={revisionId} number={number} />
     </section>
   );
 }

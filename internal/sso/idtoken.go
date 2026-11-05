@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/metavert-io/metarush/internal/emailkey"
 )
 
 // The ID token is checked as OpenID Connect Core 3.1.3.7 asks, with nothing
@@ -356,7 +358,7 @@ func (c *Client) identityIn(cl *Claims, dir string) *Identity {
 var gmailDomains = []string{"gmail.com", "googlemail.com"}
 
 func gmail(email string) bool {
-	_, domain, _ := strings.Cut(strings.ToLower(email), "@")
+	_, domain, _ := strings.Cut(emailkey.Of(email), "@")
 	return contains(gmailDomains, domain)
 }
 

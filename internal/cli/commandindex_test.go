@@ -58,13 +58,14 @@ func TestCommandIndex(t *testing.T) {
 	if !bytes.Equal(got, want) {
 		t.Fatalf("internal/catalog/commands.json is out of date (an operation or a command changed): run\n  METARUSH_UPDATE_COMMANDS=1 go test ./internal/cli -run TestCommandIndex\nand commit the file")
 	}
-	// Every operation has a command (the parity test asks for one).
+	// Every operation has a command (the parity test asks for one), but the
+	// few the parity test excepts, with their reasons.
 	var ix catalog.CommandIndex
 	if err := json.Unmarshal(got, &ix); err != nil {
 		t.Fatal(err)
 	}
 	for _, op := range ops.All() {
-		if _, ok := ix.Commands[op.Name]; !ok {
+		if _, ok := ix.Commands[op.Name]; !ok && parityExceptions[op.Name] == "" {
 			t.Errorf("no command found for %s: add it to commandOverrides", op.Name)
 		}
 	}

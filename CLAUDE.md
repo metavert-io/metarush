@@ -125,7 +125,11 @@ Read `docs/architecture.md` before structural changes.
   before anything is written (new secret kinds: register them, e.g. `logbook.RememberSecret` — a value from a request
   only once it is looked up and found real, never before, or a made-up one blanks that word out of the log); prompts follow
   `log.prompts` (workspace | local | off); log data is never written into repos, sync or project folders
-  (`logbook.CheckOutput`); new operations need a plain phrase in `logbook/describe.go` (`opBase`).
+  (`logbook.CheckOutput`); new operations need a plain phrase in `logbook/describe.go` (`opBase`). Secret-named
+  input fields are hidden only in their own call's entries: an operation reports a secret it takes itself, once taken
+  (`providers.StoreKey` does on keeping a key), and an input field holding one under another name is declared in
+  `internal/secretfields` (`account.password`'s `current` and `new`; `TestSecretInputFieldsAreDeclared` in
+  `internal/cli` wants every field named like one declared or named as none; migration 71 cleaned older entries).
 
 - **Link imports** (D65–D67): `ingest.url` (`metarush import`, Inbox "Paste a link", ⌘V/drop) queues `import` jobs
   pinned to the asking machine (`Job.Installation`; only its worker leases them) that run yt-dlp (typed args,
@@ -416,7 +420,8 @@ Read `docs/architecture.md` before structural changes.
   kept. State file version 2: older pairings are the installation's owner's (`browserext.Of(a)`).
 - **Where things are in the dashboard** (D184, `web/src/layout/AccountMenu.tsx`, `web/src/screens/settings/`): the bar
   is Studio, Library (tabs incl. People, Motion, Recipes and Abilities), Renders, To-dos; Settings sections are routes
-  `/settings/<general|people|preferences|claude|footage|extension|storage|delivery|components|integrations|log|cli>` (preferences: D208, light/dark
+  `/settings/<general|people|preferences|claude|footage|extension|storage|delivery|components|integrations|abilities|log|cli>` (abilities: the
+  community catalogues an owner trusts, D481; preferences: D208, light/dark
   moved there from General; extension: D191; its old
   Footage anchors redirect through `movedPart`; Brand left for Content Settings, D193: `/settings/brand` and
   `/settings/content` open the default's) opened from the account menu (avatar
@@ -1126,6 +1131,46 @@ Read `docs/architecture.md` before structural changes.
   first, notes say what's missing, `TestStarterNotYetRunnable` pins the refusal; D286's content-credentials ability
   was retired when Content Credentials became MetaRush's own (D415–D424). Browser run: `scripts/starter-e2e.sh`
   (ports 5530–5539).
+- **Community catalogues of abilities** (D480–D489, `internal/abilities/catalogues_*.go`, `internal/resources/repofolder.go`,
+  `internal/assistant/ability_actions.go`, `web/src/components/abilities/Catalogues.tsx`, docs/ability-catalogue.md): an
+  index `metarush.ability-catalogue/1` (`CatalogueIndex`/`models.CatalogueEntry`, schema `schema/ability-catalogue.schema.json`;
+  `ParseIndex` strict: `strictKeys` refuses a field twice or in other letters at every depth (encoding/json would take
+  the last, or any case), the index refused whole for its own unknown fields or bounds, an entry left out with why;
+  every word cleaned by `ops.CleanText`; MetaRush's own sentences repeat an index's word only when plain
+  (`theirWord`/`withWord`, in quotes) and catalogue words go into them through `their()` (`ops.Quote`); `revoked`
+  read, `signatures` accepted and never trusted, a new meaning is `/2`; listings say `files`, `likeness`, `terms` too).
+  Owners trust catalogues (`ability.catalogues.add|remove`: OwnerOnly + HumanOnly, a dry run first; records
+  `ability_catalogues`, migration 67, `_id` `<ws>/<key>`, unique per URL, added only by an insert-only upsert; config
+  `abilities.catalogues.suggested` only suggests, empty in code). Addresses (`webAddressProblem`): https, no sign-in, no
+  `?` or `#` part, never local. Reading (`readHTTPS`): https only, same-site redirects (3), 4 MB / 30 s, local addresses
+  refused at the dial (`resources.LocalIP`), ETag, no connection kept; refreshed when `fetchedAt` is a day old and
+  `checkedAt` ten minutes by the server's clock (`store.StaleBefore`, claimed by `$currentDate`), on browse and by every
+  daemon (`RunCatalogueRefresh`), finished even when the asker leaves; a failure keeps the copy and says why. A version
+  its catalogue takes back gets an owners' to-do (`ability_taken_back`: revoke / turn down / keep, people and owners
+  only; `noteTakenBack`), and `takenBack` on its page, its plans (part of the fingerprint) and the approval. Tests and
+  browser runs (`providers.RealServicesRefused`) read only loopback, trusting `METARUSH_CATALOGUE_CA`; git sources need
+  `METARUSH_GIT_BASE` (the fixture serves partial fetches like GitHub). `ability.browse` and `ability.catalogues` are
+  reads (`leave.readsShow` "-"), every catalogue word (reasons and problems included) quoted for AI readers
+  (`ops.AIReader`, `ListedQuoteNote`; `ability.show` quotes a version's catalogue origin). `ability.catalogues.import`
+  (Mutating, HumanOnly; not LocalOnly — it reads no files here): `resources.FolderAt` — the commit must be the
+  repository's own (a branch's or a tag's tip by `ls-remote`, else in their history fetched without folders or files,
+  `--filter=tree:0`, never refs/pull/*; GitHub serves a fork network's commits under every copy's address), then the
+  commit's folders (`--filter=blob:none --depth=1`) and the folder's own files by name, each fetch within a size limit
+  (`fetchWithin`: packed bytes), each file sized by `cat-file --batch-check` (`blobSizes`) before any is read, no lazy
+  fetch (`withoutLazyFetch`), blobs raw (`readBlobs` caps each blob and the total for every caller, `BlobLimits`,
+  before allocating) — or an ability file by SHA-256 → `archiveOfFolder`
+  (Build's rules) → refused unless the archive's SHA-256 is the listing's and `listingDiffers` finds nothing (hosts,
+  keys, network, sends, outputs, what AI does to them (D460's `ai:`), provides, cost, licence, programs, OS, files,
+  likeness, terms, local, changes-outside) → `recordImported` with `imported.catalogue`; the same name from the same
+  catalogue is the next version, else `--as-version`. What a look fetched is kept in memory ten minutes by workspace,
+  source and version (`fetched`: at most 4 and 96 MB), so Bring it in fetches once. Browse's `Ref` and every confirmation pin the version
+  in full (`PinListedRef`). The panel's Claude browses (`ability browse`, `ability catalogues list` are read-only
+  commands) and its refused import is a HumanOnly card pinned to the version it saw, saying when it comes in as another
+  version, never Auto. CLI: `metarush ability catalogues [list|add|remove|make]`, `ability browse`, `ability import
+  --from-catalogue` (also `abilities …`; changes need `personAtTheKeys`). The generator (`MakeIndex`, no database) pins
+  each folder to its repository's commit only when the commit's files build the same archive;
+  `abilities/catalogue.sample.json` is the starter pack, checked by `TestTheSampleCatalogueIsSound`. Browser run
+  `scripts/ability-catalogue-e2e.sh` (ports 5810–5819, `scripts/catalogueserve`).
 - **The first-party catalogue and the menu** (D269–D272, `internal/ops/offers.go`, `internal/catalog/firstparty.go`,
   `menu.go`, docs/catalogue.md): what MetaRush does is about fifty abilities, each an `ops.Offer` annotation next to
   its operation (stable `ID`, group, title, sentence, fixed `Input`, `Needs`: a first-run item, OS, programs, keys,
@@ -1182,6 +1227,45 @@ Read `docs/architecture.md` before structural changes.
   nil)`; held: as a draft, or `anyway` with a note; tests stand in for it). Tests: `go test ./internal/reviewlinks/` on
   `fakebucket` (checks link and header signatures, signed headers, expiry; `Ahead` moves the links' clock); browser
   run `scripts/outside-reviewers-e2e.sh` (ports 5590–5599).
+- **Guests: people outside the workspace on a server of their own** (D490–D504, `internal/guests`,
+  `internal/api/guests.go`, `guests_sso.go`, `guestpage/`, `web/src/components/ShareWithGuest.tsx`,
+  `web/src/screens/settings/GuestsSettings.tsx`, docs/guests.md): a guest is an email with grants (`guests`, `gst_`;
+  `guest_grants`, `ggr_`: a project — every version with a review copy — or `revisionIds`, role viewer | commenter,
+  approver refused until approvals by guests; `endsAt` required, ≤ 90 days, the server's time; migrations 68–69),
+  never a member. Owners, people only: `guests.share` (a `dryRun` plan; What may leave's place `guests` asked with
+  `leave.Check` for every project the versions touch (`leave.RevisionTouchesChecked`: a lookup that didn't answer
+  refuses), quietly again at every watch; a reference — sent out anyway or not — anything made with a withdrawn
+  consent (`internal/withdrawn`, shared with review links; past `withdrawn.MaxNested` nested cuts refused too) or
+  changed words whose consent is gone is never shown: `mayShow`, failing closed), `guests.link` (256 random bits in the address's fragment, SHA-256 in `guest_links`, once, ≤ 24 h
+  and never past a grant, the page's button claims it), `guests.revoke` (a grant or the guest: last grant or the guest
+  gone deletes `guest_sessions`), `guests.settings.set` (the workspace's `guests.on` + this computer's config.yaml
+  `guests.listen|port`; on only at this computer; off ends every session); `guests.status|list` open,
+  `guests.activity` owners. The **guest listener** (`Server.ApplyGuests`/`ListenGuests`, the daemon and
+  `followConfig`) binds 127.0.0.1 alone (`guestListen`, port 4846, tests port 0) with its own mux (`SkipClean`; only
+  `/`, `/welcome`, `/guest/api/*`, `/guest/sso/*`, `/guest/media/*`), the guest address's exact Host, `Tailscale-*`
+  and forwarded headers deleted before anything reads them (`visitor` = the connection; `relayed` is the one seam a
+  relay sets: its own header, only on its own port; nil now), strict JSON ≤ 16 KB, no query on the API,
+  `X-MetaRush-Guest` + same-origin on POSTs,
+  per-address limits (`guestRequestsPerMinute`, `guestSignInsPerMinute`), the page by CSP hash. Guest ops
+  (`ops.Flags.Guest`: `guest.shared|watch|comments|comment`, HumanOnly) answer for `guests.SignedFrom(ctx)` with
+  `Caller.Guest`; dispatch refuses a guest caller on any other op and members on mutating guest ops (owners read
+  with `as`); `guests.Check` re-reads session, guest, live grants and the switch on every request; anything not
+  named is `notShared` (a project's grant names only versions with a finished review copy, as its page lists).
+  The log keeps a guest op's input as IDs and sizes only (`logbook.GuestInput`, channel `guest`). Video: bucket → `PresignGet` 5 min, renewed by the page (never through the host; a store that can't sign
+  refuses); folder store → `/guest/media/<rev>/<render>` with ranges, `MediaFor` per request, `whileShown` cuts a
+  stream within `guestRecheck` once its version isn't the guest's to watch (`StillShown`); only tokens found are
+  kept out of the log (`logbook.RememberSecret` after the lookup, never what a visitor sent). Sign-in: `mr_guest`
+  (`__Host-` + Secure over HTTPS), new token every sign-in;
+  organization accounts through the members' live setup on `sso.GuestBeginPath|GuestCallbackPath`, purpose
+  `sso.ForGuest` (the dashboard's steps refuse it), cookie `mr_guest_sso`, `guests.ForSSO` (trusted email = a guest's
+  with live grants; Microsoft guests refused; first account linked, another of the scope refused). Comments carry
+  `Comment.guest`, are quoted for AI readers (`QuoteOutside`), ring the sharer (`guest_comments`). Every request →
+  `guests.Record` (`guest_activity`, the log's `guest` channel, phrases in `logbook/describe_guests.go`; ranges and
+  anonymous requests once a minute per address and kind; `VolumePerHour` → `guest_volume` to owners; `guests.Run` tidies, honouring
+  `DeletionsPaused`). Emails match through
+  `internal/emailkey` — Tailscale accounts too (Unicode's lower case except the Kelvin sign and the capital I with a
+  dot, which keep their own key; migration 69 gives emails with them theirs). Browser run
+  `scripts/guests-e2e.sh` (ports 5820–5829, `scripts/guestseed`).
 - **Exporting and restoring a workspace** (D329–D333, `internal/wsarchive`, `internal/ops/workspacearchive.go`,
   `internal/cli/workspace_archive.go`, `web/src/screens/settings/WorkspaceExport.tsx`, docs/workspace-export.md): an
   archive is a private folder (0700/0600) or `--tar` file: `manifest.json` (format, maker, the migration level as every
@@ -1393,6 +1477,7 @@ scripts/about-e2e.sh                                      # Settings → General
 scripts/playback-e2e.sh                                   # players through a database outage (D180); review copies and stills in the Edit tab and on a version's page (D187)
 scripts/accounts-e2e.sh                                   # sign-in methods, invites, sign in/out, reset links, password change (D183)
 scripts/sso-e2e.sh                                        # signing in with an organization's account through a stand-in provider: set up, test, switch, another app waiting, invite, a domain's person, a stranger, two tabs (D425–D434, D450–D454; ports 5790–5799)
+scripts/guests-e2e.sh                                     # guests: an owner turns guests on and shares a version, the guest signs in by link in another browser, watches, comments; the owner takes it back and the guest is out (D490–D504; ports 5820–5829)
 scripts/delivery-e2e.sh                                   # delivery notes, translated captions, whose Claude answers, the receipt (D237–D241; ports 5410–5419)
 scripts/ship-gate-e2e.sh                                  # the ship gate and promises: Held by…, a promise measured on a real render, Deliver anyway… with a note, the receipt (D298–D302; ports 5560–5569)
 scripts/content-credentials-e2e.sh                        # Content Credentials: required in Settings → Delivery, held (gate off too: Deliver anyway… with a note), a test certificate, Deliver… from the version page, a failing signing held until a sample works, the files read back, the key nowhere else (D415–D424, D435–D439; ports 5780–5789; C2PATOOL= for the real one)
@@ -1404,6 +1489,7 @@ scripts/components-e2e.sh                                 # only the required co
 scripts/resources-e2e.sh                                  # the Add box, Inbox clips dragged onto project cards, the Sources "…" menu, Delete…, a nested cut (D79–D84; ports 5660–5669)
 scripts/motion-shapes-e2e.sh                              # a person approves a motion graphic, a non-person draws it widescreen too, the approved frames stay, the person approves the new shape and a widescreen cut's note clears (D377, D381; ports 5740–5749)
 scripts/start-from-video-e2e.sh                           # a link becomes a reference, what the video does and a recipe draft; the panel's card; a file chosen on a phone (D398–D404; ports 5760–5769; Mac)
+scripts/ability-catalogue-e2e.sh                          # a community catalogue: trusted in Settings → Abilities, browsed, an ability brought in from a repository's commit, checked, approved, a lying listing refused, removed (D480–D487; ports 5810–5819)
 scripts/handover-e2e.sh                                   # two computers: the dry run in Settings → Storage, the handover file at a terminal, receive, the conversation going on in the same session, the old computer stepping down to a client, clean (D344–D348; ports 5710–5719)
 ```
 

@@ -140,10 +140,13 @@ type AbilityShowOut struct {
 	Versions []AbilityVersionRow `json:"versions"`
 	Runs     []AbilityRunRow     `json:"runs" jsonschema:"description=Its latest runs\\, newest first."`
 	// CanApprove: its check passed and an owner hasn't approved it.
-	CanApprove bool   `json:"canApprove"`
-	Message    string `json:"message"`
-	Next       string `json:"next,omitempty"`
-	Link       string `json:"link"`
+	CanApprove bool `json:"canApprove"`
+	// TakenBack says why the community catalogue it came from took this
+	// version back (D488): the catalogue's words.
+	TakenBack string `json:"takenBack,omitempty" jsonschema:"description=The catalogue it came from took this version back: why\\, in the catalogue's words."`
+	Message   string `json:"message"`
+	Next      string `json:"next,omitempty"`
+	Link      string `json:"link"`
 }
 
 // AbilityCheckIn checks a folder on this computer.
@@ -205,6 +208,9 @@ type AbilityDecisionOut struct {
 	StateLabel string `json:"stateLabel"`
 	Message    string `json:"message"`
 	Link       string `json:"link"`
+	// TakenBack is why the catalogue this version came from took it back, in
+	// its words (D488), when it did.
+	TakenBack string `json:"takenBack,omitempty"`
 }
 
 // AbilitySetupIn sets an ability up on this computer: the programs it runs
@@ -687,6 +693,10 @@ func showAbility(ctx context.Context, a *app.App, ref string) (*AbilityShowOut, 
 		}
 	}
 	out.CanApprove = v.Check.OK && v.State != models.AbilityApproved && v.State != models.AbilityFailed
+	out.TakenBack = takenBack(ctx, a, v)
+	if ops.AIReader(a) {
+		quoteImported(&out.Ability)
+	}
 	out.Message = fmt.Sprintf("“%s”, version %d (%s): %s", v.Title, v.Number, StateWords(v.State), v.Does)
 	switch {
 	case v.State == models.AbilityFailed:
@@ -825,7 +835,7 @@ func approve(ctx context.Context, a *app.App, in *AbilityApproveIn) (*AbilityDec
 	case v.State == models.AbilityApproved:
 		return decisionOut(v, fmt.Sprintf("Version %d of “%s” is already approved.", v.Number, v.Title)), nil
 	case v.State == models.AbilityImported:
-		return nil, apperr.New(apperr.Validation, "Version %d of “%s” came from another workspace and hasn't been checked on a computer here yet, so it can't be approved.", v.Number, v.Title).
+		return nil, apperr.New(apperr.Validation, "Version %d of “%s” was brought in and hasn't been checked on a computer here yet, so it can't be approved.", v.Number, v.Title).
 			WithHint("Check it here first: its test runs in the sandbox with the network off.").WithCommand("metarush ability check --version " + v.Name + "@" + Short(v.Hash))
 	case v.State == models.AbilityFailed || !v.Check.OK:
 		return nil, apperr.New(apperr.Validation, "Version %d of “%s” didn't pass its check, so it can't be approved.", v.Number, v.Title).
@@ -871,7 +881,12 @@ func approve(ctx context.Context, a *app.App, in *AbilityApproveIn) (*AbilityDec
 	if prog != nil {
 		msg += fmt.Sprintf(" On port %d it may reach only %s.", localPort, programWords(*prog))
 	}
-	return decisionOut(nv, msg), nil
+	out := decisionOut(nv, msg)
+	// Approved all the same: it says what the owner approved over (D488).
+	if out.TakenBack = takenBack(ctx, a, nv); out.TakenBack != "" {
+		out.Message += " The catalogue it came from took this version back."
+	}
+	return out, nil
 }
 
 func revoke(ctx context.Context, a *app.App, in *AbilityRevokeIn) (*AbilityDecisionOut, error) {
@@ -965,8 +980,9 @@ func setup(ctx context.Context, a *app.App, in *AbilitySetupIn) (*AbilitySetupOu
 			if !known[name] {
 				return nil, apperr.New(apperr.InvalidInput, "“%s” doesn't use a key called %s.", v.Title, name)
 			}
+			// Hidden in this call's entries (a secret-named field), and in
+			// everything logged from then on once kept (StoreKey).
 			val := strings.TrimSpace(in.Keys[name])
-			a.Log.Secret(val)
 			if _, err := providers.StoreKey(a.Cfg, name, val, false); err != nil {
 				return nil, err
 			}

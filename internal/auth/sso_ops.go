@@ -286,9 +286,8 @@ func ssoSetOp(ctx context.Context, a *app.App, in *SSOSetIn) (*SSOStatusOut, err
 	if err := hereOnly(ctx, a); err != nil {
 		return nil, err
 	}
-	if in.ClientSecret != "" {
-		a.Log.Secret(in.ClientSecret) // never in the activity log
-	}
+	// A client secret sent here is hidden in this call's entries (a
+	// secret-named field), and in everything logged once kept (setNextSecret).
 	st, err := CleanSSO(models.SSOSettings{Provider: in.Provider, Issuer: in.Issuer, Tenant: in.Tenant, ClientID: in.ClientID, Label: in.Label, Domain: in.Domain,
 		AlsoPassword: in.AlsoPassword, AlsoTailscale: in.AlsoTailscale})
 	if err != nil {
@@ -365,7 +364,6 @@ func ssoSecretOp(ctx context.Context, a *app.App, in *SSOSecretIn) (*SSOStatusOu
 			return nil, apperr.New(apperr.Conflict, "No sign-in with an organization's account is set up.").WithDetails(map[string]any{"reason": "no_setup"})
 		}
 	case in.ClientSecret != "":
-		a.Log.Secret(in.ClientSecret)
 		target := cur.SSONext
 		if target == nil {
 			target = cur.SSO

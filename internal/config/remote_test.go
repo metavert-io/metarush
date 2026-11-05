@@ -34,7 +34,10 @@ func TestNormalizePublicURL(t *testing.T) {
 }
 
 func TestNormalizeLogin(t *testing.T) {
-	for in, want := range map[string]string{" Maya@Example.com ": "maya@example.com", "octocat@github": "octocat@github", "a.b+c@x.co": "a.b+c@x.co"} {
+	// Matched like emails (emailkey): any case, letters beyond A–Z too, but the
+	// Kelvin sign keeps its own key.
+	for in, want := range map[string]string{" Maya@Example.com ": "maya@example.com", "octocat@github": "octocat@github", "a.b+c@x.co": "a.b+c@x.co",
+		"\u00c9mile@Studio.example": "\u00e9mile@studio.example", "\u212Aate@Client.example": "\u212Aate@client.example"} {
 		if got, err := NormalizeLogin(in); err != nil || got != want {
 			t.Errorf("%q → %q %v, want %q", in, got, err, want)
 		}
@@ -66,6 +69,10 @@ func TestRemoteMatchesHostAndLists(t *testing.T) {
 	}
 	if !r.Allowed(" MAYA@example.com") || r.Allowed("bob@example.com") || r.Allowed("") {
 		t.Fatal("Allowed")
+	}
+	k, _ := RemoteFrom(Dashboard{PublicURL: "https://studio-mac.tail0000.ts.net", TailscaleLogins: []string{"kate@client.example", "\u00c9mile@Studio.example"}})
+	if !k.Allowed("KATE@client.example") || !k.Allowed("\u00e9mile@studio.example") || k.Allowed("\u212Aate@client.example") {
+		t.Fatal("Tailscale accounts match like emails, the Kelvin sign apart")
 	}
 	p, _ := RemoteFrom(Dashboard{PublicURL: "https://studio-mac.tail0000.ts.net:8443"})
 	if !p.MatchesHost("studio-mac.tail0000.ts.net:8443") || p.MatchesHost("studio-mac.tail0000.ts.net") || p.IdentitySignIn() {

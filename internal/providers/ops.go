@@ -193,6 +193,8 @@ func init() {
 			}
 			if tested == "stored" {
 				RecordTest(a.Cfg, p.Name(), MaskFor(p.Name(), key), r)
+			} else if r.OK {
+				seen(key) // the service took it: a real key, hidden from now on (a refused one is no one's secret)
 			}
 			a.Audit(ctx, "provider.test", "provider", p.Name(), "", map[string]any{"provider": p.Name(), "ok": r.OK, "tested": tested, "machine": a.Cfg.Installation.Name})
 			return &TestOut{Result: *r, Status: StatusFor(a.Cfg, p), Tested: tested}, nil

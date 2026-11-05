@@ -126,7 +126,9 @@ func readRepo(ctx context.Context, ts *tools.Set, work string, r resources.RepoR
 		byBlob[w.e.SHA] = append(byBlob[w.e.SHA], w)
 	}
 	progress(fmt.Sprintf("keeping %d files", len(wants)))
-	err = resources.ReadBlobs(ctx, ts, bare, shas, func(blob string, data []byte) error {
+	// Each blob is written out as it comes and let go, so one at a time is
+	// what is held: none larger than a kept file may be.
+	err = resources.ReadBlobs(ctx, ts, bare, shas, maxBlobBytes, 0, func(blob string, data []byte) error {
 		sum := sha256.Sum256(data)
 		sha := hex.EncodeToString(sum[:])
 		local := filepath.Join(files, sha)

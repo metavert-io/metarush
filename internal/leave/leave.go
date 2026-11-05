@@ -2,8 +2,9 @@
 // that names, per client (every project using a project's Content Settings),
 // which of their things may leave this computer — footage, voices, faces,
 // words, pictures — and to whom: AI services (by provider), abilities (by
-// host), Claude (by the terms of the account that answers), cloud storage and
-// delivery. Nothing set keeps today's behaviour.
+// host), Claude (by the terms of the account that answers), cloud storage,
+// delivery, people outside the workspace (review links) and guests. Nothing
+// set keeps today's behaviour.
 //
 // Every place a client's things leave asks Check (or Problem, for a plan that
 // lists what stops it) with what it sends, where, and whose things they are.
@@ -348,6 +349,8 @@ func PlaceWords(place, to string) string {
 		s = "delivery"
 	case models.PlaceReviewers:
 		s = "people outside the workspace"
+	case models.PlaceGuests:
+		s = "guests"
 	default:
 		s = place
 	}

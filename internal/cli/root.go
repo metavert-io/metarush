@@ -75,7 +75,7 @@ func commands() []*cobra.Command {
 		activityCmd(), notificationsCmd(), searchCmd(), watchCmd(), auditCmd(), previewCmd(), peopleCmd(), todosCmd(),
 		logCmd(), improveCmd(), motionCmd(), remotionCmd(), rendererCmd(), serviceCmd(), resourcesCmd(), addCmd(), brandCmd(), contentCmd(), keepCmd(),
 		exportCmd(), storageCmd(), mcpCmd(), draftCmd(), transcribeModelServerCmd(), databaseCmd(), setupCommand(),
-		libraryCmd(), collectionCmd(), trashCmd(), remoteCmd(), generateCmd(), aiCmd(), presenterCmd(), looksCmd(), consentCmd(), captionsCmd(), authCmd(), usersCmd(), accountCmd(), recipeCmd(), abilityCmd(), catalogueCmd(), publishCmd(), shareCmd(), componentsCmd(), credentialsCmd()} // recipeCmd: Recipes
+		libraryCmd(), collectionCmd(), trashCmd(), remoteCmd(), generateCmd(), aiCmd(), presenterCmd(), looksCmd(), consentCmd(), captionsCmd(), authCmd(), usersCmd(), accountCmd(), recipeCmd(), abilityCmd(), catalogueCmd(), publishCmd(), shareCmd(), guestsCmd(), componentsCmd(), credentialsCmd()} // recipeCmd: Recipes
 }
 
 // Ensure op packages register.

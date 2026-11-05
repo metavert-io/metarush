@@ -3,6 +3,8 @@ package models
 import (
 	"strings"
 	"time"
+
+	"github.com/invopop/jsonschema"
 )
 
 // Abilities (D230–D235): capabilities added without a release, one record per
@@ -435,6 +437,217 @@ type AbilityImport struct {
 	Lineage []string  `bson:"lineage" json:"lineage"`
 	At      time.Time `bson:"at" json:"at"`
 	By      Actor     `bson:"by" json:"by"`
+	// Catalogue says the community catalogue it was brought in from (D485),
+	// as the catalogue listed it then: its words, never checked by MetaRush.
+	Catalogue *AbilityFromCatalogue `bson:"catalogue,omitempty" json:"catalogue,omitempty"`
+}
+
+// AbilityFromCatalogue is where a version brought in from a community
+// catalogue came from (D485): the catalogue, its listing then, and the
+// source MetaRush fetched (pinned exactly). Its words are the catalogue's.
+type AbilityFromCatalogue struct {
+	// Key is the catalogue's short name in this workspace; URL its address.
+	Key   string `bson:"key" json:"key"`
+	URL   string `bson:"url" json:"url"`
+	Title string `bson:"title" json:"title"`
+	// Version and Date are the catalogue's own, as its index said.
+	Version int    `bson:"version" json:"version"`
+	Date    string `bson:"date,omitempty" json:"date,omitempty"`
+	// Publisher is who the catalogue says published it (its words, not verified).
+	Publisher string `bson:"publisher,omitempty" json:"publisher,omitempty"`
+	// Source is what MetaRush fetched: a repository at a commit and a folder,
+	// or an ability file's address and its SHA-256.
+	Repository string `bson:"repository,omitempty" json:"repository,omitempty"`
+	Commit     string `bson:"commit,omitempty" json:"commit,omitempty"`
+	Path       string `bson:"path,omitempty" json:"path,omitempty"`
+	FileURL    string `bson:"fileUrl,omitempty" json:"fileUrl,omitempty"`
+	FileSHA256 string `bson:"fileSha256,omitempty" json:"fileSha256,omitempty"`
+}
+
+// AbilityCatalogue is a community catalogue of abilities an owner trusts
+// (D481, collection ability_catalogues, _id <workspace>/<key>): its address,
+// who added it, and the last copy of its index MetaRush read (D482), cleaned
+// (D483). Trusting it lets people browse it and bring abilities in from it;
+// each one still waits for a check here and an owner's approval.
+type AbilityCatalogue struct {
+	ID          string `bson:"_id" json:"id"`
+	WorkspaceID string `bson:"workspaceId" json:"-"`
+	// Key is its short name here: what people type before the colon in
+	// catalogue:ability.
+	Key     string    `bson:"key" json:"key"`
+	URL     string    `bson:"url" json:"url"`
+	AddedBy Actor     `bson:"addedBy" json:"addedBy"`
+	AddedAt time.Time `bson:"addedAt" json:"addedAt"`
+	// FetchedAt is when its index was last read whole (the server's time);
+	// CheckedAt when MetaRush last asked for it, read or not.
+	FetchedAt *time.Time `bson:"fetchedAt,omitempty" json:"fetchedAt,omitempty"`
+	CheckedAt *time.Time `bson:"checkedAt,omitempty" json:"checkedAt,omitempty"`
+	// ETag is what its address said of that copy (asked again with it).
+	ETag string `bson:"etag,omitempty" json:"etag,omitempty"`
+	// SHA256 is of the index's bytes as read.
+	SHA256 string `bson:"sha256,omitempty" json:"sha256,omitempty"`
+	// Problem is why the last time MetaRush asked didn't give a new copy, in
+	// plain words ("" when it did): the copy before stays in use.
+	Problem string `bson:"problem,omitempty" json:"problem,omitempty"`
+	// Index is the copy MetaRush read, cleaned: its words are the catalogue's.
+	Index *CatalogueCopy `bson:"index,omitempty" json:"index,omitempty"`
+}
+
+// CatalogueCopy is a catalogue's index as MetaRush keeps it (D480, D483):
+// what it says of itself, the abilities it lists that this MetaRush can read,
+// the ones it left out and why, and the versions the catalogue took back.
+type CatalogueCopy struct {
+	Name       string              `bson:"name" json:"name"`
+	Title      string              `bson:"title" json:"title"`
+	About      string              `bson:"about,omitempty" json:"about,omitempty"`
+	Maintainer *CataloguePublisher `bson:"maintainer,omitempty" json:"maintainer,omitempty"`
+	Version    int                 `bson:"version" json:"version"`
+	Date       string              `bson:"date" json:"date"`
+	Abilities  []CatalogueEntry    `bson:"abilities" json:"abilities"`
+	LeftOut    []CatalogueLeftOut  `bson:"leftOut,omitempty" json:"leftOut,omitempty"`
+	Revoked    []CatalogueRevoked  `bson:"revoked,omitempty" json:"revoked,omitempty"`
+	Signed     bool                `bson:"signed,omitempty" json:"signed,omitempty" jsonschema:"description=The index carries signatures (a later registry's): this MetaRush neither reads nor trusts them."`
+}
+
+// CatalogueEntry is one ability a catalogue lists (metarush.ability-catalogue/1, D480).
+type CatalogueEntry struct {
+	// Name is the ability's name, as its manifest says.
+	Name  string `bson:"name" json:"name" jsonschema:"pattern=^[a-z][a-z0-9-]{0\\,39}$"`
+	Title string `bson:"title" json:"title" jsonschema:"minLength=1,maxLength=80"`
+	// Does is one line: what it does for a video.
+	Does string `bson:"does" json:"does" jsonschema:"minLength=1,maxLength=300"`
+	// Notes are longer notes for people: how to use it well, what it needs.
+	Notes     string             `bson:"notes,omitempty" json:"notes,omitempty" jsonschema:"maxLength=4000"`
+	Publisher CataloguePublisher `bson:"publisher" json:"publisher"`
+	Source    CatalogueSource    `bson:"source" json:"source"`
+	// Archive is the SHA-256 of the ability's canonical archive
+	// (metarush.ability/1): its version, which what MetaRush fetches must be.
+	Archive  string   `bson:"archive" json:"archive" jsonschema:"pattern=^[0-9a-f]{64}$"`
+	Licence  string   `bson:"licence" json:"licence" jsonschema:"minLength=1,maxLength=80"`
+	Provides []string `bson:"provides,omitempty" json:"provides,omitempty" jsonschema:"maxItems=8"`
+	Outputs  []string `bson:"outputs,omitempty" json:"outputs,omitempty" jsonschema:"maxItems=6"`
+	// Network is off, metarush (only the hosts it names, through MetaRush) or open.
+	Network string         `bson:"network" json:"network" jsonschema:"enum=off,enum=metarush,enum=open"`
+	Hosts   []string       `bson:"hosts,omitempty" json:"hosts,omitempty" jsonschema:"maxItems=32"`
+	Keys    []CatalogueKey `bson:"keys,omitempty" json:"keys,omitempty" jsonschema:"maxItems=8"`
+	// Sends is what leaves the computer when it runs: nothing, words, pictures, sound, footage.
+	Sends []string `bson:"sends,omitempty" json:"sends,omitempty" jsonschema:"maxItems=5"`
+	// AI says what AI does to each kind of output: made, edited, enhanced or none.
+	AI CatalogueAI `bson:"ai,omitempty" json:"ai,omitempty"`
+	// Cost is free (no price, no key), keyed (a key to a service, which may
+	// charge) or priced (each run priced first).
+	Cost  string          `bson:"cost" json:"cost" jsonschema:"enum=free,enum=keyed,enum=priced"`
+	Local *CatalogueLocal `bson:"local,omitempty" json:"local,omitempty"`
+	// ChangesOutside: it publishes, uploads or drives another app.
+	ChangesOutside bool `bson:"changesOutside,omitempty" json:"changesOutside,omitempty"`
+	// Likeness: it makes someone's likeness (MetaRush doesn't run those yet).
+	Likeness bool `bson:"likeness,omitempty" json:"likeness,omitempty"`
+	// Files are files an owner sets up for it on each computer (a model, for
+	// instance): checked when chosen, and each run reads only a copy.
+	Files []CatalogueFile `bson:"files,omitempty" json:"files,omitempty" jsonschema:"maxItems=4"`
+	// Terms are its service's terms a person should know before using it.
+	Terms string `bson:"terms,omitempty" json:"terms,omitempty" jsonschema:"maxLength=300"`
+	// Programs are what each computer needs installed; OS the systems it runs on.
+	Programs []string        `bson:"programs,omitempty" json:"programs,omitempty" jsonschema:"maxItems=8"`
+	OS       []string        `bson:"os,omitempty" json:"os,omitempty" jsonschema:"maxItems=2"`
+	Tags     []string        `bson:"tags,omitempty" json:"tags,omitempty" jsonschema:"maxItems=20"`
+	Links    []CatalogueLink `bson:"links,omitempty" json:"links,omitempty" jsonschema:"maxItems=8"`
+}
+
+// CatalogueFile is a file an ability reads that an owner sets up on each
+// computer, as its manifest's needs.files says.
+type CatalogueFile struct {
+	Name string `bson:"name" json:"name" jsonschema:"pattern=^[a-z][a-z0-9-]{0\\,39}$"`
+	// Says what file to give, in the ability's words.
+	Says string `bson:"says" json:"says" jsonschema:"minLength=1,maxLength=200"`
+	// Kind is a kind of file MetaRush checks by its first bytes ("" for any).
+	Kind string `bson:"kind,omitempty" json:"kind,omitempty" jsonschema:"enum=,enum=whisper-model,enum=whisper-translator"`
+}
+
+// CatalogueAI says, per kind of output, what AI does to it (as an ability's
+// manifest says it): made, edited, enhanced or none.
+type CatalogueAI map[string]string
+
+// CatalogueAIKinds are the kinds of output an index may say AI did something
+// to; the words are D460's (AIDeclarations).
+var CatalogueAIKinds = []string{"footage", "sound", "picture", "document", "font", "captions"}
+
+// JSONSchema names the kinds of output, each one of the four answers.
+func (CatalogueAI) JSONSchema() *jsonschema.Schema {
+	props := jsonschema.NewProperties()
+	words := make([]any, 0, len(AIDeclarations))
+	for _, w := range AIDeclarations {
+		words = append(words, w)
+	}
+	for _, k := range CatalogueAIKinds {
+		props.Set(k, &jsonschema.Schema{Type: "string", Enum: words})
+	}
+	return &jsonschema.Schema{Type: "object", Properties: props, AdditionalProperties: jsonschema.FalseSchema,
+		Description: "What AI does to each kind of output: made, edited, enhanced or none."}
+}
+
+// CataloguePublisher is who a catalogue says made or maintains something: a
+// GitHub account or organisation, or a web address (and a name). Its word,
+// never verified.
+type CataloguePublisher struct {
+	Name   string `bson:"name,omitempty" json:"name,omitempty" jsonschema:"maxLength=80"`
+	GitHub string `bson:"github,omitempty" json:"github,omitempty" jsonschema:"pattern=^[A-Za-z0-9][A-Za-z0-9-]{0\\,38}$"`
+	URL    string `bson:"url,omitempty" json:"url,omitempty" jsonschema:"maxLength=500,pattern=^https://"`
+}
+
+// CatalogueSource is where an ability's files are, pinned exactly: a
+// repository at a commit and a folder, or an ability file and its SHA-256.
+type CatalogueSource struct {
+	Git  *CatalogueGitSource  `bson:"git,omitempty" json:"git,omitempty"`
+	File *CatalogueFileSource `bson:"file,omitempty" json:"file,omitempty"`
+}
+
+// CatalogueGitSource is a folder of a repository at one commit.
+type CatalogueGitSource struct {
+	// Repository is the repository's address: https://github.com/<owner>/<name>.
+	Repository string `bson:"repository" json:"repository" jsonschema:"maxLength=200,pattern=^https://github\\.com/"`
+	Commit     string `bson:"commit" json:"commit" jsonschema:"pattern=^[0-9a-f]{40}$"`
+	// Path is the ability's folder in the repository ("" for its top).
+	Path string `bson:"path" json:"path" jsonschema:"maxLength=300"`
+}
+
+// CatalogueFileSource is an ability file (metarush.ability-file/1) at an address.
+type CatalogueFileSource struct {
+	URL    string `bson:"url" json:"url" jsonschema:"maxLength=500,pattern=^https://"`
+	SHA256 string `bson:"sha256" json:"sha256" jsonschema:"pattern=^[0-9a-f]{64}$"`
+}
+
+// CatalogueKey is a key an ability uses and the only hosts it goes to.
+type CatalogueKey struct {
+	Name  string   `bson:"name" json:"name" jsonschema:"pattern=^[a-z][a-z0-9-]{0\\,39}$"`
+	Hosts []string `bson:"hosts,omitempty" json:"hosts,omitempty" jsonschema:"maxItems=32"`
+}
+
+// CatalogueLocal is the one service on the computer an ability reaches.
+type CatalogueLocal struct {
+	Port    int    `bson:"port" json:"port" jsonschema:"minimum=1024,maximum=32767"`
+	Service string `bson:"service" json:"service" jsonschema:"minLength=1,maxLength=60"`
+}
+
+// CatalogueLink is a page about an ability.
+type CatalogueLink struct {
+	Title string `bson:"title" json:"title" jsonschema:"minLength=1,maxLength=80"`
+	URL   string `bson:"url" json:"url" jsonschema:"maxLength=500,pattern=^https://"`
+}
+
+// CatalogueRevoked is a version a catalogue took back: MetaRush doesn't bring
+// it in from that catalogue, and says so of a copy already here.
+type CatalogueRevoked struct {
+	Archive string `bson:"archive" json:"archive" jsonschema:"pattern=^[0-9a-f]{64}$"`
+	Name    string `bson:"name,omitempty" json:"name,omitempty"`
+	Why     string `bson:"why,omitempty" json:"why,omitempty" jsonschema:"maxLength=300"`
+	Date    string `bson:"date,omitempty" json:"date,omitempty"`
+}
+
+// CatalogueLeftOut is an entry of an index MetaRush didn't take, and why.
+type CatalogueLeftOut struct {
+	Name string `bson:"name" json:"name"`
+	Why  string `bson:"why" json:"why"`
 }
 
 // AbilityFileDecision is an owner's decision as an ability file carries it:

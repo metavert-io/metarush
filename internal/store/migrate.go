@@ -3,15 +3,19 @@ package store
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	"github.com/metavert-io/metarush/internal/emailkey"
 )
 
 // Migration is one versioned, idempotent schema step. Migrations only ever add
-// (indexes, fields) or rename fields in place (37); they never drop data.
+// (indexes, fields), rename fields in place (37) or take a secret out of a
+// record where an older version kept it (71); they never drop data.
 type Migration struct {
 	Version int
 	Name    string
@@ -222,6 +226,105 @@ var Migrations = []Migration{
 			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "sso.key", Value: 1}},
 				options.Index().SetName("sso_account").SetUnique(true).SetPartialFilterExpression(bson.M{"sso.key": bson.M{"$exists": true}})))
 	}},
+	{Version: 67, Name: "community catalogues of abilities an owner trusts", Up: func(ctx context.Context, d *DB) error {
+		// One record per catalogue and workspace (D481): an address is trusted
+		// once, whatever its short name here.
+		return createIndexes(ctx, d, CAbilityCatalogues,
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "url", Value: 1}}, options.Index().SetUnique(true)))
+	}},
+	{Version: 68, Name: "guests: people outside the workspace an owner shares with, what they may see, their sign-in links and browsers", Up: migrateGuests},
+	{Version: 69, Name: "guests' requests, and the comments they leave; look-alike letters in emails keep their own key", Up: migrateGuestActivity},
+	// v70 belongs to a build merged in parallel.
+	{Version: 71, Name: "passwords older versions wrote into the activity log taken out", Up: scrubLogSecretFields},
+}
+
+// migrateGuests indexes guests (D490: one per email in a workspace), their
+// grants (by guest, and by project: a project cleared out ends its grants),
+// one-time links and signed-in browsers (by guest: taking a guest back ends
+// them all at once).
+func migrateGuests(ctx context.Context, d *DB) error {
+	if err := createIndexes(ctx, d, CGuests,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "emailKey", Value: 1}}, options.Index().SetName("guest_email").SetUnique(true)),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "account.key", Value: 1}}, options.Index().SetSparse(true))); err != nil {
+		return fmt.Errorf("%s indexes: %w", CGuests, err)
+	}
+	if err := createIndexes(ctx, d, CGuestGrants,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "guestId", Value: 1}, {Key: "createdAt", Value: -1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "projectId", Value: 1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "projects", Value: 1}})); err != nil {
+		return fmt.Errorf("%s indexes: %w", CGuestGrants, err)
+	}
+	if err := createIndexes(ctx, d, CGuestLinks,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "guestId", Value: 1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "expiresAt", Value: 1}})); err != nil {
+		return fmt.Errorf("%s indexes: %w", CGuestLinks, err)
+	}
+	return createIndexes(ctx, d, CGuestSessions,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "guestId", Value: 1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "expiresAt", Value: 1}}))
+}
+
+// migrateGuestActivity indexes guests' requests (D497) newest first, per
+// guest (the owners' list, the hour's count for unusual volume) and by time
+// (old ones go after a while), and comments by the guest who left them.
+func migrateGuestActivity(ctx context.Context, d *DB) error {
+	if err := createIndexes(ctx, d, CGuestActivity,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "at", Value: -1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "guestId", Value: 1}, {Key: "at", Value: -1}}),
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "projectId", Value: 1}, {Key: "at", Value: -1}})); err != nil {
+		return fmt.Errorf("%s indexes: %w", CGuestActivity, err)
+	}
+	if err := createIndexes(ctx, d, CComments,
+		idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "guest.id", Value: 1}, {Key: "revisionId", Value: 1}, {Key: "createdAt", Value: 1}},
+			options.Index().SetPartialFilterExpression(bson.M{"guest.id": bson.M{"$exists": true}}))); err != nil {
+		return err
+	}
+	return lookAlikeEmailKeys(ctx, d)
+}
+
+// lookAlikeEmailKeys keeps people's and guests' email keys in step with how
+// emails are matched now (emailkey, D496): Unicode's lower case as before,
+// except the two characters whose lower case is an ASCII letter (the Kelvin
+// sign, the capital I with a dot), which keep their own key. Only an email
+// written with one of them gets a new key; every other key is what it was.
+// Only records that have a key are looked at, from the email (else the first
+// login) a key is made from; a key that another record holds already is left
+// as it was — which can't happen, as keys that differed before still differ.
+func lookAlikeEmailKeys(ctx context.Context, d *DB) error {
+	for _, coll := range []string{CUsers, CGuests} {
+		lookAlike := bson.M{"$regex": "[\u0130\u212A]"}
+		cur, err := d.C(coll).Find(ctx, bson.M{"emailKey": bson.M{"$type": "string", "$gt": ""}, "$or": bson.A{bson.M{"email": lookAlike}, bson.M{"logins": lookAlike}}},
+			options.Find().SetProjection(bson.M{"email": 1, "emailKey": 1, "logins": 1}))
+		if err != nil {
+			return fmt.Errorf("%s email keys: %w", coll, err)
+		}
+		var rows []struct {
+			ID       string   `bson:"_id"`
+			Email    string   `bson:"email"`
+			EmailKey string   `bson:"emailKey"`
+			Logins   []string `bson:"logins"`
+		}
+		if err := cur.All(ctx, &rows); err != nil {
+			return fmt.Errorf("%s email keys: %w", coll, err)
+		}
+		for _, r := range rows {
+			src := strings.TrimSpace(r.Email)
+			if src == "" && len(r.Logins) > 0 {
+				src = r.Logins[0]
+			}
+			if src == "" {
+				continue
+			}
+			k := emailkey.Of(src)
+			if k == r.EmailKey {
+				continue
+			}
+			if _, err := d.C(coll).UpdateOne(ctx, bson.M{"_id": r.ID, "emailKey": r.EmailKey}, bson.M{"$set": bson.M{"emailKey": k}}); err != nil && !IsDuplicateKey(err) {
+				return fmt.Errorf("%s email keys: %w", coll, err)
+			}
+		}
+	}
+	return nil
 }
 
 // migratePresenters indexes people's own presenters (D273: one per short

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useOp } from '../../api/queries';
 import { cx } from '../../ui/primitives';
-import { Certificate, ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Package, PlugsConnected, PuzzlePiece, SlidersHorizontal, TerminalWindow, UsersThree, Robot } from '@phosphor-icons/react';
+import { Books, Certificate, ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Package, PlugsConnected, PuzzlePiece, SlidersHorizontal, TerminalWindow, UsersThree, Robot } from '@phosphor-icons/react';
 
 /*
  * Settings in sections (D184): each section is a page of its own at
@@ -12,10 +12,11 @@ import { Certificate, ClockCounterClockwise, FilmStrip, GearSix, HardDrives, Pac
  * Settings tab: /settings/brand and /settings/content open the default's.
  * Preferences (D208) are each person's own: estimates of what outside AI
  * services cost, Ask first or Auto, light or dark (which moved there from
- * General: /settings/general#appearance redirects).
+ * General: /settings/general#appearance redirects). Abilities holds the
+ * community catalogues an owner trusts (D481).
  */
 
-export type SettingsSectionId = 'general' | 'people' | 'preferences' | 'claude' | 'footage' | 'extension' | 'storage' | 'delivery' | 'components' | 'integrations' | 'log' | 'cli';
+export type SettingsSectionId = 'general' | 'people' | 'preferences' | 'claude' | 'footage' | 'extension' | 'storage' | 'delivery' | 'components' | 'integrations' | 'abilities' | 'log' | 'cli';
 
 export interface SettingsSection {
   id: SettingsSectionId;
@@ -38,8 +39,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: 'people',
     label: 'People',
-    line: 'Your account and who signs in',
-    intro: 'Who can open this MetaRush and how they sign in (with their organization’s account too), your own account and picture, and opening it from other computers.',
+    line: 'Your account, who signs in, guests',
+    intro: 'Who can open this MetaRush and how they sign in (with their organization’s account too), guests outside the workspace you share versions with, your own account and picture, and opening it from other computers.',
     icon: (s) => <UsersThree size={s} />,
   },
   {
@@ -99,6 +100,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: (s) => <PlugsConnected size={s} />,
   },
   {
+    id: 'abilities',
+    label: 'Abilities',
+    line: 'Community catalogues of abilities',
+    intro: 'The community catalogues of abilities this workspace trusts: owners add and remove them, and anyone browses what they list under Library → Abilities. What a catalogue says is its own word: each ability brought in from one is checked here and approved by an owner before anyone runs it.',
+    icon: (s) => <Books size={s} />,
+  },
+  {
     id: 'log',
     label: 'Log',
     line: 'What MetaRush did and keeps',
@@ -128,6 +136,7 @@ const OLD_ANCHORS: Record<string, string> = {
   'your-account': '/settings/people#your-account',
   'remote-access': '/settings/people#remote-access',
   'sign-in': '/settings/people#sign-in',
+  guests: '/settings/people#guests',
   'claude-code': '/settings/claude#claude-code',
   'claude-usage': '/settings/claude#claude-usage',
   'watched-folder': '/settings/footage#watched-folder',

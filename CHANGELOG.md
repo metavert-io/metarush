@@ -48,10 +48,45 @@
   nothing when a newer copy runs, or one that doesn't say which version it is; `metarush version --compare <version>`
   says whether this MetaRush is newer, the same or older. The background service is never set to run from the temporary copy macOS makes of
   an app opened where it was downloaded.
+- **Share versions with guests outside the workspace**. **Share with a guest…** on a version's page shares that
+  version, or every version of the project with a review copy, with someone outside the workspace — as a viewer or a
+  commenter, until a day you choose (at most 90 days at once) — and makes a one-time sign-in link to send them. Guests
+  open MetaRush's guest page, never the dashboard: what was shared with them, its review copies, and for commenters
+  their own comments pinned to times, which come back to the version marked "(guest)". They sign in with the link or,
+  when people here sign in with your organization's account, with an account whose email the provider vouches for —
+  no passwords. Taking something back, or turning guests off, signs them out at once. Owners turn guests on, share
+  and take things back in Settings → People → Guests (or `metarush guests …`), see every guest request in plain words
+  and hear when a guest asks unusually often; a client's What may leave can keep their things from guests, and a
+  version that plays someone else's video or anything made with a consent that was withdrawn is never shown to them.
+  **Nothing is reachable from the internet yet**: the guest address is this computer's own (`http://127.0.0.1:4846`),
+  served by a web server of its own on 127.0.0.1 only; a later release gives guests a public address.
+- **Look-alike letters in an email no longer match**. People's sign-ins, invites, guests, Tailscale accounts and the
+  email an organization's sign-in vouches for still match in any case (Émile@… is émile@…), but the two characters
+  that only look like a plain letter — the Kelvin sign K and the capital I with a dot, which other software turns into
+  k and i — no longer match it. The database's stored keys for emails written with them are brought in line when this
+  version updates it.
 - **Made-up sign-in values can't hide words in the activity log**. A sign-in link, an organization sign-in's answer,
   a browser extension's pairing code or token, or a password that someone sends MetaRush is kept out of the activity
   log only once it turns out to be real. Before, whatever a visitor sent there was taken for a secret, so a made-up
   one equal to a word — a person's email, say — blanked that word out of every later entry.
+- **Abilities from community catalogues**. A community catalogue is a public list of abilities — an index served over
+  HTTPS, often from a GitHub repository. An owner trusts one under Settings → Abilities (`metarush ability catalogues
+  add <https-address>`; none is trusted by default); anyone browses what it lists in Library → Abilities → Browse
+  catalogues (`metarush ability browse`): what each does and needs — keys, network, places, AI — its publisher and
+  licence, and whether it is here already, marked "listed, not checked by MetaRush". A person brings one in (Bring it
+  in…, `metarush ability import --from-catalogue <catalogue>:<name>`): MetaRush fetches exactly the version listed and
+  shown — a commit one of the repository's branches or tags holds (never one only someone's copy has) and only its
+  folder, read without running anything, or an ability file checked by its fingerprint — and refuses it unless it is
+  that version and its manifest says what the listing says, the files an owner sets up for it and its service's terms
+  included. It comes in as a draft, like an ability file: checked on a computer here, then approved by an owner.
+  Claude in the panel may browse and propose bringing one in as a card you run; AI apps only browse. Catalogues are
+  read again once a day (or when you ask); when one takes back a version you brought in, the owners are asked whether
+  to take back its approval, and its page, its plans and the approval say so. Every word in a catalogue is shown as
+  its own and quoted for AI apps, and an address with a sign-in or a `?` part is refused.
+- **Make a catalogue's index from a folder of abilities**. `metarush ability catalogues make <folder> --out
+  index.json` pins each ability to its repository's commit and its version, only when the commit holds exactly its
+  files, and lists it from its own manifest; `docs/ability-catalogue.md` has the format and what MetaRush checks, and
+  `abilities/catalogue.sample.json` is the starter pack as a catalogue.
 - **Delivered videos can carry Content Credentials**. Turn them on in Settings → Delivery (or `metarush credentials
   on`; a client's Content Settings can say on, required or off for their projects) and every final video MetaRush
   delivers carries a signed record, in the open C2PA format, that it was made with MetaRush, which footage, sound and
@@ -67,6 +102,13 @@
   ship gate off too; a person can still send it out without them, with a note. The
   signing tool, c2patool, is a new optional component (Settings → Components). `metarush credentials check <video>`
   reads any video's.
+- **Made-up keys can't hide words in the activity log**. A key, password or other secret sent to MetaRush with a
+  request is kept out of that request's own entries, and out of everything else only once MetaRush takes it: a key it
+  keeps or that the service accepts, a password it sets or that works. Before, whatever someone sent in a field named
+  like a secret was hidden from every later entry, so a member could send a made-up "key" equal to an ordinary word —
+  a person's email, say — and blank that word out of the log, and out of the log in every workspace export. Changing
+  your own password no longer leaves the current and the new password in the activity log, and the entries older
+  versions wrote with them are cleaned when this version updates the database (and in workspace exports).
 - **Abilities say what AI does to what they make**. An ability's manifest now says, for each kind of output, whether
   a generative AI model made it, changed it, only improved it, or no AI took part (`ai: {picture: made}`), and what an
   ability brings in carries that word. Content Credentials, the delivery's record, the quality check and the receipt

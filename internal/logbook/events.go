@@ -110,7 +110,7 @@ func (l *Logger) JobEvent(ctx context.Context, ev jobs.Event) {
 	}
 	e := Entry{Kind: KindJob, Channel: ch, UserID: j.CreatedBy.UserID, UserName: j.CreatedBy.UserName, ParentID: sc.EntryID, Refs: refs, Job: info,
 		Summary: fmt.Sprintf("%s job %s", j.Type, ev.Kind)}
-	p := &pending{e: e}
+	p := &pending{e: e, hide: sc.hidden()}
 	switch ev.Kind {
 	case jobs.EventProgress:
 		pct := ev.Progress.Pct
@@ -188,7 +188,7 @@ func (l *Logger) ToolRun(ctx context.Context, info tools.RunInfo) {
 	e := Entry{Kind: KindTool, Channel: ch, UserID: l.actor.UserID, UserName: l.actor.UserName, ParentID: sc.EntryID, Refs: refsOf(sc),
 		DurationMs: ms(info.Duration), Summary: "ran " + info.Tool,
 		Tool: &ToolInfo{Program: info.Tool, Args: append([]string(nil), info.Args...), ExitCode: info.ExitCode, OK: ok, Canceled: info.Canceled}}
-	p := &pending{e: e}
+	p := &pending{e: e, hide: sc.hidden()}
 	switch {
 	case ok:
 	case info.Canceled:

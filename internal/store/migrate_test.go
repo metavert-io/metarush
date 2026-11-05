@@ -61,3 +61,54 @@ func TestGenerationsAreFoundByTheirJob(t *testing.T) {
 	}
 	t.Fatalf("no (workspaceId, jobId) index on generations: %+v", ixs)
 }
+
+// Emails are matched with Unicode's lower case except the two characters
+// whose lower case is an ASCII letter (emailkey): the guests' second migration
+// gives a record whose email (else first login) has one of them the key it is
+// matched by now, its own; every other key stays as it was — Émile@… is still
+// found as émile@… — and records without a key are left alone.
+func TestEmailKeysKeepLookAlikesApart(t *testing.T) {
+	db := testutil.DB(t)
+	ctx := context.Background()
+	ws := "ws_emailkeys"
+	for _, d := range []bson.M{
+		{"_id": "usr_ascii", "workspaceId": ws, "email": "Kate@Client.example", "emailKey": "kate@client.example"},
+		{"_id": "usr_other", "workspaceId": ws, "email": "\u00c9mile@Studio.example", "emailKey": "\u00e9mile@studio.example"},
+		{"_id": "usr_kelvin", "workspaceId": ws, "email": "\u212aate@Studio.example", "emailKey": "kate@studio.example"},
+		{"_id": "usr_login", "workspaceId": ws, "logins": []string{"\u0130van@Example.com"}, "emailKey": "ivan@example.com"},
+		{"_id": "usr_nokey", "workspaceId": ws, "email": "\u212aim@Example.com"},
+	} {
+		if _, err := db.C(store.CUsers).InsertOne(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, d := range []bson.M{
+		{"_id": "gst_other", "workspaceId": ws, "email": "\u00c4nnie@Client.example", "emailKey": "\u00e4nnie@client.example"},
+		{"_id": "gst_kelvin", "workspaceId": ws, "email": "\u212aate@Client.example", "emailKey": "kate@client.example"},
+	} {
+		if _, err := db.C(store.CGuests).InsertOne(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.C(store.CMigrations).DeleteOne(ctx, bson.M{"_id": 69}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for coll, want := range map[string]map[string]any{
+		store.CUsers: {"usr_ascii": "kate@client.example", "usr_other": "\u00e9mile@studio.example", "usr_kelvin": "\u212aate@studio.example",
+			"usr_login": "\u0130van@example.com", "usr_nokey": nil},
+		store.CGuests: {"gst_other": "\u00e4nnie@client.example", "gst_kelvin": "\u212aate@client.example"},
+	} {
+		for id, key := range want {
+			var d bson.M
+			if err := db.C(coll).FindOne(ctx, bson.M{"_id": id}).Decode(&d); err != nil {
+				t.Fatal(err)
+			}
+			if d["emailKey"] != key {
+				t.Errorf("%s %s: key %v, want %v", coll, id, d["emailKey"], key)
+			}
+		}
+	}
+}

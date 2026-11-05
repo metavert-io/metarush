@@ -118,7 +118,13 @@ Each person chooses, in the switch by the message box (or `metarush assistant mo
 | safe steps (a check of Claude's graphic, a review copy, a link you typed) | run by themselves | run by themselves |
 | saving a version (with its review copy), sound settings (not the cloud), transcript and footage fixes, names, links Claude found, motion checks, making resources, notes | wait for your OK | run by themselves, as you |
 | anything priced (a cloud voice, generated video, AI narration) | wait for your OK | wait for your OK — unless your estimates are off **and** a person set the project's budget and the team's daily limit with every service the card spends with: then they run by themselves, as you, within them |
-| final renders, approving a version or graphic, consent and looks, deleting, setup, questions, keep cards, people-only decisions | wait for your OK | wait for your OK |
+| final renders, approving a version or graphic, consent and looks, deleting, setup, questions, keep cards, people-only decisions (bringing an ability in from a community catalogue among them) | wait for your OK | wait for your OK |
+
+Claude may browse the community catalogues of abilities the workspace trusts (`metarush ability browse`: their words
+come quoted, as data) and propose bringing one in: its refused `metarush ability import --from-catalogue
+<catalogue>:<name>` becomes a person's card pinned to the version Claude saw, with what the listing says it reaches,
+what leaves and what each computer needs, and the note that MetaRush didn't check it. Trusting a catalogue, and
+bringing in an ability file, are never cards ([ability-catalogue.md](ability-catalogue.md)).
 
 - A priced card carries its estimate: "Estimate: about $0.40", opening to the services, models, sources and
   each part's price. "Estimate costs of outside AI services before edits" is each person's, in Settings → Preferences

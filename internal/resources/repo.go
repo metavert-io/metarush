@@ -174,7 +174,19 @@ func git(ctx context.Context, ts *tools.Set, dir string, stdin io.Reader, stdout
 		cfg = append(cfg, "-c", "protocol.file.allow=always")
 	}
 	env := []string{"GIT_TERMINAL_PROMPT=0", "GIT_ASKPASS=" + falseProgram(), "SSH_ASKPASS=" + falseProgram(), "GCM_INTERACTIVE=never", "GIT_LFS_SKIP_SMUDGE=1"}
+	if extra, ok := ctx.Value(gitEnvKey{}).([]string); ok {
+		env = append(env, extra...)
+	}
 	return ts.Run(ctx, tools.Spec{Tool: tools.Git, Dir: dir, Args: append(cfg, args...), Env: env, Stdin: stdin, Stdout: stdout})
+}
+
+type gitEnvKey struct{}
+
+// withoutLazyFetch keeps every git run under ctx from fetching an object it
+// lacks by itself (a partial repository's "lazy fetch"): only the fetches
+// MetaRush asks for, each within its limit, download anything.
+func withoutLazyFetch(ctx context.Context) context.Context {
+	return context.WithValue(ctx, gitEnvKey{}, []string{"GIT_NO_LAZY_FETCH=1"})
 }
 
 func falseProgram() string {
@@ -287,20 +299,51 @@ func listTree(ctx context.Context, ts *tools.Set, bare, commit string) ([]treeEn
 	return es, nil
 }
 
-// readBlobs streams the blobs' bytes (git cat-file --batch: raw, no filters).
-func readBlobs(ctx context.Context, ts *tools.Set, bare string, shas []string, each func(sha string, data []byte) error) error {
+// BlobLimits cap what readBlobs reads (0: no cap): no blob larger than Each,
+// nor more than Total bytes in all. Each blob is allocated at its size, so the
+// caps are checked on git's answer for it, before anything of it is read.
+type BlobLimits struct {
+	Each, Total int64
+}
+
+// ErrBlobLimit is a blob (or blobs) past a BlobLimits cap.
+type ErrBlobLimit struct {
+	SHA         string
+	Size, Limit int64
+	Total       bool // the total cap, not one blob's
+}
+
+func (e *ErrBlobLimit) Error() string {
+	if e.Total {
+		return fmt.Sprintf("the files add up to more than %s", humanBytes(e.Limit))
+	}
+	return fmt.Sprintf("a file is %s, more than %s", humanBytes(e.Size), humanBytes(e.Limit))
+}
+
+// readBlobs streams the blobs' bytes (git cat-file --batch: raw, no filters),
+// within lim: a blob past a cap stops git and fails with *ErrBlobLimit before
+// any of it is read.
+func readBlobs(ctx context.Context, ts *tools.Set, bare string, shas []string, lim BlobLimits, each func(sha string, data []byte) error) error {
 	if len(shas) == 0 {
 		return nil
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	pr, pw := io.Pipe()
 	errc := make(chan error, 1)
 	go func() {
 		br := bufio.NewReaderSize(pr, 1<<20)
+		// fail stops git (nothing more is sent) and lets the pipe drain.
+		fail := func(err error) {
+			errc <- err
+			cancel()
+			_, _ = io.Copy(io.Discard, br)
+		}
+		var total int64
 		for range shas {
 			head, err := br.ReadString('\n')
 			if err != nil {
-				errc <- fmt.Errorf("reading the snapshot: %w", err)
-				_, _ = io.Copy(io.Discard, br)
+				fail(fmt.Errorf("reading the snapshot: %w", err))
 				return
 			}
 			f := strings.Fields(head)
@@ -308,20 +351,29 @@ func readBlobs(ctx context.Context, ts *tools.Set, bare string, shas []string, e
 				continue
 			}
 			if len(f) != 3 {
-				errc <- fmt.Errorf("reading the snapshot: unexpected %q", strings.TrimSpace(head))
-				_, _ = io.Copy(io.Discard, br)
+				fail(fmt.Errorf("reading the snapshot: unexpected %q", strings.TrimSpace(head)))
 				return
 			}
-			n, _ := strconv.Atoi(f[2])
+			n, err := strconv.ParseInt(f[2], 10, 64)
+			switch {
+			case err != nil || n < 0:
+				fail(fmt.Errorf("reading the snapshot: unexpected %q", strings.TrimSpace(head)))
+				return
+			case lim.Each > 0 && n > lim.Each:
+				fail(&ErrBlobLimit{SHA: f[0], Size: n, Limit: lim.Each})
+				return
+			case lim.Total > 0 && total+n > lim.Total:
+				fail(&ErrBlobLimit{SHA: f[0], Size: total + n, Limit: lim.Total, Total: true})
+				return
+			}
+			total += n
 			buf := make([]byte, n+1)
 			if _, err := io.ReadFull(br, buf); err != nil {
-				errc <- fmt.Errorf("reading the snapshot: %w", err)
-				_, _ = io.Copy(io.Discard, br)
+				fail(fmt.Errorf("reading the snapshot: %w", err))
 				return
 			}
 			if err := each(f[0], buf[:n]); err != nil {
-				errc <- err
-				_, _ = io.Copy(io.Discard, br)
+				fail(err)
 				return
 			}
 		}
@@ -332,10 +384,38 @@ func readBlobs(ctx context.Context, ts *tools.Set, bare string, shas []string, e
 	_, runErr := git(ctx, ts, bare, in, pw, "cat-file", "--batch")
 	_ = pw.Close()
 	parseErr := <-errc
+	var limit *ErrBlobLimit
+	if errors.As(parseErr, &limit) {
+		return parseErr // what stopped git
+	}
 	if runErr != nil {
 		return runErr
 	}
 	return parseErr
+}
+
+// blobSizes asks git for the blobs' sizes without reading them (cat-file
+// --batch-check); a blob it doesn't have is missing from the answer.
+func blobSizes(ctx context.Context, ts *tools.Set, bare string, shas []string) (map[string]int64, error) {
+	out := map[string]int64{}
+	if len(shas) == 0 {
+		return out, nil
+	}
+	var b bytes.Buffer
+	in := strings.NewReader(strings.Join(shas, "\n") + "\n")
+	if _, err := git(ctx, ts, bare, in, &b, "cat-file", "--batch-check"); err != nil {
+		return nil, err
+	}
+	for _, line := range strings.Split(b.String(), "\n") {
+		f := strings.Fields(line)
+		if len(f) != 3 || f[1] != "blob" {
+			continue
+		}
+		if n, err := strconv.ParseInt(f[2], 10, 64); err == nil && n >= 0 {
+			out[f[0]] = n
+		}
+	}
+	return out, nil
 }
 
 // ---- the snapshot ----
@@ -446,7 +526,7 @@ func buildSnapshot(ctx context.Context, ts *tools.Set, bare, commit string, at t
 	blobs := map[string][]byte{}
 	// Blobs arrive in request order; files are written in path order, so keep
 	// them until every file is known (bounded by the snapshot's size cap).
-	if err := readBlobs(ctx, ts, bare, shas, func(sha string, data []byte) error {
+	if err := readBlobs(ctx, ts, bare, shas, BlobLimits{Each: lim.fileBytes, Total: lim.totalBytes}, func(sha string, data []byte) error {
 		blobs[sha] = data
 		return nil
 	}); err != nil {

@@ -28,6 +28,8 @@ import (
 // rules (deny by default).
 var readsShow = map[string]string{
 	"ability.find": "-", "ability.list": "-", "ability.show": "-", "ability.plan": "W", "ability.runs": "W",
+	// Community catalogues (D484): their own listings, never a client's things.
+	"ability.catalogues": "-", "ability.browse": "-",
 	"account.preferences": "-", "activity.summary": "W", "add.route": "-",
 	"ai.estimate": "W", "ai.list": "W", "ai.local": "-", "ai.models": "-", "ai.rules": "-", "ai.show": "WPA", "ai.voices": "-",
 	"asset.card": "WPA", "asset.fixes": "PA", "asset.list": "-", "asset.names": "W", "asset.precheck": "-", "asset.show": "WPA", "asset.where": "-",
@@ -69,6 +71,7 @@ var readsShow = map[string]string{
 	"review.packet": "W", "review.waiting": "W", "revision.compare": "W", "revision.list": "-", "revision.plan": "W", "revision.show": "W",
 	"search": "W", "setup.status": "-", "components.list": "-", "sound.compare": "-", "sound.preview": "-", "sound.show": "-",
 	"share.list": "W", "share.plan": "-", "share.settings": "-",
+	"guests.status": "-", "guests.list": "-", "guests.activity": "-", // who guests are, what is shared with them by name, what they did (D500)
 	"storage.plan": "-", "storage.status": "-", "sync.status": "-",
 	"database.plan": "-", "database.move.status": "-", // where the database is, counts, computers' names (D338)
 	"database.late.writes": "-", // kinds of record written late, when and on which computer: never their contents (D357)

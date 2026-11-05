@@ -260,3 +260,42 @@ func TestDashboardLinkOpensInWindows(t *testing.T) {
 		t.Errorf("not plain: %s", f)
 	}
 }
+
+// Doctor names a Claude Code installed only on Windows (left alone), calling
+// the distribution what every other line calls it: "Ubuntu", not WSL's own
+// name for it ("Ubuntu-24.04").
+func TestDoctorNamesClaudeCodeOnlyOnWindows(t *testing.T) {
+	c, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(wsl.Pretend(wsl.Info{Version: 2, Distro: "Ubuntu-24.04", DistroKnown: true, Name: "Ubuntu", Interop: true, Systemd: true,
+		DriveRoot: "/mnt/", Drives: map[string]string{c: "c"}}))
+	npm := filepath.Join(c, "Users", "Sam", "AppData", "Roaming", "npm")
+	if err := os.MkdirAll(npm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(npm, "claude"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", npm)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(tools.EnvToolDirs, "")
+	os.Unsetenv(tools.EnvToolDirs) // restored after the test (t.Setenv)
+	ts := tools.New(config.Tools{})
+	if ts.Has(tools.Claude) {
+		t.Skip("this computer has Claude Code where MetaRush looks besides PATH")
+	}
+	var says, next string
+	wslChecks(config.Default(t.TempDir()), ts, func(area, name, status, detail, fix string, plain ...string) {
+		if name == "claude code on Windows" {
+			says, next = plain[0], plain[1]
+		}
+	})
+	if says != "Claude Code is installed on Windows, but MetaRush in Ubuntu can't use Windows' copy" || next != "Install Claude Code in Ubuntu too, then open it there once and sign in." {
+		t.Fatalf("%q / %q", says, next)
+	}
+	for _, f := range plainwords.Check(says + ". " + next) {
+		t.Errorf("not plain: %s", f)
+	}
+}

@@ -69,6 +69,10 @@ func (i Info) distroWord() string {
 	return "Linux"
 }
 
+// DistroWord is the distribution as people call it, the word every surface
+// uses ("Ubuntu", not WSL's "Ubuntu-24.04"; "Linux" when nothing says).
+func (i Info) DistroWord() string { return i.distroWord() }
+
 // distroName is the name `wsl -d` takes, or a stand-in for it.
 func (i Info) distroName() string {
 	if i.DistroKnown && i.Distro != "" {

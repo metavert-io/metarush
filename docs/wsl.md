@@ -177,7 +177,7 @@ Windows side.
 | Where | What |
 |---|---|
 | `metarush setup` | that it runs in Ubuntu on Windows (WSL 2); without systemd, that MetaRush can't start by itself yet and what turns it on; at the end, what to know (below) |
-| `metarush doctor` | **WINDOWS**: which WSL, that only this PC can open the dashboard, systemd, keeping it running, the Windows browser, mirrored networking or localhost forwarding when set, MetaRush's folders on the Windows side, and programs (Claude Code, FFmpeg, Node.js) installed only on Windows; `--details` adds each command |
+| `metarush doctor` | **WINDOWS**: which WSL, that only this PC can open the dashboard, systemd, keeping it running, the Windows browser, mirrored networking or localhost forwarding when set, MetaRush's folders on the Windows side, and a Claude Code installed only on Windows; `--details` adds each command |
 | Home's Getting started | **On Windows**: the same notes, each ready or with what to do (the command behind Details) |
 | Settings → General | "MetaRush runs in Ubuntu on Windows (WSL 2)" and the notes still to do; Your computers shows Windows (WSL 2) |
 | `metarush service install`, `service status` | without systemd, why it can't be set up and what turns it on; that Windows stops Ubuntu after its last window closes |

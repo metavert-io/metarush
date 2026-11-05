@@ -5,8 +5,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/wsl"
@@ -114,8 +116,10 @@ func TestOpenInBrowserInsideWSL(t *testing.T) {
 
 	// An address with a character cmd.exe or a shell reads is never handed on.
 	_ = os.Remove(out)
-	if _, err := s.OpenInBrowser(context.Background(), "http://127.0.0.1:4845/auth?t=a&next=$(id)"); err == nil {
-		t.Fatal("opened")
+	for _, bad := range []string{"http://127.0.0.1:4845/auth?t=a&next=$(id)", "http://127.0.0.1:4845/auth?t=a&next=/x;calc", "http://127.0.0.1:4845/a#b"} {
+		if _, err := s.OpenInBrowser(context.Background(), bad); err == nil {
+			t.Fatalf("opened %q", bad)
+		}
 	}
 	if _, err := os.Stat(out); err == nil {
 		t.Fatal("the opener ran")
@@ -209,6 +213,45 @@ func TestWindowsProgramsAreLeftAlone(t *testing.T) {
 	t.Setenv("PATH", sys32)
 	if New(config.Tools{}).Has(CmdExe) {
 		t.Fatal("cmd.exe outside WSL")
+	}
+}
+
+// On a Mac and on Linux (outside WSL) the opener takes any checked address as
+// one argument (a dashboard page's #part too), never one that isn't https or
+// this computer's, or that could pass for an option.
+func TestOpenerOutsideWSL(t *testing.T) {
+	t.Cleanup(wsl.Pretend(wsl.Info{}))
+	opener := Open
+	if runtime.GOOS == "linux" {
+		opener = XDGOpen
+	} else if runtime.GOOS != "darwin" {
+		t.Skip("no opener here")
+	}
+	dir := t.TempDir()
+	out := filepath.Join(dir, "args")
+	recorder(t, dir, "opener", out)
+	s := New(config.Tools{})
+	s.Use(opener, filepath.Join(dir, "opener"))
+	how, err := s.OpenInBrowser(context.Background(), "http://127.0.0.1:4845/auth?t=ab&next=/settings/footage#watched-folder")
+	if err != nil || how != opener {
+		t.Fatalf("%q %v", how, err)
+	}
+	if opener == XDGOpen {
+		// left running on its own: wait for it to write
+		for i := 0; i < 50; i++ {
+			if _, err := os.Stat(out); err == nil {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	if got := recorded(t, out); len(got) != 2 || got[1] != "http://127.0.0.1:4845/auth?t=ab&next=/settings/footage#watched-folder" {
+		t.Fatalf("the opener got %q", got)
+	}
+	for _, bad := range []string{"-a http://127.0.0.1:4845/", "http://example.com/", "file:///etc/passwd", "http://127.0.0.1:4845/a b"} {
+		if _, err := s.OpenInBrowser(context.Background(), bad); err == nil {
+			t.Errorf("opened %q", bad)
+		}
 	}
 }
 

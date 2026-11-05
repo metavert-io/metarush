@@ -49,15 +49,23 @@ func (s *Set) BrowserOpener() string {
 }
 
 // OpenInBrowser opens raw — http on this computer (127.0.0.1, localhost) or
-// https — with BrowserOpener, and says which program did.
+// https — with BrowserOpener, and says which program did. Windows' openers
+// take only addresses whose every character is plain to them
+// (BrowserAddress); `open` and xdg-open take any such address as one
+// argument.
 func (s *Set) OpenInBrowser(ctx context.Context, raw string) (string, error) {
-	u, err := BrowserAddress(raw)
+	u, err := browserURL(raw)
 	if err != nil {
 		return "", err
 	}
 	tool := s.BrowserOpener()
 	if tool == "" {
 		return "", ErrNoOpener
+	}
+	if tool == CmdExe || tool == WSLView {
+		if u, err = BrowserAddress(raw); err != nil {
+			return "", err
+		}
 	}
 	if err := s.openerAllowed(tool); err != nil {
 		return "", err
@@ -105,16 +113,23 @@ func (s *Set) openerAllowed(tool string) error {
 // (cmd.exe and the shells behind wslview read them).
 const addressChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~/?=&%:+@[]"
 
-// BrowserAddress checks an address before it is opened: https, or http on
-// this computer; no sign-in in it; only addressChars.
+// BrowserAddress checks an address before a Windows opener gets it: what
+// browserURL checks, and only addressChars.
 func BrowserAddress(raw string) (string, error) {
-	if raw == "" || strings.HasPrefix(raw, "-") {
-		return "", fmt.Errorf("refusing to open %q", raw)
-	}
 	for _, r := range raw {
 		if !strings.ContainsRune(addressChars, r) {
 			return "", fmt.Errorf("refusing to open an address with %q in it", r)
 		}
+	}
+	return browserURL(raw)
+}
+
+// browserURL checks an address before it is opened: https, or http on this
+// computer; no sign-in in it; nothing an opener could take for an option,
+// and no space or control character.
+func browserURL(raw string) (string, error) {
+	if raw == "" || strings.HasPrefix(raw, "-") || strings.ContainsFunc(raw, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
+		return "", fmt.Errorf("refusing to open %q", raw)
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.User != nil || u.Host == "" {

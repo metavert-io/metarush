@@ -485,10 +485,11 @@ func TestLiveEventsReachTheDashboard(t *testing.T) {
 		delete(b.subs, ch)
 		b.mu.Unlock()
 	}()
+	mark := b.pollMark(ctx) // polling started just before the change
 	_, _ = d.a.DB.C(store.CProjects).UpdateOne(context.Background(), bson.M{"_id": projectID}, bson.M{"$set": bson.M{"updatedAt": time.Now().UTC()}})
-	pctx, pcancel := context.WithTimeout(ctx, 3500*time.Millisecond)
+	pctx, pcancel := context.WithTimeout(ctx, 2*time.Minute) // a look on a slow machine takes as long as it takes
 	defer pcancel()
-	b.poll(pctx, 3500*time.Millisecond)
+	b.pollFrom(pctx, mark, func(looks int) bool { return looks < 1 })
 	found := false
 	for len(ch) > 0 {
 		if e := <-ch; e.Type == store.CProjects && e.ID == projectID && e.Op == "update" {

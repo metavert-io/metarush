@@ -220,12 +220,21 @@ func stampsOf(raw bson.Raw, stamps []string) string {
 	return b.String()
 }
 
+// poll looks for changes every three seconds for a while (d).
 func (b *Broker) poll(ctx context.Context, d time.Duration) {
-	since := b.pollMark(ctx).Add(-5 * time.Second)
+	mark := b.pollMark(ctx)
 	end := time.Now().Add(d)
+	b.pollFrom(ctx, mark, func(int) bool { return time.Now().Before(end) })
+}
+
+// pollFrom polls from a mark (pollMark) while more says so, told how many
+// looks there were: the first look finds what changed from a moment before
+// the mark on, each later one what changed since the look before it.
+func (b *Broker) pollFrom(ctx context.Context, mark time.Time, more func(looks int) bool) {
+	since := mark.Add(-5 * time.Second)
 	t := time.NewTicker(3 * time.Second)
 	defer t.Stop()
-	for time.Now().Before(end) {
+	for looks := 0; more(looks); looks++ {
 		select {
 		case <-ctx.Done():
 			return

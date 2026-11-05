@@ -136,6 +136,9 @@ func TestPollingFindsChangesOfEitherClock(t *testing.T) {
 		for len(ch) > 0 {
 			<-ch
 		}
+		// Polling starts from its mark, taken before the changes are made: a
+		// slow machine can't leave them behind the mark.
+		mark := b.pollMark(ctx)
 		server, err := d.a.DB.Now(ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -146,9 +149,9 @@ func TestPollingFindsChangesOfEitherClock(t *testing.T) {
 		if _, err := d.a.DB.C(store.CProjects).UpdateOne(ctx, bson.M{"_id": projectID}, bson.M{"$set": bson.M{"updatedAt": time.Now().UTC()}}); err != nil {
 			t.Fatal(err)
 		}
-		// Two looks, three seconds apart.
-		pctx, cancel := context.WithTimeout(ctx, 6500*time.Millisecond)
-		b.poll(pctx, 6500*time.Millisecond)
+		// Two looks, three seconds apart, each as long as this machine takes.
+		pctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		b.pollFrom(pctx, mark, func(looks int) bool { return looks < 2 })
 		cancel()
 		heartbeats, projects := 0, 0
 		for len(ch) > 0 {

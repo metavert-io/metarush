@@ -174,7 +174,7 @@ func (in Inspector) syncFolder(p string) (service, root string) {
 			}
 		}
 	}
-	if in.goos() == "linux" {
+	if in.goos() == "linux" || wsl.Here().In() {
 		// Windows' drives as WSL shows them (/mnt/c, D523): a Windows user's
 		// sync folders (C:\Users\Sam\OneDrive, "OneDrive - Contoso",
 		// Dropbox…, any case), and Google Drive's own drive (G:\My Drive).

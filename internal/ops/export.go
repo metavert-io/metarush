@@ -334,7 +334,7 @@ func ExportTimeline(ctx context.Context, a *app.App, in *ExportTimelineIn, progr
 	}
 	res.Markers = len(tl.Markers)
 	res.Duration = float64(tl.Duration) / float64(tl.FPS)
-	res.Notes = notes
+	res.Notes = append(notes, res.Notes...) // the format's notes, then the export's own (D521)
 	if res.Notes == nil {
 		res.Notes = []string{}
 	}

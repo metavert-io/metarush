@@ -264,6 +264,24 @@ func (r *Report) Ready() bool {
 	return true
 }
 
+// WithoutPaths is the report for someone who isn't an owner: the same words,
+// without the folders' paths behind Details (they name the Windows user and
+// MetaRush's folders). nil stays nil.
+func (r *Report) WithoutPaths() *Report {
+	if r == nil {
+		return nil
+	}
+	c := *r
+	c.Notes = make([]Note, len(r.Notes))
+	for k, n := range r.Notes {
+		if n.Key == "files" {
+			n.Command = ""
+		}
+		c.Notes[k] = n
+	}
+	return &c
+}
+
 // Note finds a note by its key.
 func (r *Report) Note(key string) (Note, bool) {
 	if r == nil {

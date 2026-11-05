@@ -38,7 +38,8 @@ type VersionShowOut struct {
 	// line without a workspace; the dashboard always has one).
 	ComputersError string `json:"computersError,omitempty"`
 	// Windows is MetaRush on this computer inside WSL on Windows (D515), in
-	// plain words; absent elsewhere.
+	// plain words; absent elsewhere. The folders' paths behind its notes are
+	// an owner's to see (they name the Windows user).
 	Windows *wsl.Report `json:"windows,omitempty"`
 }
 
@@ -83,6 +84,9 @@ func VersionAbout(ctx context.Context, a *app.App) (*VersionShowOut, error) {
 		return out, nil
 	}
 	out.Windows = wsl.HereReport(a.Cfg.WindowsPlaces())
+	if !IsOwnerCaller(ctx) {
+		out.Windows = out.Windows.WithoutPaths()
+	}
 	var insts []models.Installation
 	if err := a.DB.Find(ctx, store.CInstallations, a.WorkspaceID(), nil, &insts, options.Find()); err != nil {
 		return nil, err

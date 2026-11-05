@@ -56,6 +56,10 @@ func init() {
 			}
 			out := &SetupStatusOut{WhatWorks: Build(ctx, a.Cfg, a.Tools), Database: DatabaseState(ctx, a.Cfg, a.Tools), Machine: a.Cfg.Installation.Name,
 				Components: MissingComponents(ctx, components.For(a))}
+			if !ops.IsOwnerCaller(ctx) {
+				// The folders' paths behind WSL's notes are an owner's (D515).
+				out.WhatWorks.Windows = out.WhatWorks.Windows.WithoutPaths()
+			}
 			projects, err := a.DB.C(store.CProjects).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID()})
 			if err != nil {
 				return nil, err

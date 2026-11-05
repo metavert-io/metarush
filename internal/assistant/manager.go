@@ -128,6 +128,7 @@ type Manager struct {
 	maxLive   int
 	workEvery time.Duration // how often running work is looked at
 	tellAfter time.Duration // outcomes arriving within this make one note
+	handOver  func()        // runs just before a message goes to Claude Code
 }
 
 // New builds the dashboard daemon's manager for an opened installation and
@@ -1307,6 +1308,9 @@ func (m *Manager) startTurn(c *conv, msg message) (int, error) {
 	c.mu.Unlock()
 	m.save(c, true)
 	m.changed(c.id)
+	if m.handOver != nil {
+		m.handOver()
+	}
 	if err := p.write(userMessage(sent, sid)); err != nil {
 		p.kill() // its exit ends the turn
 	}
@@ -1632,7 +1636,7 @@ func (m *Manager) spawn(c *conv) (*proc, error) {
 	started := make(chan int, 1)
 	var closeR sync.Once
 	go func() {
-		_, err := m.App.Tools.Run(ctx, tools.Spec{Tool: tools.Claude, Args: args, Dir: cwd, Env: env, CleanEnv: true, MaxLine: 32 << 20, Stdin: r,
+		res, err := m.App.Tools.Run(ctx, tools.Spec{Tool: tools.Claude, Args: args, Dir: cwd, Env: env, CleanEnv: true, MaxLine: 32 << 20, Stdin: r,
 			OnStart: func(pid int) {
 				closeR.Do(func() { _ = r.Close() })
 				started <- pid
@@ -1645,8 +1649,13 @@ func (m *Manager) spawn(c *conv) (*proc, error) {
 		}
 		p.err = err
 		var ef *tools.ErrFailed
-		if errors.As(err, &ef) {
+		switch {
+		case errors.As(err, &ef):
 			p.stderr = ef.Stderr
+		case err != nil && res != nil:
+			// Ended by MetaRush, say when it couldn't hand a message to a
+			// process already on its way out: what that said is still why.
+			p.stderr = strings.TrimSpace(string(res.Stderr))
 		}
 		if p.logf != nil {
 			_ = p.logf.Close()

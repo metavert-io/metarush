@@ -1425,6 +1425,22 @@ func TestErrorsAreReportedHonestly(t *testing.T) {
 			t.Fatalf("crashed: %+v", cv.Turns[0])
 		}
 	})
+	t.Run("claude stops while its message goes to it", func(t *testing.T) {
+		// Still running when its message is recorded, but no longer reading:
+		// MetaRush can't hand the message over and ends it. What it said on
+		// its way out is still why (it ending a moment sooner is the case
+		// above; which of the two happens is a race, pinned here).
+		a := testApp(t, "")
+		closed := filepath.Join(t.TempDir(), "closed")
+		m := withFake(t, a, fakeclaude.Options{Body: "echo 'segfault in the fake' >&2\nexec 0<&-\ntouch '" + closed + "'\nsleep 30\nexit 3"})
+		m.handOver = func() {
+			eventually(t, "Claude Code to stop reading", func() bool { _, err := os.Stat(closed); return err == nil })
+		}
+		out, _ := m.Ask(ctx, AssistantAskIn{AssistantMessageIn: AssistantMessageIn{Prompt: "hi"}})
+		if cv := waitIdle(t, m, out.Conversation.ID); cv.Turns[0].State != TurnFailed || !strings.Contains(cv.Turns[0].Error, "segfault in the fake") {
+			t.Fatalf("crashed: %+v", cv.Turns[0])
+		}
+	})
 	t.Run("a lost session cannot be resumed", func(t *testing.T) {
 		a := testApp(t, "")
 		m := withFake(t, a, fakeclaude.Options{})

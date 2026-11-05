@@ -67,11 +67,17 @@ func printAdded(o *intake.AddPathsOut, details bool) {
 	}
 	for _, fo := range o.Folders {
 		fmt.Println(fo.Message)
+		if fo.Folder.Slow != "" {
+			fmt.Println("  " + fo.Folder.Slow) // on the Windows side, inside WSL (D521)
+		}
 		if details {
 			fmt.Printf("  folder %s\n", fo.Folder.ID)
 		}
 	}
 	fmt.Println(o.Summary)
+	if o.Slow != "" {
+		fmt.Println(o.Slow)
+	}
 }
 
 func upperFirst(s string) string {

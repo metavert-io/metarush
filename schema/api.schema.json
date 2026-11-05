@@ -4400,6 +4400,9 @@
         },
         "text": {
           "type": "string"
+        },
+        "slow": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

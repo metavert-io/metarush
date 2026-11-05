@@ -94,6 +94,11 @@ export function WatchStrip({ onConfigure }: { onConfigure: () => void }) {
             d.note
           )}
         </span>
+        {d.slow ? (
+          <span className="mt-0.5 block text-[11.5px] text-subtle" data-watch-slow>
+            {d.slow}
+          </span>
+        ) : null}
         {live?.errors?.length ? <span className="mt-1 block truncate text-[11.5px] text-danger" title={live.errors.join('\n')}>Could not add {live.errors[0]}</span> : null}
       </span>
       <span className="flex shrink-0 items-center gap-1.5">
@@ -108,7 +113,14 @@ export function WatchStrip({ onConfigure }: { onConfigure: () => void }) {
   );
 }
 
-/* ---------- folder browser (home folder only) ---------- */
+/* ---------- folder browser (home folder only; inside WSL also the Windows user's folder, D521) ---------- */
+
+/** Whether the browser shows the Windows user's folder (inside WSL), not the Linux home. */
+function onWindows(d: BrowseOut): boolean {
+  const w = d.windowsHome?.toLowerCase();
+  const p = d.path.toLowerCase();
+  return !!w && (p === w || p.startsWith(w + '/'));
+}
 
 function FolderBrowser({ start, close }: { start?: string; close: (v?: { path: string; display: string }) => void }) {
   const [path, setPath] = useState<string | undefined>(start);
@@ -144,6 +156,17 @@ function FolderBrowser({ start, close }: { start?: string; close: (v?: { path: s
         <div className="tc min-w-0 flex-1 truncate rounded-[8px] bg-panel px-2.5 py-1.5 text-[12px] text-fg hairline" title={d?.path}>
           {d?.display ?? '…'}
         </div>
+        {d?.windowsHome ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<FolderUser size={13} />}
+            onClick={() => setPath(onWindows(d) ? d.home : d.windowsHome)}
+            data-browse-windows={onWindows(d) ? 'linux' : 'windows'}
+          >
+            {onWindows(d) ? 'Linux home' : 'Windows folder'}
+          </Button>
+        ) : null}
         <button
           type="button"
           aria-pressed={hidden}

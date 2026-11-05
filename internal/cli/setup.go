@@ -27,6 +27,7 @@ import (
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/version"
 	"github.com/metavert-io/metarush/internal/wsarchive"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // setupOpts are `metarush setup`'s choices: each one is asked in the
@@ -139,7 +140,8 @@ type SetupResult struct {
 	Components SetupComponentsOut `json:"components"`
 	// Restored is what --restore brought in (D333).
 	Restored *SetupRestoredOut `json:"restored,omitempty"`
-	// WhatWorks is what works now with no keys, what a key adds, and Claude Code.
+	// WhatWorks is what works now with no keys, what a key adds, and Claude
+	// Code; inside WSL on Windows also what to know there (its windows, D515).
 	WhatWorks firstrun.WhatWorks `json:"whatWorks"`
 	Warnings  []string           `json:"warnings,omitempty"`
 	// Next are the commands for what is left (empty when nothing is).
@@ -215,6 +217,9 @@ type SetupSkillsOut struct {
 }
 
 func runSetup(c *cobra.Command, o *setupOpts) error {
+	if err := refuseWSL1(c); err != nil { // D516
+		return err
+	}
 	h, err := home()
 	if err != nil {
 		return failErr(c, err)
@@ -275,6 +280,13 @@ func (s *setupRun) run(ctx context.Context) (*SetupResult, error) {
 	}
 	o := s.o
 	s.say("Setting up MetaRush on this computer. Press Enter to take the suggested answer.")
+	if w := wsl.Here(); w.In() {
+		s.say("  %s Open it in your Windows browser once it is set up.", w.Headline())
+		if w.OnWindows(s.h) {
+			// D522: the database (and MetaRush's own folder) belong on Linux's own disk.
+			s.say("  ! MetaRush's own folder is on the Windows side, where Ubuntu reads and writes slowly and the database can't be kept.")
+		}
+	}
 	s.tech("home: %s", s.h)
 	if err := s.chooseRestore(); err != nil {
 		return nil, err
@@ -290,7 +302,13 @@ func (s *setupRun) run(ctx context.Context) (*SetupResult, error) {
 	}
 	claude := s.skillsDefault(ctx, tools.New(config.Tools{}))
 	if s.prompt {
-		o.service = askYes("Start MetaRush when you log in, and keep it running?", o.service)
+		if w := wsl.Here(); w.In() && !w.Systemd {
+			// D517: without systemd there is no background service to set up;
+			// finish says what turns it on.
+			s.say("· %s", w.Background().Says)
+		} else {
+			o.service = askYes("Start MetaRush when you log in, and keep it running?", o.service)
+		}
 		if claude.Installed && !s.changed("skills") {
 			o.skills = askYes("Teach Claude Code MetaRush's video skills?", o.skills)
 		}
@@ -433,7 +451,11 @@ func (s *setupRun) finish(ctx context.Context, cfg *config.Config, res *SetupRes
 	s.warnings = nil
 	res.Skills = s.installSkills(ctx, ts)
 	res.Service = s.installService(ctx, cfg, ts)
-	if !res.Service.Installed && res.Service.Wanted {
+	w := wsl.Here()
+	switch {
+	case w.In() && !w.Systemd && res.Service.Wanted:
+		res.Next = append(res.Next, w.Background().Command) // D517: systemd first
+	case !res.Service.Installed && res.Service.Wanted:
 		res.Next = append(res.Next, "metarush service install")
 	}
 	firstrun.ForgetClaude()
@@ -845,6 +867,21 @@ func pluginNote(skillsHere bool) string {
 func (s *setupRun) installService(ctx context.Context, cfg *config.Config, ts *tools.Set) SetupServiceOut {
 	wanted := s.o.service || s.o.takeOverService
 	out := SetupServiceOut{Wanted: wanted}
+	if w := wsl.Here(); w.In() && !w.Systemd {
+		// D517: a systemd user unit needs systemd, which this WSL
+		// distribution doesn't run (yet). Setup never edits /etc/wsl.conf:
+		// it needs an administrator and a restart of WSL, a person's to do.
+		bg := w.Background()
+		out.Says = bg.Says
+		if wanted {
+			out.Problem = "systemd isn't running in this WSL distribution, so there is no background service to set up"
+		}
+		s.say("· %s", out.Says)
+		if wanted {
+			s.say("  → %s", bg.Next)
+		}
+		return out
+	}
 	exe, err := service.StableExecutable()
 	if err != nil {
 		out.Problem = err.Error()
@@ -1095,12 +1132,21 @@ func (s *setupRun) printEnd(res *SetupResult) {
 	if detailsMode(s.c) && w.Claude.Command != "" && !w.Claude.Ready {
 		fmt.Printf("  %s\n", w.Claude.Command)
 	}
+	printWindows(w.Windows, detailsMode(s.c))
 	if s.prompt && s.o.open {
-		if u, err := s.openDashboard(); err == nil {
+		u, err := s.openDashboard()
+		switch {
+		case err == nil:
 			fmt.Println("\nOpening the dashboard in your browser.")
 			if detailsMode(s.c) {
 				fmt.Println("  " + u)
 			}
+			return
+		case u != "" && w.Windows != nil:
+			// Inside WSL with no way to start Windows' browser: the link
+			// works from Windows as it is (D518).
+			fmt.Println("\n" + openYourselfWords())
+			fmt.Println("  " + u)
 			return
 		}
 	}
@@ -1136,8 +1182,19 @@ func (s *setupRun) openDashboard() (string, error) {
 		return "", err
 	}
 	u := fmt.Sprintf("http://%s:%d/auth?t=%s&next=%s", cfg.Dashboard.Host, cfg.Dashboard.Port, nonce, "/%3Fwelcome%3D1")
-	openBrowser(u)
+	if how, err := openBrowser(tools.New(cfg.Tools), u); err != nil || how == "" {
+		return u, firstErr(err, tools.ErrNoOpener)
+	}
 	return u, nil
+}
+
+func firstErr(errs ...error) error {
+	for _, e := range errs {
+		if e != nil {
+			return e
+		}
+	}
+	return nil
 }
 
 func setupStatusCmd() *cobra.Command {

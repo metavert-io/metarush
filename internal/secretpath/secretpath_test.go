@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 func gitAvailable(t *testing.T) string {
@@ -78,6 +80,45 @@ func TestSyncFolders(t *testing.T) {
 	}
 	if v := lin.Inspect(filepath.Join(home, "Dropbox", "f")); v.Kind != KindSync {
 		t.Errorf("linux ~/Dropbox not flagged: %+v", v)
+	}
+}
+
+// Inside WSL a Windows user's sync folders are on Windows' drives
+// (/mnt/c/Users/Sam/OneDrive): they are sync folders all the same, in any
+// case (Windows' names), and Google Drive's own drive (G:\My Drive) too. A
+// Windows drive mounted on plain Linux holds the same folders.
+func TestWindowsSyncFoldersUnderWSL(t *testing.T) {
+	in := Inspector{Home: "/home/you", Git: "-", GOOS: "linux"}
+	for p, want := range map[string]string{
+		"/mnt/c/Users/Sam/OneDrive/Deliveries/cut.mp4":  "OneDrive",
+		"/mnt/c/Users/Sam/OneDrive - Contoso/Clients/x": "OneDrive",
+		"/mnt/c/users/sam/onedrive/x":                   "OneDrive",
+		"/mnt/c/Users/Sam/Dropbox/Exports":              "Dropbox",
+		"/mnt/c/Users/Sam/Dropbox (Personal)/x":         "Dropbox",
+		"/mnt/d/Users/Sam/Google Drive/x":               "Google Drive",
+		"/mnt/c/Users/Sam/My Drive/x":                   "Google Drive",
+		"/mnt/c/Users/Sam/iCloudDrive/x":                "iCloud Drive",
+		"/mnt/c/Users/Sam/Box/x":                        "Box",
+		"/mnt/g/My Drive/Deliveries/x":                  "Google Drive",
+		"/mnt/g/Shared drives/Team/x":                   "Google Drive",
+	} {
+		v := in.Inspect(p)
+		if v.Kind != KindSync || v.Service != want {
+			t.Errorf("%s: %+v, want %s", p, v, want)
+		}
+	}
+	if v := in.Inspect("/mnt/c/Users/Sam/OneDrive/Deliveries"); v.Root != "/mnt/c/Users/Sam/OneDrive" {
+		t.Errorf("root %q", v.Root)
+	}
+	for _, p := range []string{"/mnt/c/Users/Sam/Videos/Exports", "/mnt/c/Users/Public/Dropbox", "/mnt/c/Dropbox/x", "/mnt/d/Footage/OneDrive/x", "/home/you/Videos"} {
+		if v := in.Inspect(p); v.Unsafe() {
+			t.Errorf("%s flagged: %+v", p, v)
+		}
+	}
+	// Drives WSL mounts at the root (wsl.conf's automount root "/").
+	t.Cleanup(wsl.Pretend(wsl.Info{Version: 2, DriveRoot: "/", Drives: map[string]string{"/c": "c"}}))
+	if v := in.Inspect("/c/Users/Sam/OneDrive/x"); v.Kind != KindSync || v.Service != "OneDrive" {
+		t.Errorf("drives at the root: %+v", v)
 	}
 }
 

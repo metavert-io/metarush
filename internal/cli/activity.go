@@ -497,6 +497,9 @@ func printWatch(s *ingest.WatchStatusOut, details bool) {
 		move = "Added files move into its Ingested folder."
 	}
 	fmt.Printf("  New videos go to %s. %s A file is added once it stops changing for %d seconds.\n", target, move, s.StableSeconds)
+	if s.Slow != "" {
+		fmt.Println("  " + s.Slow) // on the Windows side, inside WSL (D521)
+	}
 	if l := s.Live; l != nil {
 		if !l.LastScan.IsZero() {
 			fmt.Printf("  Last checked %s.", l.LastScan.Local().Format("15:04:05"))

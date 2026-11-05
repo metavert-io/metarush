@@ -14,6 +14,7 @@ import (
 	"github.com/metavert-io/metarush/internal/localdb"
 	"github.com/metavert-io/metarush/internal/service"
 	"github.com/metavert-io/metarush/internal/tools"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // SetupQuestions is `metarush setup questions --json`: what setup would ask on
@@ -33,6 +34,8 @@ type SetupQuestions struct {
 	Service    SetupServiceQuestion     `json:"service"`
 	Skills     SetupSkillsQuestion      `json:"skills"`
 	Components []SetupComponentQuestion `json:"components"`
+	// Windows is MetaRush inside WSL on Windows (D515), absent elsewhere.
+	Windows *wsl.Report `json:"windows,omitempty"`
 }
 
 // SetupStorageQuestion is where footage and finished videos are kept.
@@ -80,6 +83,10 @@ type SetupServiceQuestion struct {
 	// as it is, as it does a newer one.
 	VersionUnknown bool   `json:"versionUnknown,omitempty"`
 	Says           string `json:"says"`
+	// Blocked is what a person does before MetaRush can start by itself
+	// here (inside WSL without systemd, D517): Suggested is then false and
+	// Says says why.
+	Blocked string `json:"blocked,omitempty"`
 }
 
 // SetupSkillsQuestion is Claude Code learning MetaRush's video skills.
@@ -170,6 +177,14 @@ func setupQuestions(c *cobra.Command, h string) *SetupQuestions {
 				q.Service.Says = "MetaRush already starts when you log in, from another copy of MetaRush" + other.said() + "; setup leaves it as it is unless you choose to have it start this copy instead."
 			}
 		}
+	}
+
+	if w := wsl.Here(); w.In() {
+		if !w.Systemd {
+			bg := w.Background()
+			q.Service.Suggested, q.Service.Says, q.Service.Blocked = false, bg.Says, bg.Next
+		}
+		q.Windows = wsl.HereReport(wslPlaces(cfg))
 	}
 
 	claude := firstrun.CheckClaude(ctx, ts)

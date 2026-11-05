@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // Location kinds.
@@ -171,6 +172,19 @@ func (in Inspector) syncFolder(p string) (service, root string) {
 			if l := strings.ToLower(name); strings.HasPrefix(l, "googledrive") || strings.HasPrefix(l, "google drive") {
 				return "Google Drive", filepath.Join("/Volumes", name)
 			}
+		}
+	}
+	if in.goos() == "linux" {
+		// Windows' drives as WSL shows them (/mnt/c, D523): a Windows user's
+		// sync folders (C:\Users\Sam\OneDrive, "OneDrive - Contoso",
+		// Dropbox…, any case), and Google Drive's own drive (G:\My Drive).
+		if root, first, ok := wsl.WindowsUserFolder(p); ok && first != "" {
+			if s := homeSyncService(first, true); s != "" {
+				return s, root + "/" + first
+			}
+		}
+		if mount, first, ok := wsl.WindowsDriveFolder(p); ok && (strings.EqualFold(first, "My Drive") || strings.EqualFold(first, "Shared drives")) {
+			return "Google Drive", mount + "/" + first
 		}
 	}
 	return "", ""

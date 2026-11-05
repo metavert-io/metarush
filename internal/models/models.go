@@ -145,6 +145,10 @@ type Installation struct {
 	// version or commit says another build — an older one started there
 	// since — doesn't count (D334).
 	KnowsMoves string `bson:"knowsMoves,omitempty" json:"knowsMoves,omitempty"`
+	// WSL is the Windows Subsystem for Linux the computer runs MetaRush in
+	// (2; absent on a Mac or plain Linux): Settings → General says "Windows
+	// (WSL 2)" for it (D515). Every process that records its build writes it.
+	WSL int `bson:"wsl,omitempty" json:"wsl,omitempty"`
 	// Machine lifecycle (additive; see `metarush machine`). Empty means active.
 	State string `bson:"state,omitempty" json:"state,omitempty" jsonschema:"enum=invited,enum=active,enum=revoked"`
 	// StorageKeyID is the object-store access key ID this installation is

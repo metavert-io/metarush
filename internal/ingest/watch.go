@@ -12,6 +12,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // Watcher ingests files dropped into a folder once they stop changing. Recordings
@@ -24,6 +25,9 @@ type Watcher struct {
 	Move      bool // move successfully ingested files into <Dir>/Ingested (never delete)
 	ProjectID string
 	Log       func(format string, a ...any)
+	// Every is how often the folder is looked through (default 2 s; on the
+	// Windows side inside WSL wsl.WatchEvery, D521).
+	Every time.Duration
 
 	mu       sync.Mutex
 	seen     map[string]obs
@@ -147,8 +151,9 @@ func (w *Watcher) publish(force bool) {
 }
 
 // Run polls until ctx ends. Polling (not fsnotify) behaves identically on local
-// disks, external drives and network mounts. A missing folder is reported, not
-// created (an unmounted drive must not turn into an empty local folder).
+// disks, external drives, network mounts and Windows' drives inside WSL,
+// which never tell Ubuntu that a file changed. A missing folder is reported,
+// not created (an unmounted drive must not turn into an empty local folder).
 func (w *Watcher) Run(ctx context.Context) error {
 	if w.Dir == "" {
 		return fmt.Errorf("watch folder not configured")
@@ -164,7 +169,15 @@ func (w *Watcher) Run(ctx context.Context) error {
 	w.mu.Lock()
 	w.Status = WatchStatus{Dir: w.Dir, Enabled: true, Pending: []string{}, Errors: []string{}}
 	w.mu.Unlock()
-	t := time.NewTicker(2 * time.Second)
+	if w.Every <= 0 {
+		w.Every = 2 * time.Second
+		if wsl.HereOnWindows(w.Dir) {
+			// Windows never tells Ubuntu that files changed on its drives,
+			// and reading them is slower: looked through less often (D521).
+			w.Every = wsl.WatchEvery
+		}
+	}
+	t := time.NewTicker(w.Every)
 	defer t.Stop()
 	for {
 		w.scan(ctx)

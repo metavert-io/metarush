@@ -191,8 +191,9 @@ export function folderLabel(dir: string | undefined): string {
 }
 
 /** "darwin"/"arm64" → "Mac, Apple chip" (the exact values stay in Details). */
-export function platformLabel(os: string, arch: string): string {
-  const system = ({ darwin: 'Mac', linux: 'Linux', windows: 'Windows' } as Record<string, string>)[os] ?? os;
+export function platformLabel(os: string, arch: string, wsl?: number): string {
+  // Inside WSL (D515) the computer is a Windows PC running MetaRush in Linux.
+  const system = wsl ? `Windows (WSL ${wsl})` : (({ darwin: 'Mac', linux: 'Linux', windows: 'Windows' } as Record<string, string>)[os] ?? os);
   const chip = os === 'darwin' ? (arch === 'arm64' ? 'Apple chip' : 'Intel') : arch === 'amd64' ? 'Intel or AMD' : arch === 'arm64' ? 'ARM' : arch;
   return chip ? `${system}, ${chip}` : system;
 }

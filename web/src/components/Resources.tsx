@@ -477,6 +477,11 @@ function FolderRow({ f }: { f: LinkedFolderRow }) {
         ) : null}
       </div>
       <p className="mt-1 text-[12.5px] leading-relaxed text-muted">{f.text}</p>
+      {f.slow ? (
+        <p className="mt-1 text-[12px] leading-relaxed text-subtle" data-folder-slow>
+          {f.slow}
+        </p>
+      ) : null}
       {f.herePath ? <p className="tc mt-0.5 truncate text-[11.5px] text-subtle" title={f.herePath}>{f.herePath}</p> : null}
       {here?.errors?.length ? <p className="mt-1 text-[12px] text-danger">{here.errors.slice(0, 2).join(' ')}</p> : null}
       {!f.unlinked ? (

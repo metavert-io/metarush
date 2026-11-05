@@ -11,6 +11,7 @@ import (
 	"github.com/metavert-io/metarush/internal/renderer"
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/transcribe"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // WorksItem is one thing MetaRush does, and whether it works here now.
@@ -52,6 +53,10 @@ type WhatWorks struct {
 	NoKeys   []WorksItem `json:"noKeys"`
 	WithKeys []WorksItem `json:"withKeys"`
 	Claude   ClaudeCode  `json:"claude"`
+	// Windows is MetaRush inside WSL on Windows (D515): the background
+	// service, Ubuntu staying up, the Windows browser, folders on the Windows
+	// side, in plain words. Absent elsewhere.
+	Windows *wsl.Report `json:"windows,omitempty"`
 	// Summary is one plain line for the top of the first run.
 	Summary string `json:"summary"`
 }
@@ -59,7 +64,7 @@ type WhatWorks struct {
 // Build reads this computer's state (tools, renderer, keys, Claude Code);
 // it changes nothing and needs no database.
 func Build(ctx context.Context, cfg *config.Config, ts *tools.Set) WhatWorks {
-	r := WhatWorks{NoKeys: noKeys(cfg, ts), WithKeys: withKeys(cfg), Claude: CheckClaude(ctx, ts)}
+	r := WhatWorks{NoKeys: noKeys(cfg, ts), WithKeys: withKeys(cfg), Claude: CheckClaude(ctx, ts), Windows: wsl.HereReport(cfg.WindowsPlaces())}
 	ready := 0
 	for _, c := range r.NoKeys {
 		if c.Ready {

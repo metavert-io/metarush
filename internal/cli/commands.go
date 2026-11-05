@@ -2334,6 +2334,9 @@ func printIngest(res *ingest.FilesOut, waited []models.Job, didWait, details boo
 	if details {
 		fmt.Printf("counts: %d ingested, %d deduped, %d duplicates, %d resumed, %d skipped, %d failed\n", res.Ingested, res.Deduped, res.Duplicates, res.Resumed, res.Skipped, res.Failed)
 	}
+	if res.Slow != "" {
+		fmt.Println(res.Slow) // from the Windows side, inside WSL (D521)
+	}
 	if !didWait || len(waited) == 0 {
 		if res.Note != "" {
 			fmt.Println(res.Note)

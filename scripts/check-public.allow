@@ -22,3 +22,5 @@ metarush@storage.googleapis.com
 user@1000.service
 # Third-party licence notices that must be copied verbatim (desktop/mac/THIRD_PARTY.md: Sparkle's LICENSE, its ed25519 code's copyright line).
 orsonpeters@gmail.com
+# The build account WSL 1's kernel names in /proc/version (internal/wsl's tests read it as WSL 1 writes it).
+microsoft@microsoft.com

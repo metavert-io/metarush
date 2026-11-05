@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/metavert-io/metarush/internal/secretpath"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // Saved are the addresses an earlier run of setup kept for this home (from
@@ -260,11 +261,21 @@ func (s *Server) ensureOwn(ctx context.Context, dbName, adminURI string, saved S
 // projects themselves.
 var ErrUnsafePlace = errors.New("the database can't be kept in a folder that syncs to the cloud or that a git repository holds: a copy of that folder would open every project")
 
+// ErrWindowsSide means the home is on one of Windows' drives inside WSL
+// (D522): MongoDB keeps its files on Linux's own disk, which reads and writes
+// the way it needs; Windows' drives reach Ubuntu over a slower link that
+// doesn't.
+var ErrWindowsSide = errors.New("the database can't be kept on the Windows side: MongoDB needs Linux's own disk, and Ubuntu reads and writes Windows' drives slowly")
+
 // checkPlace refuses <home>/database in a sync folder or a git repository,
 // ignored or not, with one exception: a repository whose root is the
 // person's home folder (a dotfiles repository) holds every folder there, the
 // suggested home included, so it is allowed with a warning (PlaceWarning).
+// Inside WSL it also refuses one of Windows' drives (D522).
 func (s *Server) checkPlace() error {
+	if wsl.HereOnWindows(s.keyFile()) {
+		return &Error{Plain: ErrWindowsSide.Error(), Next: "Keep MetaRush's folder in your Linux home folder, the place setup suggests.", Cause: ErrWindowsSide}
+	}
 	v := secretpath.Inspect(s.keyFile())
 	if !v.Unsafe() || v.Kind == secretpath.KindGit && homeRepository(v.Root) {
 		return nil

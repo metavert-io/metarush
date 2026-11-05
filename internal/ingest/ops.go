@@ -37,6 +37,9 @@ type FilesOut struct {
 	Failed     int      `json:"failed"`
 	DryRun     bool     `json:"dryRun"`
 	Note       string   `json:"note,omitempty"`
+	// Slow says, inside WSL, that files came from the Windows side, which
+	// Ubuntu reads slowly, and what is faster (D521).
+	Slow string `json:"slow,omitempty"`
 }
 
 // SessionsIn filters ingest sessions.
@@ -69,15 +72,18 @@ var Progress func(path, phase string, done, total int64)
 func init() {
 	ops.Def("ingest.files", "Ingest local files/folders: probe, hash, dedupe, upload (resumable), verify, then process", ops.Flags{Mutating: true, LocalOnly: true}, func(ctx context.Context, a *app.App, in *FilesIn) (*FilesOut, error) {
 		out := &FilesOut{DryRun: in.DryRun}
+		// Windows paths typed inside WSL open where WSL shows them (D520).
+		paths, typedBad := TypedPaths(in.Paths)
 		if in.DryRun {
-			files, skipped := Collect(in.Paths, in.Recursive)
-			out.Results = skipped
+			files, skipped := Collect(paths, in.Recursive)
+			out.Results = append(typedBad, skipped...)
 			for _, f := range files {
 				out.Results = append(out.Results, Result{Path: f, Status: "would-ingest"})
 			}
 			if out.Results == nil {
 				out.Results = []Result{}
 			}
+			out.Slow = SlowNote(out.Results)
 			return out, nil
 		}
 		tr := in.Transcribe == nil || *in.Transcribe
@@ -92,7 +98,8 @@ func init() {
 			}
 			in.ProjectID = p.ID
 		}
-		out.Results = Paths(ctx, a, in.Paths, Options{ProjectID: in.ProjectID, Tags: in.Tags, Recursive: in.Recursive, Via: a.Actor.Via, Transcribe: tr, Duplicates: in.Duplicates, Progress: Progress})
+		out.Results = append(typedBad, Paths(ctx, a, paths, Options{ProjectID: in.ProjectID, Tags: in.Tags, Recursive: in.Recursive, Via: a.Actor.Via, Transcribe: tr, Duplicates: in.Duplicates, Progress: Progress})...)
+		out.Slow = SlowNote(out.Results)
 		for _, r := range out.Results {
 			switch r.Status {
 			case "ingested":

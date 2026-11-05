@@ -28,6 +28,7 @@ import (
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/secretpath"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // Tool names.
@@ -164,12 +165,24 @@ const (
 	// clean environment; it never sees the private key. The real one is
 	// refused under go test unless config names it (a stand-in).
 	C2PATool = "c2patool"
+	// WSLView is wslu's opener inside WSL (when installed): it hands a web
+	// address to Windows' default browser (D518). Only an address MetaRush
+	// checked is passed (OpenInBrowser).
+	WSLView = "wslview"
+	// CmdExe is Windows' own command interpreter, reached from Ubuntu through
+	// WSL's interop (D518): MetaRush runs only `cmd.exe /c start <address>`,
+	// the address checked and cmd's special characters escaped, to open the
+	// dashboard in Windows' default browser. It is the one program on the
+	// Windows side MetaRush runs; every other program found there is left
+	// alone (Windows copies of Ubuntu's tools don't work from it).
+	CmdExe = "cmd.exe"
 )
 
 var allowed = map[string]bool{FFmpeg: true, FFprobe: true, Node: true, Whisper: true, WhisperServer: true, Sherpa: true, SherpaDiar: true, Atlas: true, Claude: true,
 	OSAScript: true, Open: true, XDGOpen: true, Say: true, EspeakNG: true, YtDlp: true, Deno: true, Brew: true, Pdftoppm: true, Pdfinfo: true, Sips: true,
 	Vision: true, Swiftc: true, Launchctl: true, Systemctl: true, Loginctl: true, Git: true, GH: true, D2: true, DeepFilter: true, StudioPython: true, NvidiaSMI: true,
-	Self: true, Tailscale: true, Stabilizer: true, SandboxExec: true, Bwrap: true, Rclone: true, Mongod: true, Lsof: true, SherpaTTS: true, C2PATool: true}
+	Self: true, Tailscale: true, Stabilizer: true, SandboxExec: true, Bwrap: true, Rclone: true, Mongod: true, Lsof: true, SherpaTTS: true, C2PATool: true,
+	WSLView: true, CmdExe: true}
 
 // Allowed says whether name is one of the programs MetaRush may run.
 func Allowed(name string) bool { return allowed[name] }
@@ -239,14 +252,12 @@ func (s *Set) OpenURL(ctx context.Context, raw string) (done func(), err error) 
 		!(u.Scheme == "https" || (u.Scheme == "http" && (u.Hostname() == "127.0.0.1" || u.Hostname() == "localhost"))) {
 		return func() {}, fmt.Errorf("refusing to open %q", raw)
 	}
-	tool := ""
-	switch {
-	case runtime.GOOS == "darwin" && s.Has(Open):
-		tool = Open
-	case runtime.GOOS == "linux" && s.Has(XDGOpen):
-		tool = XDGOpen
-	default:
+	tool := s.BrowserOpener() // inside WSL: Windows' browser (D518)
+	if tool == "" {
 		return func() {}, ErrUnsupported
+	}
+	if err := s.openerAllowed(tool); err != nil {
+		return func() {}, err
 	}
 	dir, err := os.MkdirTemp("", "metarush-open-")
 	if err != nil {
@@ -263,11 +274,21 @@ func (s *Set) OpenURL(ctx context.Context, raw string) (done func(), err error) 
 		return done, err
 	}
 	time.AfterFunc(OpenPageKept, done)
-	args := []string{page}
-	if tool == Open {
-		args = []string{"-a", s.webBrowser(ctx), page}
+	spec := Spec{Tool: tool, Args: []string{page}}
+	switch tool {
+	case Open:
+		spec.Args = []string{"-a", s.webBrowser(ctx), page}
+	case CmdExe:
+		// Windows reads the page where it sees Ubuntu's files
+		// (\\wsl.localhost\<distribution>\tmp\…); wslview finds that itself.
+		win, ok := wsl.Here().WindowsPath(page)
+		if !ok || strings.ContainsAny(win, " \t\"") {
+			done()
+			return done, ErrUnsupported
+		}
+		spec = cmdStart(win)
 	}
-	if _, err = s.Run(ctx, Spec{Tool: tool, Args: args}); err != nil {
+	if _, err = s.Run(ctx, spec); err != nil {
 		done()
 	}
 	return done, err
@@ -312,6 +333,13 @@ type Set struct {
 	cfg   config.Tools
 	mu    sync.Mutex
 	vers  map[string]string
+	// windows are copies of programs found on Windows' side of a WSL PATH
+	// (/mnt/c/…) and left alone (D518): what doctor and setup name when only
+	// Windows has one.
+	windows map[string]string
+	// pointed are the tools set with Use: under go test, the stand-ins a
+	// test pointed at (an opener runs only then, or from METARUSH_TOOL_DIRS).
+	pointed map[string]bool
 	// OnRun, when set, is told about every finished run (the activity log),
 	// except quiet ones such as version probes. It must be fast.
 	OnRun func(ctx context.Context, info RunInfo)
@@ -335,7 +363,7 @@ type quietKey struct{}
 func Quiet(ctx context.Context) context.Context { return context.WithValue(ctx, quietKey{}, true) }
 
 func (s *Set) report(ctx context.Context, spec Spec, start time.Time, res *Result, err error) {
-	if s.OnRun == nil || ctx.Value(quietKey{}) != nil {
+	if s.OnRun == nil || ctx.Value(quietKey{}) != nil || spec.Quiet {
 		return
 	}
 	info := RunInfo{Tool: spec.Tool, Args: spec.Args, Duration: time.Since(start), Err: err, Canceled: ctx.Err() != nil}
@@ -368,7 +396,8 @@ func (s *Set) CachedVersions() map[string]string {
 
 // New resolves tools from config, then PATH, then well-known install locations.
 func New(cfg config.Tools) *Set {
-	s := &Set{paths: map[string]string{}, cfg: cfg, vers: map[string]string{}}
+	s := &Set{paths: map[string]string{}, cfg: cfg, vers: map[string]string{}, windows: map[string]string{}, pointed: map[string]bool{}}
+	w := wsl.Here()
 	explicit := map[string]string{FFmpeg: cfg.FFmpeg, FFprobe: cfg.FFprobe, Node: cfg.Node, Whisper: cfg.WhisperCLI, WhisperServer: cfg.WhisperServer, Claude: cfg.Claude,
 		YtDlp: cfg.YtDlp, Deno: cfg.Deno, Brew: cfg.Brew, Vision: cfg.Vision, Launchctl: cfg.Launchctl, Systemctl: cfg.Systemctl, Git: cfg.Git, GH: cfg.GH, D2: cfg.D2,
 		Tailscale: cfg.Tailscale, Rclone: cfg.Rclone, C2PATool: cfg.C2PATool}
@@ -388,12 +417,20 @@ func New(cfg config.Tools) *Set {
 			s.paths[Self] = exe // the running binary itself, never another metarush on PATH
 		}
 	}
+	if w.In() && only == nil {
+		// Inside WSL, nvidia-smi comes from Windows' graphics driver here (it
+		// isn't on a background service's PATH).
+		extra = append(extra, "/usr/lib/wsl/lib")
+	}
 	if only != nil {
 		extra = only // an installation that must not see this computer's own programs (tests, browser runs)
 	}
 	for name := range allowed {
 		if name == Self {
 			continue
+		}
+		if (name == CmdExe || name == WSLView) && !w.In() {
+			continue // Windows' openers mean something only inside WSL
 		}
 		if fixed, ok := systemOnly[name]; ok {
 			for _, p := range fixed {
@@ -421,7 +458,17 @@ func New(cfg config.Tools) *Set {
 				continue
 			}
 		}
-		if only == nil {
+		if only == nil && w.In() {
+			// Inside WSL, PATH also has Windows' folders (/mnt/c/…): programs
+			// there are Windows' and are left alone, except Windows' own
+			// cmd.exe, which opens the browser (D518).
+			if p, win := lookPathWSL(name, w); p != "" {
+				s.paths[name] = p
+				continue
+			} else if win != "" {
+				s.windows[name] = win
+			}
+		} else if only == nil {
 			if p, err := exec.LookPath(name); err == nil {
 				s.paths[name] = p
 				continue
@@ -436,6 +483,13 @@ func New(cfg config.Tools) *Set {
 		if name == Tailscale && s.paths[name] == "" && runtime.GOOS == "darwin" && only == nil && fileExec(macTailscale) {
 			s.paths[name] = macTailscale
 		}
+		if name == CmdExe && s.paths[name] == "" && only == nil {
+			// Windows' PATH isn't passed on ([interop] appendWindowsPath=false,
+			// a background service): cmd.exe where Windows keeps it.
+			if p := windowsCmd(w); p != "" {
+				s.paths[name] = p
+			}
+		}
 	}
 	// whisper-server from the same build as whisper-cli: the one next to it.
 	if s.paths[WhisperServer] == "" && cfg.WhisperServer == "" && s.paths[Whisper] != "" {
@@ -448,6 +502,60 @@ func New(cfg config.Tools) *Set {
 
 // linuxbrewBin is where Homebrew on Linux puts its programs.
 const linuxbrewBin = LinuxbrewPrefix + "/bin"
+
+// lookPathWSL finds name on PATH inside WSL: the first copy on Linux's own
+// disk, and (win) the first one on a Windows drive, which is used only for
+// cmd.exe. Relative folders on PATH are never searched.
+func lookPathWSL(name string, w wsl.Info) (found, win string) {
+	for _, d := range filepath.SplitList(os.Getenv("PATH")) {
+		if d == "" || !filepath.IsAbs(d) {
+			continue
+		}
+		p := filepath.Join(d, name)
+		if !fileExec(p) {
+			continue
+		}
+		if w.UnderDrive(d) {
+			if name == CmdExe {
+				return p, ""
+			}
+			if win == "" {
+				win = p
+			}
+			continue
+		}
+		return p, win
+	}
+	return "", win
+}
+
+// windowsCmd is Windows' cmd.exe on its C: drive as WSL shows it ("" when
+// it isn't there).
+func windowsCmd(w wsl.Info) string {
+	if !w.In() {
+		return ""
+	}
+	c, err := w.LinuxPath(`C:\Windows\System32\cmd.exe`)
+	if err != nil {
+		return ""
+	}
+	if fileExec(c) {
+		return c
+	}
+	return ""
+}
+
+// WindowsCopy is a copy of a program found only on Windows' side of a WSL
+// PATH, which MetaRush leaves alone ("" when there is none): doctor and
+// setup say that it needs installing in Ubuntu too.
+func (s *Set) WindowsCopy(name string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.paths[name] != "" {
+		return ""
+	}
+	return s.windows[name]
+}
 
 // EnvToolDirs names the only folders (separated like PATH) where MetaRush
 // looks for programs it isn't told the path of: not PATH, not Homebrew's or
@@ -486,9 +594,13 @@ func SearchDirs() []string {
 	}
 	out = append(out, filepath.SplitList(os.Getenv("PATH"))...)
 	out = append(out, "/opt/homebrew/bin", filepath.Join(home, ".local", "bin"), filepath.Join(home, ".local", "node-arm64", "bin"), "/usr/local/bin", "/usr/bin", filepath.Join(home, ".claude", "local"), linuxbrewBin)
+	w := wsl.Here()
 	seen := map[string]bool{}
 	dirs := out[:0]
 	for _, d := range out {
+		if w.In() && w.UnderDrive(d) {
+			continue // Windows' folders on a WSL PATH: never MetaRush's programs, and slow to look at
+		}
 		if d != "" && !seen[d] {
 			seen[d] = true
 			dirs = append(dirs, d)
@@ -505,6 +617,7 @@ func (s *Set) Rescan(cfg config.Tools) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cfg = cfg
+	s.windows = fresh.windows
 	for name := range allowed {
 		old, now := s.paths[name], fresh.paths[name]
 		keep := old != "" && fileExec(old)
@@ -576,6 +689,7 @@ func (s *Set) Use(name, path string) bool {
 	}
 	s.mu.Lock()
 	s.paths[name] = path
+	s.pointed[name] = true
 	delete(s.vers, name)
 	s.mu.Unlock()
 	return true
@@ -687,6 +801,7 @@ var missingFor = map[string]string{
 	Rclone:   "to read Google Drive folders without syncing them",
 	Mongod:   "for the database on this computer",
 	C2PATool: "to put Content Credentials into delivered videos",
+	WSLView:  "to open your Windows browser", CmdExe: "to open your Windows browser",
 }
 
 // Result is a finished command.
@@ -734,6 +849,9 @@ type Spec struct {
 	// the run or its time limit. Its output still streams as it comes; OnLine
 	// isn't available with it.
 	Contained bool
+	// Quiet keeps the run out of OnRun (the activity log), like a Quiet
+	// context: an address with a one-time sign-in in it, say.
+	Quiet bool
 }
 
 // Run executes an allowlisted tool. Stderr is captured (bounded).

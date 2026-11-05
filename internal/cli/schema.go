@@ -27,6 +27,7 @@ import (
 	"github.com/metavert-io/metarush/internal/providers"
 	"github.com/metavert-io/metarush/internal/sound"
 	"github.com/metavert-io/metarush/internal/todos"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 func schemaCmd() *cobra.Command {
@@ -121,6 +122,9 @@ var opsSchemaNames = map[reflect.Type]string{
 	reflect.TypeOf(fixes.CopyView{}):   "FixedCopyView",
 	reflect.TypeOf(fixes.CutUse{}):     "FixCutUse",
 	reflect.TypeOf(fixes.Card{}):       "SourceCard",
+	// MetaRush inside WSL on Windows (D515): named for what they are.
+	reflect.TypeOf(wsl.Report{}): "WindowsReport",
+	reflect.TypeOf(wsl.Note{}):   "WindowsNote",
 	// Estimates of what outside AI services cost (D208): one shape everywhere.
 	reflect.TypeOf(costs.Estimate{}): "CostEstimate",
 	reflect.TypeOf(costs.Part{}):     "CostPart",

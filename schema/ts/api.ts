@@ -3639,6 +3639,7 @@ paused?: boolean
 machines: LinkedFolderMachine[]
 unlinked?: boolean
 text: string
+slow?: string
 }
 /**
  * This interface was referenced by `Api`'s JSON-Schema

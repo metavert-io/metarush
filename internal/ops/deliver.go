@@ -29,6 +29,7 @@ import (
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/transcripts"
 	"github.com/metavert-io/metarush/internal/version"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // DeliverIn exports finished renders of revisions to a local folder.
@@ -499,7 +500,13 @@ func init() {
 				return nil, invalid("“%s” isn't a video shape MetaRush renders: choose vertical-1080p, landscape-1080p or square-1080.", p)
 			}
 		}
-		dir, err := filepath.Abs(in.Out)
+		// Inside WSL a Windows folder (C:\Users\Sam\Deliveries) is where WSL
+		// shows it (D520); delivering there works, slowly (D521).
+		typed, err := wsl.HereLinuxPath(in.Out)
+		if err != nil {
+			return nil, typedPathErr(err, in.Out)
+		}
+		dir, err := filepath.Abs(typed)
 		if err != nil {
 			return nil, apperr.Wrap(apperr.InvalidInput, err, "MetaRush can't use that folder.").WithDetails(map[string]any{"out": in.Out})
 		}
@@ -1346,4 +1353,15 @@ func init() {
 	Offer("deliver.export", Offering{ID: "delivery", Group: "deliver", Title: "Delivery",
 		Does:  "Exports finished videos to a folder with a notes file each, checked, and never over an older file.",
 		Words: []string{"hand off", "send the final video", "export"}})
+}
+
+// typedPathErr is a path typed inside WSL that can't be opened from Ubuntu
+// (another Linux's files, a network folder, a drive WSL doesn't show), in
+// plain words (D520).
+func typedPathErr(err error, typed string) error {
+	var pe *wsl.PathError
+	if errors.As(err, &pe) {
+		return apperr.New(apperr.InvalidInput, "%s", pe.Plain).WithHint(pe.Next).WithDetails(map[string]any{"typed": typed, "reason": "windows_path"}).WithCommand(pe.Command)
+	}
+	return apperr.Wrap(apperr.InvalidInput, err, "MetaRush can't use that folder.").WithDetails(map[string]any{"typed": typed})
 }

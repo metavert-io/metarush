@@ -12,6 +12,7 @@ import (
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/version"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // VersionShowIn asks about this computer's MetaRush (Settings → General,
@@ -36,6 +37,9 @@ type VersionShowOut struct {
 	// ComputersError says why the computers couldn't be listed (the command
 	// line without a workspace; the dashboard always has one).
 	ComputersError string `json:"computersError,omitempty"`
+	// Windows is MetaRush on this computer inside WSL on Windows (D515), in
+	// plain words; absent elsewhere.
+	Windows *wsl.Report `json:"windows,omitempty"`
 }
 
 // ComputerVersion is one computer in the workspace and the MetaRush it runs.
@@ -45,6 +49,9 @@ type ComputerVersion struct {
 	Hostname string `json:"hostname,omitempty"`
 	OS       string `json:"os,omitempty"`
 	Arch     string `json:"arch,omitempty"`
+	// WSL is the Windows Subsystem for Linux it runs MetaRush in (2), so it
+	// is shown as Windows (D515); absent elsewhere.
+	WSL int `json:"wsl,omitempty"`
 	// This is the computer answering: the one this dashboard or command runs on.
 	This bool `json:"this"`
 	// Version is the MetaRush it last ran (its daemon reports it every minute); Release is its release.
@@ -72,8 +79,10 @@ func VersionAbout(ctx context.Context, a *app.App) (*VersionShowOut, error) {
 	b := version.Current()
 	out := &VersionShowOut{Info: b, EditSpec: editspec.SchemaVersion, WhatsNew: version.WhatsNew(b), Computers: []ComputerVersion{}}
 	if a == nil {
+		out.Windows = wsl.HereReport(nil)
 		return out, nil
 	}
+	out.Windows = wsl.HereReport(a.Cfg.WindowsPlaces())
 	var insts []models.Installation
 	if err := a.DB.Find(ctx, store.CInstallations, a.WorkspaceID(), nil, &insts, options.Find()); err != nil {
 		return nil, err
@@ -82,7 +91,7 @@ func VersionAbout(ctx context.Context, a *app.App) (*VersionShowOut, error) {
 		if in.State == models.InstallationRevoked {
 			continue
 		}
-		c := ComputerVersion{ID: in.ID, Name: in.Name, Hostname: in.Hostname, OS: in.OS, Arch: in.Arch, This: in.ID == a.Cfg.Installation.ID,
+		c := ComputerVersion{ID: in.ID, Name: in.Name, Hostname: in.Hostname, OS: in.OS, Arch: in.Arch, WSL: in.WSL, This: in.ID == a.Cfg.Installation.ID,
 			Version: in.Version, Commit: in.Commit, Built: in.Built, State: in.State}
 		if c.State == "" {
 			c.State = models.InstallationActive
@@ -93,7 +102,7 @@ func VersionAbout(ctx context.Context, a *app.App) (*VersionShowOut, error) {
 		}
 		if c.This {
 			// What answers is this build, whatever the record last said.
-			c.Version, c.Commit, c.Built = b.Version, b.Commit, b.Date
+			c.Version, c.Commit, c.Built, c.WSL = b.Version, b.Commit, b.Date, wsl.Here().Version
 		}
 		c.Standing = standing(c, b.Version)
 		if c.Version != "" {

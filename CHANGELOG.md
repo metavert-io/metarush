@@ -11,8 +11,8 @@
   --clip 2 --with colour --colour '#00b140'`. Content Credentials list the replaced background as footage changed
   with AI, and the quality check says where it was done (in nested cuts too) and finds a cut-out that is missing or
   out of date. Safari's preview, and every browser's on an iPhone or iPad, plays such a clip as recorded (they can't
-  show a video's see-through parts), and says so under the player; the renders always show it. A person deletes a
-  cut-out with `metarush footage cut-out-delete <cut-out> --forever` (not while a cut's latest version plays it).
+  show a video's see-through parts), and says so under the player; the renders always show it. An owner deletes a
+  cut-out with `metarush footage cut-out-delete <cut-out> --forever`, never while any version, draft or recipe plays it.
 - **Delivered videos can carry Content Credentials**. Turn them on in Settings → Delivery (or `metarush credentials
   on`; a client's Content Settings can say on, required or off for their projects) and every final video MetaRush
   delivers carries a signed record, in the open C2PA format, that it was made with MetaRush, which footage, sound and

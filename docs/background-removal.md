@@ -22,7 +22,7 @@ Undo. A clip with a new background shows **Background: …** and **Take the back
 metarush footage cut-out <clip> [--range 0:12-0:40] [--model local/modnet] [--wait] [--dry-run]
 metarush footage cut-outs <clip>                         # the clip's cut-outs: the part, how far along, the model, where made
 metarush footage cut-out-preview <clip> --at 0:03 --with colour --colour '#00b140' [--out still.jpg]
-metarush footage cut-out-delete <cut-out> --forever [--dry-run]   # people only, in their own terminal
+metarush footage cut-out-delete <cut-out> --forever [--dry-run]   # owners, in their own terminal
 metarush cut background <project> --clip <name or number> --with blur|colour|picture|footage \
     [--colour '#00b140'] [--blur 28] [--picture <name>] [--footage <clip> --footage-at 0:04] [--edges 2] [--wait]
 metarush cut background <project> --clip 2 --off        # the clip as recorded again
@@ -37,8 +37,9 @@ never written over (the preview is a read, which AI apps may run). It follows th
 cut-out does: where they rule background removal out, or this computer's models, no still is made.
 
 **In Claude's panel**, Claude's `metarush cut background …` and `metarush footage cut-out …` become cards a person
-runs. Auto runs them by itself only when the cut-out is made on a computer of the workspace (never a service
-elsewhere, never a price). `metarush footage cut-outs` is a read Claude may run.
+runs. A card that makes a cut-out names the model its check chose; Auto runs it by itself only when that model — the
+kind's usual one when the card names none — is made on a computer of the workspace (never a service elsewhere,
+never a price). `metarush footage cut-outs` is a read Claude may run.
 
 ## What a cut-out is
 
@@ -60,20 +61,23 @@ described as the clip's. It is derived media, like a fixed copy:
 - **never of someone else's video**: a reference (a video kept to learn from) is never cut out, and never shown behind
   people; neither is a picture taken from one.
 
-- **made where there is room**: before anything is made the job checks the computer has about 1.6 MB free for every
-  second of the stretch, the clip when it isn't there yet, and half a gigabyte to spare; without it, another computer
-  that makes cut-outs takes it, else it ends saying how much it needs and how much is free.
+- **made where there is room**: before anything is made (and before its record says it is being made) the job checks
+  each disk for what lands on it — where it works, about 1.6 MB a second of the stretch for the matte and the cut-out;
+  where copies of footage are kept, the clip when it isn't there yet and the cut-out kept — with half a gigabyte to
+  spare on each. Without it, another computer that makes cut-outs takes it (up to six waits in a row, about an hour
+  and a half), else it ends saying how much it needs and how much is free; asking again while it waits joins it.
 - **paired frame for frame**: the matte's model and the cut-out's picture read the clip on its own frame rate's grid
   (the frame showing at each tick, the last held where the sound runs on), and both are timed by frame number before
   they meet, so every frame wears its own frame's matte whatever times the file gives its frames (a millisecond time
   base, a variable rate).
 
 `metarush footage cut-outs <clip>` lists them; Settings → Storage's export keeps them (`mattes`), clearing a
-project out leaves them with the footage, and deleting the footage for good deletes them too. A person deletes one
-with `metarush footage cut-out-delete` (it can be made again): refused while the latest version of a cut plays it,
-itself or in a cut it nests; older versions that play it are named first, since they can't show their new background
-again. A recipe file never carries a clip's background (its cut-out is made again where it comes in), and a run that
-gives a clip other footage leaves its background out, with a note.
+project out leaves them with the footage, and deleting the footage for good deletes them too. An owner deletes one
+with `metarush footage cut-out-delete` (it can be made again, as a new file), as footage is deleted: refused while
+anything plays it — any version of a cut (the latest or older, in any project, archived ones too, or a cut nesting
+one), a draft waiting for review, a recipe — since a version keeps what it was saved with. A recipe file never
+carries a clip's background (its cut-out is made again where it comes in), and a run that gives a clip other footage
+leaves its background out, with a note.
 
 ## In the cut
 
@@ -89,8 +93,10 @@ A clip says `background` in the edit spec:
 {assetId, in}`: another clip of the project, playing from `in` at its own speed). `feather` is how soft the people's
 edges are (pixels on a 1080 picture, default 2). Cut sheets keep it in the clip's `{background: …}` block.
 
-The check refuses a background it can't draw: a cut-out that's missing, not made yet, another clip's, or that
-doesn't cover the clip (`background_matte_missing`, `background_matte_other`, `background_matte_short`, with the
+A plan keeps a cut-out MetaRush doesn't have pinned (`missing`): rendering such a version fails plainly, never
+playing the clip as recorded in its place, QA says so (in nested cuts too), and the preview, with no file to show,
+plays the clip as recorded. The check refuses a background it can't draw: a cut-out that's missing, not made yet,
+another clip's, or that doesn't cover the clip (`background_matte_missing`, `background_matte_other`, `background_matte_short`, with the
 command that fixes it), a colour that isn't one, a picture the cut doesn't pin, another clip that's too short or not
 in the project, and a conversation or a nested cut (their footage is where to replace it). A cut-out made from other
 media than the cut plays for the clip (a fixed copy made since) is a warning: it plays as saved.

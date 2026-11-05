@@ -224,9 +224,10 @@ func (c *conv) autoStep(a *AssistantAction) bool {
 		return json.Unmarshal([]byte(a.Input), &in) == nil && in.Framing != editspec.FramingFollow
 	case "cut.background", "footage.cutout":
 		// Never by itself when the clip would leave for a service elsewhere
-		// (D512): no price, and a model named only when the catalogue knows it
-		// as one of the kind's on a computer of the workspace (none named: the
-		// op itself asks a price of any other, which Auto never agrees to).
+		// (D512): no price, and the model the catalogue knows as one of the
+		// kind's on a computer of the workspace. A card names the model its
+		// check chose when it makes a cut-out; one naming none makes none, and
+		// is held to the kind's usual model all the same.
 		var in struct {
 			Model  string   `json:"model"`
 			MaxUSD *float64 `json:"maxUsd"`
@@ -234,10 +235,7 @@ func (c *conv) autoStep(a *AssistantAction) bool {
 		if json.Unmarshal([]byte(a.Input), &in) != nil || in.MaxUSD != nil {
 			return false
 		}
-		if strings.TrimSpace(in.Model) == "" {
-			return true
-		}
-		m, err := aiservices.FindModel(aiservices.KindVideoBackground, in.Model)
+		m, err := aiservices.FindModel(aiservices.KindVideoBackground, strings.TrimSpace(in.Model)) // "": the kind's usual model
 		return err == nil && m.Kind == aiservices.KindVideoBackground && aiservices.IsLocal(m.Provider)
 	}
 	return true

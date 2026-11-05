@@ -116,7 +116,18 @@ func (m *Manager) describeFootageCutout(ctx context.Context, call *cliCall, a *A
 		return
 	}
 	a.Details = append(a.Details, "For background removal in video: cuts then put a colour, a blur, a picture or another clip behind them")
+	if in.Model == "" {
+		in.Model = madeWith(r) // the model the check chose (Content Settings' pin, else the usual one): the card runs that one
+	}
 	setInput(a, "footage.cutout", in)
+}
+
+// madeWith is the model a checked cut-out would be made with (provider/model).
+func madeWith(r *mattes.CutoutOut) string {
+	if r == nil || r.Matte.Provider == "" || r.Matte.Model == "" {
+		return ""
+	}
+	return r.Matte.Provider + "/" + r.Matte.Model
 }
 
 // cutoutWork is the cut-out a card started: Claude hears once it is made.

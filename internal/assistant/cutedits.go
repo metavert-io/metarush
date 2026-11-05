@@ -8,6 +8,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/editspec"
+	"github.com/metavert-io/metarush/internal/mattes"
 	"github.com/metavert-io/metarush/internal/ops"
 )
 
@@ -262,6 +263,13 @@ func (m *Manager) describeCutEdit(ctx context.Context, call *cliCall, a *Assista
 		}
 	}
 	a.Details = append(a.Details, "Puts the change in the cut as a new version")
+	if bg, ok := in.(mattes.CutBackgroundIn); ok && bg.Model == "" {
+		if out, ok := res.(*mattes.CutBackgroundOut); ok && out.Cutout != nil {
+			// The cut-out it makes first: the model the check chose, named on the card (D512).
+			bg.Model = madeWith(out.Cutout)
+			in = bg
+		}
+	}
 	setInput(a, verb.op, withDryRun(in, false))
 }
 

@@ -1,11 +1,17 @@
 package assistant
 
 import (
+	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
+	"github.com/metavert-io/metarush/internal/aiservices"
+	"github.com/metavert-io/metarush/internal/aiservices/local"
+	"github.com/metavert-io/metarush/internal/aiwork"
 	"github.com/metavert-io/metarush/internal/mattes"
 	"github.com/metavert-io/metarush/internal/ops"
+	"github.com/metavert-io/metarush/internal/testutil/fakelocal"
 )
 
 // Claude's background commands (D510, D512): `cut background` reads like the
@@ -82,5 +88,59 @@ func TestBackgroundCardsReadLikeTheCLI(t *testing.T) {
 	}
 	if w := cutoutWork(&mattes.CutoutOut{JobID: "job_4"}, ""); w == nil || w.Link != "/library" {
 		t.Fatalf("a cut-out outside a project: %+v", w)
+	}
+}
+
+// A background card whose command names no model names the one its check
+// chose (Content Settings' pin, else the usual one) when it makes a cut-out,
+// so the card runs exactly that model and Auto judges that one; a card that
+// makes no cut-out names none and is held to the kind's usual model.
+func TestBackgroundCardsNameTheModelTheyMakeWith(t *testing.T) {
+	fakelocal.Matter(t)
+	a := testApp(t, "")
+	projectID, assetID, _ := fixture(t, a)
+	m := &Manager{App: a, names: map[string]string{}}
+	ctx := context.Background()
+	card := func(command string) *AssistantAction {
+		t.Helper()
+		words, err := splitCommand(command)
+		if err != nil {
+			t.Fatal(err)
+		}
+		call, ok := parseMetarush(words)
+		if !ok {
+			t.Fatalf("not a metarush command: %s", command)
+		}
+		act := &AssistantAction{Kind: call.Path}
+		m.describeAction(ctx, nil, &call, act)
+		return act
+	}
+	usual, err := aiservices.ModelFor(local.Name, aiservices.KindVideoBackground, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cut := card("metarush footage cut-out " + assetID)
+	var ci mattes.CutoutIn
+	if err := json.Unmarshal([]byte(cut.Input), &ci); err != nil || cut.Op != "footage.cutout" || ci.Model != usual.Ref() {
+		t.Fatalf("the cut-out card names its model: %+v %v", cut, err)
+	}
+	bg := card("metarush cut background " + projectID + " --clip hook --with blur")
+	var bi mattes.CutBackgroundIn
+	if err := json.Unmarshal([]byte(bg.Input), &bi); err != nil || bg.Op != "cut.background" || bi.Model != usual.Ref() {
+		t.Fatalf("the background card names the model of the cut-out it makes first: %+v %v", bg, err)
+	}
+	c := &conv{}
+	cut.State, bg.State = ActionPending, ActionPending // as when the card is added
+	if !c.autoStep(cut) || !c.autoStep(bg) {
+		t.Fatalf("a model on a computer of the workspace runs by itself under Auto: %+v %+v", cut, bg)
+	}
+	// Content Settings pin another model: the card names that one.
+	if _, err := ops.CallTyped[aiwork.RulesOut](ctx, a, "ai.rules.set", aiwork.RulesSetIn{ProjectID: projectID, Pin: map[string]string{aiservices.KindVideoBackground: "local/modnet"}},
+		ops.Caller{Human: true}); err != nil {
+		t.Fatal(err)
+	}
+	pinned := card("metarush footage cut-out " + assetID + " --project " + projectID)
+	if err := json.Unmarshal([]byte(pinned.Input), &ci); err != nil || ci.Model != "local/modnet" {
+		t.Fatalf("the pinned model: %+v %v", pinned, err)
 	}
 }

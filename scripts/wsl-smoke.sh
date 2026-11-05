@@ -5,13 +5,15 @@
 #
 #   scripts/wsl-smoke.sh            # detection and doctor's WINDOWS checks; Windows reaching a server on 127.0.0.1
 #   scripts/wsl-smoke.sh --setup    # also a throwaway MetaRush in a temporary folder: setup with the database on this
-#                                   # computer (MongoDB's download, about 85 MB), the dashboard's opener (nothing
-#                                   # opens), Windows asking the dashboard for its health, a C:\ path added (a dry
-#                                   # run), doctor; then it is stopped and removed
+#                                   # computer (MongoDB's download, about 85 MB), Windows asking the dashboard for its
+#                                   # health, a C:\ path added (a dry run), doctor; then the real opener: Windows'
+#                                   # default browser opens a sign-in link with & and % in it, and a stand-in on the
+#                                   # dashboard's port checks the address arrived exactly (a browser window opens);
+#                                   # then everything is stopped and removed
 #
 # It uses the metarush on PATH (or METARUSH=<program>) and only its own temporary folders and settings
-# (XDG_CONFIG_HOME too): never your own MetaRush. Ports 5840 (a test server) and 5841 (the dashboard).
-# Exit status 1 when a check fails, 2 when it isn't run inside WSL.
+# (XDG_CONFIG_HOME too): never your own MetaRush. Ports 5840 (a test server) and 5841 (the dashboard, then the
+# stand-in). Exit status 1 when a check fails, 2 when it isn't run inside WSL.
 set -uo pipefail
 
 setup=0
@@ -35,11 +37,31 @@ fi
 command -v python3 >/dev/null || { echo "python3 is needed to read MetaRush's JSON (sudo apt install python3)." >&2; exit 2; }
 
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/metarush-wsl-smoke-XXXXXX")"
+# The stand-in for the dashboard in open_for_real: /api/health answers, every other address is written down.
+cat >"$tmp/standin.py" <<'STANDIN'
+import http.server, sys
+log = sys.argv[2]
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = b'{"ok":true}' if self.path == "/api/health" else b"<!doctype html><title>MetaRush</title>The link arrived."
+        if self.path != "/api/health":
+            with open(log, "a") as f:
+                f.write(self.path + "\n")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+    def log_message(self, *a):
+        pass
+http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
+STANDIN
 home="$tmp/home"
 export XDG_CONFIG_HOME="$tmp/config" # the database port registry and the rest stay in the throwaway folder
 # None of your own MetaRush settings (a database address, a home): an empty variable would count too.
 for v in $(compgen -e | grep '^METARUSH_' || true); do unset "$v"; done
 server=""
+standin=""
 winfolder=""
 pass=0
 fail=0
@@ -47,6 +69,7 @@ skip=0
 
 cleanup() {
   [ -n "$server" ] && kill "$server" 2>/dev/null
+  [ -n "$standin" ] && kill "$standin" 2>/dev/null
   if [ "$setup" = 1 ] && [ -f "$home/config.yaml" ]; then
     "$MR" --home "$home" stop >/dev/null 2>&1 || true
   fi
@@ -98,6 +121,51 @@ powershell() {
 # from_windows <url>: the status Windows gets for url ("" when it couldn't ask).
 from_windows() {
   powershell "try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 20 -Uri '$1').StatusCode } catch { if (\$_.Exception.Response) { [int]\$_.Exception.Response.StatusCode } else { 'unreachable' } }"
+}
+
+# open_for_real checks the real opener: `metarush dashboard` opens its sign-in link in Windows' default browser.
+# MetaRush's own dashboard is stopped first and a stand-in answers on its port, writing down every address a
+# browser asks for: the link has & and % in it (and more of what an address may hold), and must arrive exactly as
+# MetaRush printed it — nothing cut at the &, nothing read as a variable.
+open_for_real() {
+  echo
+  echo "Windows' browser opening a link (a browser window opens):"
+  if [ -z "$ps" ]; then
+    skipped "Ubuntu can't start Windows programs here (interop off): nothing to open the browser with"
+    return
+  fi
+  "$MR" --home "$home" stop >/dev/null 2>&1 || true
+  python3 "$tmp/standin.py" 5841 "$tmp/arrived.log" >/dev/null 2>&1 &
+  standin=$!
+  for _ in $(seq 1 50); do
+    python3 -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:5841/api/health", timeout=1)' 2>/dev/null && break
+    sleep 0.2
+  done
+  local next link want got
+  next='/arrived/x?a=1%26b%3D2&c=%25PATH%25&d=@x:y+z~[1]'
+  "$MR" --home "$home" --details dashboard --next "$next" >"$tmp/open.out" 2>"$tmp/open.err"
+  link="$(grep -m1 '^http://127.0.0.1:5841/auth?' "$tmp/open.out" || true)"
+  want="${link#http://127.0.0.1:5841}"
+  got=""
+  for _ in $(seq 1 120); do
+    got="$(grep -m1 '^/auth?' "$tmp/arrived.log" 2>/dev/null || true)"
+    [ -n "$got" ] && break
+    sleep 0.5
+  done
+  if [ -z "$link" ]; then
+    bad "no link printed: $(tail -3 "$tmp/open.err")"
+  elif [ "$got" = "$want" ]; then
+    ok "Windows' browser asked for exactly $want"
+  elif [ -n "$got" ]; then
+    bad "Windows' browser asked for $got, not $want"
+  else
+    bad "nothing arrived from Windows' browser within a minute: $(tail -3 "$tmp/open.err")"
+    echo "        the programs Windows runs now that could have been started for it:"
+    powershell 'Get-CimInstance Win32_Process | Where-Object { $_.Name -match "msedge|chrome|firefox|rundll32" } | ForEach-Object { $_.Name + ": " + $_.CommandLine }' |
+      head -12 | sed 's/^/          /'
+  fi
+  kill "$standin" 2>/dev/null
+  standin=""
 }
 
 echo "MetaRush: $("$MR" version 2>/dev/null | head -1)"
@@ -155,7 +223,7 @@ if [ "$setup" = 1 ]; then
     if "$MR" --home "$home" dashboard --no-open --json >"$tmp/dash.json" 2>"$tmp/dash.err"; then
       opener="$(json "$tmp/dash.json" 'd["data"]["opensWith"]')"
       case "$opener" in
-        cmd.exe | wslview) ok "the dashboard would open with $opener (Windows' browser)" ;;
+        rundll32.exe | wslview) ok "the dashboard would open with $opener (Windows' browser)" ;;
         "") [ -z "$ps" ] && skipped "nothing opens the Windows browser (interop off): the link is printed" || bad "no opener, though Windows programs run" ;;
         *) bad "the dashboard would open with $opener, not Windows' browser" ;;
       esac
@@ -196,6 +264,7 @@ PY
     "$MR" --home "$home" doctor --json >"$tmp/doctor1.json" 2>/dev/null
     echo "        doctor's WINDOWS checks now:"
     windows_checks "$tmp/doctor1.json" | sed 's/^/          /'
+    open_for_real
   fi
 fi
 

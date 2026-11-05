@@ -1,19 +1,49 @@
 name: wsl
 # MetaRush inside WSL 2 on Windows (D524, docs/wsl.md): scripts/wsl-smoke.sh --setup in Ubuntu 24.04 on WSL 2 on
-# GitHub's Windows runner — what MetaRush detects and says, the database on this computer on WSL's own kernel, the
-# program that opens the dashboard in Windows' browser, Windows reaching Ubuntu's 127.0.0.1, a C:\ path added. The
-# Go tests play WSL with stand-in files on every push (ci.yml); this checks the real thing. Windows minutes cost
-# twice Linux's and a WSL distribution takes a few minutes to install, so it runs when what it checks changes,
-# weekly and by hand, and no pull request waits for it.
+# GitHub's Windows runner — what MetaRush detects and says, the database on this computer on WSL's own kernel,
+# Windows reaching Ubuntu's 127.0.0.1, a C:\ path added, and the real opener: Windows' default browser opening a
+# sign-in link with & and % in it, which a stand-in on the dashboard's port checks arrived exactly. The Go tests
+# play WSL with stand-in files on every push (ci.yml); this checks the real thing. Windows minutes cost twice
+# Linux's and a WSL distribution takes a few minutes to install, so it runs when what it checks changes (the
+# paths below, the same for both: internal/wsl's TestTheWSLWorkflow keeps them so), weekly and by hand, and no
+# pull request waits for it.
 on:
   push:
     branches: [main]
-    paths: [internal/wsl/**, internal/tools/browser.go, internal/cli/wsl.go, internal/localdb/**, scripts/wsl-smoke.sh, .github/workflows/wsl.yml]
+    paths:
+      - internal/wsl/**
+      - internal/tools/**
+      - internal/cli/wsl.go
+      - internal/cli/daemon.go
+      - internal/cli/doctor.go
+      - internal/cli/setup.go
+      - internal/api/access.go
+      - internal/localdb/**
+      - internal/ingest/windows.go
+      - internal/secretpath/**
+      - internal/service/service.go
+      - scripts/wsl-smoke.sh
+      - .github/workflows/wsl.yml
   pull_request:
-    paths: [internal/wsl/**, internal/tools/browser.go, internal/cli/wsl.go, internal/localdb/**, scripts/wsl-smoke.sh, .github/workflows/wsl.yml]
+    paths:
+      - internal/wsl/**
+      - internal/tools/**
+      - internal/cli/wsl.go
+      - internal/cli/daemon.go
+      - internal/cli/doctor.go
+      - internal/cli/setup.go
+      - internal/api/access.go
+      - internal/localdb/**
+      - internal/ingest/windows.go
+      - internal/secretpath/**
+      - internal/service/service.go
+      - scripts/wsl-smoke.sh
+      - .github/workflows/wsl.yml
   schedule:
     - cron: "41 6 * * 2" # Tuesdays 06:41 UTC
   workflow_dispatch:
+permissions:
+  contents: read
 concurrency:
   group: wsl-${{ github.ref }}
   cancel-in-progress: true
@@ -25,6 +55,8 @@ jobs:
       # Plain line endings in the checkout: the script runs in Ubuntu, and the binary embeds files.
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.27" }
       - name: MetaRush for Linux (built on Windows, run in WSL)

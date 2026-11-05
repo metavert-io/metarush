@@ -24,7 +24,7 @@ import (
 type TodoListIn struct {
 	ProjectID string `json:"projectId,omitempty"`
 	AssetID   string `json:"assetId,omitempty"`
-	Kind      string `json:"kind,omitempty" jsonschema:"enum=speaker_unnamed,enum=speaker_match,enum=music_rights,enum=brief_missing,enum=duplicate_person,enum=revision_approval,enum=face_person,enum=spelling,enum=face_group,enum=remotion_approval,enum=recipe_run,enum=ability_approval"`
+	Kind      string `json:"kind,omitempty" jsonschema:"enum=speaker_unnamed,enum=speaker_match,enum=music_rights,enum=brief_missing,enum=duplicate_person,enum=revision_approval,enum=face_person,enum=spelling,enum=face_group,enum=remotion_approval,enum=recipe_run,enum=ability_approval,enum=ship_gate,enum=ability_taken_back"`
 	State     string `json:"state,omitempty" jsonschema:"enum=open,enum=answered,enum=dismissed,enum=all,description=Default open."`
 	Limit     int64  `json:"limit,omitempty"`
 }
@@ -467,6 +467,46 @@ func answerTodo(ctx context.Context, a *app.App, t *models.Todo, answer string, 
 			_ = json.Unmarshal(b, &said)
 		}
 		return said.Message, nil
+	case models.TodoAbilityTakenBack:
+		// A version its catalogue took back (D488): an owner, as a person,
+		// takes its approval back, turns it down, or keeps it as it is.
+		ab := t.Context.Ability
+		if ab == nil {
+			return "", invalid("this question doesn't say which version it is about")
+		}
+		ref := ab.Name + "@" + ab.Version
+		if !callerOf(ctx).Human {
+			return "", apperr.New(apperr.HumanOnly, "Only an owner, as a person, decides about a version its catalogue took back.").
+				WithHint("Look at it under Library → Abilities, then decide there or on the To-dos page.").WithCommand("metarush ability revoke " + ref)
+		}
+		var op string
+		var raw []byte
+		switch strings.ToLower(value) {
+		case "revoke":
+			op = "ability.revoke"
+			raw, _ = json.Marshal(map[string]any{"ref": ref, "note": "its catalogue took this version back"})
+		case "reject":
+			op = "ability.approve"
+			raw, _ = json.Marshal(map[string]any{"ref": ref, "reject": true, "note": "its catalogue took this version back"})
+		case "keep":
+			if !IsOwnerCaller(ctx) {
+				return "", apperr.New(apperr.Unauthorized, "Only an owner can keep a version its catalogue took back.").WithDetails(map[string]any{"owners": true})
+			}
+			return "Kept as it is. An owner can still take it back under Library → Abilities.", nil
+		default:
+			return "", invalid("Answer “take its approval back”, “turn it down” or “keep it”.")
+		}
+		out, err := Call(ctx, a, op, raw, callerOf(ctx))
+		if err != nil {
+			return "", err
+		}
+		var said struct {
+			Message string `json:"message"`
+		}
+		if b, err := json.Marshal(out); err == nil {
+			_ = json.Unmarshal(b, &said)
+		}
+		return said.Message, nil
 	case models.TodoRecipeRun:
 		// A run (Recipes) that waits (D204): go on (a person's OK, people
 		// only) or stop it, through the same ops as its page.
@@ -585,6 +625,11 @@ func init() {
 			return nil, apperr.New(apperr.Conflict, "this question was already %s", t.State)
 		}
 		done := "Dismissed. We won't ask this again."
+		if t.Kind == models.TodoAbilityTakenBack && (!callerOf(ctx).Human || !IsOwnerCaller(ctx)) {
+			// Setting it aside keeps the version as it is: an owner's decision.
+			return nil, apperr.New(apperr.HumanOnly, "Only an owner, as a person, can set this question aside: it keeps a version its catalogue took back.").
+				WithHint("An owner answers it on the To-dos page or under Library → Abilities.")
+		}
 		if t.Kind == models.TodoShipGate {
 			// Whether versions wait is an owner's decision (D298): dismissing the
 			// question is deciding "just remind me", so only an owner, as a person.

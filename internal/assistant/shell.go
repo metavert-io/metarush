@@ -116,6 +116,8 @@ var groupBoolFlags = map[string]map[string]bool{
 	// What a project keeps (D166): keep logo --brand, project rules add --check.
 	"keep":    {"brand": true},
 	"project": {"check": true},
+	// Abilities and their community catalogues (D486).
+	"ability": {"as-version": true, "open-network": true, "local-service": true, "agree-local": true, "forget": true, "look": true, "all": true, "yes": true},
 	// Remotion sources (D131–D176, D209): checks, waiting and what to keep.
 	"remotion": {"check": true, "no-wait": true, "again": true, "stills": true, "public": true, "force": true, "keep-cuts": true, "no-pr": true, "no-stills": true, "no-videos": true},
 	// names and fixes (generate shot --look takes a value)
@@ -146,12 +148,16 @@ var commandGroups = map[string]bool{"project": true, "asset": true, "footage": t
 	"voiceover": true, "mix": true, "providers": true, "cut": true, "collection": true, "trash": true,
 	"motion": true, "resources": true, "brand": true, "conversation": true, "sound": true, "generate": true, "looks": true, "consent": true,
 	"transcript": true, "captions": true, "keep": true, "improve": true, "content": true, "remotion": true,
-	"recipe": true, // Recipes (D211)
-	"ai":     true} // AI services (D226)
+	"recipe":  true, // Recipes (D211)
+	"ai":      true, // AI services (D226)
+	"ability": true} // abilities and their community catalogues (D486)
 
 // commandAliases are other names cobra accepts for a command group.
 var commandAliases = map[string]string{"vo": "voiceover", "narration": "voiceover", "provider": "providers", "integrations": "providers",
-	"conversations": "conversation", "call": "conversation", "gen": "generate", "look": "looks"}
+	"conversations": "conversation", "call": "conversation", "gen": "generate", "look": "looks", "abilities": "ability"}
+
+// subcommandAliases are other names cobra accepts for a group's subcommand.
+var subcommandAliases = map[string]map[string]string{"ability": {"catalogue": "catalogues", "catalog": "catalogues", "catalogs": "catalogues"}}
 
 // leafSubcommands are subcommands of commands that otherwise take plain words
 // as arguments (`metarush ingest footage/` imports a folder).
@@ -163,8 +169,9 @@ var commandGroups3 = map[string]bool{"edit plan": true, "footage speakers": true
 	"content rules": true, "content style": true, "content signoffs": true, "content logo": true, "content pack": true,
 	"remotion pictures": true, "remotion refresh": true, "remotion push": true,
 	"ai voices": true, "ai rules": true, // AI services (D226)
-	"cut say":       true, // words changed in a speaker's own voice (D308)
-	"deliver notes": true} // delivery notes (D237)
+	"cut say":            true, // words changed in a speaker's own voice (D308)
+	"deliver notes":      true, // delivery notes (D237)
+	"ability catalogues": true} // community catalogues of abilities (D486)
 
 // leafSubcommands3 are subcommands of two-word commands that otherwise take a
 // name (`metarush remotion words teaser` lists them; `… words set teaser` changes them).
@@ -204,6 +211,8 @@ func parseMetarush(words []string) (cliCall, bool) {
 			w = commandAliases[w]
 		} else if len(path) == 1 && path[0] == "voiceover" && w == "line" {
 			w = "beat"
+		} else if len(path) == 1 && subcommandAliases[path[0]][w] != "" {
+			w = subcommandAliases[path[0]][w]
 		}
 		isName := len(path) == 0 || (len(path) == 1 && (commandGroups[path[0]] || leafSubcommands[path[0]][w])) ||
 			(len(path) == 2 && (commandGroups3[path[0]+" "+path[1]] || path[0] == "assistant" || leafSubcommands3[path[0]+" "+path[1]][w]))

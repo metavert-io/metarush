@@ -68,7 +68,8 @@ func schemaCmd() *cobra.Command {
 			}
 			all := editspec.Schemas()
 			all["ops.schema.json"] = opsSchema()
-			all["ability.schema.json"] = abilities.ManifestSchema() // ability.yaml (D230)
+			all["ability.schema.json"] = abilities.ManifestSchema()        // ability.yaml (D230)
+			all["ability-catalogue.schema.json"] = abilities.IndexSchema() // a community catalogue's index (D480)
 			all["api.schema.json"] = apiSchema()
 			for name, s := range all {
 				b, _ := json.MarshalIndent(s, "", "  ")

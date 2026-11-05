@@ -1,0 +1,290 @@
+{
+  "format": "metarush.ability-catalogue/1",
+  "name": "starter",
+  "title": "MetaRush starter pack",
+  "about": "The starter abilities from MetaRush's own repository: stock and openly licensed media, sound effects, English captions, pictures from a ComfyUI server on your computer.",
+  "maintainer": {
+    "github": "metavert-io"
+  },
+  "version": 3,
+  "date": "2026-11-04",
+  "abilities": [
+    {
+      "name": "comfyui-local",
+      "title": "Pictures from ComfyUI on this computer",
+      "does": "Makes pictures from a few words with the ComfyUI server running on this computer, using a model you already have in it.",
+      "notes": "# Pictures from ComfyUI on this computer\n\nSends a text-to-picture graph (a checkpoint, your words and the words to avoid, a size, steps and a seed) to the\nComfyUI server running on this computer, waits for it, and brings the pictures back. Bring your own GPU and your own\nmodels: nothing is downloaded and nothing leaves this computer.\n\n- **ComfyUI is GPL-3.0 software you install and run yourself, beside MetaRush.** Nothing of it is bundled with\n  MetaRush or in this folder; this ability only talks to it over HTTP. Install it from its own project (the ComfyUI\n  desktop app, or `git clone` and its `requirements.txt` in a Python environment of yours), put a checkpoint in its\n  `models/checkpoints` folder and start it on 127.0.0.1, port 8188 (its default).\n- **The one thing on this computer it reaches**: an owner agrees, when approving it, that it may reach\n  ComfyUI on port 8188 of the computer it runs on (`metarush ability approve comfyui-local --local-service`, or the\n  approval question in Library → Abilities), after seeing the program listening there: Python's executable, the\n  folder ComfyUI was started in and the script it runs (`main.py`), and that it answers `/system_stats` as ComfyUI\n  does. Only that program is reached: plans show it, each run checks it as it starts and while it runs, and another\n  program on the port — a plain `python3 -m http.server`, say — is refused. Moved or restarted from another folder,\n  ComfyUI needs an owner to agree again (`metarush ability setup comfyui-local --agree-local` on that computer). The\n  run's proxy then forwards plain HTTP to 127.0.0.1:8188 and records each request; every other port of this computer, every local network and the internet stay closed. ComfyUI itself\n  runs outside MetaRush's sandbox with your rights, so whatever it can do (custom nodes included), a run may ask it\n  to: that is why a person starts each run, and why only an owner agrees to it.\n- **Another port:** a ComfyUI on another port needs a version of this ability whose `local` says that port, and an\n  owner's approval of that version; the script reads the address MetaRush gives it (`$METARUSH_LOCAL_URL`), so only\n  the manifest's line changes.\n- **Licence of the pictures:** whatever your checkpoint's licence says; the pictures are AI-generated, so say so\n  where you publish them. (MetaRush doesn't yet mark pictures an ability made as AI-generated in deliveries; AI services\n do, for the work they make.)\n- **Licence of this ability's code:** MIT.\n- **Cost:** free; your computer does the work.\n- **Key:** none.\n- **What leaves this computer:** nothing through MetaRush. Your words go to ComfyUI on this computer, which runs\n  outside the sandbox: if you added nodes that reach the internet (API nodes, a model manager), they may send things\n  on by themselves.\n- **Who starts a run:** a person, each time.\n\nWhat it doesn't do yet: pictures as input (image to image) and ComfyUI's WebSocket progress; a run waits up to 25\nminutes, checking every second.",
+      "publisher": {
+        "github": "metavert-io"
+      },
+      "source": {
+        "git": {
+          "repository": "https://github.com/metavert-io/metarush",
+          "commit": "176fc6f900262bf0587def5bf499530c2d590068",
+          "path": "abilities/comfyui-local"
+        }
+      },
+      "archive": "ed7639a84b5135b99f9652ef10f9bd01a3fc029ef656498d2e89b1ceaa9d4163",
+      "licence": "MIT",
+      "outputs": [
+        "picture"
+      ],
+      "network": "metarush",
+      "ai": {
+        "picture": "made"
+      },
+      "cost": "free",
+      "local": {
+        "port": 8188,
+        "service": "ComfyUI"
+      },
+      "programs": [
+        "python3"
+      ],
+      "os": [
+        "mac",
+        "linux"
+      ],
+      "tags": [
+        "comfyui",
+        "stable diffusion",
+        "generate",
+        "picture",
+        "image",
+        "ai",
+        "local",
+        "gpu"
+      ]
+    },
+    {
+      "name": "english-captions",
+      "title": "English captions by whisper.cpp",
+      "does": "Writes English captions for a clip spoken in another language, translated on this computer by whisper.cpp, and keeps them with the clip.",
+      "notes": "# English captions by whisper.cpp\n\nTranslates the speech of a clip in another language into English captions on this computer, and keeps them with\nthe clip: `metarush footage captions <clip> --language en` shows them (`--save english.srt` writes the file). It\nwraps what MetaRush already uses: ffmpeg turns the clip's sound into 16 kHz mono, and whisper.cpp's `whisper-cli`\ntranslates it (`-tr`) into SRT captions. The captions are marked as machine-translated.\n\nThey are the clip's, beside its transcript: a cut's own captions, and the translations Claude writes for them line\nby line (`captions translate`), don't change. Use them to read what a clip says, as a reference for a translation,\nor as a captions file for the clip itself.\n\n- **What it needs on each computer** (a person sets it up):\n  `metarush ability setup english-captions --file whisper-model=/full/path/ggml-medium.bin`\n  - `ffmpeg` and `whisper-cli` (whisper.cpp; Homebrew: `brew install ffmpeg whisper-cpp`), pinned by fingerprint.\n  - A whisper.cpp model **that can translate**: `ggml-medium.bin` (1.5 GB, a good balance), `ggml-small.bin`\n    (faster, rougher) or `ggml-large-v3.bin` (3 GB, best). The turbo model MetaRush uses to write words down\n    (`ggml-large-v3-turbo.bin`) was not trained to translate and only writes the language it hears; English-only\n    models (`*.en.bin`) can't either. Download one from the whisper.cpp project's models (its\n    `models/download-ggml-model.sh medium`) anywhere you like, then set it up as above. MetaRush pins it by its\n    fingerprint and copies it into each run, read-only (an APFS clone on a Mac, so no extra space); the ability\n    never reads it in place.\n- **Licences:** whisper.cpp is MIT; OpenAI's Whisper models are MIT. This ability's code is MIT.\n- **Cost:** free; it runs on this computer, **on the CPU**: MetaRush's sandbox doesn't open the GPU to abilities\n  (whisper.cpp's Metal start-up is refused there), so it runs whisper-cli with `-ng`. That is slower than MetaRush's\n  own transcription: on a recent Mac, expect around a minute per minute of speech with `ggml-small.bin` and several\n  with `ggml-medium.bin` or `ggml-large-v3.bin`; a run may take up to an hour.\n- **Key:** none.\n- **What leaves this computer:** nothing; its network is off.\n- **Who starts a run:** anyone, and Claude as a safe step: it is free, local and sends nothing.\n\nSay the language (`language: es`) when you know it; otherwise whisper.cpp listens first. Captions come one\nsentence at a time, as whisper.cpp hears them.",
+      "publisher": {
+        "github": "metavert-io"
+      },
+      "source": {
+        "git": {
+          "repository": "https://github.com/metavert-io/metarush",
+          "commit": "176fc6f900262bf0587def5bf499530c2d590068",
+          "path": "abilities/english-captions"
+        }
+      },
+      "archive": "a84ab8ceb0d23de1dbabddb0bfea9f3cb446630decd7287ded43da37e91d30dd",
+      "licence": "MIT",
+      "outputs": [
+        "captions"
+      ],
+      "network": "off",
+      "ai": {
+        "captions": "made"
+      },
+      "cost": "free",
+      "files": [
+        {
+          "name": "whisper-model",
+          "says": "A whisper.cpp model that can translate: ggml-medium.bin, ggml-small.bin or ggml-large-v3.bin (not a turbo or .en model)",
+          "kind": "whisper-translator"
+        }
+      ],
+      "programs": [
+        "python3",
+        "ffmpeg",
+        "whisper-cli"
+      ],
+      "os": [
+        "mac",
+        "linux"
+      ],
+      "tags": [
+        "captions",
+        "subtitles",
+        "translate",
+        "translation",
+        "english",
+        "whisper",
+        "srt",
+        "local"
+      ]
+    },
+    {
+      "name": "freesound-effects",
+      "title": "Sound effects from Freesound",
+      "does": "Finds sound effects on Freesound that match a few words and brings them in, each with its licence and the credit it asks for. Freesound's API is free for non-commercial use only.",
+      "notes": "# Sound effects from Freesound\n\nSearches Freesound for a few words and brings in up to six sounds no longer than you say (30 seconds unless you\nchange it), as Freesound's high-quality previews (MP3, about 128 kbps). Each sound keeps its licence, its page, who\nrecorded it and the credit line its licence asks for, e.g. “Rain on a tin roof” by rain_maker, CC BY 4.0, via\nFreesound; it records them as its rights, and a delivery lists them with its credits and in its `.notes.md` file.\n\n- **Licences of the sounds:** CC0 (no credit needed) and CC BY (credit needed) by default, or CC0 only. Sounds under\n  \"non-commercial\" (CC BY-NC) or Sampling+ are left out, and the run's log says so.\n- **Freesound's API terms:** using the API is free **only for non-commercial purposes**; for commercial work\n  Freesound asks you to contact them first. That is about the API, not the sounds' licences: check it before using\n  this ability for a client.\n- **Licence of this ability's code:** MIT.\n- **Cost:** free. Freesound allows 60 requests a minute and 2,000 a day per key.\n- **Key:** `freesound`, free with a Freesound account (freesound.org/apiv2/apply). An owner adds it on each computer:\n  `metarush ability setup freesound-effects --key freesound`. The code never sees it: MetaRush puts it in the\n  Authorization header (as `Token <key>`), only on requests to freesound.org.\n- **What leaves this computer:** the words you search for, to freesound.org. The previews come from\n  cdn.freesound.org without the key.\n- **Who starts a run:** a person, each time (it uses a key).\n\nWhat's missing: the original files (WAV, FLAC at full quality) need a Freesound sign-in through OAuth2, which\nabilities can't do; MetaRush keeps keys, not sign-ins. Previews are enough for most effects under a voice.\n\nSearch with the thing and the action: \"door creak\", \"rain on roof\", \"crowd cheering\", \"whoosh\".",
+      "publisher": {
+        "github": "metavert-io"
+      },
+      "source": {
+        "git": {
+          "repository": "https://github.com/metavert-io/metarush",
+          "commit": "176fc6f900262bf0587def5bf499530c2d590068",
+          "path": "abilities/freesound-effects"
+        }
+      },
+      "archive": "d6fd50801e7edbc4b0901c44933b38f08cdfe6f3bc80afa6cff765afe183324c",
+      "licence": "MIT",
+      "outputs": [
+        "sound"
+      ],
+      "network": "metarush",
+      "hosts": [
+        "freesound.org",
+        "cdn.freesound.org"
+      ],
+      "keys": [
+        {
+          "name": "freesound",
+          "hosts": [
+            "freesound.org"
+          ]
+        }
+      ],
+      "sends": [
+        "words"
+      ],
+      "ai": {
+        "sound": "none"
+      },
+      "cost": "keyed",
+      "terms": "Freesound's API is free for non-commercial use only: for client or other commercial work, ask Freesound first (the sounds' own licences are separate).",
+      "programs": [
+        "python3"
+      ],
+      "os": [
+        "mac",
+        "linux"
+      ],
+      "tags": [
+        "sound effects",
+        "sfx",
+        "foley",
+        "ambience",
+        "sound",
+        "audio",
+        "freesound",
+        "free"
+      ]
+    },
+    {
+      "name": "open-media",
+      "title": "Public-domain and openly licensed media",
+      "does": "Finds public-domain and openly licensed pictures, video and sound on Wikimedia Commons and the Internet Archive and brings them in, each with its licence and the credit it asks for.",
+      "notes": "# Public-domain and openly licensed media\n\nSearches Wikimedia Commons and the Internet Archive (or one of them) and brings in up to six pictures, videos or\nsounds, taking turns between the two. Only files you may use and change in any video come in: public domain (and\nthe Public Domain Mark), CC0, CC BY and CC BY-SA. Anything non-commercial (NC), \"no derivatives\" (ND), fair use,\nunclear or unstated is left out, and the run's log says why.\n\nEach file keeps its licence, its page, its author and the credit line its licence asks for — title, author,\nlicence and where it came from, e.g. “Harbour light” by Sea Painter, CC BY 4.0, via Wikimedia Commons. A clip or\nsound records them as its rights; a picture on its source. Delivering a video that uses them lists the credits in\nthe delivery's record and writes them into the `.notes.md` file next to the video, ready to paste into a\ndescription. CC BY-SA asks that what you make from the file is shared under the same licence: check before using\none in a client's video.\n\n- **Licence of the files:** per file, as above. Wikimedia sometimes adds restrictions (trademarks, a person's\n  likeness); the run's log names them.\n- **Licence of this ability's code:** MIT.\n- **Cost:** free; no account and no key.\n- **What leaves this computer:** the words you search for (and the contact you give, if any), to\n  commons.wikimedia.org and archive.org. Files come from upload.wikimedia.org and the Internet Archive's servers\n  (`*.archive.org`).\n- **Who starts a run:** anyone, and Claude as a safe step: it is free, uses no key and sends only words.\n\nWikimedia asks every tool for a way to reach the person using it; give an email or web address as `contact` if you\nrun it often. Videos from Commons come as WebM (the original or a copy Wikimedia made, at most 1080 lines high);\nvideos from the Internet Archive as MP4. Files over 500 MB are left out. Old film and photographs search best with\nperiod words: \"harbour 1920s\", \"steam train\", \"city street 1950\".",
+      "publisher": {
+        "github": "metavert-io"
+      },
+      "source": {
+        "git": {
+          "repository": "https://github.com/metavert-io/metarush",
+          "commit": "176fc6f900262bf0587def5bf499530c2d590068",
+          "path": "abilities/open-media"
+        }
+      },
+      "archive": "ee4b29b07fe3aa9eb8de7f02428b789e5cc8e241faca5658c6cb6f6732caf0d4",
+      "licence": "MIT",
+      "outputs": [
+        "footage",
+        "sound",
+        "picture"
+      ],
+      "network": "metarush",
+      "hosts": [
+        "commons.wikimedia.org",
+        "upload.wikimedia.org",
+        "archive.org",
+        "*.archive.org"
+      ],
+      "sends": [
+        "words"
+      ],
+      "ai": {
+        "footage": "none",
+        "picture": "none",
+        "sound": "none"
+      },
+      "cost": "free",
+      "programs": [
+        "python3"
+      ],
+      "os": [
+        "mac",
+        "linux"
+      ],
+      "tags": [
+        "public domain",
+        "creative commons",
+        "archive",
+        "wikimedia",
+        "commons",
+        "free",
+        "footage",
+        "pictures",
+        "sound",
+        "historical"
+      ]
+    },
+    {
+      "name": "pexels-stock",
+      "title": "Stock videos and photos from Pexels",
+      "does": "Finds free stock videos or photos on Pexels that match a few words and brings them in, each with its licence and the photographer's credit.",
+      "notes": "# Stock videos and photos from Pexels\n\nSearches Pexels for a few words and brings in up to six videos (an MP4 up to 1920 wide, the closest to Full HD) or\nphotos (about 1,900 px wide). Each file keeps its licence, its page on Pexels and the credit line Pexels asks for\n(\"Video by … on Pexels\"): a clip records them as its rights, a photo on its source, and a delivery lists them with\nits credits.\n\n- **Licence of the files:** the Pexels License — free to use and change, credit not required but asked for. Not\n  allowed: selling unchanged copies, showing identifiable people in a bad light, implying they endorse you. Pexels'\n  API guidelines ask that you show where the files came from: keep the credit line in the description.\n- **Licence of this ability's code:** MIT.\n- **Cost:** free. Pexels allows 200 requests an hour and 20,000 a month per key; one run makes one search and one\n  request per file.\n- **Key:** `pexels`, free with a Pexels account (pexels.com/api). An owner adds it on each computer:\n  `metarush ability setup pexels-stock --key pexels`. The code never sees it: MetaRush puts it in the\n  Authorization header, only on requests to api.pexels.com.\n- **What leaves this computer:** the words you search for, to api.pexels.com. Files come from images.pexels.com and\n  videos.pexels.com without the key. A video Pexels offers only from another host is left out.\n- **Who starts a run:** a person, each time (it uses a key).\n\nGood searches are short and concrete: \"ocean waves at dusk\", \"city traffic night\", \"hands typing laptop\". Use\n`kind: photos` for stills and `orientation: portrait` for shorts.",
+      "publisher": {
+        "github": "metavert-io"
+      },
+      "source": {
+        "git": {
+          "repository": "https://github.com/metavert-io/metarush",
+          "commit": "176fc6f900262bf0587def5bf499530c2d590068",
+          "path": "abilities/pexels-stock"
+        }
+      },
+      "archive": "2041f188024e52443012e37994ca63ba52fcf0485b9718a5f2c4aad95d40a5ee",
+      "licence": "MIT",
+      "outputs": [
+        "footage",
+        "picture"
+      ],
+      "network": "metarush",
+      "hosts": [
+        "api.pexels.com",
+        "images.pexels.com",
+        "videos.pexels.com"
+      ],
+      "keys": [
+        {
+          "name": "pexels",
+          "hosts": [
+            "api.pexels.com"
+          ]
+        }
+      ],
+      "sends": [
+        "words"
+      ],
+      "ai": {
+        "footage": "none",
+        "picture": "none"
+      },
+      "cost": "keyed",
+      "programs": [
+        "python3"
+      ],
+      "os": [
+        "mac",
+        "linux"
+      ],
+      "tags": [
+        "stock",
+        "footage",
+        "b-roll",
+        "video",
+        "photo",
+        "picture",
+        "free",
+        "pexels"
+      ]
+    }
+  ]
+}

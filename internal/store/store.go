@@ -96,6 +96,9 @@ const (
 	// CAbilityRuns holds abilities' runs (D234): inputs, the requests they
 	// made through MetaRush, what they made and what they cost.
 	CAbilityRuns = "ability_runs"
+	// CAbilityCatalogues holds the community catalogues of abilities an owner
+	// trusts (D481), each with the last copy of its index MetaRush read.
+	CAbilityCatalogues = "ability_catalogues"
 	// CUserCredentials holds each account's password hash (D183): never in
 	// users, never in an answer, a log or the audit.
 	CUserCredentials = "user_credentials"

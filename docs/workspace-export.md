@@ -112,6 +112,7 @@ history, and stays.
 | Collection | Goes in | Why |
 |---|---|---|
 | `abilities` | as it is | abilities, their checks and owners' approvals |
+| `ability_catalogues` | as it is | the community catalogues of abilities owners trust, each with the last copy MetaRush read |
 | `ability_runs` | as it is | abilities' runs: what each sent, made and cost |
 | `ability_setups` | left out | what each computer set up for an ability (programs and files on that computer, pinned there): set up again on the new computer |
 | `asset_speakers` | as it is | voices heard in each clip |

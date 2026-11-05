@@ -1,7 +1,8 @@
 # The catalogue: what MetaRush can do
 
-Everything MetaRush can do is an entry in one catalogue that people browse and agents search. It has three
-kinds of entries:
+Everything MetaRush can do is an entry in one catalogue that people browse and agents search. (Community
+catalogues — public lists of abilities a workspace may trust and bring abilities in from — are another thing:
+[ability-catalogue.md](ability-catalogue.md).) It has three kinds of entries:
 
 - **Operations** — every operation of the registry (`internal/ops`), with its command and the words people use for
   it. Agents find them with `find` (MCP) or `metarush ops find`, and run them by name.

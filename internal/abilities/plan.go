@@ -104,7 +104,10 @@ type AbilityPlanOut struct {
 	LocalProgram *models.AbilityLocalProgram `json:"localProgram,omitempty"`
 	LocalWords   string                      `json:"localWords,omitempty"`
 	// Terms are the service's terms, in the ability's words (D283).
-	Terms     string `json:"terms,omitempty"`
+	Terms string `json:"terms,omitempty"`
+	// TakenBack is why the catalogue this version came from took it back, in
+	// its words (D488): a run still starts if a person chooses, but says so.
+	TakenBack string `json:"takenBack,omitempty"`
 	Apart     string `json:"apart"`
 	ProjectID string `json:"projectId,omitempty"`
 	// EstimatesFirst: the asker agrees to the estimate before a priced run
@@ -292,6 +295,11 @@ func plan(ctx context.Context, a *app.App, in *AbilityPlanIn) (*AbilityPlanOut, 
 	fp := map[string]any{"version": v.Hash, "inputs": out.Inputs, "project": projectID, "machine": a.Cfg.Installation.ID, "hosts": f.Hosts, "network": f.Network,
 		"estimate": out.Estimate.USD, "keys": keyPrints(a, f.Keys), "programs": here.Programs, "openNetwork": v.OpenNetwork, "local": f.Local,
 		"files": filePrints(ctx, a, v.Name, f.Files), "localProgram": ls.Program}
+	// A version its catalogue took back (D488) says so on every plan, and a
+	// plan made before it was taken back no longer starts a run.
+	if out.TakenBack = takenBack(ctx, a, v); out.TakenBack != "" {
+		fp["takenBack"] = true
+	}
 	b, _ := json.Marshal(fp)
 	sum := sha256.Sum256(b)
 	out.Fingerprint = hex.EncodeToString(sum[:])

@@ -26,7 +26,7 @@ func todosCmd() *cobra.Command {
 	addDetails(list, &details)
 	list.Flags().StringVar(&li.ProjectID, "project", "", "only this project")
 	list.Flags().StringVar(&li.AssetID, "asset", "", "only this video")
-	list.Flags().StringVar(&li.Kind, "kind", "", "speaker_unnamed | speaker_match | music_rights | brief_missing | duplicate_person | revision_approval | face_group | face_person | remotion_approval | recipe_run")
+	list.Flags().StringVar(&li.Kind, "kind", "", "speaker_unnamed | speaker_match | music_rights | brief_missing | duplicate_person | revision_approval | face_group | face_person | remotion_approval | recipe_run | ability_approval | ship_gate | ability_taken_back")
 	list.Flags().StringVar(&li.State, "state", "", "open (default), answered, dismissed or all")
 	list.Flags().Int64Var(&li.Limit, "limit", 0, "max questions")
 	cmd.AddCommand(list)

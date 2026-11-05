@@ -27,6 +27,41 @@ input: AbilityApproveIn
 output: AbilityDecisionOut
 }
 /**
+ * Browse the abilities the trusted community catalogues list: what each does and needs (keys, network, places, AI), its publisher and licence, whether it is here already; listed, not checked by MetaRush (bringing one in is a person's step)
+ */
+"ability.browse": {
+input: AbilityBrowseIn
+output: AbilityBrowseOut
+}
+/**
+ * List the community catalogues of abilities this workspace trusts (and the ones this computer suggests): each one's address, what it says it is, how many abilities it lists and when MetaRush last read it; what they list is their word, not checked by MetaRush
+ */
+"ability.catalogues": {
+input: AbilityCataloguesIn
+output: AbilityCataloguesOut
+}
+/**
+ * Trust a community catalogue of abilities (owners, people only): MetaRush reads its index over HTTPS, and people may then browse it and bring abilities in from it, each checked here and approved by an owner first
+ */
+"ability.catalogues.add": {
+input: AbilityCatalogueAddIn
+output: AbilityCatalogueAddOut
+}
+/**
+ * Bring an ability in from a trusted community catalogue (people only): MetaRush fetches exactly the version listed, refuses it unless its files are that version and its manifest says what the listing says, and keeps it as a draft — never approved or set up here: check it on this computer, then an owner approves it
+ */
+"ability.catalogues.import": {
+input: AbilityCatalogueImportIn
+output: AbilityImportOut
+}
+/**
+ * Stop trusting a community catalogue of abilities (owners, people only): nothing more comes in from it; abilities already brought in stay, each with its own approval
+ */
+"ability.catalogues.remove": {
+input: AbilityCatalogueRemoveIn
+output: AbilityCatalogueRemoveOut
+}
+/**
  * Check an ability's folder on this computer: its manifest, no keys or oversized files, and its test run once in the sandbox with the network off; a version that passes waits for an owner to approve it
  */
 "ability.check": {
@@ -4271,6 +4306,545 @@ state: string
 stateLabel: string
 message: string
 link: string
+takenBack?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityBrowseIn".
+ */
+export interface AbilityBrowseIn {
+catalogue?: string
+search?: string
+name?: string
+refresh?: boolean
+limit?: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityBrowseOut".
+ */
+export interface AbilityBrowseOut {
+catalogues: CatalogueRow[]
+abilities: ListedAbility[]
+more?: number
+note: string
+/**
+ * For an AI: how to read the words in quotes.
+ */
+quoted?: string
+message: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueRow".
+ */
+export interface CatalogueRow {
+/**
+ * Its short name here: what goes before the colon in catalogue:ability.
+ */
+key: string
+url: string
+title: string
+about?: string
+maintainer?: string
+version: number
+date?: string
+abilities: number
+leftOut: CatalogueLeftOut[]
+revoked: number
+/**
+ * Its index carries signatures this MetaRush doesn't read or trust.
+ */
+signed?: boolean
+/**
+ * When its index was last read whole.
+ */
+fetchedAt?: string
+checkedAt?: string
+/**
+ * Why the last read didn't give a new copy (the copy before stays in use).
+ */
+problem?: string
+addedBy: string
+addedAt: string
+line: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueLeftOut".
+ */
+export interface CatalogueLeftOut {
+name: string
+why: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ListedAbility".
+ */
+export interface ListedAbility {
+ref: string
+catalogue: string
+catalogueTitle: string
+entry: CatalogueEntry
+/**
+ * Who the catalogue says published it (not verified).
+ */
+publisher: string
+sourceWords: string
+sourcePage?: string
+/**
+ * What each computer needs for it
+ */
+needs: string[]
+reaches: string
+leaves: string
+aiWords: string
+costWords: string
+/**
+ * Who starts a run
+ */
+decides: string
+makes: string
+here?: ListedHere
+other?: ListedHere
+revoked?: string
+canBringIn: boolean
+whyNot?: string
+warnings: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueEntry".
+ */
+export interface CatalogueEntry {
+name: string
+title: string
+does: string
+notes?: string
+publisher: CataloguePublisher
+source: CatalogueSource
+archive: string
+licence: string
+/**
+ * @maxItems 8
+ */
+provides?: string[]
+/**
+ * @maxItems 6
+ */
+outputs?: string[]
+network: ("off" | "metarush" | "open")
+/**
+ * @maxItems 32
+ */
+hosts?: string[]
+/**
+ * @maxItems 8
+ */
+keys?: CatalogueKey[]
+/**
+ * @maxItems 5
+ */
+sends?: string[]
+ai?: CatalogueAI
+cost: ("free" | "keyed" | "priced")
+local?: CatalogueLocal
+changesOutside?: boolean
+likeness?: boolean
+/**
+ * @maxItems 4
+ */
+files?: CatalogueFile[]
+terms?: string
+/**
+ * @maxItems 8
+ */
+programs?: string[]
+/**
+ * @maxItems 2
+ */
+os?: string[]
+/**
+ * @maxItems 20
+ */
+tags?: string[]
+/**
+ * @maxItems 8
+ */
+links?: CatalogueLink[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CataloguePublisher".
+ */
+export interface CataloguePublisher {
+name?: string
+github?: string
+url?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueSource".
+ */
+export interface CatalogueSource {
+git?: CatalogueGitSource
+file?: CatalogueFileSource
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueGitSource".
+ */
+export interface CatalogueGitSource {
+repository: string
+commit: string
+path: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueFileSource".
+ */
+export interface CatalogueFileSource {
+url: string
+sha256: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueKey".
+ */
+export interface CatalogueKey {
+name: string
+/**
+ * @maxItems 32
+ */
+hosts?: string[]
+}
+/**
+ * What AI does to each kind of output: made, edited, enhanced or none.
+ * 
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueAI".
+ */
+export interface CatalogueAI {
+footage?: ("made" | "edited" | "enhanced" | "none")
+sound?: ("made" | "edited" | "enhanced" | "none")
+picture?: ("made" | "edited" | "enhanced" | "none")
+document?: ("made" | "edited" | "enhanced" | "none")
+font?: ("made" | "edited" | "enhanced" | "none")
+captions?: ("made" | "edited" | "enhanced" | "none")
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueLocal".
+ */
+export interface CatalogueLocal {
+port: number
+service: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueFile".
+ */
+export interface CatalogueFile {
+name: string
+says: string
+kind?: ("" | "whisper-model" | "whisper-translator")
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CatalogueLink".
+ */
+export interface CatalogueLink {
+title: string
+url: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ListedHere".
+ */
+export interface ListedHere {
+name: string
+title: string
+version: string
+number: number
+state: string
+stateLabel: string
+link: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityCataloguesIn".
+ */
+export interface AbilityCataloguesIn {
+
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityCataloguesOut".
+ */
+export interface AbilityCataloguesOut {
+catalogues: CatalogueRow[]
+suggested: SuggestedCatalogue[]
+note: string
+/**
+ * For an AI: how to read the words in quotes.
+ */
+quoted?: string
+message: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "SuggestedCatalogue".
+ */
+export interface SuggestedCatalogue {
+url: string
+trusted: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityCatalogueAddIn".
+ */
+export interface AbilityCatalogueAddIn {
+/**
+ * The index's address (https).
+ */
+url: string
+name?: string
+dryRun?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityCatalogueAddOut".
+ */
+export interface AbilityCatalogueAddOut {
+catalogue: CatalogueRow
+dryRun: boolean
+note: string
+message: string
+next?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityCatalogueImportIn".
+ */
+export interface AbilityCatalogueImportIn {
+/**
+ * catalogue:name or catalogue:name@version.
+ */
+from: string
+asVersion?: boolean
+dryRun?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityImportOut".
+ */
+export interface AbilityImportOut {
+name: string
+title: string
+version: string
+number: number
+state: string
+new: boolean
+of: boolean
+dryRun: boolean
+from?: AbilityImport
+facts: AbilityFacts
+link?: string
+message: string
+next?: string
+/**
+ * What it says leaves this computer when it runs.
+ */
+leaves: string
+lineage?: string
+hosts: string[]
+files: AbilityFile[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityImport".
+ */
+export interface AbilityImport {
+workspace?: string
+made: string
+/**
+ * The MetaRush version that made the file.
+ */
+metarush?: string
+number: number
+state: string
+decisions: AbilityFileDecision[]
+lineage: string[]
+at: string
+by: Actor
+catalogue?: AbilityFromCatalogue
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityFileDecision".
+ */
+export interface AbilityFileDecision {
+state: ("approved" | "turned_down" | "revoked")
+by: string
+at: string
+note?: string
+openNetwork?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "Actor".
+ */
+export interface Actor {
+userId: string
+userName?: string
+installationId: string
+via: string
+agent?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityFromCatalogue".
+ */
+export interface AbilityFromCatalogue {
+key: string
+url: string
+title: string
+version: number
+date?: string
+publisher?: string
+repository?: string
+commit?: string
+path?: string
+fileUrl?: string
+fileSha256?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityFacts".
+ */
+export interface AbilityFacts {
+runs: string
+inputs: AbilityInput[]
+outputs: string[]
+free: boolean
+price?: AbilityPrice
+keys: AbilityKey[]
+hosts: string[]
+network: ("off" | "metarush" | "open")
+local?: AbilityLocal
+sends: string[]
+changesOutside?: boolean
+likeness?: boolean
+programs: string[]
+files?: AbilityNeededFile[]
+os?: string[]
+licence: string
+terms?: string
+minutes: number
+mb: number
+provides?: string[]
+ai?: {
+[k: string]: string
+}
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityInput".
+ */
+export interface AbilityInput {
+name: string
+kind: ("words" | "number" | "choice" | "yes-no" | "footage" | "picture" | "sound")
+says?: string
+min?: number
+max?: number
+default?: unknown
+options?: string[]
+optional?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityPrice".
+ */
+export interface AbilityPrice {
+service?: string
+usd: number
+per: string
+/**
+ * The number input that says how many units a run uses (none: one per run).
+ */
+from?: string
+asOf: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityKey".
+ */
+export interface AbilityKey {
+name: string
+env: string
+hosts: string[]
+header?: string
+query?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityLocal".
+ */
+export interface AbilityLocal {
+port: number
+service: string
+probe?: AbilityLocalProbe
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityLocalProbe".
+ */
+export interface AbilityLocalProbe {
+path: string
+expect: string[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityNeededFile".
+ */
+export interface AbilityNeededFile {
+name: string
+says: string
+kind?: string
+env: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityFile".
+ */
+export interface AbilityFile {
+path: string
+size: number
+sha256: string
+/**
+ * Marked as a program (it may run).
+ */
+program?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityCatalogueRemoveIn".
+ */
+export interface AbilityCatalogueRemoveIn {
+/**
+ * Its short name here or its address.
+ */
+catalogue: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "AbilityCatalogueRemoveOut".
+ */
+export interface AbilityCatalogueRemoveOut {
+key: string
+url: string
+title: string
+message: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -4461,180 +5035,6 @@ dryRun?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "AbilityImportOut".
- */
-export interface AbilityImportOut {
-name: string
-title: string
-version: string
-number: number
-state: string
-new: boolean
-of: boolean
-dryRun: boolean
-from?: AbilityImport
-facts: AbilityFacts
-link?: string
-message: string
-next?: string
-/**
- * What it says leaves this computer when it runs.
- */
-leaves: string
-lineage?: string
-hosts: string[]
-files: AbilityFile[]
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "AbilityImport".
- */
-export interface AbilityImport {
-workspace?: string
-made: string
-/**
- * The MetaRush version that made the file.
- */
-metarush?: string
-number: number
-state: string
-decisions: AbilityFileDecision[]
-lineage: string[]
-at: string
-by: Actor
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "AbilityFileDecision".
- */
-export interface AbilityFileDecision {
-state: ("approved" | "turned_down" | "revoked")
-by: string
-at: string
-note?: string
-openNetwork?: boolean
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "Actor".
- */
-export interface Actor {
-userId: string
-userName?: string
-installationId: string
-via: string
-agent?: string
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "AbilityFacts".
- */
-export interface AbilityFacts {
-runs: string
-inputs: AbilityInput[]
-outputs: string[]
-free: boolean
-price?: AbilityPrice
-keys: AbilityKey[]
-hosts: string[]
-network: ("off" | "metarush" | "open")
-local?: AbilityLocal
-sends: string[]
-changesOutside?: boolean
-likeness?: boolean
-programs: string[]
-files?: AbilityNeededFile[]
-os?: string[]
-licence: string
-terms?: string
-minutes: number
-mb: number
-provides?: string[]
-ai?: {
-[k: string]: string
-}
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "AbilityInput".
- */
-export interface AbilityInput {
-name: string
-kind: ("words" | "number" | "choice" | "yes-no" | "footage" | "picture" | "sound")
-says?: string
-min?: number
-max?: number
-default?: unknown
-options?: string[]
-optional?: boolean
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "AbilityPrice".
- */
-export interface AbilityPrice {
-service?: string
-usd: number
-per: string
-/**
- * The number input that says how many units a run uses (none: one per run).
- */
-from?: string
-asOf: string
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "AbilityKey".
- */
-export interface AbilityKey {
-name: string
-env: string
-hosts: string[]
-header?: string
-query?: string
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "AbilityLocal".
- */
-export interface AbilityLocal {
-port: number
-service: string
-probe?: AbilityLocalProbe
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "AbilityLocalProbe".
- */
-export interface AbilityLocalProbe {
-path: string
-expect: string[]
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "AbilityNeededFile".
- */
-export interface AbilityNeededFile {
-name: string
-says: string
-kind?: string
-env: string
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
- * via the `definition` "AbilityFile".
- */
-export interface AbilityFile {
-path: string
-size: number
-sha256: string
-/**
- * Marked as a program (it may run).
- */
-program?: boolean
-}
-/**
- * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "AbilityListIn".
  */
 export interface AbilityListIn {
@@ -4699,6 +5099,7 @@ isolation?: ("" | "macos-sandbox" | "bubblewrap")
 localProgram?: AbilityLocalProgram
 localWords?: string
 terms?: string
+takenBack?: string
 apart: string
 projectId?: string
 estimatesFirst: boolean
@@ -5170,6 +5571,10 @@ versions: AbilityVersionRow[]
  */
 runs: AbilityRunRow[]
 canApprove: boolean
+/**
+ * The catalogue it came from took this version back: why, in the catalogue's words.
+ */
+takenBack?: string
 message: string
 next?: string
 link: string
@@ -35352,7 +35757,7 @@ autoMerged?: AutoMerge[]
 export interface Todo {
 id: string
 workspaceId: string
-kind: ("speaker_unnamed" | "speaker_match" | "music_rights" | "brief_missing" | "duplicate_person" | "revision_approval" | "face_person" | "spelling" | "face_group" | "remotion_approval" | "recipe_run" | "ability_approval" | "ship_gate")
+kind: ("speaker_unnamed" | "speaker_match" | "music_rights" | "brief_missing" | "duplicate_person" | "revision_approval" | "face_person" | "spelling" | "face_group" | "remotion_approval" | "recipe_run" | "ability_approval" | "ship_gate" | "ability_taken_back")
 scope: ("asset" | "project" | "revision" | "workspace")
 assetId?: string
 projectId?: string
@@ -35594,7 +35999,7 @@ appearances: number
 export interface TodoListIn {
 projectId?: string
 assetId?: string
-kind?: ("speaker_unnamed" | "speaker_match" | "music_rights" | "brief_missing" | "duplicate_person" | "revision_approval" | "face_person" | "spelling" | "face_group" | "remotion_approval" | "recipe_run" | "ability_approval")
+kind?: ("speaker_unnamed" | "speaker_match" | "music_rights" | "brief_missing" | "duplicate_person" | "revision_approval" | "face_person" | "spelling" | "face_group" | "remotion_approval" | "recipe_run" | "ability_approval" | "ship_gate" | "ability_taken_back")
 /**
  * Default open.
  */

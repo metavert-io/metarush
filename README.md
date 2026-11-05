@@ -1159,6 +1159,15 @@ person each time.
   workspace brings in (`ability import`, or Bring in an ability file…) as a draft, never approved or set up there,
   whatever it was where it came from; a person checks it there (`ability check --version`), then an owner approves
   it.
+- **Community catalogues**: a public list of abilities (an index served over HTTPS, often from a GitHub repository)
+  that an owner trusts under **Settings → Abilities** (none by default). Anyone browses what it lists — what each does
+  and needs, its publisher, licence and whether it is here — in **Library → Abilities → Browse catalogues** or
+  `metarush ability browse`: the catalogue's word, "listed, not checked by MetaRush". A person brings one in
+  (**Bring it in…**, `ability import --from-catalogue <catalogue>:<name>`): MetaRush fetches exactly the version
+  listed — from a commit the repository's own branches or tags hold — refuses it unless it is that version and says
+  what the listing says, and it comes in as a draft to check here and approve. When a catalogue takes back a version
+  you brought in, the owners are asked on To-dos. Maintainers make the index with `metarush ability catalogues make`
+  ([community catalogues](docs/ability-catalogue.md)).
 
 ### A starter pack of six abilities
 ([abilities/](abilities/README.md)) Stock videos and photos from Pexels, public-domain and openly licensed media from
@@ -1652,6 +1661,10 @@ do next); `--details` adds the IDs, file paths, codes and exact commands, and er
 | `metarush ability list` / `ability find "<task>"` / `ability show <name>` | abilities (approved or waiting, set up here, cost, what leaves); at most eight that might do a task, one line each; one with what it may do, inputs, versions and runs |
 | `metarush ability check <folder>` / `ability check --version <name@version>` | check an ability's folder (or a version brought in from another workspace): its manifest, no keys or large files, its test once in the sandbox with the network off; a pass waits for an owner |
 | `metarush ability export <name[@version]> [file]` / `ability import <file> [--dry-run] [--as-version]` | a version as a file another workspace brings in; bring one in as a draft (never approved or set up here) |
+| `metarush ability catalogues [list]` / `catalogues add <https-address> [--name n]` / `catalogues remove <catalogue>` | the community catalogues of abilities this workspace trusts (and the ones this computer suggests); trust one or stop trusting it — owners, at their own terminal |
+| `metarush ability browse [words…] [--catalogue c] [--search …] [--name n] [--refresh]` | what the trusted catalogues list: what each does and needs, its publisher and licence, whether it is here (listed, not checked by MetaRush) |
+| `metarush ability import --from-catalogue <catalogue>:<name>[@version] [--dry-run] [--as-version]` | bring an ability in from a trusted catalogue — a person, at their own terminal: exactly the version listed, as a draft (check it here, an owner approves it) |
+| `metarush ability catalogues make <folder> --out index.json [--name n --title t] [--commit sha] [--repository url] [--publisher p]` | for a catalogue's maintainer: an index of a folder of abilities, each pinned to its repository's commit and its archive's fingerprint |
 | `metarush ability approve <name[@version]> [--reject] [--open-network] [--local-service]` / `ability revoke <name>` | approve (or turn down) a version after reading what it may do (with the whole internet, or the one service on this computer it names), or take an approval back — owners, at an interactive terminal |
 | `metarush ability setup <name> [--program python3=/path] [--file name=/path] [--key name] [--forget]` | set it up on this computer: the programs it runs, pinned by fingerprint; files it reads (a model) and its keys (owners; keys typed) |
 | `metarush footage captions <clip> [--language en] [--save file]` | the captions files kept with a clip (English captions an ability made), one language's words, or that file saved |
@@ -1738,6 +1751,8 @@ support `${VAR}` / `${VAR:default}`.
 - **Rendering**: `tools.videoDir` + `tools.devRenderer` (developers only: render from a live checkout instead of this
   version's own renderer in `<home>/renderer/`; a `videoDir` alone is an older installation's setting and is
   ignored), `tools.npm` (npm's `npm-cli.js`; default: the npm next to Node.js).
+- **Abilities**: `abilities.catalogues.suggested` (addresses of community catalogues Settings → Abilities suggests to
+  owners; empty unless written: MetaRush trusts and suggests no catalogue by itself).
 - **The weekly report and recordings**: `improve.{weekly,day,hour,budgetUsd,model}` (the weekly improvement report;
   off by default), `recordings.{maxGB,minFreeGB,keepDays}` (screen recordings received here: the most one recording
   holds, default 100; the free space its pieces never go below, default 2; how long pieces of a recording nobody
@@ -1779,7 +1794,7 @@ support `${VAR}` / `${VAR:default}`.
 [cut sheets](docs/cut-sheet.md) · [security](docs/security.md) ·
 [render QA](docs/qa.md) · [outside reviewers](docs/outside-reviewers.md) · [exporting and restoring a workspace](docs/workspace-export.md) · [moving the database](docs/database-move.md) ·
 [speakers, people and to-dos](docs/speakers.md) · [motion graphics as code](docs/motion-graphics-as-code.md) ·
-[browser extension](docs/browser-extension.md) · [what MetaRush sees](docs/visual-index.md) · [resources, project links and nested cuts](docs/resources.md) · [timeline export](docs/timeline-export.md) · [timelines from other editors](docs/timeline-import.md) · [posting to video platforms](docs/publishing.md) · [Google Drive and Dropbox folders](docs/cloud-folders.md) · [the plugin](docs/plugin.md) · [MCP](docs/mcp.md) · [the catalogue](docs/catalogue.md) · [Remotion sources](docs/remotion-sources.md) · [recipes](docs/recipes.md) · [abilities](docs/abilities.md) · [testing](docs/testing.md) · [the review desk](docs/review-desk.md) · [Content Credentials](docs/content-credentials.md)
+[browser extension](docs/browser-extension.md) · [what MetaRush sees](docs/visual-index.md) · [resources, project links and nested cuts](docs/resources.md) · [timeline export](docs/timeline-export.md) · [timelines from other editors](docs/timeline-import.md) · [posting to video platforms](docs/publishing.md) · [Google Drive and Dropbox folders](docs/cloud-folders.md) · [the plugin](docs/plugin.md) · [MCP](docs/mcp.md) · [the catalogue](docs/catalogue.md) · [community catalogues of abilities](docs/ability-catalogue.md) · [Remotion sources](docs/remotion-sources.md) · [recipes](docs/recipes.md) · [abilities](docs/abilities.md) · [testing](docs/testing.md) · [the review desk](docs/review-desk.md) · [Content Credentials](docs/content-credentials.md)
 
 ## Development
 `./start.sh` runs a local MongoDB replica set, the daemon on :4841 and the Vite dashboard on :4840 against the dev
@@ -1850,6 +1865,11 @@ checks below in order, log each step and end with a table; [testing](docs/testin
   starter pack's ComfyUI ability checked from its folder, approved in the browser with the one local service it
   names, set up and run against a fake ComfyUI on this computer, the picture it brought back; the other starter
   abilities checked and listed.
+- `scripts/ability-catalogue-e2e.sh` runs `web/scripts/ability-catalogue-e2e.mjs` (ports 5810–5819; needs a sandbox,
+  git and python3): a community catalogue made by the generator from a fixture repository and served over HTTPS on
+  this computer; an owner trusts it under Settings → Abilities, Browse catalogues lists it, Bring it in… fetches the
+  ability from the repository's commit as a draft, a terminal checks it, the owner approves it, a listing whose
+  archive lies is refused, the catalogue removed; desktop and 390 px phone in both themes.
 - `scripts/catalogue-e2e.sh` runs `web/scripts/catalogue-e2e.mjs` (ports 5500–5509; needs a sandbox and python3): the
   menu of abilities with what works here, its filters, a built-in ability's page, an added ability approved and set
   up until the menu and the command line say it works here, desktop and 390 px phone in both themes.

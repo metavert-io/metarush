@@ -49,9 +49,11 @@ func ListTree(ctx context.Context, ts *tools.Set, bare, commit string) ([]TreeEn
 	return out, nil
 }
 
-// ReadBlobs streams blobs' raw bytes (git cat-file --batch) in request order.
-func ReadBlobs(ctx context.Context, ts *tools.Set, bare string, shas []string, each func(sha string, data []byte) error) error {
-	return readBlobs(ctx, ts, bare, shas, each)
+// ReadBlobs streams blobs' raw bytes (git cat-file --batch) in request order,
+// none larger than maxEach nor more than maxTotal in all (0: no cap): a blob
+// past a cap fails with *ErrBlobLimit before any of it is read.
+func ReadBlobs(ctx context.Context, ts *tools.Set, bare string, shas []string, maxEach, maxTotal int64, each func(sha string, data []byte) error) error {
+	return readBlobs(ctx, ts, bare, shas, BlobLimits{Each: maxEach, Total: maxTotal}, each)
 }
 
 // IsLFSPointer reports a Git LFS pointer file (the real file isn't in git).

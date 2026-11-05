@@ -8,6 +8,7 @@ import { absolute, plural, stamp } from '../../lib/format';
 import { useDialog } from '../../ui/Dialog';
 import { useToast } from '../../ui/Toast';
 import { Button, Details, SectionTitle, Theirs } from '../../ui/primitives';
+import { CatalogueOrigin } from './Catalogues';
 
 /*
  * Ability files between workspaces (D292), like Recipes' files (D219).
@@ -110,7 +111,7 @@ export function ImportAbilityButton() {
           if (f) void bring(f);
         }}
       />
-      <Button size="sm" icon={<UploadSimple size={12} />} disabled={busy} onClick={() => input.current?.click()} className="ml-auto" data-ability-import
+      <Button size="sm" icon={<UploadSimple size={12} />} disabled={busy} onClick={() => input.current?.click()} data-ability-import
         title="Bring in an ability another workspace exported: it comes in as a draft, never approved or set up here">
         {busy ? 'Reading the file…' : 'Bring in an ability file…'}
       </Button>
@@ -152,12 +153,13 @@ function ImportPreview({ out }: { out: AbilityImportOut }) {
   );
 }
 
-/** An imported version's page: where it came from, and what it waits for. */
+/** An imported version's page: where it came from (another workspace or a catalogue, D485), and what it waits for. */
 export function ImportedSection({ v }: { v: AbilityVersion }) {
   const from = v.imported;
+  const listed = from?.catalogue;
   return (
     <section aria-labelledby="ability-imported" className="rounded-[14px] bg-panel p-4 hairline" data-ability-imported>
-      <SectionTitle id="ability-imported">Brought in from another workspace</SectionTitle>
+      <SectionTitle id="ability-imported">{listed ? 'Brought in from a catalogue' : 'Brought in from another workspace'}</SectionTitle>
       <p className="mt-2 flex items-start gap-1.5 text-[13px]">
         <Package size={14} className="mt-[3px] shrink-0 text-subtle" aria-hidden />
         <span>
@@ -171,7 +173,8 @@ export function ImportedSection({ v }: { v: AbilityVersion }) {
           metarush ability check --version {v.name}@{v.hash.slice(0, 12)}
         </code>
       </Details>
-      {from ? (
+      {listed ? <CatalogueOrigin c={listed} at={from?.at} /> : null}
+      {from && !listed ? (
         <div className="mt-3 text-[12.5px] text-muted">
           <p>
             {from.workspace ? (

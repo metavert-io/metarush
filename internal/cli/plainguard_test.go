@@ -268,6 +268,7 @@ func TestPlainOutputSpeaksPlainly(t *testing.T) {
 	home := a.Cfg.Home()
 	s := seedPlain(t, a)
 	seedRemotionPlain(t, a, s.project)
+	seedCataloguePlain(t, a)
 	ws := a.Cfg.Workspace.ID
 	cases := []struct {
 		args  []string
@@ -360,6 +361,10 @@ func TestPlainOutputSpeaksPlainly(t *testing.T) {
 		{args: []string{"catalogue", "list", "--works-now", "--group", "understand"}},
 		{args: []string{"catalogue", "show", "steady-footage"}},
 		{args: []string{"ops", "find", "steady", "my", "shaky", "footage"}},
+		// Community catalogues of abilities (D481–D484): the trusted ones and what they list.
+		{args: []string{"ability", "catalogues", "list"}},
+		{args: []string{"ability", "browse"}},
+		{args: []string{"ability", "browse", "stock"}},
 		// Errors read as plain words too.
 		{args: []string{"project", "show", ids.New(ids.Project)}},
 		{args: []string{"qa", "show", ids.New(ids.Render)}},

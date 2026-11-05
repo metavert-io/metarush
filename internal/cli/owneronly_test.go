@@ -32,7 +32,7 @@ var ownerOnlyOps = []string{
 	"log.configure", "log.purge", "log.hooks.enable", "log.hooks.disable", "improve.schedule.set",
 	"machine.invite", "machine.revoke", "machine.rekey",
 	"machine.handover.plan", "machine.handover.export", "machine.handover.receive", "machine.handover.abandon", "machine.handover.clean", "machine.takeover",
-	"ability.approve", "ability.revoke",
+	"ability.approve", "ability.revoke", "ability.catalogues.add", "ability.catalogues.remove",
 	"publish.setup",
 	"delivery.gate.set", "content.gate.set",
 	"credentials.setup", "credentials.remove", "credentials.set", "content.credentials.set",

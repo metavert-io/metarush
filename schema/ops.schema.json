@@ -1538,6 +1538,217 @@
         "ref"
       ]
     },
+    "AbilityBrowseIn": {
+      "properties": {
+        "catalogue": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "search": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "refresh": {
+          "type": "boolean"
+        },
+        "limit": {
+          "type": "integer",
+          "maximum": 500,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "AbilityBrowseOut": {
+      "properties": {
+        "catalogues": {
+          "items": {
+            "$ref": "#/$defs/CatalogueRow"
+          },
+          "type": "array"
+        },
+        "abilities": {
+          "items": {
+            "$ref": "#/$defs/ListedAbility"
+          },
+          "type": "array"
+        },
+        "more": {
+          "type": "integer"
+        },
+        "note": {
+          "type": "string"
+        },
+        "quoted": {
+          "type": "string",
+          "description": "For an AI: how to read the words in quotes."
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "catalogues",
+        "abilities",
+        "note",
+        "message"
+      ]
+    },
+    "AbilityCatalogueAddIn": {
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1,
+          "description": "The index's address (https)."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "dryRun": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url"
+      ]
+    },
+    "AbilityCatalogueAddOut": {
+      "properties": {
+        "catalogue": {
+          "$ref": "#/$defs/CatalogueRow"
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "next": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "catalogue",
+        "dryRun",
+        "note",
+        "message"
+      ]
+    },
+    "AbilityCatalogueImportIn": {
+      "properties": {
+        "from": {
+          "type": "string",
+          "maxLength": 600,
+          "minLength": 3,
+          "description": "catalogue:name or catalogue:name@version."
+        },
+        "asVersion": {
+          "type": "boolean"
+        },
+        "dryRun": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "from"
+      ]
+    },
+    "AbilityCatalogueRemoveIn": {
+      "properties": {
+        "catalogue": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1,
+          "description": "Its short name here or its address."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "catalogue"
+      ]
+    },
+    "AbilityCatalogueRemoveOut": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key",
+        "url",
+        "title",
+        "message"
+      ]
+    },
+    "AbilityCataloguesIn": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "AbilityCataloguesOut": {
+      "properties": {
+        "catalogues": {
+          "items": {
+            "$ref": "#/$defs/CatalogueRow"
+          },
+          "type": "array"
+        },
+        "suggested": {
+          "items": {
+            "$ref": "#/$defs/SuggestedCatalogue"
+          },
+          "type": "array"
+        },
+        "note": {
+          "type": "string"
+        },
+        "quoted": {
+          "type": "string",
+          "description": "For an AI: how to read the words in quotes."
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "catalogues",
+        "suggested",
+        "note",
+        "message"
+      ]
+    },
     "AbilityCheck": {
       "properties": {
         "at": {
@@ -1725,6 +1936,9 @@
           "type": "string"
         },
         "link": {
+          "type": "string"
+        },
+        "takenBack": {
           "type": "string"
         }
       },
@@ -2050,6 +2264,51 @@
         "message"
       ]
     },
+    "AbilityFromCatalogue": {
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "date": {
+          "type": "string"
+        },
+        "publisher": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "fileUrl": {
+          "type": "string"
+        },
+        "fileSha256": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key",
+        "url",
+        "title",
+        "version"
+      ]
+    },
     "AbilityHere": {
       "properties": {
         "machine": {
@@ -2221,6 +2480,9 @@
         },
         "by": {
           "$ref": "#/$defs/Actor"
+        },
+        "catalogue": {
+          "$ref": "#/$defs/AbilityFromCatalogue"
         }
       },
       "additionalProperties": false,
@@ -2867,6 +3129,9 @@
           "type": "string"
         },
         "terms": {
+          "type": "string"
+        },
+        "takenBack": {
           "type": "string"
         },
         "apart": {
@@ -3587,6 +3852,10 @@
         },
         "canApprove": {
           "type": "boolean"
+        },
+        "takenBack": {
+          "type": "string",
+          "description": "The catalogue it came from took this version back: why, in the catalogue's words."
         },
         "message": {
           "type": "string"
@@ -11028,6 +11297,345 @@
         "missed"
       ]
     },
+    "CatalogueAI": {
+      "properties": {
+        "footage": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "sound": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "picture": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "document": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "font": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        },
+        "captions": {
+          "type": "string",
+          "enum": [
+            "made",
+            "edited",
+            "enhanced",
+            "none"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "What AI does to each kind of output: made, edited, enhanced or none."
+    },
+    "CatalogueEntry": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "does": {
+          "type": "string",
+          "maxLength": 300,
+          "minLength": 1
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "publisher": {
+          "$ref": "#/$defs/CataloguePublisher"
+        },
+        "source": {
+          "$ref": "#/$defs/CatalogueSource"
+        },
+        "archive": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "licence": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "provides": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 8
+        },
+        "outputs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 6
+        },
+        "network": {
+          "type": "string",
+          "enum": [
+            "off",
+            "metarush",
+            "open"
+          ]
+        },
+        "hosts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 32
+        },
+        "keys": {
+          "items": {
+            "$ref": "#/$defs/CatalogueKey"
+          },
+          "type": "array",
+          "maxItems": 8
+        },
+        "sends": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 5
+        },
+        "ai": {
+          "$ref": "#/$defs/CatalogueAI"
+        },
+        "cost": {
+          "type": "string",
+          "enum": [
+            "free",
+            "keyed",
+            "priced"
+          ]
+        },
+        "local": {
+          "$ref": "#/$defs/CatalogueLocal"
+        },
+        "changesOutside": {
+          "type": "boolean"
+        },
+        "likeness": {
+          "type": "boolean"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/CatalogueFile"
+          },
+          "type": "array",
+          "maxItems": 4
+        },
+        "terms": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "programs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 8
+        },
+        "os": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 2
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 20
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/CatalogueLink"
+          },
+          "type": "array",
+          "maxItems": 8
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "title",
+        "does",
+        "publisher",
+        "source",
+        "archive",
+        "licence",
+        "network",
+        "cost"
+      ]
+    },
+    "CatalogueFile": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "says": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "",
+            "whisper-model",
+            "whisper-translator"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "says"
+      ]
+    },
+    "CatalogueFileSource": {
+      "properties": {
+        "url": {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^https://"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url",
+        "sha256"
+      ]
+    },
+    "CatalogueGitSource": {
+      "properties": {
+        "repository": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^https://github\\.com/"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "repository",
+        "commit",
+        "path"
+      ]
+    },
+    "CatalogueKey": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "hosts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 32
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "CatalogueLeftOut": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "why"
+      ]
+    },
+    "CatalogueLink": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^https://"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "title",
+        "url"
+      ]
+    },
     "CatalogueListIn": {
       "properties": {
         "group": {
@@ -11106,6 +11714,124 @@
         "message"
       ]
     },
+    "CatalogueLocal": {
+      "properties": {
+        "port": {
+          "type": "integer",
+          "maximum": 32767,
+          "minimum": 1024
+        },
+        "service": {
+          "type": "string",
+          "maxLength": 60,
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "port",
+        "service"
+      ]
+    },
+    "CataloguePublisher": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "github": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^https://"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "CatalogueRow": {
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Its short name here: what goes before the colon in catalogue:ability."
+        },
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "about": {
+          "type": "string"
+        },
+        "maintainer": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "date": {
+          "type": "string"
+        },
+        "abilities": {
+          "type": "integer"
+        },
+        "leftOut": {
+          "items": {
+            "$ref": "#/$defs/CatalogueLeftOut"
+          },
+          "type": "array"
+        },
+        "revoked": {
+          "type": "integer"
+        },
+        "signed": {
+          "type": "boolean",
+          "description": "Its index carries signatures this MetaRush doesn't read or trust."
+        },
+        "fetchedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When its index was last read whole."
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "problem": {
+          "type": "string",
+          "description": "Why the last read didn't give a new copy (the copy before stays in use)."
+        },
+        "addedBy": {
+          "type": "string"
+        },
+        "addedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "line": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key",
+        "url",
+        "title",
+        "version",
+        "abilities",
+        "leftOut",
+        "revoked",
+        "addedBy",
+        "addedAt",
+        "line"
+      ]
+    },
     "CatalogueShowIn": {
       "properties": {
         "name": {
@@ -11139,6 +11865,18 @@
         "description",
         "message"
       ]
+    },
+    "CatalogueSource": {
+      "properties": {
+        "git": {
+          "$ref": "#/$defs/CatalogueGitSource"
+        },
+        "file": {
+          "$ref": "#/$defs/CatalogueFileSource"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     },
     "Chapter": {
       "properties": {
@@ -32024,6 +32762,134 @@
       "type": "object",
       "required": [
         "providers"
+      ]
+    },
+    "ListedAbility": {
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "catalogue": {
+          "type": "string"
+        },
+        "catalogueTitle": {
+          "type": "string"
+        },
+        "entry": {
+          "$ref": "#/$defs/CatalogueEntry"
+        },
+        "publisher": {
+          "type": "string",
+          "description": "Who the catalogue says published it (not verified)."
+        },
+        "sourceWords": {
+          "type": "string"
+        },
+        "sourcePage": {
+          "type": "string"
+        },
+        "needs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "What each computer needs for it"
+        },
+        "reaches": {
+          "type": "string"
+        },
+        "leaves": {
+          "type": "string"
+        },
+        "aiWords": {
+          "type": "string"
+        },
+        "costWords": {
+          "type": "string"
+        },
+        "decides": {
+          "type": "string",
+          "description": "Who starts a run"
+        },
+        "makes": {
+          "type": "string"
+        },
+        "here": {
+          "$ref": "#/$defs/ListedHere"
+        },
+        "other": {
+          "$ref": "#/$defs/ListedHere"
+        },
+        "revoked": {
+          "type": "string"
+        },
+        "canBringIn": {
+          "type": "boolean"
+        },
+        "whyNot": {
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "ref",
+        "catalogue",
+        "catalogueTitle",
+        "entry",
+        "publisher",
+        "sourceWords",
+        "needs",
+        "reaches",
+        "leaves",
+        "aiWords",
+        "costWords",
+        "decides",
+        "makes",
+        "canBringIn",
+        "warnings"
+      ]
+    },
+    "ListedHere": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        },
+        "stateLabel": {
+          "type": "string"
+        },
+        "link": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "title",
+        "version",
+        "number",
+        "state",
+        "stateLabel",
+        "link"
       ]
     },
     "LocalDownload": {
@@ -67495,6 +68361,22 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "SuggestedCatalogue": {
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "trusted": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url",
+        "trusted"
+      ]
+    },
     "Suggestion": {
       "properties": {
         "word": {
@@ -69130,7 +70012,8 @@
             "remotion_approval",
             "recipe_run",
             "ability_approval",
-            "ship_gate"
+            "ship_gate",
+            "ability_taken_back"
           ]
         },
         "scope": {
@@ -69721,7 +70604,9 @@
             "face_group",
             "remotion_approval",
             "recipe_run",
-            "ability_approval"
+            "ability_approval",
+            "ship_gate",
+            "ability_taken_back"
           ]
         },
         "state": {
@@ -74736,6 +75621,91 @@
         "output"
       ],
       "description": "Approve a version of an ability for the workspace, or turn it down (owners, people only): approved, members may run it on computers it is set up on"
+    },
+    "ability.browse": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/AbilityBrowseIn"
+        },
+        "output": {
+          "$ref": "#/$defs/AbilityBrowseOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Browse the abilities the trusted community catalogues list: what each does and needs (keys, network, places, AI), its publisher and licence, whether it is here already; listed, not checked by MetaRush (bringing one in is a person's step)"
+    },
+    "ability.catalogues": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/AbilityCataloguesIn"
+        },
+        "output": {
+          "$ref": "#/$defs/AbilityCataloguesOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "List the community catalogues of abilities this workspace trusts (and the ones this computer suggests): each one's address, what it says it is, how many abilities it lists and when MetaRush last read it; what they list is their word, not checked by MetaRush"
+    },
+    "ability.catalogues.add": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/AbilityCatalogueAddIn"
+        },
+        "output": {
+          "$ref": "#/$defs/AbilityCatalogueAddOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Trust a community catalogue of abilities (owners, people only): MetaRush reads its index over HTTPS, and people may then browse it and bring abilities in from it, each checked here and approved by an owner first"
+    },
+    "ability.catalogues.import": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/AbilityCatalogueImportIn"
+        },
+        "output": {
+          "$ref": "#/$defs/AbilityImportOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Bring an ability in from a trusted community catalogue (people only): MetaRush fetches exactly the version listed, refuses it unless its files are that version and its manifest says what the listing says, and keeps it as a draft — never approved or set up here: check it on this computer, then an owner approves it"
+    },
+    "ability.catalogues.remove": {
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/AbilityCatalogueRemoveIn"
+        },
+        "output": {
+          "$ref": "#/$defs/AbilityCatalogueRemoveOut"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "input",
+        "output"
+      ],
+      "description": "Stop trusting a community catalogue of abilities (owners, people only): nothing more comes in from it; abilities already brought in stay, each with its own approval"
     },
     "ability.check": {
       "properties": {
@@ -84948,6 +85918,11 @@
   "type": "object",
   "required": [
     "ability.approve",
+    "ability.browse",
+    "ability.catalogues",
+    "ability.catalogues.add",
+    "ability.catalogues.import",
+    "ability.catalogues.remove",
     "ability.check",
     "ability.export",
     "ability.find",

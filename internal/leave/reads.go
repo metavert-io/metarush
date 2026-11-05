@@ -28,6 +28,8 @@ import (
 // rules (deny by default).
 var readsShow = map[string]string{
 	"ability.find": "-", "ability.list": "-", "ability.show": "-", "ability.plan": "W", "ability.runs": "W",
+	// Community catalogues (D484): their own listings, never a client's things.
+	"ability.catalogues": "-", "ability.browse": "-",
 	"account.preferences": "-", "activity.summary": "W", "add.route": "-",
 	"ai.estimate": "W", "ai.list": "W", "ai.local": "-", "ai.models": "-", "ai.rules": "-", "ai.show": "WPA", "ai.voices": "-",
 	"asset.card": "WPA", "asset.fixes": "PA", "asset.list": "-", "asset.names": "W", "asset.precheck": "-", "asset.show": "WPA", "asset.where": "-",

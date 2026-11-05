@@ -174,7 +174,7 @@ func StateWords(state string) string {
 	case models.AbilityFailed:
 		return "its check didn't pass"
 	case models.AbilityImported:
-		return "brought in from another workspace; not checked here yet"
+		return "brought in, not checked here yet"
 	}
 	return state
 }

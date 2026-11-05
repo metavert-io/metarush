@@ -222,6 +222,12 @@ var Migrations = []Migration{
 			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "sso.key", Value: 1}},
 				options.Index().SetName("sso_account").SetUnique(true).SetPartialFilterExpression(bson.M{"sso.key": bson.M{"$exists": true}})))
 	}},
+	{Version: 67, Name: "community catalogues of abilities an owner trusts", Up: func(ctx context.Context, d *DB) error {
+		// One record per catalogue and workspace (D481): an address is trusted
+		// once, whatever its short name here.
+		return createIndexes(ctx, d, CAbilityCatalogues,
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "url", Value: 1}}, options.Index().SetUnique(true)))
+	}},
 }
 
 // migratePresenters indexes people's own presenters (D273: one per short

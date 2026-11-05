@@ -18,6 +18,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/metavert-io/metarush/internal/abilities"
 	"github.com/metavert-io/metarush/internal/aiwork"
 	"github.com/metavert-io/metarush/internal/api"
 	"github.com/metavert-io/metarush/internal/app"
@@ -290,6 +291,9 @@ func serveCmd() *cobra.Command {
 			// Drafts from videos someone liked that no computer finished (its
 			// claim gone stale, or the last look's news missed) are made (D444).
 			go recipes.RunDraftSweep(ctx, a, srv.Log)
+			// Community catalogues of abilities are read again once a day by the
+			// database's clock, and what they take back reaches the owners (D488).
+			go abilities.RunCatalogueRefresh(ctx, a, srv.Log)
 			st := daemonState{PID: os.Getpid(), Port: a.Cfg.Dashboard.Port, StartedAt: time.Now().UTC(), Version: versionString(), Mode: "full", Service: os.Getenv("METARUSH_SERVICE"), Program: service.ThisProgram()}
 			if workerOnly {
 				st.Mode, st.Port = "worker-only", 0

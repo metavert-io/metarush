@@ -265,6 +265,79 @@
         "duckDb"
       ]
     },
+    "PlanBackground": {
+      "properties": {
+        "with": {
+          "type": "string",
+          "enum": [
+            "colour",
+            "blur",
+            "picture",
+            "footage"
+          ]
+        },
+        "colour": {
+          "type": "string"
+        },
+        "blur": {
+          "type": "number"
+        },
+        "feather": {
+          "type": "number"
+        },
+        "picture": {
+          "type": "string"
+        },
+        "footage": {
+          "$ref": "#/$defs/PlanBackgroundFootage"
+        },
+        "cutOut": {
+          "type": "string"
+        },
+        "cutOutTrimBefore": {
+          "type": "number"
+        },
+        "missing": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "with",
+        "feather",
+        "cutOut",
+        "cutOutTrimBefore"
+      ]
+    },
+    "PlanBackgroundFootage": {
+      "properties": {
+        "assetId": {
+          "type": "string"
+        },
+        "trimBefore": {
+          "type": "integer"
+        },
+        "playbackRate": {
+          "type": "number"
+        },
+        "sourceWidth": {
+          "type": "integer"
+        },
+        "sourceHeight": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "assetId",
+        "trimBefore",
+        "playbackRate",
+        "sourceWidth",
+        "sourceHeight"
+      ]
+    },
     "PlanBeat": {
       "properties": {
         "id": {
@@ -533,6 +606,9 @@
         },
         "conversation": {
           "$ref": "#/$defs/PlanConversation"
+        },
+        "background": {
+          "$ref": "#/$defs/PlanBackground"
         }
       },
       "additionalProperties": false,
@@ -1405,6 +1481,12 @@
           "type": "object"
         },
         "fixed": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "cutOutSources": {
           "additionalProperties": {
             "type": "string"
           },

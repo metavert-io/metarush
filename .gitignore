@@ -37,6 +37,8 @@ node_modules/
 tests/fixtures/gen/
 # Openly licensed speech fetched for the multilingual measurement (scripts/fetch-speech.sh; never committed)
 tests/fixtures/speech/
+# Footage of real people for the cut-out measurement (scripts/fetch-cutout-clips.sh): never committed
+tests/fixtures/cutouts/
 tests/out/
 
 # Playwright

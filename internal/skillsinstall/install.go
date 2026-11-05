@@ -259,6 +259,8 @@ var ReadOnlyCommands = []string{
 	"metarush footage visuals", "metarush footage visuals status", "metarush footage keyframes", "metarush footage faces list",
 	// What a video does (D399): its sections, pacing, voices, captions, words on screen, music.
 	"metarush footage what-it-does",
+	// A clip's cut-outs (D505): reading only (making one, and a cut's background, ask).
+	"metarush footage cut-outs",
 	"metarush edit check", "metarush edit preview", "metarush edit templates", "metarush edit transitions", "metarush edit plan validate", "metarush revision list", "metarush revision show",
 	"metarush revision compare", "metarush revision plan", "metarush render status", "metarush render list", "metarush job list", "metarush job show",
 	"metarush job wait", "metarush schema", "metarush doctor", "metarush ops list", "metarush ops find", "metarush ops describe", "metarush cache status", "metarush sync status", "metarush machine list", "metarush version",

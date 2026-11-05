@@ -320,7 +320,16 @@ func rebind(in assemblyIn) *assembly {
 }
 
 // bindClip gives a clip the footage its input names, or the clip the run made.
+// A background replaced behind its people stays only while its footage does:
+// the cut-out is that footage's (D509).
 func bindClip(in assemblyIn, cl *editspec.Clip, out *assembly) {
+	was := cl.AssetID
+	defer func() {
+		if cl.Background != nil && cl.AssetID != was {
+			cl.Background = nil
+			out.Notes = append(out.Notes, fmt.Sprintf("The clip “%s” plays other footage now, so its background behind the people is the footage's own again: replace it again if you want it.", cl.ID))
+		}
+	}()
 	if m, ok := in.Made[cl.ID]; ok {
 		cl.AssetID = m.AssetID
 		switch {
@@ -631,26 +640,8 @@ func remapBeats(s *editspec.Spec, d *models.RecipeDoc, remap map[string]string, 
 // longer plays.
 func pruneFixed(s *editspec.Spec) {
 	used := map[string]bool{}
-	for _, cl := range s.Clips {
-		used[cl.AssetID] = true
-	}
-	for _, t := range s.Audio {
-		used[t.AssetID] = true
-	}
-	if v := s.Voiceover; v != nil {
-		for _, b := range v.Beats {
-			if b.Take != nil {
-				used[b.Take.AssetID] = true
-			}
-		}
-		if v.Continuous != nil {
-			used[v.Continuous.AssetID] = true
-		}
-	}
-	for _, c := range s.Conversations {
-		for _, m := range c.Members {
-			used[m.AssetID] = true
-		}
+	for _, id := range editspec.AssetIDs(s) { // every place the cut plays footage: cutaways and clips behind people too
+		used[id] = true
 	}
 	if s.Mix != nil && len(s.Mix.Enhanced) > 0 {
 		var keep []editspec.EnhancedSound

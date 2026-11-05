@@ -495,6 +495,9 @@ func AssetIDs(s *Spec) []string {
 	for _, t := range s.Audio {
 		add(t.AssetID)
 	}
+	for _, id := range BackgroundFootageIDs(s) { // clips shown behind people (D510)
+		add(id)
+	}
 	if v := s.Voiceover; v != nil {
 		for _, b := range v.Beats {
 			if b.Take != nil {

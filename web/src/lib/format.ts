@@ -172,6 +172,7 @@ const JOB_LABELS: Record<string, string> = {
   'remotion-refresh': 'Refreshing a Remotion project',
   'remotion-push': 'Sending changes back to a repository',
   'ability-run': 'Running an ability',
+  matte: 'Cut-out',
 };
 
 /** Every job type the dashboard names (web/scripts/job-labels-test.mjs holds it to internal/jobs). */

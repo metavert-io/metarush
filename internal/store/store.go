@@ -131,6 +131,10 @@ const (
 	// fix steps (<workspace>/<original sha>:<fingerprint>), made once on any
 	// machine.
 	CSourceCopies = "source_copies"
+	// CMattes holds clips' cut-outs (D505): one document per fingerprint (the
+	// media, the stretch, the model and its smoothing), made once on any
+	// computer that can.
+	CMattes = "mattes"
 	// CRecipes holds recipes (D201): one per recipe of the workspace (rcp_…),
 	// with its current version, newest draft, example and whether it is archived.
 	CRecipes = "recipes"

@@ -19,7 +19,7 @@ import (
 
 // LocalIn lists the models that run on this computer.
 type LocalIn struct {
-	Kind string `json:"kind,omitempty" jsonschema:"enum=,enum=voice,enum=transcription,enum=background-removal,enum=upscale"`
+	Kind string `json:"kind,omitempty" jsonschema:"enum=,enum=voice,enum=transcription,enum=background-removal,enum=upscale,enum=video-background"`
 }
 
 // LocalDownload is one pinned download a model needs.

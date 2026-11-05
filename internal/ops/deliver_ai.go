@@ -60,6 +60,8 @@ type cutUse struct {
 	nested string
 	asset  func(id string) (models.Asset, bool)
 	take   func(id string) (models.VoiceTake, bool)
+	// matte is a clip's cut-out the cut plays (D510; nil: none known).
+	matte func(sha string) (*models.Matte, bool)
 }
 
 // shownPicture is a picture a delivered version shows (its own pins and its
@@ -163,6 +165,26 @@ func aiPieces(uses []cutUse, pics []shownPicture) []aiPiece {
 				add(aiPiece{What: "sound", Work: models.AIWorkEnhanced, SHA256: as.SHA256, Format: as.MIME, AssetID: e.Variant, Nested: u.nested, Title: "a voice made clearer"})
 			}
 		}
+		// Clips whose background is replaced (D510, D511): the people, told from
+		// their background by an AI model, over something else — the footage
+		// enhanced, like a picture's background taken away.
+		for _, c := range u.spec.Clips {
+			b := c.Background
+			if b == nil || b.Matte == "" {
+				continue
+			}
+			p := aiPiece{What: "footage", Work: models.AIWorkOf(aiKindVideoBackground, false), Kind: aiKindVideoBackground, SHA256: b.Matte, Format: "video/webm",
+				AssetID: c.AssetID, Nested: u.nested, Title: "the people in a clip, over a new background"}
+			if as, ok := u.asset(c.AssetID); ok {
+				p.Title = "the people in “" + as.DisplayTitle() + "”, over a new background"
+			}
+			if u.matte != nil {
+				if m, ok := u.matte(b.Matte); ok {
+					p.Provider, p.Model, p.GenerationID = m.ProviderTitle, m.ModelTitle, m.GenerationID
+				}
+			}
+			add(p)
+		}
 	}
 	for _, pic := range pics {
 		// Pictures an AI service made or changed, and an ability's as its
@@ -239,9 +261,26 @@ func aiUsesOf(ctx context.Context, a *app.App, it *deliveryItem) ([]cutUse, []sh
 		t, ok := takes[id]
 		return t, ok
 	}
-	uses := []cutUse{{spec: &it.rev.Spec, asset: asset, take: take}}
+	// The clips' cut-outs the cuts play (D510), looked up once.
+	var shas []string
+	for _, s := range append([]*editspec.Spec{&it.rev.Spec}, nestedSpecs(nested)...) {
+		shas = append(shas, editspec.MatteSHAs(s)...)
+	}
+	mattes := map[string]*models.Matte{}
+	if a != nil && len(shas) > 0 {
+		c, cancel := context.WithTimeout(ctx, 10*time.Second)
+		if ms, err := LoadMattes(c, a, shas); err == nil {
+			mattes = ms
+		}
+		cancel()
+	}
+	matte := func(sha string) (*models.Matte, bool) {
+		m, ok := mattes[sha]
+		return m, ok
+	}
+	uses := []cutUse{{spec: &it.rev.Spec, asset: asset, take: take, matte: matte}}
 	for _, u := range nested {
-		uses = append(uses, cutUse{spec: u.Source.Spec, nested: u.ClipID, asset: asset, take: take})
+		uses = append(uses, cutUse{spec: u.Source.Spec, nested: u.ClipID, asset: asset, take: take, matte: matte})
 	}
 	type genFacts struct {
 		kind     string
@@ -281,6 +320,21 @@ func aiUsesOf(ctx context.Context, a *app.App, it *deliveryItem) ([]cutUse, []sh
 		pics = append(pics, p)
 	}
 	return uses, pics
+}
+
+// aiKindVideoBackground is the kind of AI work that cuts the people out of a
+// clip (aiservices.KindVideoBackground; this package doesn't import it).
+const aiKindVideoBackground = "video-background"
+
+// nestedSpecs are the specs of the cuts a version plays.
+func nestedSpecs(uses []NestedCutUse) []*editspec.Spec {
+	var out []*editspec.Spec
+	for _, u := range uses {
+		if u.Source != nil && u.Source.Spec != nil {
+			out = append(out, u.Source.Spec)
+		}
+	}
+	return out
 }
 
 // takeIDs are the narration takes a cut plays.

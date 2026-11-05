@@ -66,6 +66,18 @@
   index.json` pins each ability to its repository's commit and its version, only when the commit holds exactly its
   files, and lists it from its own manifest; `docs/ability-catalogue.md` has the format and what MetaRush checks, and
   `abilities/catalogue.sample.json` is the starter pack as a catalogue.
+- **Replace the background behind the people in a clip**. On a clip in the Edit tab, **Replace the background…** puts
+  a colour, a blur of the clip itself, a picture from the resources library or another clip behind the people in it,
+  their edges softened, with a still to check it first; the preview, the review copy and the final render show it the
+  same way. MetaRush finds the people frame by frame once — the clip's cut-out, smoothed so edges don't shimmer, made
+  on any computer of the workspace that can (Apple Vision on a Mac; elsewhere the open MODNet model, a new optional
+  component, "Replacing a video's background") — free, and nothing leaves it; every cut reuses it. From a terminal:
+  `metarush footage cut-out <clip> --wait`, `metarush footage cut-outs <clip>` and `metarush cut background <project>
+  --clip 2 --with colour --colour '#00b140'`. Content Credentials list the replaced background as footage changed
+  with AI, and the quality check says where it was done (in nested cuts too) and finds a cut-out that is missing or
+  out of date. Safari's preview, and every browser's on an iPhone or iPad, plays such a clip as recorded (they can't
+  show a video's see-through parts), and says so under the player; the renders always show it. An owner deletes a
+  cut-out with `metarush footage cut-out-delete <cut-out> --forever`, never while any version, draft or recipe plays it.
 - **Delivered videos can carry Content Credentials**. Turn them on in Settings → Delivery (or `metarush credentials
   on`; a client's Content Settings can say on, required or off for their projects) and every final video MetaRush
   delivers carries a signed record, in the open C2PA format, that it was made with MetaRush, which footage, sound and

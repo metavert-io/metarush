@@ -114,6 +114,8 @@ func previewSources(plan *editspec.RenderPlan, facts *dbFacts, spec *editspec.Sp
 	// Motion graphics: the stills their checks drew, shown in their place
 	// (D187); same-origin and signed in, never the graphic's code.
 	editspec.FillMotionStills(plan, facts.anyMotion, MotionStillURL)
+	// Clips' cut-outs (D510): same-origin and local-first, like the footage.
+	fillCutOuts(plan)
 	editspec.FillNested(plan)
 }
 

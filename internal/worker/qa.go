@@ -222,6 +222,7 @@ func qaHandler(ctx context.Context, w *Worker, j *models.Job, report Report) (ma
 	}
 	rep, err := qa.Analyze(ctx, a.Tools, qa.Input{Path: path, Said: said, Plan: plan, Spec: spec, Scale: scale, Platforms: proj.Brief.Platforms, Calls: callFx, Rules: content.RulesFor(ctx, a, &proj),
 		Style: house, StyleOf: houseOf, Notes: rev.DeliveryNotes, PackDrifts: packDrifts, PackOf: pack.Of, MotionShapes: editspec.MotionShapeGaps(spec, facts, plan.Width, plan.Height),
+		Mattes: cutOutsOf(ctx, a, facts, plan),
 		Speech: speech, SpeechPrec: prec, Source: source, AssetNames: names, RevisionID: rev.ID, Quality: rd.Quality, OutDir: outDir, Scratch: scratch,
 		ExpectedSpeech: expected, UnknownSpeech: unknown, SpeechEdges: edges, Transcriber: tx, SpeechLanguage: speechLang, Loudness: loud, TakeWords: takeWords,
 		Cuts: editspec.CutReport(spec, facts), Shots: editspec.Shots(spec, facts), Credits: credits, Generated: generated, CaptionWords: captionWords, Resources: resCredits, ClearerVoices: clearerVoices(ctx, a, plan),
@@ -389,4 +390,16 @@ func num(v any) float64 {
 		return float64(x)
 	}
 	return 0
+}
+
+// cutOutsOf answers QA about the cut-outs a plan plays, nested cuts' included
+// (D510): the version's own from its facts, the rest read once.
+func cutOutsOf(ctx context.Context, a *app.App, facts *renderFacts, plan *editspec.RenderPlan) func(string) (editspec.MatteInfo, bool) {
+	all, err := facts.extras.CutOuts(ctx, a, plan)
+	return func(sha string) (editspec.MatteInfo, bool) {
+		if m, ok := all[sha]; ok && err == nil {
+			return ops.MatteInfoOf(m), true
+		}
+		return facts.extras.Matte(sha)
+	}
 }

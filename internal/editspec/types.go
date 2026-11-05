@@ -144,6 +144,10 @@ type Clip struct {
 	// MutedMembers are members of the conversation whose sound this clip
 	// leaves out (an off-camera interviewer under a text card).
 	MutedMembers []string `json:"mutedMembers,omitempty" bson:"mutedMembers,omitempty" jsonschema:"maxItems=16,description=A conversation clip: members whose sound is left out of this clip."`
+	// Background replaces what is behind the people in the clip (D510): a
+	// colour, a blur of the clip, a picture or another clip, from the clip's
+	// cut-out.
+	Background *ClipBackground `json:"background,omitempty" bson:"background,omitempty"`
 }
 
 // Framing values (clip framing.auto and output.framing).

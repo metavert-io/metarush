@@ -204,6 +204,11 @@ func (f *renderFacts) Resource(id, sha string) (editspec.ResourceInfo, bool) {
 	return f.extras.Resource(id, sha)
 }
 
+// Matte implements editspec.MatteFacts: the clips' cut-outs the cut pins (D510).
+func (f *renderFacts) Matte(sha string) (editspec.MatteInfo, bool) {
+	return f.extras.Matte(sha)
+}
+
 // Nested implements editspec.NestedFacts.
 func (f *renderFacts) Nested(projectID, revisionID string) (*editspec.NestedSource, bool) {
 	return f.extras.Nested(projectID, revisionID)
@@ -364,6 +369,10 @@ func renderHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 		local["r-"+sha] = f.Path
 		types["r-"+sha] = f.MIME
 	}
+	// Clips' cut-outs (D510): their files, verified by hash, served the same way.
+	if err := cutOutFiles(ctx, a, plan, facts.extras, local, types); err != nil {
+		return nil, err
+	}
 	srv, base, err := serveFiles(local, types)
 	if err != nil {
 		return nil, err
@@ -375,6 +384,13 @@ func renderHandler(ctx context.Context, w *Worker, j *models.Job, report Report)
 				plan.ResourceSources = map[string]string{}
 			}
 			plan.ResourceSources[sha] = base + "/" + id
+			continue
+		}
+		if sha, ok := strings.CutPrefix(id, "c-"); ok {
+			if plan.CutOutSources == nil {
+				plan.CutOutSources = map[string]string{}
+			}
+			plan.CutOutSources[sha] = base + "/" + id
 			continue
 		}
 		plan.Sources[id] = base + "/" + id
@@ -586,6 +602,38 @@ func resolveForRender(ctx context.Context, a *app.App, rd *models.Render, rev *m
 		return nil, nil, nil, nil, err
 	}
 	return plan, spec, assets, facts, nil
+}
+
+// cutOutFiles gets the clips' cut-outs a plan plays (D510), nested cuts'
+// included, onto this computer, checked by hash, and lists them for the
+// render's loopback server (local and types, keyed "c-<sha256>").
+func cutOutFiles(ctx context.Context, a *app.App, plan *editspec.RenderPlan, extras *ops.RenderExtras, local, types map[string]string) error {
+	gone := "A clip's cut-out that this version plays isn't ready in MetaRush (it is gone, or not made), so its background can't be replaced. Make the cut-out again and replace the background in a new version, or take the background out."
+	if missing := editspec.PlanMissingCutOuts(plan); len(missing) > 0 {
+		// Never the clip as recorded in its place: the version keeps what it was saved with.
+		return failed(gone, permanent("cut-outs missing from the plan: %v", missing))
+	}
+	shas := editspec.PlanCutOuts(plan)
+	if len(shas) == 0 {
+		return nil
+	}
+	cutOuts, err := extras.CutOuts(ctx, a, plan)
+	if err != nil {
+		return err
+	}
+	for _, sha := range shas {
+		m := cutOuts[sha]
+		if m == nil || m.File == nil || m.State != models.MatteReady {
+			return failed(gone, permanent("cut-out %s not found", sha))
+		}
+		p, err := a.Cache.Ensure(ctx, a.Media, m.File.Key, m.File.SHA256, m.File.Size, nil)
+		if err != nil {
+			return failed("MetaRush couldn't get a clip's cut-out onto this machine to render it. Check the internet connection and render again.", err)
+		}
+		local["c-"+sha] = p
+		types["c-"+sha] = "video/webm"
+	}
+	return nil
 }
 
 // makeDriftCopies makes the drift copies a plan plays (editspec.DriftCopies

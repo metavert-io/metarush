@@ -293,6 +293,9 @@ func (cf *convFacts) Resource(id, sha string) (ResourceInfo, bool) {
 	return resourceInfo(cf.base, ResourcePin{ID: id, SHA256: sha})
 }
 
+// Matte implements MatteFacts.
+func (cf *convFacts) Matte(sha string) (MatteInfo, bool) { return matteInfo(cf.base, sha) }
+
 // Nested implements NestedFacts.
 func (cf *convFacts) Nested(projectID, revisionID string) (*NestedSource, bool) {
 	if nf, ok := cf.base.(NestedFacts); ok {

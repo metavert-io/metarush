@@ -14,7 +14,7 @@ func TestEveryKindSaysWhatAIDid(t *testing.T) {
 		KindVideo: models.AIWorkMade, KindPicture: models.AIWorkMade, KindVoice: models.AIWorkMade, KindSoundEffect: models.AIWorkMade,
 		KindMusic: models.AIWorkMade, KindDubbing: models.AIWorkMade, KindPresenter: models.AIWorkMade,
 		KindVoiceChange: models.AIWorkEdited, KindLipSync: models.AIWorkEdited,
-		KindBackground: models.AIWorkEnhanced, KindUpscale: models.AIWorkEnhanced,
+		KindBackground: models.AIWorkEnhanced, KindUpscale: models.AIWorkEnhanced, KindVideoBackground: models.AIWorkEnhanced,
 		KindVoiceCopy: "", KindPresenterMake: "", KindTranscription: "",
 	}
 	for _, k := range Kinds() {

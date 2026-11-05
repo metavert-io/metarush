@@ -369,7 +369,7 @@ func Build(ctx context.Context, a *app.App, in *SummaryIn) (*Summary, error) {
 		}
 	}
 	for _, j := range other {
-		if (j.Type == jobs.TypeDiarize || j.Type == jobs.TypeVisual || j.Type == jobs.TypeDescribe || j.Type == jobs.TypePrepare) && j.AssetID != "" {
+		if (j.Type == jobs.TypeDiarize || j.Type == jobs.TypeVisual || j.Type == jobs.TypeDescribe || j.Type == jobs.TypePrepare || j.Type == jobs.TypeMatte) && j.AssetID != "" {
 			assetIDs = append(assetIDs, j.AssetID)
 		}
 		if j.Type == jobs.TypeImport {
@@ -418,6 +418,7 @@ func Build(ctx context.Context, a *app.App, in *SummaryIn) (*Summary, error) {
 	b.speakers(other)
 	b.looking(other)
 	b.fixing(other)
+	b.cutOuts(other)
 	b.fetches(other)
 	b.remotionWork(other)
 	b.narration(ctx, other)

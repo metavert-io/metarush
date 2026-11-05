@@ -62,7 +62,7 @@ func aiModelsCmd() *cobra.Command {
 		RunE: func(c *cobra.Command, args []string) error {
 			return runOp(c, "ai.models", in, func(o any) { printAIModels(o.(*aiwork.ModelsOut), details) })
 		}}
-	c.Flags().StringVar(&in.Kind, "kind", "", "one kind: video, picture, voice, voice-copy, voice-change, sound-effect, music, dubbing, transcription, presenter, presenter-make, background-removal, upscale or lip-sync")
+	c.Flags().StringVar(&in.Kind, "kind", "", "one kind: video, picture, voice, voice-copy, voice-change, sound-effect, music, dubbing, transcription, presenter, presenter-make, background-removal, upscale, lip-sync or video-background")
 	c.Flags().StringVar(&in.ProjectID, "project", "", "say what this project's Content Settings allow")
 	addDetails(c, &details)
 	return c
@@ -579,7 +579,7 @@ func aiLocalCmd() *cobra.Command {
 		RunE: func(c *cobra.Command, _ []string) error {
 			return runOp(c, "ai.local", in, func(o any) { printAILocal(o.(*aiwork.LocalOut), details) })
 		}}
-	c.Flags().StringVar(&in.Kind, "kind", "", "one kind: voice, transcription, background-removal or upscale")
+	c.Flags().StringVar(&in.Kind, "kind", "", "one kind: voice, transcription, background-removal, upscale or video-background")
 	addDetails(c, &details)
 	c.AddCommand(aiLocalSetupCmd())
 	return c

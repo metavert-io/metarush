@@ -421,6 +421,7 @@ func Validate(s *Spec, facts Facts, base *Spec, allowUnlock bool) []Issue {
 	out = append(out, referenceIssues(s, facts)...) // wherever the cut plays footage, nested cuts too (D398, D440)
 	out = append(out, layoutStyleIssues(s)...)
 	out = append(out, fixedIssues(s, facts)...)
+	out = append(out, backgroundIssues(s, facts)...)
 	out = append(out, motionShapeIssues(s, facts)...)
 	if float64(total)/fps > 2*3600 {
 		out = append(out, errI("too_long", "/clips", "MetaRush can't make videos longer than two hours; shorten the cut."))

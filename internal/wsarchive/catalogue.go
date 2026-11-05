@@ -106,6 +106,7 @@ var Catalogue = map[string]Entry{
 	store.CAutoSpending:           {How: AsIs, Why: "what Auto spent by itself"},
 	store.CKeep:                   {How: AsIs, Why: "what projects kept from conversations"},
 	store.CSourceCopies:           {How: AsIs, Why: "fixed copies of footage"},
+	store.CMattes:                 {How: AsIs, Why: "footage's cut-outs (background removal in video)"},
 	store.CContentSettings:        {How: AsIs, Why: "Content Settings: brands, spelling lists, voices, house rules and what may leave"},
 	store.CContentDefaults:        {How: AsIs, Why: "which Content Settings new projects use"},
 	store.CRecipes:                {How: AsIs, Why: "recipes, with their triggers (a trigger still works only on the computer it was turned on at)"},

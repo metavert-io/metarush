@@ -1,4 +1,7 @@
 {
+  "cutOuts": {
+    "c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4": "mover-cutout.webm"
+  },
   "driftCopies": {
     "sync-drift": [
       {
@@ -109,6 +112,222 @@
     "voice-b": "voice-b.wav"
   },
   "plans": {
+    "background": {
+      "schemaVersion": 1,
+      "revisionId": "rev_selftest_background",
+      "projectId": "prj_selftest",
+      "specHash": "bc7a78c8195f9165b010724d0929dd4db5957b58940ee42630a60dc0721bee20",
+      "media": "original",
+      "width": 1280,
+      "height": 720,
+      "fps": 30,
+      "durationInFrames": 135,
+      "background": "#000000",
+      "brand": {
+        "primary": "#F2EDE4",
+        "accent": "#E0A458",
+        "text": "#F7F5F0",
+        "background": "#0B0B0E",
+        "font": "Inter"
+      },
+      "safeArea": {
+        "top": 43,
+        "bottom": 72,
+        "left": 76,
+        "right": 76
+      },
+      "clips": [
+        {
+          "id": "keyed",
+          "assetId": "mover",
+          "from": 0,
+          "durationInFrames": 45,
+          "trimBefore": 15,
+          "sourceIn": 0.5,
+          "sourceOut": 2,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1280,
+          "sourceHeight": 720,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1
+            },
+            {
+              "f": 44,
+              "g": 1
+            }
+          ],
+          "background": {
+            "with": "colour",
+            "colour": "#00b140",
+            "feather": 1.333,
+            "cutOut": "c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4",
+            "cutOutTrimBefore": 0
+          }
+        },
+        {
+          "id": "over",
+          "assetId": "mover",
+          "from": 45,
+          "durationInFrames": 45,
+          "trimBefore": 60,
+          "sourceIn": 2,
+          "sourceOut": 3.5,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1280,
+          "sourceHeight": 720,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1
+            },
+            {
+              "f": 44,
+              "g": 1
+            }
+          ],
+          "background": {
+            "with": "footage",
+            "feather": 1.333,
+            "footage": {
+              "assetId": "blue",
+              "trimBefore": 15,
+              "playbackRate": 1,
+              "sourceWidth": 1280,
+              "sourceHeight": 720
+            },
+            "cutOut": "c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4",
+            "cutOutTrimBefore": 45
+          }
+        },
+        {
+          "id": "pic",
+          "assetId": "mover",
+          "from": 90,
+          "durationInFrames": 45,
+          "trimBefore": 105,
+          "sourceIn": 3.5,
+          "sourceOut": 5,
+          "playbackRate": 1,
+          "volume": 1,
+          "muted": false,
+          "hasAudio": true,
+          "sourceWidth": 1280,
+          "sourceHeight": 720,
+          "framing": {
+            "mode": "fill",
+            "focusX": 0.5,
+            "focusY": 0.5,
+            "zoom": 1
+          },
+          "transitionIn": {
+            "type": "cut",
+            "durationInFrames": 0
+          },
+          "fadeOutFrames": 0,
+          "gain": [
+            {
+              "f": 0,
+              "g": 1
+            },
+            {
+              "f": 44,
+              "g": 1
+            }
+          ],
+          "background": {
+            "with": "picture",
+            "feather": 4,
+            "picture": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+            "cutOut": "c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4",
+            "cutOutTrimBefore": 90
+          }
+        }
+      ],
+      "audio": [],
+      "dialogueRanges": [],
+      "overlays": [],
+      "sources": {},
+      "mix": {
+        "buses": {
+          "music": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "sfx": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "source": {
+            "gainDb": 0,
+            "muted": false
+          },
+          "voiceover": {
+            "gainDb": 0,
+            "muted": false
+          }
+        },
+        "ducking": {
+          "auto": false,
+          "musicUnderVoiceoverDb": -14,
+          "sourceUnderVoiceoverDb": -18,
+          "musicUnderDialogueDb": -12,
+          "attackFrames": 6,
+          "releaseFrames": 6
+        },
+        "voiceRanges": [],
+        "targetLufs": -14,
+        "truePeakDbtp": -1,
+        "normalize": false,
+        "masterGainDb": 0
+      },
+      "resources": {
+        "photo": {
+          "id": "res_selftestphotoaaaaaaaaaaaaa",
+          "sha256": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+          "kind": "image",
+          "mime": "image/png",
+          "width": 640,
+          "height": 360,
+          "title": "Selftest photo"
+        }
+      },
+      "resourceSources": {
+        "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2": ""
+      },
+      "cutOutSources": {
+        "c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4": ""
+      }
+    },
     "conversation": {
       "schemaVersion": 1,
       "revisionId": "rev_selftest_conversation",

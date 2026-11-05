@@ -319,6 +319,9 @@ func (f *nestFacts) Resource(id, sha string) (ResourceInfo, bool) {
 	return resourceInfo(f.base, ResourcePin{ID: id, SHA256: sha})
 }
 
+// Matte implements MatteFacts (the outer cut's own cut-outs).
+func (f *nestFacts) Matte(sha string) (MatteInfo, bool) { return matteInfo(f.base, sha) }
+
 // Nested implements NestedFacts.
 func (f *nestFacts) Nested(projectID, revisionID string) (*NestedSource, bool) {
 	if nf, ok := f.base.(NestedFacts); ok {
@@ -611,6 +614,9 @@ func PlanSourceIDs(p *RenderPlan) []string {
 			if c.Audio != nil && c.Audio.Variant != nil {
 				add(c.Audio.Variant.AssetID) // its clearer copy (D88)
 			}
+			if b := c.Background; b != nil && b.Footage != nil {
+				add(b.Footage.AssetID) // a clip shown behind its people (D510)
+			}
 		}
 		conversationTileAssets(p, add) // the recordings a conversation's shots show (D99)
 		for _, a := range p.Audio {
@@ -630,6 +636,58 @@ func PlanSourceIDs(p *RenderPlan) []string {
 	}
 	walk(p)
 	return out
+}
+
+// PlanCutOuts lists the cut-out files a plan plays (D510), its nested cuts'
+// included (the callers fill CutOutSources for them), missing ones too.
+func PlanCutOuts(p *RenderPlan) []string {
+	var out []string
+	seen := map[string]bool{}
+	eachBackground(p, func(b *PlanBackground) {
+		if b.CutOut != "" && !seen[b.CutOut] {
+			seen[b.CutOut] = true
+			out = append(out, b.CutOut)
+		}
+	})
+	return out
+}
+
+// PlanMissingCutOuts lists the cut-out files a plan plays that MetaRush
+// doesn't have (PlanBackground.Missing; "" for a background with none), its
+// nested cuts' included: a render fails for them.
+func PlanMissingCutOuts(p *RenderPlan) []string {
+	var out []string
+	seen := map[string]bool{}
+	eachBackground(p, func(b *PlanBackground) {
+		if (b.Missing || b.CutOut == "") && !seen[b.CutOut] {
+			seen[b.CutOut] = true
+			out = append(out, b.CutOut)
+		}
+	})
+	return out
+}
+
+// eachBackground calls fn for every replaced background a plan draws, its
+// nested cuts' included.
+func eachBackground(p *RenderPlan, fn func(*PlanBackground)) {
+	if p == nil {
+		return
+	}
+	for i := range p.Clips {
+		if b := p.Clips[i].Background; b != nil {
+			fn(b)
+		}
+	}
+	keys := make([]string, 0, len(p.Nested))
+	for k := range p.Nested {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if n := p.Nested[k]; n != nil {
+			eachBackground(n.Plan, fn)
+		}
+	}
 }
 
 // PlanMotionHashes lists the motion graphics a plan draws, nested cuts'
@@ -719,6 +777,7 @@ func FillNested(p *RenderPlan) {
 			continue
 		}
 		in.Sources, in.SourceChannels, in.ResourceSources, in.MotionSources, in.MotionStills = p.Sources, p.SourceChannels, p.ResourceSources, p.MotionSources, p.MotionStills
+		in.CutOutSources = p.CutOutSources
 		FillNested(in)
 	}
 }

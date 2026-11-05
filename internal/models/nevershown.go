@@ -15,7 +15,7 @@ import "strings"
 // fields are covered.
 var NeverShown = map[string]bool{
 	// Capabilities and where files are kept.
-	"key": true, "storageKey": true, "sessionUri": true, "store": true,
+	"key": true, "storageKey": true, "sessionUri": true, "store": true, "mediaKey": true,
 	// Sign-in state.
 	"emailKey": true, "sessionsValidAfter": true, "sessions": true, "sessionTokens": true, "sessionStarted": true, "sso": true, "account": true,
 	"hash": true, "tokenHash": true, "secret": true, "password": true, "refreshToken": true, "accessToken": true,

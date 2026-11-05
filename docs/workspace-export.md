@@ -177,6 +177,7 @@ history, and stays.
 | `schema_migrations` | in the manifest | the database's migration level: written in manifest.json and set from it by the restore, which then brings the copy up to date |
 | `sound_cache` | as it is | clearer voices already made (made once, kept by content address) |
 | `source_copies` | as it is | fixed copies of footage |
+| `mattes` | as it is | footage's cut-outs (background removal in video) |
 | `spelling_entries` | as it is | spelling lists |
 | `spoken_changes` | as it is | words changed in a speaker's own voice, as disclosed |
 | `test_run` | left out | a test database's marker |

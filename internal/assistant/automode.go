@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/metavert-io/metarush/internal/aiservices"
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/editspec"
@@ -167,6 +168,9 @@ var autoOps = map[string]bool{
 	"delivery.notes.set": true,
 	// Captions in other languages (D238): kept line by line, taken off again.
 	"captions.translate": true,
+	// A clip's background replaced and its cut-out (D510, D512): only made on a
+	// computer of the workspace (see autoStep).
+	"cut.background": true, "footage.cutout": true,
 }
 
 // pricedOps are changes that use a paid outside AI service (D208). Auto runs
@@ -218,6 +222,21 @@ func (c *conv) autoStep(a *AssistantAction) bool {
 		// short that asks for it waits for a click.
 		var in ops.FootageShortIn
 		return json.Unmarshal([]byte(a.Input), &in) == nil && in.Framing != editspec.FramingFollow
+	case "cut.background", "footage.cutout":
+		// Never by itself when the clip would leave for a service elsewhere
+		// (D512): no price, and the model the catalogue knows as one of the
+		// kind's on a computer of the workspace. A card names the model its
+		// check chose when it makes a cut-out; one naming none makes none, and
+		// is held to the kind's usual model all the same.
+		var in struct {
+			Model  string   `json:"model"`
+			MaxUSD *float64 `json:"maxUsd"`
+		}
+		if json.Unmarshal([]byte(a.Input), &in) != nil || in.MaxUSD != nil {
+			return false
+		}
+		m, err := aiservices.FindModel(aiservices.KindVideoBackground, strings.TrimSpace(in.Model)) // "": the kind's usual model
+		return err == nil && m.Kind == aiservices.KindVideoBackground && aiservices.IsLocal(m.Provider)
 	}
 	return true
 }

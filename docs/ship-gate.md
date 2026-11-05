@@ -106,7 +106,7 @@ a sign-off is a person's too, and taking back a promise always is.
 A promise is a rule or house rule marked `promise` (`metarush project rules add <p> "<words>" --promise`, `metarush
 content rules add "<words>" --promise`, "It's a promise to the client" under the rules, or a keep card). It must be
 measurable — what MetaRush can't measure stays a sign-off — and the same words as an existing rule make that rule a
-promise. Every quality check (`qa-7`) measures each one: what it measures in a sentence ("The video is at most a minute
+promise. Every quality check (`qa-7` and later) measures each one: what it measures in a sentence ("The video is at most a minute
 when it is vertical.") and what it found ("It lasts 1:12, 12 seconds longer than a minute."). A broken promise is a
 problem, so the version waits; one MetaRush can't measure here (faces, without a Mac's on-screen index) is worth
 checking and never holds — but then the page says "Ready, but 1 promise couldn't be checked here", not just ready.

@@ -16,6 +16,7 @@ import (
 	"github.com/metavert-io/metarush/internal/localdb"
 	"github.com/metavert-io/metarush/internal/localmodels"
 	"github.com/metavert-io/metarush/internal/looker"
+	"github.com/metavert-io/metarush/internal/matting"
 	"github.com/metavert-io/metarush/internal/onnx"
 	"github.com/metavert-io/metarush/internal/renderer"
 	"github.com/metavert-io/metarush/internal/sandbox"
@@ -285,6 +286,32 @@ var registry = []*Component{
 		},
 		ways:   []Way{{Pins: []string{looker.CutOutComponent}}},
 		remove: removePins(looker.CutOutComponent),
+	},
+	{
+		Name: matting.Component, Title: "Replacing a video's background", Thing: "the model that finds people in footage", Feature: "Replacing a video's background",
+		Unlocks:    "Tells the people in your footage from their background with an open model on this computer, nothing uploaded, so a cut can put a colour, a blur, a picture or another clip behind them.",
+		Features:   []string{"Replacing a video's background"},
+		DownloadMB: matteMB, Minutes: 1, Needs: []string{"ffmpeg", "transcription"}, Licence: "The model is MODNet (Apache-2.0).",
+		detect: func(_ context.Context, e *Env) Found {
+			if e.looksWith() == looker.AppleVision {
+				return Found{NotHere: "On this Mac, Apple Vision tells people from their background; it comes with Seeing what's on screen."}
+			}
+			store := visionmodels.StoreIn(e.Tools.ModelsDir())
+			f := Found{Path: store.MattePath(), Detail: "MODNet on this computer"}
+			lib := onnx.Library(e.Tools.Path(tools.Sherpa))
+			switch {
+			case !onnx.Available:
+				f.NotHere = "It isn't made for this kind of computer yet."
+			case store.Ready(visionmodels.PartMatte) != nil:
+			case lib == "":
+				f.Partly = "The model is here, but the transcription program that runs it isn't."
+			default:
+				f.Ready = true
+			}
+			return f
+		},
+		ways:   []Way{{Pins: []string{matting.Component}}},
+		remove: removePins(matting.Component),
 	},
 	{
 		Name: "clean-voice", Title: "Clearer voices on this computer", Thing: "the voice cleaner", Feature: "Making voices clearer", Suggested: true,
@@ -575,6 +602,7 @@ func (e *Env) looksWith() string { return looker.ChosenOn(e.Cfg, e.goos()) }
 var (
 	openModelsMB = int((visionmodels.Store{}.Bytes(visionmodels.PartIndex) + 500_000) / 1_000_000)
 	cutOutMB     = int((visionmodels.Store{}.Bytes(visionmodels.PartCutOut) + 500_000) / 1_000_000)
+	matteMB      = int((visionmodels.Store{}.Bytes(visionmodels.PartMatte) + 500_000) / 1_000_000)
 )
 
 // What looks at the picture, as a missing component says it: on a Mac the

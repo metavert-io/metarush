@@ -234,7 +234,15 @@ var Migrations = []Migration{
 	}},
 	{Version: 68, Name: "guests: people outside the workspace an owner shares with, what they may see, their sign-in links and browsers", Up: migrateGuests},
 	{Version: 69, Name: "guests' requests, and the comments they leave; look-alike letters in emails keep their own key", Up: migrateGuestActivity},
-	// v70 belongs to a build merged in parallel.
+	{Version: 70, Name: "clips' cut-outs for background removal in video", Up: func(ctx context.Context, d *DB) error {
+		// One cut-out per fingerprint (D505): two computers asked for the same
+		// one at the same moment make one record; a clip's cut-outs are listed
+		// together; a version's pinned file is found by its SHA-256.
+		return createIndexes(ctx, d, CMattes,
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "fingerprint", Value: 1}}, options.Index().SetName("matte_once").SetUnique(true)),
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "assetId", Value: 1}, {Key: "createdAt", Value: -1}}),
+			idx(bson.D{{Key: "workspaceId", Value: 1}, {Key: "file.sha256", Value: 1}}))
+	}},
 	{Version: 71, Name: "passwords older versions wrote into the activity log taken out", Up: scrubLogSecretFields},
 }
 

@@ -68,6 +68,7 @@ func stagedModels(t *testing.T, lib string) (*tools.Set, func()) {
 	stand := map[string]string{
 		"screen-faces": onnxtest.FaceFinder(t, src), "screen-text-find": onnxtest.TextFinder(t, src), "screen-text-read": onnxtest.TextReader(t, src),
 		"screen-text-chars": onnxtest.TextChars(t, src), "screen-attention": onnxtest.Saliency(t, src), "cut-outs": onnxtest.Subject(t, src),
+		"video-cut-outs": onnxtest.Matte(t, src),
 	}
 	old := visionmodels.Files
 	var files []visionmodels.File

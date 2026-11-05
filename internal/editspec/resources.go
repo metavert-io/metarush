@@ -143,6 +143,8 @@ type ResourceUse struct {
 	Motion string
 	// BrandLogo: one of the brand's logos (brand.logo, logoDark, logoLight; D198).
 	BrandLogo bool
+	// Background: the clip whose background it shows (D510).
+	Background string
 }
 
 // ResourceUses lists every place the spec names a resource, in spec order.
@@ -207,6 +209,16 @@ func ResourceUses(s *Spec, facts Facts) []ResourceUse {
 				name = v
 			}
 			out = append(out, ResourceUse{Name: name, Page: page, Path: fmt.Sprintf("/overlays/%d/params/%s", i, p), Overlay: o.ID, Param: p})
+		}
+	}
+	for i, c := range s.Clips {
+		// A picture behind a clip's people (D510).
+		if b := c.Background; b != nil && b.With == BackgroundPicture && b.Picture != "" {
+			name, page, ok := ParseResourceRef(b.Picture)
+			if !ok {
+				name = b.Picture
+			}
+			out = append(out, ResourceUse{Name: name, Page: page, Path: fmt.Sprintf("/clips/%d/background/picture", i), Param: "background", Background: c.ID})
 		}
 	}
 	if s.Brand != nil && s.Brand.FontFile != "" {
@@ -303,6 +315,9 @@ func validateResources(s *Spec, facts Facts) []Issue {
 		}
 		if u.BrandLogo {
 			what = "the brand's logo"
+		}
+		if u.Background != "" {
+			what = "the background of the clip " + u.Background
 		}
 		switch {
 		case u.Font && info.Kind != ResourceKindFont:

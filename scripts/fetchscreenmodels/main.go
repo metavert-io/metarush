@@ -1,12 +1,13 @@
 // Command fetchscreenmodels downloads the open models that look at what's on
-// screen and cut subjects out (internal/visionmodels.Files: the publisher's
+// screen, cut subjects out and tell people in footage from their background
+// (internal/visionmodels.Files: the publisher's
 // address, its SHA-256 and size) into a folder, for measuring them against
 // Apple Vision (go test -tags screeneval ./internal/visionmodels/) and for
 // computers set up by hand. Each file is checked against its pinned SHA-256
 // before it is kept; a file already there and matching is left alone. It
 // runs outside go test (tests never download), like scripts/fetch-speech.sh.
 //
-//	go run ./scripts/fetchscreenmodels [-part index|cut-out|all] <folder>
+//	go run ./scripts/fetchscreenmodels [-part index|cut-out|matte|all] <folder>
 //	METARUSH_SCREEN_MODELS=<folder> go test -tags screeneval -run TestCompareBackends -timeout 60m ./internal/visionmodels/
 package main
 
@@ -25,10 +26,10 @@ import (
 )
 
 func main() {
-	part := flag.String("part", "all", "index, cut-out or all")
+	part := flag.String("part", "all", "index, cut-out, matte or all")
 	flag.Parse()
 	if flag.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "usage: go run ./scripts/fetchscreenmodels [-part index|cut-out|all] <folder>")
+		fmt.Fprintln(os.Stderr, "usage: go run ./scripts/fetchscreenmodels [-part index|cut-out|matte|all] <folder>")
 		os.Exit(2)
 	}
 	dir := flag.Arg(0)

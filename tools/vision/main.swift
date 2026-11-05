@@ -21,6 +21,15 @@
 //       The picture's subject cut out (its background see-through), as a PNG the
 //       size of the picture (macOS 14 or later: Apple Vision's subject lifting).
 //       Prints {"found":true,"instances":N}, or {"found":false} when it sees no subject.
+//   metarush-vision segment --width W --height H [--quality accurate|balanced|fast]
+//       Tells the people in footage from their background, frame after frame
+//       (macOS 12 or later: Apple Vision's person segmentation, one request kept
+//       for the whole stream, so what it saw in the frames before steadies the
+//       next). Reads frames from standard input — W×H pixels, each four bytes:
+//       blue, green, red and one unused, row by row from the top — and writes, for
+//       each frame in order, its matte to standard output: W×H bytes, 0 where it
+//       is background and 255 where it is a person, in between at soft edges.
+//       Ends when standard input ends between frames.
 //
 // Build: swiftc -O -o metarush-vision main.swift   (Xcode Command Line Tools, macOS 12+)
 
@@ -33,7 +42,8 @@ import Vision
 
 /// The output format. MetaRush refuses a helper whose protocol it does not know.
 /// 2: --landmarks, --saliency, --hands, --pose and --languages (protocol 1 output is unchanged).
-let protocolVersion = 2
+/// 3: segment (protocols 1 and 2 output is unchanged).
+let protocolVersion = 3
 
 /// How much picture around a face goes into its feature print (1 = the face box).
 var faceMargin = 1.35
@@ -453,6 +463,95 @@ func subjectMask(_ inPath: String, _ outPath: String) -> Never {
     exit(0)
 }
 
+/// Reads exactly n bytes from standard input; false at the end of the input
+/// before the first byte (a partial frame is an error).
+func readFrame(_ buf: UnsafeMutablePointer<UInt8>, _ n: Int) -> Bool {
+    var got = 0
+    while got < n {
+        let r = fread(buf + got, 1, n - got, stdin)
+        if r == 0 {
+            if got == 0 { return false }
+            fail("the input ended inside a frame")
+        }
+        got += r
+    }
+    return true
+}
+
+/// People told from their background in a stream of frames (background
+/// removal for video, D507): Apple Vision's person segmentation through one
+/// request and a sequence handler for the whole stream, so the request keeps
+/// what it saw in earlier frames and the mattes hold steady. Each mask is
+/// drawn at the frame's size.
+func segmentStream(_ args: [String]) -> Never {
+    guard #available(macOS 12.0, *) else { fail("telling people from their background needs macOS 12 or later") }
+    var w = 0, h = 0, quality = "accurate"
+    var i = 0
+    func next() -> String {
+        i += 1
+        if i >= args.count { fail("missing value for \(args[i - 1])") }
+        return args[i]
+    }
+    while i < args.count {
+        switch args[i] {
+        case "--width": w = Int(next()) ?? 0
+        case "--height": h = Int(next()) ?? 0
+        case "--quality":
+            quality = next()
+            if !["accurate", "balanced", "fast"].contains(quality) { fail("--quality must be accurate, balanced or fast") }
+        default: fail("unknown option \(args[i])")
+        }
+        i += 1
+    }
+    guard w >= 16, h >= 16, w <= 8192, h <= 8192 else { fail("--width and --height must be 16–8192") }
+    let req = VNGeneratePersonSegmentationRequest()
+    switch quality {
+    case "fast": req.qualityLevel = .fast
+    case "balanced": req.qualityLevel = .balanced
+    default: req.qualityLevel = .accurate
+    }
+    req.outputPixelFormat = kCVPixelFormatType_OneComponent8
+    let seq = VNSequenceRequestHandler()
+    // Masks are numbers, not colours: no colour management on the way.
+    let ctx = CIContext(options: [.workingColorSpace: NSNull(), .outputColorSpace: NSNull()])
+    let frameBytes = w * h * 4
+    let frame = UnsafeMutablePointer<UInt8>.allocate(capacity: frameBytes)
+    defer { frame.deallocate() }
+    var out = [UInt8](repeating: 0, count: w * h)
+    var matte: CVPixelBuffer?
+    guard CVPixelBufferCreate(nil, w, h, kCVPixelFormatType_OneComponent8, [kCVPixelBufferIOSurfacePropertiesKey: [:]] as CFDictionary, &matte) == kCVReturnSuccess,
+          let matte else { fail("cannot make a matte buffer") }
+    while readFrame(frame, frameBytes) {
+        autoreleasepool {
+            var input: CVPixelBuffer?
+            guard CVPixelBufferCreateWithBytes(nil, w, h, kCVPixelFormatType_32BGRA, frame, w * 4, nil, nil, nil, &input) == kCVReturnSuccess,
+                  let input else { fail("cannot read a frame") }
+            do { try seq.perform([req], on: input, orientation: .up) } catch { fail("vision: \(error.localizedDescription)") }
+            if let mask = req.results?.first?.pixelBuffer {
+                let mw = CVPixelBufferGetWidth(mask), mh = CVPixelBufferGetHeight(mask)
+                let img = CIImage(cvPixelBuffer: mask).transformed(by: CGAffineTransform(scaleX: CGFloat(w) / CGFloat(mw), y: CGFloat(h) / CGFloat(mh)))
+                ctx.render(img, to: matte, bounds: CGRect(x: 0, y: 0, width: w, height: h), colorSpace: nil)
+                CVPixelBufferLockBaseAddress(matte, .readOnly)
+                if let base = CVPixelBufferGetBaseAddress(matte) {
+                    let row = CVPixelBufferGetBytesPerRow(matte)
+                    let p = base.assumingMemoryBound(to: UInt8.self)
+                    out.withUnsafeMutableBufferPointer { o in
+                        for y in 0..<h { (o.baseAddress! + y * w).update(from: p + y * row, count: w) }
+                    }
+                }
+                CVPixelBufferUnlockBaseAddress(matte, .readOnly)
+            } else {
+                for k in 0..<out.count { out[k] = 0 } // nobody in this frame
+            }
+            out.withUnsafeBufferPointer { o in
+                if fwrite(o.baseAddress!, 1, o.count, stdout) != o.count { fail("cannot write a matte") }
+            }
+            fflush(stdout)
+        }
+    }
+    exit(0)
+}
+
 let argv = Array(CommandLine.arguments.dropFirst())
 if argv.first == "--version" || argv.first == "version" {
     let v = ProcessInfo.processInfo.operatingSystemVersion
@@ -463,6 +562,9 @@ if argv.first == "mask" {
     let rest = Array(argv.dropFirst()).filter { $0 != "--" }
     guard rest.count == 2 else { fail("usage: metarush-vision mask <picture> <out.png>") }
     subjectMask(rest[0], rest[1])
+}
+if argv.first == "segment" {
+    segmentStream(Array(argv.dropFirst()))
 }
 guard argv.first == "analyze" else { fail("usage: metarush-vision analyze (--dir <folder> | <file.jpg>...) [options]") }
 let o = parse(Array(argv.dropFirst()))

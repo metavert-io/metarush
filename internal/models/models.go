@@ -1072,11 +1072,14 @@ type WorkerDevice struct {
 	Lacks []WorkerLack `bson:"lacks,omitempty" json:"lacks,omitempty"`
 	// ScreenIndex is how it looks at what's on screen when it does (D408):
 	// apple-vision or open-models ("" when it doesn't look at clips).
-	ScreenIndex  string `bson:"screenIndex,omitempty" json:"screenIndex,omitempty" jsonschema:"enum=,enum=apple-vision,enum=open-models"`
-	Concurrency  int    `bson:"concurrency" json:"concurrency"`
-	Running      int    `bson:"running" json:"running"`
-	AcceptsHeavy bool   `bson:"acceptsHeavy" json:"acceptsHeavy"` // takes heavy jobs right now (config allows them and not deferring for battery)
-	OnBattery    bool   `bson:"onBattery" json:"onBattery"`
+	ScreenIndex string `bson:"screenIndex,omitempty" json:"screenIndex,omitempty" jsonschema:"enum=,enum=apple-vision,enum=open-models"`
+	// Mattes are the models it makes clips' cut-outs with (D505), as
+	// provider/model, best first ("local/apple-vision").
+	Mattes       []string `bson:"mattes,omitempty" json:"mattes,omitempty"`
+	Concurrency  int      `bson:"concurrency" json:"concurrency"`
+	Running      int      `bson:"running" json:"running"`
+	AcceptsHeavy bool     `bson:"acceptsHeavy" json:"acceptsHeavy"` // takes heavy jobs right now (config allows them and not deferring for battery)
+	OnBattery    bool     `bson:"onBattery" json:"onBattery"`
 	// Battery state and the heavy-job policy (worker.heavyBatteryThreshold).
 	BatteryPercent        *int       `bson:"batteryPercent,omitempty" json:"batteryPercent,omitempty"`
 	Charging              bool       `bson:"charging,omitempty" json:"charging,omitempty"`

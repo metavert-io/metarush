@@ -33,6 +33,9 @@ type Env struct {
 	// App is the installation, for an ability that provides a kind of work
 	// (D281: it runs through internal/abilities); opaque here.
 	App any
+	// Progress is told how far along a long call is (a clip's matte, D505):
+	// done of total steps; nil when nobody asks.
+	Progress func(done, total int)
 }
 
 type envKey struct{}

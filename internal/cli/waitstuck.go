@@ -101,7 +101,7 @@ var waitingWork = map[string]struct {
 	jobs.TypePrepare: {"fixed copies", true}, jobs.TypeRender: {"renders", true}, jobs.TypeRenderShape: {"copies in another shape", true}, jobs.TypeVisual: {"seeing what's on screen", false},
 	jobs.TypeRemotionImport: {"bringing in Remotion projects", false}, jobs.TypeRemotionRender: {"clips from Remotion projects", true},
 	jobs.TypeRemotionTask: {"work on Remotion projects", false}, jobs.TypeRemotionRefresh: {"refreshing Remotion projects", false},
-	jobs.TypeRemotionPush: {"sending changes back to a repository", false},
+	jobs.TypeRemotionPush: {"sending changes back to a repository", false}, jobs.TypeMatte: {"cut-outs", true},
 }
 
 // whatWaits says the kinds of work in types for the start of a sentence:

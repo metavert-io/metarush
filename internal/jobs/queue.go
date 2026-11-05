@@ -124,6 +124,11 @@ const (
 	// was made. Pinned to the machine that asked (its programs and keys);
 	// never retried by itself.
 	TypeAbilityRun = "ability-run"
+	// TypeMatte makes a clip's cut-out for background removal in video
+	// (D505): the people told from their background frame by frame and kept
+	// with the clip's picture. Heavy; any computer that has a model for it
+	// (Apple Vision on a Mac, MODNet where it was added) takes it.
+	TypeMatte = "matte"
 )
 
 // LeaseDuration is how long a lease lasts without a heartbeat.

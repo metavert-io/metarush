@@ -287,6 +287,8 @@ func (s *Server) Handler() http.Handler {
 	med.HandleFunc("/motion/{hash}/{kind}", s.motionMedia).Methods("GET", "HEAD")
 	med.HandleFunc("/remotion/{hash}/{kind}/{n}", s.remotionMedia).Methods("GET", "HEAD")
 	med.HandleFunc("/remotion/{hash}/{kind}/{n}/{side}", s.remotionMedia).Methods("GET", "HEAD")
+	med.HandleFunc("/cutouts/preview", s.cutOutPreview).Methods("GET") // before {sha} (D510)
+	med.HandleFunc("/cutouts/{sha}", s.cutOutMedia).Methods("GET", "HEAD")
 	med.HandleFunc("/resources/file/{sha}", s.resourceFileByHash).Methods("GET", "HEAD") // before {id}/{kind}
 	med.HandleFunc("/resources/{id}/{kind}", s.resourceMedia).Methods("GET", "HEAD")
 	r.PathPrefix("/").HandlerFunc(s.static)

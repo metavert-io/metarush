@@ -102,6 +102,7 @@ var purgeCatalogue = map[string]purgeEntry{
 	store.CAutoSpending:           {Purge: "kept (what Auto spent)", Media: mediaNone},
 	store.CKeep:                   {Purge: "what it kept goes", Media: mediaScan, Project: "projectId"},
 	store.CSourceCopies:           {Purge: "kept (footage's fixed copies)", Media: mediaScan},
+	store.CMattes:                 {Purge: "kept (footage's cut-outs, for background removal in video)", Media: mediaScan},
 	store.CContentSettings:        {Purge: "its Content Settings go; projects that followed them use the default and are told", Media: mediaScan, Project: "projectId"},
 	store.CContentDefaults:        {Purge: "cleared when its settings were the default", Media: mediaNone},
 	store.CRecipes:                {Purge: "kept (recipes are the workspace's); one that adds cuts to it says so when checked or planned, and its example goes", Media: mediaScan},

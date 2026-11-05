@@ -44,6 +44,9 @@ type input struct {
 	picture string
 	asIs    bool // a picture's own file, not a JPEG (D279)
 	footage bool // a part of a clip as an MP4, picture and sound (lip sync, D279)
+	// part is a part of a clip already cut and kept, sent as it is (the
+	// picture of a clip for its cut-out, D505).
+	part *FootagePart
 }
 
 // plan is a request worked out before anything is sent: the model and why,
@@ -190,6 +193,10 @@ func planMake(ctx context.Context, a *app.App, in *MakeIn) (*plan, error) {
 		return nil, apperr.New(apperr.InvalidInput, "A person's presenter needs their recorded consent and a person's go-ahead: make it with Make a presenter.").WithCommand("metarush presenter start")
 	case aiservices.KindPresenter:
 		return planPresenter(ctx, a, in, false)
+	case aiservices.KindVideoBackground:
+		if !strings.HasPrefix(in.Feature, MatteFeature) {
+			return nil, apperr.New(apperr.InvalidInput, "A clip's cut-out has its own steps: make it with Cut out the people in a clip.").WithCommand("metarush footage cut-out <clip>")
+		}
 	}
 	now, err := planNow(ctx, a)
 	if err != nil {
@@ -246,6 +253,10 @@ func planMake(ctx context.Context, a *app.App, in *MakeIn) (*plan, error) {
 		}
 	case aiservices.KindLipSync:
 		if err := p.lipSync(ctx, a, in); err != nil {
+			return nil, err
+		}
+	case aiservices.KindVideoBackground:
+		if err := p.clipPicture(ctx, a, in); err != nil {
 			return nil, err
 		}
 	case aiservices.KindVoice:
@@ -423,6 +434,47 @@ func (p *plan) lipSync(ctx context.Context, a *app.App, in *MakeIn) error {
 		return nil
 	}
 	p.peopleHeard(ctx, a, snd, sfrom, sto, "in the new sound")
+	return nil
+}
+
+// MatteFeature is the origin of the AI work a clip's cut-out asks for
+// elsewhere (internal/mattes keeps what comes back, D505).
+const MatteFeature = "matte:"
+
+// clipPicture takes the picture of a part of a clip for its cut-out (D505):
+// the part internal/mattes cut and kept (picture only, no sound), sent to a
+// service elsewhere only as What may leave allows footage and faces to go
+// there. It makes nobody's likeness (it only says where people are), so no
+// consent is asked, as for a transcript made in the cloud.
+func (p *plan) clipPicture(ctx context.Context, a *app.App, in *MakeIn) error {
+	var as models.Asset
+	if err := a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), strings.TrimSpace(in.Clip), &as); err != nil {
+		return apperr.New(apperr.NotFound, "That clip isn't in this workspace.").WithDetails(map[string]any{"assetId": in.Clip})
+	}
+	if as.IsReference() {
+		return ops.RefuseReference(&as, "send it to an AI service or make anything from it") // D441
+	}
+	if !as.Media.HasVideo {
+		return apperr.New(apperr.UnsupportedMedia, "“%s” has no picture to cut the people out of.", as.DisplayTitle())
+	}
+	from, to := 0.0, as.Media.Duration
+	if in.From != nil {
+		from = *in.From
+	}
+	if in.To != nil {
+		to = math.Min(*in.To, as.Media.Duration)
+	}
+	if from < 0 || to-from < 0.04 {
+		return apperr.New(apperr.InvalidInput, "That part of “%s” is too short.", as.DisplayTitle())
+	}
+	p.inputs = append(p.inputs, input{role: aiservices.RoleClip, assetID: as.ID, title: as.DisplayTitle(), from: from, to: to, part: in.Footage})
+	p.touch(&as)
+	p.req.Inputs = append(p.req.Inputs, aiservices.Media{Role: aiservices.RoleClip, MIME: "video/mp4", Seconds: to - from})
+	p.sources = append(p.sources, as.ID)
+	p.words = append(p.words, "the picture of "+partWords(&as, from, to)+", without its sound")
+	if p.projectID == "" && len(as.ProjectIDs) > 0 {
+		p.projectID = as.ProjectIDs[0]
+	}
 	return nil
 }
 

@@ -16,7 +16,9 @@ const (
 	AIWorkEdited = "edited"
 	// AIWorkEnhanced: an AI model changed it without making anything new (a
 	// picture's background taken away, a picture made larger, a voice made
-	// clearer): said in Content Credentials, not disclosed as AI-generated.
+	// clearer, the people in footage told from their background so something
+	// else shows behind them): said in Content Credentials, not disclosed as
+	// AI-generated.
 	AIWorkEnhanced = "enhanced"
 )
 
@@ -32,8 +34,8 @@ func AIWorkOf(kind string, edit bool) string {
 		return ""
 	case "voice-change", "lip-sync":
 		return AIWorkEdited
-	case "background-removal", "upscale":
-		return AIWorkEnhanced
+	case "background-removal", "upscale", "video-background":
+		return AIWorkEnhanced // video-background: as a picture's background taken away (D511)
 	}
 	if edit {
 		return AIWorkEnhanced

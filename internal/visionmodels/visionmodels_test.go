@@ -411,8 +411,11 @@ func TestPinnedModels(t *testing.T) {
 		seen[f.ID], seen[f.Name] = true, true
 		parts[f.Part]++
 	}
-	if parts[PartIndex] != 5 || parts[PartCutOut] != 1 || len(parts) != 2 {
+	if parts[PartIndex] != 5 || parts[PartCutOut] != 1 || parts[PartMatte] != 1 || len(parts) != 3 {
 		t.Fatalf("parts %v", parts)
+	}
+	if StoreIn("/models").MattePath() != filepath.Join("/models", Folder, "modnet-portrait-matting.onnx") {
+		t.Fatal("the matting model's path")
 	}
 	p := StoreIn("/models").IndexPaths()
 	if p.Faces == "" || p.TextDet == "" || p.TextRec == "" || p.TextDict == "" || p.Attention == "" || filepath.Dir(p.Faces) != filepath.Join("/models", Folder) {

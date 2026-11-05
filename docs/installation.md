@@ -247,6 +247,7 @@ metarush components --json             # the same for scripts (ComponentsOut)
 | `screen-index` | Seeing what's on screen: faces and people, words on screen, framing that follows faces (on a Mac Apple Vision also names places, things and animals and sees gestures) | 5 MB on a Mac, 31 MB elsewhere | yes | On a Mac MetaRush builds its helper (needs Apple's Command Line Tools); elsewhere MetaRush's downloads of the open models (needs `ffmpeg` and `transcription`) |
 | `faces` | Recognizing the people you named across clips | 40 MB | yes | MetaRush's download of the face model (needs `screen-index` and `transcription`) |
 | `cut-outs` | Taking the background out of photos with an open model: Remove the background, AI cut-outs | 225 MB | no | MetaRush's download of BiRefNet (needs `transcription`); not offered on a Mac that uses Apple Vision, which does it itself |
+| `video-cut-outs` | Replacing a video's background with an open model ([background-removal.md](background-removal.md)) | 26 MB | no | MetaRush's download of MODNet (needs `transcription`); not offered on a Mac that uses Apple Vision, which does it itself |
 | `clean-voice` | Clearer voices on this computer, voice clarity scores | 30 MB | yes | MetaRush's downloads (DeepFilterNet) |
 | `stand-in-voice` | A free robotic voice to time narration | 5 MB | yes | Built into macOS; Homebrew or your packages on Linux (`espeak-ng`) |
 | `sandbox` | Abilities and a Remotion project's own steps, kept away from your files | — | yes | Built into macOS; your packages on Linux (`bubblewrap`) |
@@ -447,6 +448,7 @@ metarush footage visuals status
   | `PP-OCRv6_small_rec.yml` | the characters it reads | the same | 150,579 bytes | `ab078671bb49f06228eadccd34f1bb501e157f7a047095ffb943ba81512c77d1` | Apache-2.0 |
   | `u2netp.onnx` | what stands out where no face is seen | rembg's release v0.0.0 (U²-Net) | 4,574,861 bytes | `309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8` | Apache-2.0 (export MIT) |
   | `BiRefNet-general-bb_swin_v1_tiny-epoch_232.onnx` | cuts a photo's subject out (`cut-outs`) | BiRefNet's release v1 | 224,005,088 bytes | `5600024376f572a557870a5eb0afb1e5961636bef4e1e22132025467d0f03333` | MIT |
+  | `modnet-portrait-matting.onnx` | tells the people in footage from their background (`video-cut-outs`) | Xenova's ONNX export of MODNet on Hugging Face (`Xenova/modnet`, commit fa2fa546) | 25,888,640 bytes | `07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9` | Apache-2.0 |
 
   They go into the models folder (`tools.modelsDir`, `screen-index/`), shared by every home on the computer;
   `metarush components --details` shows each address. A Mac in the same workspace still gets the first look at a new

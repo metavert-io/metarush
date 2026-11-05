@@ -46,6 +46,9 @@ nested?: {
 fixed?: {
 [k: string]: string
 }
+cutOutSources?: {
+[k: string]: string
+}
 }
 /**
  * This interface was referenced by `RenderPlan`'s JSON-Schema
@@ -112,6 +115,7 @@ audio?: PlanClipAudio
 speechLufs?: number
 levelDb?: number
 conversation?: PlanConversation
+background?: PlanBackground
 }
 /**
  * This interface was referenced by `RenderPlan`'s JSON-Schema
@@ -310,6 +314,32 @@ box?: PlanRect1
  */
 export interface PlanCard {
 text: string
+}
+/**
+ * This interface was referenced by `RenderPlan`'s JSON-Schema
+ * via the `definition` "PlanBackground".
+ */
+export interface PlanBackground {
+with: ("colour" | "blur" | "picture" | "footage")
+colour?: string
+blur?: number
+feather: number
+picture?: string
+footage?: PlanBackgroundFootage
+cutOut: string
+cutOutTrimBefore: number
+missing?: boolean
+}
+/**
+ * This interface was referenced by `RenderPlan`'s JSON-Schema
+ * via the `definition` "PlanBackgroundFootage".
+ */
+export interface PlanBackgroundFootage {
+assetId: string
+trimBefore: number
+playbackRate: number
+sourceWidth: number
+sourceHeight: number
 }
 /**
  * This interface was referenced by `RenderPlan`'s JSON-Schema

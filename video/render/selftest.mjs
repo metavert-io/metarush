@@ -53,6 +53,11 @@
 // wide gap showing the brand's background and a line in its accent, a round
 // inset bottom left, and the end.screen template leaving room for a
 // platform's elements.
+// The "background" variant (Go-resolved, D510): a clip's background replaced
+// from its cut-out — the mover's red square in a WebM with VP9's alpha channel
+// (made like MetaRush makes one, starting 0.5 s into the clip) — over a
+// colour, then another clip, then a picture: the square shows where the clip
+// has it, and the clip's own grey shows nowhere (the alpha channel holds).
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -72,7 +77,7 @@ const { values: args } = parseArgs({
 });
 const only = args.only
   ? args.only.split(',')
-  : ['vertical', 'landscape', 'mix', 'sound', 'transitions', 'splits', 'cuts', 'resources', 'nested', 'conversation', 'conversation-names', 'sync', 'slides', 'slides-vertical', 'name-bar', 'house-style', 'layout-pack', 'follow', 'qa-zones', 'motion', 'motion-resources', 'motion-security'];
+  : ['vertical', 'landscape', 'mix', 'sound', 'transitions', 'splits', 'cuts', 'resources', 'nested', 'conversation', 'conversation-names', 'sync', 'slides', 'slides-vertical', 'name-bar', 'house-style', 'layout-pack', 'background', 'follow', 'qa-zones', 'motion', 'motion-resources', 'motion-security'];
 
 const say = (...a) => process.stderr.write(`[selftest] ${a.join(' ')}\n`);
 let failures = 0;
@@ -174,6 +179,7 @@ const generateMedia = () => {
     execFileSync(FFMPEG, a, { stdio: ['ignore', 'inherit', 'inherit'] });
     fs.writeFileSync(sig, want);
   }
+  makeCutOut();
   // Resource files for the "resources" variant: an SVG logo (magenta, so it is
   // easy to find in a frame), a solid yellow picture and a bundled OFL font.
   fs.writeFileSync(
@@ -207,6 +213,28 @@ const generateMedia = () => {
     execFileSync(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', `aevalsrc=${expr}:s=48000:c=mono`, '-t', '8', '-c:a', 'pcm_s16le', file]);
     fs.writeFileSync(sig, expr);
   }
+};
+
+// The mover's cut-out for the "background" variant (D510): the clip's own
+// picture from frame 15 (0.5 s) with a matte of its square — white where it
+// is, black elsewhere — as the alpha channel, through the same filters and
+// VP9 settings MetaRush uses (internal/matting CutOutArgs: both streams on the
+// clip's frame grid and timed by frame number, so frame n wears matte n).
+const CUTOUT_MATTE = "color=c=black:s=1280x720:rate=30[bg];color=c=white:s=120x120:rate=30[sq];[bg][sq]overlay=x='100+160*(t+0.5)':y=300,format=gray[out0]";
+const makeCutOut = () => {
+  const file = path.join(MEDIA, 'mover-cutout.webm');
+  const sig = `${file}.spec`;
+  const args = ['-hide_banner', '-nostdin', '-y', '-loglevel', 'error', '-ss', ((15 - 0.5) / FPS).toFixed(6), '-i', path.join(MEDIA, 'mover.mp4'),
+    '-f', 'lavfi', '-i', CUTOUT_MATTE, '-filter_complex',
+    `[0:v]setpts=PTS-STARTPTS,fps=${FPS},settb=1/${FPS},setpts=N,scale=1280:720:flags=lanczos,format=yuv420p[c];[1:v]settb=1/${FPS},setpts=N,scale=1280:720:flags=bicubic,format=gray[m];[c][m]alphamerge,format=yuva420p[o]`,
+    '-map', '[o]', '-frames:v', '165', '-fps_mode', 'passthrough', '-an', '-sn', '-dn',
+    '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', '22', '-deadline', 'good', '-cpu-used', '4', '-row-mt', '1',
+    '-auto-alt-ref', '0', '-g', '30', '-keyint_min', '30', file];
+  const want = JSON.stringify(args.slice(5));
+  if (fs.existsSync(file) && fs.existsSync(sig) && fs.readFileSync(sig, 'utf8') === want) return;
+  say('generating mover-cutout.webm');
+  execFileSync(FFMPEG, args, { stdio: ['ignore', 'inherit', 'inherit'] });
+  fs.writeFileSync(sig, want);
 };
 
 const SYNC_VOICES = {
@@ -282,7 +310,7 @@ const DIAGRAM_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="960" height=
 `;
 
 // --- 2. HTTP server with Range support ---------------------------------------
-const MIME = { '.mp4': 'video/mp4', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
+const MIME = { '.webm': 'video/webm', '.mp4': 'video/mp4', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
 
 /** What a render asked the media server for that it didn't have (printed when a check fails). */
 const MEDIA_MISSES = [];
@@ -652,11 +680,13 @@ const goPlan = (name, baseUrl, doc = GO_PLANS) => {
   const plan = structuredClone(doc.plans[name]);
   const sources = Object.fromEntries(Object.entries(doc.media).map(([id, file]) => [id, `${baseUrl}/${file}`]));
   const files = Object.fromEntries(Object.entries(doc.resources ?? {}).map(([sha, file]) => [sha, `${baseUrl}/${file}`]));
+  const cutOuts = Object.fromEntries(Object.entries(doc.cutOuts ?? {}).map(([sha, file]) => [sha, `${baseUrl}/${file}`]));
   // Like the worker: every file the plan draws gets its URL, and nested plans
   // share the outer plan's media maps (editspec.FillNested).
   const fill = (p) => {
     p.sources = sources;
     if (p.resourceSources) p.resourceSources = Object.fromEntries(Object.keys(p.resourceSources).map((sha) => [sha, files[sha] ?? '']));
+    if (p.cutOutSources) p.cutOutSources = Object.fromEntries(Object.keys(p.cutOutSources).map((sha) => [sha, cutOuts[sha] ?? '']));
     for (const n of Object.values(p.nested ?? {})) fill(n.plan);
   };
   fill(plan);
@@ -742,6 +772,8 @@ const COLORS = {
   red: [200, 60, 50], blue: [45, 85, 200], green: [50, 160, 80], white: [255, 255, 255], black: [0, 0, 0], magenta: [224, 33, 138],
   // The slide pictures' colours (see SLIDE_PICTURES).
   cyan: [0, 184, 217], orange: [255, 109, 0], lime: [139, 224, 0], violet: [123, 47, 247], spring: [0, 245, 160], yellow: [255, 212, 0],
+  // The "background" variant's chroma green and the mover's grey (D510).
+  chroma: [0, 177, 64], grey: [128, 128, 128],
 };
 const near = (rgb, name, tol = 45) => COLORS[name].every((v, i) => Math.abs(v - rgb[i]) <= tol);
 // Regions clear of the dark square's path (it sits in the middle of every shot).
@@ -1049,6 +1081,34 @@ const runSync = async (baseUrl, cache) => {
   if (fd) check(Math.abs(fd.early) < 2 / 30 && Math.abs(fd.late) < 2 / 30, `sync: placed on frames with his clock fast (atempo), Bo plays ${(fd.early * 1e3).toFixed(2)} ms and ${(fd.late * 1e3).toFixed(2)} ms from his pin`);
   if (s) check(Math.abs(s.early) < 1 / SR && Math.abs(s.late) < 1 / SR, `sync: placed to the sample, Bo plays ${(s.early * 1e6).toFixed(1)} µs and ${(s.late * 1e6).toFixed(1)} µs from his pin (under a sample, ${(1e6 / SR).toFixed(1)} µs)`);
   if (d) check(Math.abs(d.early) < 2 / SR && Math.abs(d.late) < 2 / SR, `sync: with his clock 208.3 ppm fast he stays lined up: ${(d.early * 1e6).toFixed(1)} µs early on, ${(d.late * 1e6).toFixed(1)} µs late in (under two samples)`);
+};
+
+// The background replaced (D510): in each clip the red square shows where the
+// clip has it (its cut-out played from the clip's own moment), what goes
+// behind it fills the rest, and the clip's own grey shows nowhere.
+const verifyBackground = (plan, result, outFile) => {
+  if (!verifyBasics('background', plan, result, outFile)) return [];
+  for (const f of ['mover-cutout.webm', 'blue.mp4', 'photo.png']) check(MEDIA_HITS.has(f), `background: the render fetched ${f} from the media server`);
+  const { width: W, height: H } = plan;
+  const behind = { keyed: 'chroma', over: 'blue', pic: 'yellow' };
+  const frames = [];
+  for (const c of plan.clips) {
+    for (const k of [5, 30]) {
+      const f = c.from + k;
+      const t = (c.trimBefore + k) / FPS; // the clip's own moment (speed 1)
+      const want = (100 + 160 * t + 60) / 1280;
+      const box = colorBox(outFile, f, 'red', W, H);
+      const cx = (box.x0 + box.x1) / 2;
+      check(box.share > 0.008 && Math.abs(cx - want) < 0.012 && box.w > 100 && box.w < 135,
+        `background: frame ${f} (${c.id}): the people (the red square) are where the clip has them (x ${cx.toFixed(3)} vs ${want.toFixed(3)}, ${box.w}px wide)`);
+      const bg = shareNear(outFile, f, TOP, behind[c.id]);
+      check(bg > 0.9, `background: frame ${f} (${c.id}): ${behind[c.id]} behind them (${pctOf(bg)} of the top left)`);
+      const grey = shareNear(outFile, f, WHOLE, 'grey', 24);
+      check(grey < 0.002, `background: frame ${f} (${c.id}): none of the clip's own background shows (grey ${pctOf(grey)})`);
+      frames.push([f, `${c.id}-${k}`]);
+    }
+  }
+  return extractNamedFrames(outFile, 'background', frames);
 };
 
 /** Share and bounding box (fractions of the frame; px size) of a frame's pixels near a named colour. */
@@ -1731,7 +1791,8 @@ const main = async () => {
         name === 'slides-vertical' ||
         name === 'name-bar' ||
         name === 'house-style' ||
-        name === 'layout-pack'
+        name === 'layout-pack' ||
+        name === 'background'
       ) {
         const plan = goPlan(name, baseUrl);
         const propsFile = path.join(OUT, `plan-${name}.json`);
@@ -1757,6 +1818,8 @@ const main = async () => {
                     ? verifyHouseStyle(plan, result, outFile)
                     : name === 'layout-pack'
                       ? verifyLayoutPack(plan, result, outFile)
+                    : name === 'background'
+                      ? verifyBackground(plan, result, outFile)
                     : verifySlides(name, plan, result, outFile)),
         );
         continue;

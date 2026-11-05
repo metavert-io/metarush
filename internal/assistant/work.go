@@ -18,6 +18,7 @@ import (
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/linkimport"
 	"github.com/metavert-io/metarush/internal/links"
+	"github.com/metavert-io/metarush/internal/mattes"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
@@ -98,6 +99,10 @@ func (m *Manager) workFor(ctx context.Context, res any) *ActionWork {
 	switch o := res.(type) {
 	case *ops.RenderOut:
 		return renderWork(o, renderWhat(o.Render))
+	case *mattes.CutBackgroundOut: // a clip's cut-out being made for its new background (D510)
+		return backgroundWork(o)
+	case *mattes.CutoutOut:
+		return cutoutWork(o, o.Matte.ProjectID)
 	case *ops.QARunOut:
 		if o.Report != nil || o.Job == nil {
 			return nil // it had been checked already: the card says how it went
@@ -534,6 +539,9 @@ func jobOutcome(j models.Job) (shown, forClaude string, ok bool) {
 			return "The fixed copy couldn't be made: " + plainTimes(withoutCodes(why)), "The prepare job " + j.ID + " (fixed copy) failed: " + why + " The clip keeps playing what it played before.", false
 		case jobs.TypeInspect:
 			return "It couldn't be measured: " + plainTimes(withoutCodes(why)), "The inspect job " + j.ID + " failed: " + why, false
+		case jobs.TypeMatte:
+			return "The cut-out couldn't be made: " + plainTimes(withoutCodes(why)), "The matte job " + j.ID + " (a clip's cut-out) failed: " + why +
+				" Read it with `metarush footage cut-outs " + j.AssetID + " --json`.", false
 		}
 		return "It didn't finish: " + why, "Job " + j.ID + " (" + j.Type + ") failed: " + why, false
 	}
@@ -593,6 +601,10 @@ func jobOutcome(j models.Job) (shown, forClaude string, ok bool) {
 			"). Saved versions of cuts still play what they played; `metarush asset card " + firstNonEmpty(j.AssetID, payloadString(j.Payload, "resourceId")) + " --json` lists the cuts that can use it (cut use-fixed).", true
 	case jobs.TypeInspect:
 		return "MetaRush measured it again", "The inspect job " + j.ID + " finished: read the fixes that fit with `metarush asset fixes " + j.AssetID + " --json`.", true
+	case jobs.TypeMatte:
+		sha, _ := j.Result["sha256"].(string)
+		return "The cut-out is ready", "The matte job " + j.ID + " finished: the cut-out of clip " + j.AssetID + " is ready (sha256 " + sha +
+			"). Replace the clip's background in a cut with `metarush cut background <project> --clip <clip id> --with blur` (or `--with colour --colour '#rrggbb'`, `--with picture --picture <name>`, `--with footage --footage <clip> [--footage-at 0:03]`).", true
 	case jobs.TypeImport:
 		title, _ := j.Result["title"].(string)
 		asset, _ := j.Result["assetId"].(string)

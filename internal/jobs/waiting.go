@@ -223,6 +223,8 @@ func doing(typ string) string {
 		return "run abilities"
 	case TypeSwitches:
 		return "find where the picture changes"
+	case TypeMatte:
+		return "cut the people out of footage"
 	}
 	return "do this"
 }
@@ -273,6 +275,7 @@ var typeLabels = map[string]string{
 	TypeRemotionPush:    "changes sent back to a repository",
 	TypeAbilityRun:      "run of an ability",
 	TypeSwitches:        "picture changes",
+	TypeMatte:           "cut-out",
 }
 
 func label(typ string) string {

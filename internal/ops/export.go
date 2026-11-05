@@ -244,6 +244,11 @@ func ExportTimeline(ctx context.Context, a *app.App, in *ExportTimelineIn, progr
 			names[c.ID] = c.Label
 		}
 	}
+	for _, id := range editspec.BackgroundFootageIDs(&spec) { // named on the marker, not carried (D510)
+		if as := facts.assets[id]; as != nil {
+			names[id] = as.DisplayTitle()
+		}
+	}
 	title := proj.Name
 	if spec.Title != "" && spec.Title != proj.Name {
 		title += ", " + spec.Title

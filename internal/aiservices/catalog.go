@@ -544,7 +544,7 @@ func EstimateFor(provider string, m *Model, req *Request, at time.Time) (*Estima
 		if m.Kind == KindPresenter {
 			e.Units = secondsWords(secs) + " on camera"
 		}
-		if m.Kind == KindLipSync {
+		if m.Kind == KindLipSync || m.Kind == KindVideoBackground {
 			e.Units = secondsWords(secs) + " of footage"
 		}
 	default:
@@ -608,6 +608,8 @@ func secondsOf(m *Model, req *Request, pr *Price) float64 {
 		if m := req.Input(RoleMedia); m != nil {
 			return math.Ceil(m.Seconds) // the clip made, as long as the footage
 		}
+	case KindVideoBackground:
+		return math.Ceil(req.FootageSeconds()) // a matte as long as the footage sent
 	}
 	return math.Ceil(req.HeardSeconds())
 }
@@ -764,6 +766,20 @@ func (m *Model) Check(req *Request, now time.Time) error {
 		}
 		if sound.Seconds > media.Seconds+0.5 {
 			return bad("The new sound is longer than the footage (%s against %s): pick a longer part of the clip, or shorter sound.", secondsWords(math.Round(sound.Seconds)), secondsWords(math.Round(media.Seconds)))
+		}
+	case KindVideoBackground:
+		footage := req.InputsOf(RoleClip)
+		if len(footage) != 1 || footage[0].Seconds <= 0 {
+			return bad("Choose the footage to tell the people in from their background.")
+		}
+		if mime := footage[0].MIME; mime != "" && !strings.HasPrefix(mime, "video/") {
+			return bad("%s works on footage, not on %s.", m.Title, mime)
+		}
+		if len(req.Inputs) != 1 {
+			return bad("%s takes the footage only.", m.Title)
+		}
+		if l.MaxSeconds > 0 && footage[0].Seconds > l.MaxSeconds+0.5 {
+			return bad("%s takes at most %s of footage at a time; this is %s. Pick a shorter part.", m.Title, secondsWords(l.MaxSeconds), secondsWords(math.Round(footage[0].Seconds)))
 		}
 	case KindVoiceCopy:
 		samples := req.InputsOf(RoleSample)

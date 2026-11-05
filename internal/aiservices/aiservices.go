@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"slices"
 	"sort"
 	"strings"
@@ -89,6 +90,7 @@ const (
 	RoleSample  = "sample"  // a sample of the voice to copy
 	RoleConsent = "consent" // the speaker reading the provider's consent script
 	RoleFootage = "footage" // a presenter's training take (D273)
+	RoleClip    = "clip"    // a clip's picture without its sound (background removal for video, D505)
 )
 
 // Outputs: what a kind of work makes.
@@ -105,12 +107,12 @@ const (
 // KindInfo says what a kind of work is, in plain words, and how MetaRush
 // treats it.
 type KindInfo struct {
-	Kind  string `json:"kind" jsonschema:"enum=video,enum=picture,enum=voice,enum=voice-copy,enum=voice-change,enum=sound-effect,enum=music,enum=dubbing,enum=transcription,enum=presenter,enum=presenter-make,enum=background-removal,enum=upscale,enum=lip-sync"`
+	Kind  string `json:"kind" jsonschema:"enum=video,enum=picture,enum=voice,enum=voice-copy,enum=voice-change,enum=sound-effect,enum=music,enum=dubbing,enum=transcription,enum=presenter,enum=presenter-make,enum=background-removal,enum=upscale,enum=lip-sync,enum=video-background"`
 	Title string `json:"title" jsonschema:"description=The kind of work as people say it: Pictures\\, Music."`
 	// What one result is called ("a picture", "a sound effect").
 	What string `json:"what"`
 	// Output is what it makes: picture, audio, media (as the input was), transcript or voice.
-	Output string `json:"output" jsonschema:"enum=picture,enum=audio,enum=media,enum=transcript,enum=voice,enum=video,enum=presenter"`
+	Output string `json:"output" jsonschema:"enum=picture,enum=audio,enum=media,enum=transcript,enum=voice,enum=video,enum=presenter,enum=matte"`
 	// Tasks it can be asked for; the first is the default.
 	Tasks []string `json:"tasks"`
 	// Reuse: the same request (same words, files and settings) gives the same
@@ -159,7 +161,7 @@ func KindOf(kind string) (KindInfo, error) {
 // Media is a file sent with a request: the exact bytes in a local file, with
 // their hash.
 type Media struct {
-	Role string `json:"role" jsonschema:"enum=picture,enum=audio,enum=media,enum=sample,enum=consent,enum=footage"`
+	Role string `json:"role" jsonschema:"enum=picture,enum=audio,enum=media,enum=sample,enum=consent,enum=footage,enum=clip"`
 	MIME string `json:"mime"`
 	Path string `json:"-"`
 	// URL is a short-lived link to the same bytes, for providers that
@@ -171,6 +173,12 @@ type Media struct {
 	Seconds float64 `json:"seconds,omitempty"`
 	// Name is the file name it is sent under (never a path on this computer).
 	Name string `json:"-"`
+	// From and To are the stretch of the file the request is about, in
+	// seconds (both 0: all of it). Only models on this computer are handed a
+	// stretch of a clip's own file (video background removal, D505); a
+	// service elsewhere is sent a file of just the part.
+	From float64 `json:"from,omitempty"`
+	To   float64 `json:"to,omitempty"`
 }
 
 // Options are a request's settings; each kind reads its own (stored on the
@@ -197,9 +205,11 @@ type Request struct {
 // their own hashes (never their bytes, never a key).
 func (r *Request) Hash(provider string) string {
 	type m struct {
-		Role   string `json:"role"`
-		SHA256 string `json:"sha256"`
-		MIME   string `json:"mime"`
+		Role   string  `json:"role"`
+		SHA256 string  `json:"sha256"`
+		MIME   string  `json:"mime"`
+		From   float64 `json:"from,omitempty"`
+		To     float64 `json:"to,omitempty"`
 	}
 	canon := struct {
 		Provider string  `json:"provider"`
@@ -211,7 +221,7 @@ func (r *Request) Hash(provider string) string {
 		Options  Options `json:"options"`
 	}{Provider: provider, Kind: r.Kind, Task: r.Task, Model: r.Model, Prompt: r.Prompt, Inputs: []m{}, Options: r.Options}
 	for _, x := range r.Inputs {
-		canon.Inputs = append(canon.Inputs, m{x.Role, x.SHA256, x.MIME})
+		canon.Inputs = append(canon.Inputs, m{x.Role, x.SHA256, x.MIME, x.From, x.To})
 	}
 	b, _ := json.Marshal(canon)
 	sum := sha256.Sum256(b)
@@ -300,8 +310,12 @@ type Transcript struct {
 // Output is one result at the provider: inline bytes, an address to download
 // from, a transcript or a voice.
 type Output struct {
-	MIME   string `json:"mime,omitempty"`
-	Data   []byte `json:"-"`
+	MIME string `json:"mime,omitempty"`
+	Data []byte `json:"-"`
+	// File is a file on this computer holding the output, for a model on this
+	// computer whose output is too big to hold in memory (a clip's matte): it
+	// lives in the call's own folder (Env.Scratch) and is never stored or sent.
+	File   string `json:"-"`
 	URI    string `json:"uri,omitempty"`
 	FileID string `json:"fileId,omitempty"`
 	// Language is a dub's or a transcript's language.
@@ -319,6 +333,9 @@ type Output struct {
 	// of work does (an ability, by its manifest; D460): made, edited or
 	// enhanced; "" the kind decides.
 	Work string `json:"work,omitempty"`
+	// Measures are what making it measured on this computer (a clip's
+	// matte: frames, time per frame, how much its edges flickered).
+	Measures map[string]float64 `json:"measures,omitempty"`
 }
 
 // Delivery is how an output arrives: inline, uri, transcript or voice.
@@ -330,10 +347,29 @@ func (o *Output) Delivery() string {
 		return "presenter"
 	case o.VoiceID != "":
 		return "voice"
-	case len(o.Data) > 0:
+	case len(o.Data) > 0, o.File != "":
 		return "inline"
 	}
 	return "uri"
+}
+
+// WriteFile writes an output held on this computer (its bytes, or its file)
+// to dst and returns the bytes written; ok is false when it holds neither.
+func (o *Output) WriteFile(dst io.Writer) (n int64, ok bool, err error) {
+	switch {
+	case o.File != "":
+		f, err := os.Open(o.File)
+		if err != nil {
+			return 0, true, err
+		}
+		defer f.Close()
+		n, err := io.Copy(dst, f)
+		return n, true, err
+	case len(o.Data) > 0:
+		w, err := dst.Write(o.Data)
+		return int64(w), true, err
+	}
+	return 0, false, nil
 }
 
 // Usage is what the provider reported it counted (Known false: it said nothing).
@@ -503,11 +539,11 @@ func (oneShot) Poll(_ context.Context, _ string, t *Ticket) (*Status, error) {
 
 // Fetch writes an output's bytes.
 func (oneShot) Fetch(_ context.Context, _ string, _ *Ticket, out *Output, dst io.Writer) (int64, error) {
-	if len(out.Data) == 0 {
+	n, ok, err := out.WriteFile(dst)
+	if !ok {
 		return 0, &videogen.Error{Kind: videogen.KindExpired, Message: "The provider's answer had no file to keep."}
 	}
-	n, err := dst.Write(out.Data)
-	return int64(n), err
+	return n, err
 }
 
 // Cancel has nothing to stop: the call has ended.

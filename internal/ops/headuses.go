@@ -26,8 +26,8 @@ type HeadUse struct {
 
 // HeadsUsing lists the cuts whose latest version plays an asset, wherever a
 // cut plays footage (editspec.AssetIDs: clips, the cut's sound, conversations'
-// recordings and cutaways, narration and its cleaned-up copies, the mix's
-// copies).
+// recordings and cutaways, clips shown behind people, narration and its
+// cleaned-up copies, the mix's copies).
 func HeadsUsing(ctx context.Context, a *app.App, assetID string) ([]HeadUse, error) {
 	return headsUsing(ctx, a, assetID, false)
 }
@@ -65,6 +65,30 @@ func showsFrame(s *editspec.Spec, frames map[string]*models.Resource, assetID st
 	return false
 }
 
+// playsFootage are the queries that find the versions playing a clip, one
+// for each place editspec.AssetIDs reads — clips, cutaways, conversations'
+// recordings (in a map by name), the cut's sound, clips shown behind people
+// (D510), narration and its cleaned-up copies, the mix's copies — and the
+// fixed copy a version pins for it. asset.where, the delete check and
+// HeadsUsing all ask them; a place AssetIDs gains needs its query here
+// (TestEveryPlaceACutPlaysAClipIsFound).
+func playsFootage(assetID string) bson.A {
+	members := bson.M{"$reduce": bson.M{
+		"input":        bson.M{"$objectToArray": bson.M{"$ifNull": bson.A{"$spec.conversations", bson.M{}}}},
+		"initialValue": bson.A{},
+		"in":           bson.M{"$concatArrays": bson.A{"$$value", bson.M{"$ifNull": bson.A{"$$this.v.members.assetId", bson.A{}}}}},
+	}}
+	return bson.A{
+		bson.M{"spec.clips.assetId": assetID}, bson.M{"spec.clips.shots.broll.assetId": assetID}, bson.M{"spec.audio.assetId": assetID},
+		bson.M{"spec.clips.background.footage.assetId": assetID},
+		bson.M{"spec.voiceover.beats.take.assetId": assetID}, bson.M{"spec.voiceover.beats.take.processed.assetId": assetID},
+		bson.M{"spec.voiceover.continuous.assetId": assetID}, bson.M{"spec.voiceover.continuous.processed.assetId": assetID},
+		bson.M{"spec.mix.enhanced.variant": assetID}, bson.M{"spec.mix.said.sound": assetID}, bson.M{"spec.mix.said.picture": assetID},
+		bson.M{"spec.fixed." + assetID: bson.M{"$exists": true}},
+		bson.M{"$expr": bson.M{"$in": bson.A{assetID, members}}},
+	}
+}
+
 func headsUsing(ctx context.Context, a *app.App, assetID string, nested bool) ([]HeadUse, error) {
 	var ps []models.Project
 	if err := a.DB.Find(ctx, store.CProjects, a.WorkspaceID(), bson.M{"archived": bson.M{"$ne": true}}, &ps); err != nil {
@@ -84,20 +108,8 @@ func headsUsing(ctx context.Context, a *app.App, assetID string, nested bool) ([
 		return nil, nil
 	}
 	// Only the latest versions, and only those that name the asset where a
-	// cut can play it (a conversation's recordings are in a map by name).
-	members := bson.M{"$reduce": bson.M{
-		"input":        bson.M{"$objectToArray": bson.M{"$ifNull": bson.A{"$spec.conversations", bson.M{}}}},
-		"initialValue": bson.A{},
-		"in":           bson.M{"$concatArrays": bson.A{"$$value", bson.M{"$ifNull": bson.A{"$$this.v.members.assetId", bson.A{}}}}},
-	}}
-	or := bson.A{
-		bson.M{"spec.clips.assetId": assetID}, bson.M{"spec.clips.shots.broll.assetId": assetID}, bson.M{"spec.audio.assetId": assetID},
-		bson.M{"spec.voiceover.beats.take.assetId": assetID}, bson.M{"spec.voiceover.beats.take.processed.assetId": assetID},
-		bson.M{"spec.voiceover.continuous.assetId": assetID}, bson.M{"spec.voiceover.continuous.processed.assetId": assetID},
-		bson.M{"spec.mix.enhanced.variant": assetID}, bson.M{"spec.mix.said.sound": assetID}, bson.M{"spec.mix.said.picture": assetID},
-		bson.M{"spec.fixed." + assetID: bson.M{"$exists": true}},
-		bson.M{"$expr": bson.M{"$in": bson.A{assetID, members}}},
-	}
+	// cut can play it.
+	or := playsFootage(assetID)
 	var frames map[string]*models.Resource
 	if nested {
 		or = append(or, bson.M{"spec.clips.assetId": bson.M{"$regex": "^cut:"}})

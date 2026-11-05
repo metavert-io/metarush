@@ -45,6 +45,7 @@ func Stage(t testing.TB) Staged {
 	stand := map[string]string{
 		"screen-faces": onnxtest.FaceFinder(t, src), "screen-text-find": onnxtest.TextFinder(t, src), "screen-text-read": onnxtest.TextReader(t, src),
 		"screen-text-chars": onnxtest.TextChars(t, src), "screen-attention": onnxtest.Saliency(t, src), "cut-outs": onnxtest.Subject(t, src),
+		"video-cut-outs": onnxtest.Matte(t, src),
 	}
 	old := visionmodels.Files
 	t.Cleanup(func() { visionmodels.Files = old })

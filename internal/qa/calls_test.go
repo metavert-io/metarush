@@ -110,7 +110,7 @@ func TestCallFootageAndProjectRules(t *testing.T) {
 	if got["call_footage"] != "fail" || got["project_rules"] != "warning" {
 		t.Fatalf("checks: %v", got)
 	}
-	if rep.Version != "qa-7" {
+	if rep.Version != "qa-8" {
 		t.Fatalf("version %s", rep.Version)
 	}
 }

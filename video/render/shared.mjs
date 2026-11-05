@@ -105,7 +105,9 @@ const checkMedia = (plan, depth) => {
   // A conversation clip (D99) draws its members' recordings (its tiles); its
   // sound is the members' elements in plan.audio.
   const tiles = plan.clips.flatMap((c) => (c?.conversation?.shots ?? []).flatMap((s) => s?.tiles ?? []));
-  for (const item of [...plan.clips, ...plan.audio, ...variants, ...tiles]) {
+  // A clip shown behind another clip's people (D510) plays from its own file.
+  const behind = plan.clips.map((c) => c?.background?.footage).filter(Boolean);
+  for (const item of [...plan.clips, ...plan.audio, ...variants, ...tiles, ...behind]) {
     if (isConversationKey(item?.assetId)) {
       if (!item?.conversation || !Array.isArray(item.conversation.shots)) throw new UsageError(`clip ${item?.id} plays a conversation but the plan has no shots for it`);
       continue;
@@ -122,6 +124,15 @@ const checkMedia = (plan, depth) => {
       continue;
     }
     if (!/^https?:\/\//i.test(url)) badScheme.push(`${item.assetId} -> ${url}`);
+  }
+  // A clip whose background is replaced plays its people from its cut-out
+  // file (D510): never the clip as recorded in its place.
+  for (const c of plan.clips) {
+    const sha = c?.background?.cutOut;
+    if (!c?.background) continue;
+    const url = typeof sha === 'string' ? plan.cutOutSources?.[sha] : undefined;
+    if (typeof url !== 'string' || url.length === 0) missing.push(`the cut-out of clip ${c.id}`);
+    else if (!/^https?:\/\//i.test(url)) badScheme.push(`the cut-out of clip ${c.id} -> ${url}`);
   }
   for (const [sha, url] of Object.entries(plan.resourceSources ?? {})) {
     if (typeof url !== 'string' || url.length === 0) missing.push(`resource file ${sha.slice(0, 12)}`);

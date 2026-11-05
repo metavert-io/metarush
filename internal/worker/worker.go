@@ -28,6 +28,7 @@ import (
 	"github.com/metavert-io/metarush/internal/linkimport"
 	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/looker"
+	"github.com/metavert-io/metarush/internal/mattes"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/notify"
 	"github.com/metavert-io/metarush/internal/ops"
@@ -191,6 +192,11 @@ func New(a *app.App) *Worker {
 	// they are added (looker.Chosen).
 	if looker.CanRun(a.Cfg, a.Tools) {
 		w.handlers[jobs.TypeVisual] = visualHandler
+	}
+	// Clips' cut-outs (D505): wherever a model for them is (Apple Vision on
+	// a Mac, MODNet where it was added).
+	if len(mattes.LocalModels(a)) > 0 {
+		w.handlers[jobs.TypeMatte] = matteHandler
 	}
 	// Scene descriptions are pinned to the machine that asked (its Claude Code).
 	w.handlers[jobs.TypeDescribe] = describeHandler
@@ -363,7 +369,7 @@ func (w *Worker) handler(t string) Handler {
 // or takes them away as components are added or removed.
 var componentGated = []string{jobs.TypeProxy, jobs.TypeThumbnail, jobs.TypeContactSheet, jobs.TypeWaveform, jobs.TypeMezzanine, jobs.TypeEvidence,
 	jobs.TypeQA, jobs.TypeSwitches, jobs.TypeInspect, jobs.TypePrepare, jobs.TypeTranscribe, jobs.TypeDiarize, jobs.TypeRender, jobs.TypeRenderShape, jobs.TypeRemotionImport,
-	jobs.TypeRemotionRender, jobs.TypeRemotionTask, jobs.TypeRemotionRefresh, jobs.TypeRemotionPush, jobs.TypeVisual}
+	jobs.TypeRemotionRender, jobs.TypeRemotionTask, jobs.TypeRemotionRefresh, jobs.TypeRemotionPush, jobs.TypeVisual, jobs.TypeMatte}
 
 // Refresh looks again at what this computer can do after a component was
 // added or removed while MetaRush runs (D324): work whose programs are here
@@ -418,6 +424,9 @@ func (w *Worker) Lacks() []models.WorkerLack {
 	if looker.Check(context.Background(), w.App.Cfg, ts).Supported {
 		lack(jobs.TypeVisual, looker.Component)
 	}
+	if video {
+		lack(jobs.TypeMatte, matteComponent())
+	}
 	return out
 }
 
@@ -443,7 +452,7 @@ func (w *Worker) device() models.WorkerDevice {
 	d := models.WorkerDevice{
 		ID: a.Cfg.Installation.ID, WorkspaceID: a.WorkspaceID(), Name: a.Cfg.Installation.Name, Hostname: app.Hostname(), OS: runtime.GOOS, Arch: runtime.GOARCH,
 		CPUs: runtime.NumCPU(), MemoryGB: memoryGB(), Tools: tv, JobTypes: w.JobTypes(), Lacks: w.Lacks(), Concurrency: w.Concurrency, Running: running,
-		ScreenIndex:  w.screenIndex(),
+		ScreenIndex: w.screenIndex(), Mattes: w.mattes(),
 		AcceptsHeavy: w.AcceptsHeavy && !p.Defer, OnBattery: p.Battery.OnBattery(), Charging: p.Battery.Charging,
 		HeavyBatteryThreshold: p.Threshold, HeavyEnabled: w.AcceptsHeavy, DeferringHeavy: p.Defer, DeferReason: p.Reason,
 		Version: version.Version, StartedAt: w.started,

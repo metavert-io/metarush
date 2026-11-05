@@ -141,6 +141,7 @@ var jobKindLabel = map[string]string{
 	jobs.TypeRemotionPush:    "Sending changes back to a repository",
 	jobs.TypeAbilityRun:      "Running an ability",
 	jobs.TypeSwitches:        "Finding where the picture changes",
+	jobs.TypeMatte:           "Cut-out",
 }
 
 // importWords reads what a link import recorded: the video's title, its site,
@@ -192,6 +193,8 @@ func jobVerb(typ string) string {
 		return "Making the fixed copy of"
 	case jobs.TypeSwitches:
 		return "Finding where the picture changes in"
+	case jobs.TypeMatte:
+		return "Cutting the people out of"
 	}
 	return "Working on"
 }
@@ -555,6 +558,12 @@ func JobDetail(ctx context.Context, a *app.App, id string) (*JobShowOut, error) 
 			out.Produced = &JobProduced{Summary: capFirst(s) + "."}
 		case jobs.TypeDescribe:
 			out.Produced = &JobProduced{Summary: fmt.Sprintf("Claude Code described %s.", sceneWords(toInt(j.Result["scenes"])))}
+		case jobs.TypeMatte:
+			if j.Result["reused"] == true {
+				out.Produced = &JobProduced{Summary: "The cut-out was made before; it was used as it was."}
+			} else {
+				out.Produced = &JobProduced{Summary: fmt.Sprintf("The people were cut out of %s.", count(toInt(j.Result["frames"]), "frame", "frames"))}
+			}
 		case jobs.TypeRender:
 			if rd != nil && rd.Output != nil {
 				out.Produced = &JobProduced{Summary: fmt.Sprintf("A %dx%d video, %.1f seconds long.", rd.Output.Width, rd.Output.Height, rd.Output.Duration)}

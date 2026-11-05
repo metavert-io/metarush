@@ -185,7 +185,8 @@ func printSuggestions(r *ops.CutEditOut) {
 }
 
 func cutEditCmds() []*cobra.Command {
-	return []*cobra.Command{cutAddCmd(), cutMoveCmd(), cutTrimCmd(), cutSplitCmd(), cutDeleteCmd(), cutDeleteRangeCmd(), cutRemoveWordsCmd(), cutPausesCmd()}
+	return []*cobra.Command{cutAddCmd(), cutMoveCmd(), cutTrimCmd(), cutSplitCmd(), cutDeleteCmd(), cutDeleteRangeCmd(), cutRemoveWordsCmd(), cutPausesCmd(),
+		cutBackgroundCmd()} // a clip's background replaced (cutouts.go, D510)
 }
 
 // cutPausesCmd shortens long pauses between words (D236).

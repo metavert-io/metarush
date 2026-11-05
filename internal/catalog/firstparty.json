@@ -1222,6 +1222,30 @@
       "madeWith": "metarush/remove-ums"
     },
     {
+      "id": "replace-background",
+      "name": "metarush/replace-background",
+      "group": "edit",
+      "title": "Replace a clip's background",
+      "does": "Cuts the people out of a clip and puts a colour, a blur, a picture or another clip behind them, in the preview and the render alike.",
+      "op": "cut.background",
+      "words": [
+        "background removal",
+        "remove background from video",
+        "green screen",
+        "virtual background",
+        "blur background",
+        "replace background"
+      ],
+      "needs": {
+        "works": [
+          "editing"
+        ],
+        "setup": "cut-outs-video"
+      },
+      "cost": "free",
+      "madeWith": "metarush/replace-background"
+    },
+    {
       "id": "repository-cards",
       "name": "metarush/repository-cards",
       "group": "make",

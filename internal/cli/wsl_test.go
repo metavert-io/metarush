@@ -159,8 +159,12 @@ func TestSetupInsideWSLWithoutSystemd(t *testing.T) {
 			t.Errorf("setup again doesn't say %q:\n%s", want, r.stdout)
 		}
 	}
-	// (Setup's own line about the plugin names "this metarush program": not WSL's.)
-	for _, f := range (plainwords.Allow{"flag:--details", "command:metarush program too"}).Filter(plainwords.CheckShown(r.stdout)) {
+	// (Setup's own line about the plugin names "this metarush program", in
+	// words that depend on whether Claude Code is found: not WSL's.)
+	for _, f := range (plainwords.Allow{"flag:--details"}).Filter(plainwords.CheckShown(r.stdout)) {
+		if f.Kind == plainwords.KindCommand && strings.HasPrefix(f.Text, "metarush program") {
+			continue
+		}
 		t.Errorf("plain setup inside WSL shows %s", f)
 	}
 	// `service install` refuses in the same words.

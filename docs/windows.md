@@ -3,8 +3,12 @@
 MetaRush runs on a Mac or a Linux computer. From Windows 11 you use it **in Edge or Chrome**: the dashboard opens
 from that computer over Tailscale, a private network between your own devices. Your footage is uploaded to
 that computer, the work (transcripts, previews, renders, Claude Code) happens there, and what you download comes back
-to your Windows PC. There is no Windows installer, and the `metarush` commands don't run on Windows: use the
+to your Windows PC. There is no Windows installer, and the `metarush` commands don't run on Windows itself: use the
 dashboard.
+
+If you work in a terminal and want MetaRush on the PC itself, run it in Ubuntu on **WSL 2** (the Windows Subsystem for
+Linux): it is the Linux MetaRush, its dashboard opens in your Windows browser, and Claude Code runs beside it in
+Ubuntu. See [wsl.md](wsl.md).
 
 ## What you need
 
@@ -50,7 +54,7 @@ dashboard.
 ## What doesn't work from Windows (yet)
 
 - The `metarush` commands, the watched folder and linked folders run on the computer that hosts MetaRush; from
-  Windows, use the dashboard.
+  Windows, use the dashboard (or run MetaRush in WSL 2 on the PC: [wsl.md](wsl.md)).
 - **Send to an editing app** writes a timeline whose clips point at files on the host; after copying the footage to
   your PC, relink them in your editing app.
 - Recognizing faces and what's on screen is done by a Mac or a Linux computer in the workspace (Linux with Seeing

@@ -1,6 +1,27 @@
 # Changelog
 
 ## Unreleased
+- **MetaRush runs in WSL 2 on Windows, for people who work in a terminal**. Inside Ubuntu on Windows, MetaRush knows
+  where it is and says so in setup, doctor (its WINDOWS checks), Home's Getting started (On Windows) and Settings →
+  General, and Your computers shows the PC as Windows (WSL 2). Setup and init refuse WSL 1 with the one command that
+  moves Ubuntu to WSL 2. The background service needs systemd: without it setup says so and what to turn on in
+  Ubuntu's WSL settings, and never changes them itself; and since Windows stops Ubuntu shortly after its last window
+  closes, MetaRush says which Windows setting keeps it running. `metarush dashboard` opens your Windows browser
+  (through wslview, or Windows' own cmd.exe), which reaches the dashboard at 127.0.0.1 on this PC only, mirrored
+  networking or not. Paths typed or pasted as Windows gives them (`C:\Users\you\Videos\clip.mp4`, in quotes from
+  File Explorer's Copy as path, or `\\wsl.localhost\Ubuntu\…`) work in the terminal and in the watched folder;
+  files from the Windows side say they come in more slowly and that copying into your Linux home is faster; watched
+  and linked folders there are looked through every 5 seconds, and the dashboard can choose one inside your Windows
+  user's folder. The database is never kept on the Windows side; a WSL kernel MongoDB 8 can't run on gets MongoDB 7.0,
+  with the advice to update WSL from Windows. Your OneDrive, Dropbox and Google Drive folders on Windows count as sync
+  folders, a timeline's footage on the Windows side is copied rather than linked, and Claude Code, FFmpeg or Node.js
+  installed only on Windows are named rather than used. How to set it up: docs/wsl.md.
+- **The renderer says when this computer lacks libraries its browser needs**. A fresh Ubuntu (in WSL, a container or
+  a server) often lacks a few of the system libraries Remotion's browser links against, so every render would stop at
+  once. Setup's what-works list, Home's Getting started and doctor now say so before the first render, with the one
+  command that adds them for your release behind Details, and a render that stops that way says it in plain words.
+- **Names of footage handed to other editing apps are names Windows keeps**. A timeline's footage folder names each
+  file after its clip without the device names Windows keeps for itself (CON, NUL…), cut at a whole character.
 - **On a Mac, MetaRush is an app that sets itself up and keeps itself up to date**. MetaRush.app is a small menu-bar
   app: drag it into Applications, open it, and its panels ask setup's questions with the suggested answers — where
   footage and projects are kept, MetaRush starting when you log in, the app opening when you log in, Claude Code's

@@ -37,7 +37,7 @@ func init() {
 		func(ctx context.Context, a *app.App, in *CutoutPreviewIn) (*CutoutPreviewOut, error) {
 			return PreviewFile(ctx, a, in)
 		})
-	ops.Def("footage.cutout.delete", "Delete a clip's cut-out for good (background removal in video): its file goes for every computer of the workspace and it can be made again; refused while the latest version of a cut plays it, and older versions that play it are named; people only", ops.Flags{Mutating: true, HumanOnly: true},
+	ops.Def("footage.cutout.delete", "Delete a clip's cut-out for good (background removal in video): its file goes for every computer of the workspace and it can be made again; refused while anything plays it — any version of a cut, a draft waiting for review, a version in Recipes; owners, people only", ops.Flags{Mutating: true, HumanOnly: true, OwnerOnly: true},
 		func(ctx context.Context, a *app.App, in *CutoutDeleteIn) (*CutoutDeleteOut, error) {
 			return Delete(ctx, a, in)
 		})

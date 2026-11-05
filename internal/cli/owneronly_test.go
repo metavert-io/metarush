@@ -23,7 +23,7 @@ import (
 var ownerOnlyOps = []string{
 	"auth.method.set", "auth.sso.set", "auth.sso.secret", "auth.sso.test", "auth.sso.discard", "users.invite", "users.resetLink", "users.revoke", "users.disable", "users.enable", "users.remove", "users.role",
 	"remote.enable", "remote.disable", "remote.allow", "remote.signout",
-	"storage.migrate", "trash.configure", "trash.empty", "worker.configure", "asset.delete",
+	"storage.migrate", "trash.configure", "trash.empty", "worker.configure", "asset.delete", "footage.cutout.delete",
 	"watch.browse", "resources.link", "resources.folder", "render.follow.set", "sound.setup",
 	"provider.set", "provider.remove", "ai.local.setup", "components.add", "components.remove",
 	"assistant.settings.set",

@@ -328,6 +328,7 @@ picture?: string
 footage?: PlanBackgroundFootage
 cutOut: string
 cutOutTrimBefore: number
+missing?: boolean
 }
 /**
  * This interface was referenced by `RenderPlan`'s JSON-Schema

@@ -639,32 +639,55 @@ func PlanSourceIDs(p *RenderPlan) []string {
 }
 
 // PlanCutOuts lists the cut-out files a plan plays (D510), its nested cuts'
-// included (the callers fill CutOutSources for them).
+// included (the callers fill CutOutSources for them), missing ones too.
 func PlanCutOuts(p *RenderPlan) []string {
 	var out []string
 	seen := map[string]bool{}
-	var walk func(p *RenderPlan)
-	walk = func(p *RenderPlan) {
-		if p == nil {
-			return
+	eachBackground(p, func(b *PlanBackground) {
+		if b.CutOut != "" && !seen[b.CutOut] {
+			seen[b.CutOut] = true
+			out = append(out, b.CutOut)
 		}
-		for _, c := range p.Clips {
-			if b := c.Background; b != nil && b.CutOut != "" && !seen[b.CutOut] {
-				seen[b.CutOut] = true
-				out = append(out, b.CutOut)
-			}
+	})
+	return out
+}
+
+// PlanMissingCutOuts lists the cut-out files a plan plays that MetaRush
+// doesn't have (PlanBackground.Missing; "" for a background with none), its
+// nested cuts' included: a render fails for them.
+func PlanMissingCutOuts(p *RenderPlan) []string {
+	var out []string
+	seen := map[string]bool{}
+	eachBackground(p, func(b *PlanBackground) {
+		if (b.Missing || b.CutOut == "") && !seen[b.CutOut] {
+			seen[b.CutOut] = true
+			out = append(out, b.CutOut)
 		}
-		keys := make([]string, 0, len(p.Nested))
-		for k := range p.Nested {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			walk(p.Nested[k].Plan)
+	})
+	return out
+}
+
+// eachBackground calls fn for every replaced background a plan draws, its
+// nested cuts' included.
+func eachBackground(p *RenderPlan, fn func(*PlanBackground)) {
+	if p == nil {
+		return
+	}
+	for i := range p.Clips {
+		if b := p.Clips[i].Background; b != nil {
+			fn(b)
 		}
 	}
-	walk(p)
-	return out
+	keys := make([]string, 0, len(p.Nested))
+	for k := range p.Nested {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if n := p.Nested[k]; n != nil {
+			eachBackground(n.Plan, fn)
+		}
+	}
 }
 
 // PlanMotionHashes lists the motion graphics a plan draws, nested cuts'

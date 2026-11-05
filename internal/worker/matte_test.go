@@ -7,12 +7,15 @@ import (
 	"strings"
 	"testing"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/ingest"
 	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/mattes"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/ops"
+	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/testutil/fakelocal"
 )
 
@@ -64,6 +67,21 @@ func TestAComputerWithAModelMakesCutOuts(t *testing.T) {
 	}
 	if err := cutOutFiles(ctx, s.a, &editspec.RenderPlan{}, nil, local, types); err != nil {
 		t.Fatalf("a plan without cut-outs: %v", err)
+	}
+	// A cut-out the plan keeps pinned but MetaRush doesn't have (inside a
+	// nested cut too), or one that isn't made, stops the render plainly:
+	// never the clip as recorded in its place.
+	missing := &editspec.RenderPlan{Clips: []editspec.PlanClip{{ID: "host", Background: &editspec.PlanBackground{With: "colour", CutOut: m.File.SHA256}}},
+		Nested: map[string]*editspec.NestedPlan{"cut:x/y": {Plan: &editspec.RenderPlan{Clips: []editspec.PlanClip{{ID: "inner",
+			Background: &editspec.PlanBackground{With: "blur", CutOut: strings.Repeat("1", 64), Missing: true}}}}}}}
+	if err := cutOutFiles(ctx, s.a, missing, nil, map[string]string{}, map[string]string{}); err == nil || !strings.Contains(plainFailure(err), "isn't ready in MetaRush (it is gone, or not made)") {
+		t.Fatalf("a nested cut's missing cut-out: %v", err)
+	}
+	if _, err := s.a.DB.C(store.CMattes).UpdateOne(ctx, bson.M{"_id": m.ID}, bson.M{"$set": bson.M{"state": models.MatteMaking}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cutOutFiles(ctx, s.a, plan, nil, map[string]string{}, map[string]string{}); err == nil || !strings.Contains(plainFailure(err), "isn't ready in MetaRush (it is gone, or not made)") {
+		t.Fatalf("a cut-out not made: %v", err)
 	}
 	// Facts for renders answer for the cut-outs the cut pins.
 	if _, ok := (&renderFacts{}).Matte(m.File.SHA256); ok {

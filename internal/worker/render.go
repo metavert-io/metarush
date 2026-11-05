@@ -608,6 +608,11 @@ func resolveForRender(ctx context.Context, a *app.App, rd *models.Render, rev *m
 // included, onto this computer, checked by hash, and lists them for the
 // render's loopback server (local and types, keyed "c-<sha256>").
 func cutOutFiles(ctx context.Context, a *app.App, plan *editspec.RenderPlan, extras *ops.RenderExtras, local, types map[string]string) error {
+	gone := "A clip's cut-out that this version plays isn't ready in MetaRush (it is gone, or not made), so its background can't be replaced. Make the cut-out again and replace the background in a new version, or take the background out."
+	if missing := editspec.PlanMissingCutOuts(plan); len(missing) > 0 {
+		// Never the clip as recorded in its place: the version keeps what it was saved with.
+		return failed(gone, permanent("cut-outs missing from the plan: %v", missing))
+	}
 	shas := editspec.PlanCutOuts(plan)
 	if len(shas) == 0 {
 		return nil
@@ -618,9 +623,8 @@ func cutOutFiles(ctx context.Context, a *app.App, plan *editspec.RenderPlan, ext
 	}
 	for _, sha := range shas {
 		m := cutOuts[sha]
-		if m == nil || m.File == nil {
-			return failed("A clip's cut-out that this version plays isn't in MetaRush any more, so its background can't be replaced. Make the cut-out again, or take the background out.",
-				permanent("cut-out %s not found", sha))
+		if m == nil || m.File == nil || m.State != models.MatteReady {
+			return failed(gone, permanent("cut-out %s not found", sha))
 		}
 		p, err := a.Cache.Ensure(ctx, a.Media, m.File.Key, m.File.SHA256, m.File.Size, nil)
 		if err != nil {

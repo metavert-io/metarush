@@ -180,10 +180,34 @@ func TestPlanBackground(t *testing.T) {
 	if got := PlanCutOuts(plan); len(got) != 3 || !slices.Contains(got, matteA) {
 		t.Fatalf("plan cut-outs %v", got)
 	}
-	// A cut-out not made yet gives no background (the check refuses the cut).
-	s.Clips[2].Background.Matte = matteSoon
-	if Resolve(s, withMattes(), "", "", "").Clips[2].Background != nil {
-		t.Fatal("unmade cut-out planned")
+	// A cut-out not made yet, or one MetaRush doesn't have, stays pinned and
+	// says it is missing: a version keeps what it was saved with, so a render
+	// fails for it rather than playing the clip as recorded (the check
+	// refuses saving such a cut). So it is without cut-out facts at all.
+	for name, plan := range map[string]*RenderPlan{
+		"not made": func() *RenderPlan {
+			s.Clips[2].Background.Matte = matteSoon
+			return Resolve(s, withMattes(), "", "", "")
+		}(),
+		"gone": func() *RenderPlan {
+			s.Clips[2].Background.Matte = strings.Repeat("e", 64)
+			return Resolve(s, withMattes(), "", "", "")
+		}(),
+		"no facts": Resolve(s, facts(), "", "", ""),
+	} {
+		b := plan.Clips[2].Background
+		if b == nil || !b.Missing || b.CutOut != s.Clips[2].Background.Matte && name != "not made" || b.With != BackgroundBlur {
+			t.Fatalf("%s: %+v", name, b)
+		}
+		if got := PlanMissingCutOuts(plan); !slices.Contains(got, b.CutOut) || slices.Contains(got, matteA) {
+			t.Fatalf("%s: missing %v", name, got)
+		}
+		if _, listed := plan.CutOutSources[b.CutOut]; !listed {
+			t.Fatalf("%s: the plan names it for the caller: %v", name, plan.CutOutSources)
+		}
+	}
+	if Resolve(s, withMattes(), "", "", "").Clips[0].Background.Missing {
+		t.Fatal("a cut-out MetaRush has isn't missing")
 	}
 	// Without a background the plan says nothing new (older plans stay the same).
 	b, _ := json.Marshal(Resolve(baseSpec(), withMattes(), "", "", ""))

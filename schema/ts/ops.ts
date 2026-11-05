@@ -1711,7 +1711,7 @@ input: CutoutIn
 output: CutoutOut
 }
 /**
- * Delete a clip's cut-out for good (background removal in video): its file goes for every computer of the workspace and it can be made again; refused while the latest version of a cut plays it, and older versions that play it are named; people only
+ * Delete a clip's cut-out for good (background removal in video): its file goes for every computer of the workspace and it can be made again; refused while anything plays it — any version of a cut, a draft waiting for review, a version in Recipes; owners, people only
  */
 "footage.cutout.delete": {
 input: CutoutDeleteIn
@@ -14976,6 +14976,7 @@ picture?: string
 footage?: PlanBackgroundFootage
 cutOut: string
 cutOutTrimBefore: number
+missing?: boolean
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -19985,7 +19986,7 @@ id: string
  */
 forever?: boolean
 /**
- * Only say whether it can be deleted and which versions play it.
+ * Only say whether it can be deleted and what plays it.
  */
 dryRun?: boolean
 }
@@ -19998,7 +19999,6 @@ allowed: boolean
 deleted: boolean
 cutout: CutoutView
 blockers: string[]
-older: string[]
 summary: string
 }
 /**

@@ -30,12 +30,12 @@ func footageCutoutDeleteCmd() *cobra.Command {
 	var in mattes.CutoutDeleteIn
 	c := &cobra.Command{
 		Use:   "cut-out-delete <cut-out> --forever [--dry-run]",
-		Short: "Delete a clip's cut-out for good (it can be made again) — people only, in their own terminal; refused while a cut's latest version plays it",
+		Short: "Delete a clip's cut-out for good (it can be made again) — owners, in their own terminal; refused while anything plays it (any version of a cut, a draft, a version in Recipes)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			in.ID = args[0]
 			if assistantMode() || !interactive() {
-				return fail(c, apperr.HumanOnly, "Only a person can delete a cut-out, in their own terminal.", "Run this yourself in a terminal (agents and the dashboard assistant can't delete).")
+				return fail(c, apperr.HumanOnly, "Only an owner can delete a cut-out, in their own terminal.", "Run this yourself in a terminal (agents and the dashboard assistant can't delete).")
 			}
 			a, err := openApp(c, "cli")
 			if err != nil {

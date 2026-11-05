@@ -27,7 +27,8 @@ export const seeThroughVideo = (): boolean => getRemotionEnvironment().isRenderi
 /** The clip's cut-out file, when the plan has its URL (the preview may not yet). */
 export const cutOutSrc = (clip: PlanClip, plan: RenderPlan): string | undefined => {
   const bg = clip.background;
-  if (!bg?.cutOut || !seeThroughVideo()) return undefined;
+  // A cut-out MetaRush doesn't have (missing): the preview plays the clip as recorded; a render fails before it gets here.
+  if (!bg?.cutOut || bg.missing || !seeThroughVideo()) return undefined;
   const url = plan.cutOutSources?.[bg.cutOut];
   return typeof url === 'string' && url.length > 0 ? url : undefined;
 };

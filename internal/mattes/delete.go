@@ -3,6 +3,7 @@ package mattes
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -62,7 +63,7 @@ type CutoutDeleteIn struct {
 	ID string `json:"id" jsonschema:"pattern=^mte_[0-9a-z]{26}$,description=The cut-out (footage cut-outs lists a clip's)."`
 	// Forever must be true: the file goes for every computer.
 	Forever bool `json:"forever,omitempty" jsonschema:"description=Must be true: the cut-out's file is deleted for every computer of the workspace (it can be made again\\, as a new file)."`
-	DryRun  bool `json:"dryRun,omitempty" jsonschema:"description=Only say whether it can be deleted and which versions play it."`
+	DryRun  bool `json:"dryRun,omitempty" jsonschema:"description=Only say whether it can be deleted and what plays it."`
 }
 
 // CutoutDeleteOut says what was (or would be) deleted.
@@ -70,18 +71,18 @@ type CutoutDeleteOut struct {
 	Allowed bool       `json:"allowed"`
 	Deleted bool       `json:"deleted"`
 	Cutout  CutoutView `json:"cutout"`
-	// Blockers are the cuts whose latest version plays it, in plain words:
-	// the background comes out of those clips first.
+	// Blockers are what plays it, in plain words: versions of cuts (any, the
+	// latest or older, a draft's too, or a cut nesting one), drafts waiting
+	// for review and versions in Recipes. Versions keep what they were saved
+	// with, so a cut-out stays while anything plays it.
 	Blockers []string `json:"blockers"`
-	// Older are older versions that play it: after it is deleted they can't
-	// be rendered with their new background again.
-	Older   []string `json:"older"`
-	Summary string   `json:"summary"`
+	Summary  string   `json:"summary"`
 }
 
-// Delete deletes a cut-out for good (people only): refused while the latest
-// version of a cut plays it, itself or in a cut it nests; older versions
-// that play it are named, since they can't show it again.
+// Delete deletes a cut-out for good (owners, people only, like asset.delete):
+// refused while anything plays it — any version of a cut (versions keep what
+// they were saved with: one rendered again must find it), a draft waiting for
+// review, a version in Recipes.
 func Delete(ctx context.Context, a *app.App, in *CutoutDeleteIn) (*CutoutDeleteOut, error) {
 	m, err := Load(ctx, a, strings.TrimSpace(in.ID))
 	if err != nil {
@@ -92,27 +93,28 @@ func Delete(ctx context.Context, a *app.App, in *CutoutDeleteIn) (*CutoutDeleteO
 	if a.DB.GetByID(ctx, store.CAssets, a.WorkspaceID(), m.AssetID, &as) == nil {
 		clip, dur = as.DisplayTitle(), as.Media.Duration
 	}
-	out := &CutoutDeleteOut{Cutout: ViewOf(m, clip, dur, nil), Blockers: []string{}, Older: []string{}}
+	out := &CutoutDeleteOut{Cutout: ViewOf(m, clip, dur, nil), Blockers: []string{}}
 	if m.File != nil {
-		if out.Blockers, out.Older, err = playedBy(ctx, a, m.File.SHA256); err != nil {
+		if out.Blockers, err = playedBy(ctx, a, m.File.SHA256); err != nil {
 			return nil, err
 		}
 	}
 	out.Allowed = len(out.Blockers) == 0
 	what := fmt.Sprintf("the cut-out of “%s” (%s)", clip, out.Cutout.Part)
-	older := ""
-	if len(out.Older) > 0 {
-		older = fmt.Sprintf(" Older versions that play it can't show their new background again once it is gone: %s.", joinAnd(out.Older))
-	}
 	if !out.Allowed {
-		out.Summary = fmt.Sprintf("%s can't be deleted: %s %s it. Take the background out of those clips first.", upperFirst(what), joinAnd(out.Blockers), playWord(len(out.Blockers)))
+		shown := out.Blockers
+		if len(shown) > 5 {
+			shown = append(append([]string{}, shown[:5]...), fmt.Sprintf("%d more", len(out.Blockers)-5))
+		}
+		out.Summary = fmt.Sprintf("%s can't be deleted: %s %s it. Versions keep what they were saved with, so a cut-out stays while anything plays it.",
+			upperFirst(what), joinAnd(shown), playWord(len(out.Blockers)))
 		if in.DryRun {
 			return out, nil
 		}
-		return nil, apperr.New(apperr.Conflict, "%s", out.Summary).WithDetails(map[string]any{"blockers": out.Blockers, "older": out.Older, "matteId": m.ID})
+		return nil, apperr.New(apperr.Conflict, "%s", out.Summary).WithDetails(map[string]any{"blockers": out.Blockers, "matteId": m.ID})
 	}
 	if in.DryRun {
-		out.Summary = fmt.Sprintf("%s can be deleted: its file goes for every computer of this workspace, and it can be made again.%s", upperFirst(what), older)
+		out.Summary = fmt.Sprintf("%s can be deleted: nothing plays it. Its file goes for every computer of this workspace, and it can be made again.", upperFirst(what))
 		return out, nil
 	}
 	if !in.Forever {
@@ -123,20 +125,22 @@ func Delete(ctx context.Context, a *app.App, in *CutoutDeleteIn) (*CutoutDeleteO
 		return nil, err
 	}
 	a.Audit(ctx, "footage.cutout.delete", "matte", m.ID, m.ProjectID, map[string]any{"assetId": m.AssetID, "from": m.From, "to": m.To,
-		"model": m.Provider + "/" + m.Model, "older": len(out.Older)})
+		"model": m.Provider + "/" + m.Model})
 	out.Deleted = true
-	out.Summary = fmt.Sprintf("Deleted %s.%s", what, older)
+	out.Summary = fmt.Sprintf("Deleted %s.", what)
 	return out, nil
 }
 
-// playedBy names the cuts whose versions play a cut-out file — pinned in a
-// clip's background, or in a cut they nest (D84), at any depth: the latest
-// versions (of projects not archived) and the older ones.
-func playedBy(ctx context.Context, a *app.App, sha string) (latest, older []string, err error) {
-	proj := options.Find().SetProjection(bson.M{"_id": 1, "projectId": 1, "branch": 1, "number": 1})
+// playedBy says, in plain words, what plays a cut-out file: the versions of
+// cuts that pin it in a clip's background or nest a version that does (D84,
+// at any depth) — any version that isn't detached, a draft's included, in
+// any project, archived or not —, drafts waiting for review whose input
+// names it, and versions in Recipes whose sections keep it.
+func playedBy(ctx context.Context, a *app.App, sha string) ([]string, error) {
+	proj := options.Find().SetProjection(bson.M{"_id": 1, "projectId": 1, "branch": 1, "number": 1, "draftId": 1})
 	var playing []models.Revision
 	if err := a.DB.Find(ctx, store.CRevisions, a.WorkspaceID(), bson.M{"spec.clips.background.matte": sha, "detached": bson.M{"$ne": true}}, &playing, proj); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	seen := map[string]bool{}
 	var frontier []string
@@ -147,7 +151,7 @@ func playedBy(ctx context.Context, a *app.App, sha string) (latest, older []stri
 	for depth := 0; depth < editspec.MaxNestDepth && len(frontier) > 0; depth++ {
 		var outer []models.Revision
 		if err := a.DB.Find(ctx, store.CRevisions, a.WorkspaceID(), bson.M{"spec.clips.assetId": bson.M{"$in": frontier}, "detached": bson.M{"$ne": true}}, &outer, proj); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		frontier = nil
 		for _, r := range outer {
@@ -158,33 +162,61 @@ func playedBy(ctx context.Context, a *app.App, sha string) (latest, older []stri
 			}
 		}
 	}
-	projects := map[string]*models.Project{}
+	// One line per cut: its versions, newest first.
+	type cutKey struct{ project, branch string }
+	versions := map[cutKey][]int{}
+	var order []cutKey
 	for _, r := range playing {
-		p, ok := projects[r.ProjectID]
-		if !ok {
-			var pp models.Project
-			if a.DB.GetByID(ctx, store.CProjects, a.WorkspaceID(), r.ProjectID, &pp) == nil {
-				p = &pp
-			}
-			projects[r.ProjectID] = p
+		k := cutKey{r.ProjectID, r.Branch}
+		if _, ok := versions[k]; !ok {
+			order = append(order, k)
 		}
-		if p == nil {
-			continue
+		versions[k] = append(versions[k], r.Number)
+	}
+	var out []string
+	for _, k := range order {
+		name := "a project cleared out"
+		var p models.Project
+		if a.DB.GetByID(ctx, store.CProjects, a.WorkspaceID(), k.project, &p) == nil {
+			name = "“" + p.Name + "”"
 		}
 		cut := "cut"
-		if r.Branch != "" && r.Branch != "main" {
-			cut = r.Branch + " cut"
+		if k.branch != "" && k.branch != "main" {
+			cut = k.branch + " cut"
 		}
-		words := fmt.Sprintf("“%s”'s %s (version %d)", p.Name, cut, r.Number)
-		if !p.Archived && p.Branches[r.Branch].Head == r.ID {
-			latest = append(latest, words)
-		} else {
-			older = append(older, words)
+		ns := versions[k]
+		sort.Sort(sort.Reverse(sort.IntSlice(ns)))
+		words := make([]string, len(ns))
+		for i, n := range ns {
+			words[i] = fmt.Sprint(n)
 		}
+		v := "version " + words[0]
+		if len(words) > 1 {
+			v = "versions " + joinAnd(words)
+		}
+		out = append(out, fmt.Sprintf("%s's %s (%s)", name, cut, v))
 	}
-	sort.Strings(latest)
-	sort.Strings(older)
-	return latest, older, nil
+	sort.Strings(out)
+	// Drafts waiting for a person: an approval would save what they hold.
+	var drafts []models.Draft
+	if err := a.DB.Find(ctx, store.CDrafts, a.WorkspaceID(), bson.M{"state": bson.M{"$in": bson.A{models.DraftWaiting, models.DraftApproving}},
+		"input": bson.M{"$regex": regexp.QuoteMeta(sha)}}, &drafts); err != nil {
+		return nil, err
+	}
+	for _, d := range drafts {
+		out = append(out, fmt.Sprintf("the draft “%s” waiting for review", firstNonEmpty(d.Title, d.ID)))
+	}
+	// Recipes: their runs make cuts that play it.
+	var rvs []models.RecipeVersion
+	if err := a.DB.Find(ctx, store.CRecipeVersions, a.WorkspaceID(), bson.M{"doc.sections.clips.background.matte": sha}, &rvs); err != nil {
+		return nil, err
+	}
+	for _, v := range rvs {
+		var r models.Recipe
+		_ = a.DB.GetByID(ctx, store.CRecipes, a.WorkspaceID(), v.RecipeID, &r)
+		out = append(out, fmt.Sprintf("“%s” (version %d) in Recipes", firstNonEmpty(r.Title, r.Name, "one"), v.Number))
+	}
+	return out, nil
 }
 
 func playWord(n int) string {

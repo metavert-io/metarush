@@ -245,6 +245,11 @@ type PlanBackground struct {
 	// fraction when the cut-out starts between output frames).
 	CutOut           string  `json:"cutOut"`
 	CutOutTrimBefore float64 `json:"cutOutTrimBefore"`
+	// Missing: MetaRush doesn't have that cut-out (gone, or not made). It
+	// stays pinned so a render fails plainly for it and QA says so — never
+	// the clip played as recorded in its place; the preview, with no file to
+	// show, plays the clip as recorded.
+	Missing bool `json:"missing,omitempty"`
 }
 
 // PlanBackgroundFootage is a clip shown behind the people.
@@ -258,24 +263,24 @@ type PlanBackgroundFootage struct {
 
 // planBackground resolves a clip's background: sizes scaled from a 1080
 // picture's short side to the plan's, the picture by its pinned file, the
-// cut-out by its file and where it starts (nil when the clip has none or its
-// cut-out isn't known: the check refuses such a cut).
+// cut-out by its file and where it starts (nil when the clip has none). A
+// cut-out MetaRush doesn't have — gone, or not made — stays pinned, Missing:
+// a version keeps what it was saved with, so rendering it again fails
+// plainly rather than playing the clip as recorded (the check refuses saving
+// such a cut).
 func planBackground(s *Spec, c Clip, pc *PlanClip, plan *RenderPlan, facts Facts) *PlanBackground {
 	b := c.Background
-	if b == nil {
-		return nil
-	}
-	mf, _ := facts.(MatteFacts)
-	if mf == nil {
-		return nil
-	}
-	info, ok := mf.Matte(b.Matte)
-	if !ok || !info.Ready {
-		return nil
+	if b == nil || IsConversation(c.AssetID) || IsNested(c.AssetID) {
+		return nil // only footage has a background (the check refuses the rest)
 	}
 	scale := float64(min(plan.Width, plan.Height)) / 1080
 	fps := float64(plan.FPS)
-	pb := &PlanBackground{With: b.With, CutOut: CutOutKey(b.Matte), CutOutTrimBefore: float64(pc.TrimBefore) - info.Offset*fps}
+	pb := &PlanBackground{With: b.With, CutOut: CutOutKey(b.Matte), CutOutTrimBefore: float64(pc.TrimBefore)}
+	if info, ok := matteInfo(facts, b.Matte); ok && info.Ready {
+		pb.CutOutTrimBefore -= info.Offset * fps
+	} else {
+		pb.Missing = true
+	}
 	feather := b.Feather
 	if feather == 0 {
 		feather = DefaultFeather

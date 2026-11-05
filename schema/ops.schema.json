@@ -18058,7 +18058,7 @@
         },
         "dryRun": {
           "type": "boolean",
-          "description": "Only say whether it can be deleted and which versions play it."
+          "description": "Only say whether it can be deleted and what plays it."
         }
       },
       "additionalProperties": false,
@@ -18084,12 +18084,6 @@
           },
           "type": "array"
         },
-        "older": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "summary": {
           "type": "string"
         }
@@ -18101,7 +18095,6 @@
         "deleted",
         "cutout",
         "blockers",
-        "older",
         "summary"
       ]
     },
@@ -40666,6 +40659,9 @@
         },
         "cutOutTrimBefore": {
           "type": "number"
+        },
+        "missing": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -79631,7 +79627,7 @@
         "input",
         "output"
       ],
-      "description": "Delete a clip's cut-out for good (background removal in video): its file goes for every computer of the workspace and it can be made again; refused while the latest version of a cut plays it, and older versions that play it are named; people only"
+      "description": "Delete a clip's cut-out for good (background removal in video): its file goes for every computer of the workspace and it can be made again; refused while anything plays it — any version of a cut, a draft waiting for review, a version in Recipes; owners, people only"
     },
     "footage.cutout.preview": {
       "properties": {

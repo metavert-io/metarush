@@ -3,6 +3,7 @@ package mattes_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -201,13 +202,15 @@ func TestDeletingFootageDeletesItsCutOuts(t *testing.T) {
 	}
 }
 
-// A person deletes a cut-out for good (it can be made again): not while the
-// latest version of a cut plays it, itself or in a cut that nests it; older
-// versions that play it are named, since they can't show it again; never by
-// an agent, never without "forever".
+// An owner deletes a cut-out for good (it can be made again), as asset.delete
+// deletes footage: never while anything plays it — any version of a cut (the
+// latest or an older one, a cut nesting one, in an archived project too: a
+// version keeps what it was saved with), a draft waiting for review, a version in Recipes
+// — and never a member, an agent, or without "forever".
 func TestDeletingACutOut(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
+	now := time.Now().UTC()
 	out, err := e.cutout(t, mattes.CutoutIn{})
 	if err != nil {
 		t.Fatal(err)
@@ -216,15 +219,36 @@ func TestDeletingACutOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := e.matte(t, out.Matte.ID)
-	del := func(in mattes.CutoutDeleteIn, c ops.Caller) (*mattes.CutoutDeleteOut, error) {
-		in.ID = m.ID
+	other := e.footageOf(t, "beach", 3) // other bytes: another clip
+	co, err := e.cutout(t, mattes.CutoutIn{AssetID: other.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.run(t, co.JobID); err != nil {
+		t.Fatal(err)
+	}
+	del := func(id string, in mattes.CutoutDeleteIn, c ops.Caller) (*mattes.CutoutDeleteOut, error) {
+		in.ID = id
 		return ops.CallTyped[mattes.CutoutDeleteOut](ctx, e.a, "footage.cutout.delete", in, c)
 	}
-	if d, err := del(mattes.CutoutDeleteIn{DryRun: true}, ops.Caller{Human: true}); err != nil || !d.Allowed || len(d.Blockers) != 0 || len(d.Older) != 0 ||
-		!strings.Contains(d.Summary, "can be deleted") {
+	blocked := func(what string, want ...string) {
+		t.Helper()
+		d, err := del(m.ID, mattes.CutoutDeleteIn{DryRun: true}, ops.Caller{Human: true})
+		if err != nil || d.Allowed || !strings.Contains(d.Summary, "a cut-out stays while anything plays it") {
+			t.Fatalf("%s: %+v %v", what, d, err)
+		}
+		for _, w := range want {
+			if !strings.Contains(strings.Join(d.Blockers, " | "), w) {
+				t.Fatalf("%s: %q isn't among %q", what, w, d.Blockers)
+			}
+		}
+		if _, err := del(m.ID, mattes.CutoutDeleteIn{Forever: true}, ops.Caller{Human: true}); apperr.From(err) == nil || apperr.From(err).Code != apperr.Conflict {
+			t.Fatalf("%s: deleting it %v", what, err)
+		}
+	}
+	if d, err := del(m.ID, mattes.CutoutDeleteIn{DryRun: true}, ops.Caller{Human: true}); err != nil || !d.Allowed || len(d.Blockers) != 0 {
 		t.Fatalf("nothing plays it: %+v %v", d, err)
 	}
-	// The cut's latest version plays it.
 	apply := func(in mattes.CutBackgroundIn) {
 		t.Helper()
 		chk, err := e.background(t, in)
@@ -236,22 +260,18 @@ func TestDeletingACutOut(t *testing.T) {
 			t.Fatalf("saved: %+v %v", out, err)
 		}
 	}
+	// The cut's latest version plays it, then only an older one: both hold it.
 	e.saveCut(t)
 	apply(mattes.CutBackgroundIn{With: mattes.WithBlur})
 	first := e.head(t)
-	if first.Spec.Clips[0].Background == nil || first.Spec.Clips[0].Background.Matte != m.File.SHA256 {
-		t.Fatalf("the cut plays it: %+v", first.Spec.Clips[0].Background)
+	blocked("the latest version", fmt.Sprintf("“Garden film”'s cut (version %d)", first.Number))
+	apply(mattes.CutBackgroundIn{Off: true})
+	blocked("an older version", fmt.Sprintf("“Garden film”'s cut (version %d)", first.Number))
+	// Archived, the project's versions still hold it; so does a cut of another project nesting one.
+	if _, err := e.a.DB.C(store.CProjects).UpdateOne(ctx, bson.M{"_id": e.project}, bson.M{"$set": bson.M{"archived": true}}); err != nil {
+		t.Fatal(err)
 	}
-	d, err := del(mattes.CutoutDeleteIn{DryRun: true}, ops.Caller{Human: true})
-	if err != nil || d.Allowed || len(d.Blockers) != 1 || !strings.Contains(d.Blockers[0], "“Garden film”'s cut (version") || !strings.Contains(d.Summary, "Take the background out") {
-		t.Fatalf("its latest version plays it: %+v %v", d, err)
-	}
-	if _, err := del(mattes.CutoutDeleteIn{Forever: true}, ops.Caller{Human: true}); apperr.From(err) == nil || apperr.From(err).Code != apperr.Conflict {
-		t.Fatalf("refused: %v", err)
-	}
-	// A cut of another project nests that version: once the cut itself moves on, the nesting cut still plays it.
 	outer := ids.New(ids.Project)
-	now := time.Now().UTC()
 	nest := models.Revision{ID: ids.New(ids.Revision), WorkspaceID: e.a.WorkspaceID(), ProjectID: outer, Branch: "main", Number: 1, SpecHash: "h", CreatedAt: now,
 		Spec: editspec.Spec{SchemaVersion: 1, Clips: []editspec.Clip{{ID: "teaser", AssetID: editspec.NestedKey(e.project, first.ID), In: 0, Out: 1}}}}
 	if err := e.a.DB.Insert(ctx, store.CRevisions, nest); err != nil {
@@ -261,27 +281,48 @@ func TestDeletingACutOut(t *testing.T) {
 		Branches: map[string]models.BranchHead{"main": {Head: nest.ID, UpdatedAt: now}}, CreatedAt: now, UpdatedAt: now}); err != nil {
 		t.Fatal(err)
 	}
-	apply(mattes.CutBackgroundIn{Off: true})
-	d, err = del(mattes.CutoutDeleteIn{DryRun: true}, ops.Caller{Human: true})
-	if err != nil || d.Allowed || len(d.Blockers) != 1 || !strings.Contains(d.Blockers[0], "“Showreel”'s cut (version 1)") || len(d.Older) != 1 {
-		t.Fatalf("a cut that nests it: %+v %v", d, err)
-	}
-	// Only older versions play it now: allowed, and they are named.
-	if _, err := e.a.DB.C(store.CProjects).UpdateOne(ctx, bson.M{"_id": outer}, bson.M{"$set": bson.M{"archived": true}}); err != nil {
+	blocked("an archived project and a cut nesting it", fmt.Sprintf("“Garden film”'s cut (version %d)", first.Number), "“Showreel”'s cut (version 1)")
+
+	// A draft waiting for review, and a version in Recipes, that name another clip's: an approval or a run would play it.
+	m = e.matte(t, co.Matte.ID)
+	pin := fmt.Sprintf(`{"clips":[{"id":"a","background":{"with":"blur","matte":%q}}]}`, m.File.SHA256)
+	draft := models.Draft{ID: ids.New(ids.Draft), WorkspaceID: e.a.WorkspaceID(), Kind: models.DraftChange, State: models.DraftWaiting, Op: "cut.apply",
+		Input: pin, Title: "Blur behind the host", Agent: "codex", CreatedAt: now}
+	if err := e.a.DB.Insert(ctx, store.CDrafts, draft); err != nil {
 		t.Fatal(err)
 	}
-	d, err = del(mattes.CutoutDeleteIn{DryRun: true}, ops.Caller{Human: true})
-	if err != nil || !d.Allowed || len(d.Older) != 2 || !strings.Contains(d.Summary, "can't show their new background again") {
-		t.Fatalf("only older versions: %+v %v", d, err)
+	blocked("a draft waiting for review", "the draft “Blur behind the host” waiting for review")
+	if _, err := e.a.DB.C(store.CDrafts).UpdateOne(ctx, bson.M{"_id": draft.ID}, bson.M{"$set": bson.M{"state": models.DraftTurnedDown}}); err != nil {
+		t.Fatal(err)
 	}
-	// People only, and for good only when they say so.
-	if _, err := del(mattes.CutoutDeleteIn{Forever: true}, ops.Caller{}); apperr.From(err) == nil || apperr.From(err).Code != apperr.HumanOnly {
+	recipe := models.Recipe{ID: ids.New(ids.Recipe), WorkspaceID: e.a.WorkspaceID(), Name: "beach-recap", Title: "Beach recap"}
+	if err := e.a.DB.Insert(ctx, store.CRecipes, recipe); err != nil {
+		t.Fatal(err)
+	}
+	hash := strings.Repeat("9", 64)
+	rv := models.RecipeVersion{ID: e.a.WorkspaceID() + "/" + hash, WorkspaceID: e.a.WorkspaceID(), RecipeID: recipe.ID, Hash: hash, Number: 2, State: models.RecipeDraft, At: now,
+		Doc: models.RecipeDoc{Sections: []models.RecipeSection{{Name: "intro", Kind: models.RecipeFixed, Clips: []editspec.Clip{{ID: "a", AssetID: other.ID, In: 0, Out: 1,
+			Background: &editspec.ClipBackground{With: editspec.BackgroundBlur, Matte: m.File.SHA256}}}}}}}
+	if err := e.a.DB.Insert(ctx, store.CRecipeVersions, rv); err != nil {
+		t.Fatal(err)
+	}
+	blocked("a version in Recipes", "“Beach recap” (version 2) in Recipes")
+	if _, err := e.a.DB.C(store.CRecipeVersions).DeleteOne(ctx, bson.M{"_id": rv.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Nothing plays it now: an owner, a person, for good.
+	member := ops.OverHTTP(ctx, func() bool { return false })
+	if _, err := ops.CallTyped[mattes.CutoutDeleteOut](member, e.a, "footage.cutout.delete", mattes.CutoutDeleteIn{ID: m.ID, Forever: true}, ops.Caller{Human: true, Remote: true}); apperr.From(err) == nil || apperr.From(err).Code != apperr.Unauthorized {
+		t.Fatalf("a member: %v", err)
+	}
+	if _, err := del(m.ID, mattes.CutoutDeleteIn{Forever: true}, ops.Caller{}); apperr.From(err) == nil || apperr.From(err).Code != apperr.HumanOnly {
 		t.Fatalf("an agent: %v", err)
 	}
-	if _, err := del(mattes.CutoutDeleteIn{}, ops.Caller{Human: true}); apperr.From(err) == nil || apperr.From(err).Code != apperr.ConfirmRequired {
+	if _, err := del(m.ID, mattes.CutoutDeleteIn{}, ops.Caller{Human: true}); apperr.From(err) == nil || apperr.From(err).Code != apperr.ConfirmRequired {
 		t.Fatalf("without forever: %v", err)
 	}
-	d, err = del(mattes.CutoutDeleteIn{Forever: true}, ops.Caller{Human: true})
+	d, err := del(m.ID, mattes.CutoutDeleteIn{Forever: true}, ops.Caller{Human: true})
 	if err != nil || !d.Deleted {
 		t.Fatalf("deleted: %+v %v", d, err)
 	}
@@ -291,8 +332,7 @@ func TestDeletingACutOut(t *testing.T) {
 	if _, err := e.a.Media.Stat(ctx, m.File.Key); err == nil {
 		t.Fatal("the cut-out's file is still in the media store")
 	}
-	// It can be made again.
-	again, err := e.cutout(t, mattes.CutoutIn{})
+	again, err := e.cutout(t, mattes.CutoutIn{AssetID: other.ID})
 	if err != nil || again.Reused || again.JobID == "" {
 		t.Fatalf("made again: %+v %v", again, err)
 	}

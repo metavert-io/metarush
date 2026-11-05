@@ -296,6 +296,9 @@
         },
         "cutOutTrimBefore": {
           "type": "number"
+        },
+        "missing": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,

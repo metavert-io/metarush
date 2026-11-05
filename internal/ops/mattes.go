@@ -70,9 +70,17 @@ func (f *dbFacts) Matte(sha string) (editspec.MatteInfo, bool) {
 func CutOutURL(sha string) string { return "/media/cutouts/" + sha }
 
 // fillCutOuts gives every cut-out a plan plays (nested cuts' too) the
-// preview's address.
+// preview's address; one MetaRush doesn't have gets none, so the preview
+// plays its clip as recorded (a render fails for it).
 func fillCutOuts(plan *editspec.RenderPlan) {
+	missing := map[string]bool{}
+	for _, sha := range editspec.PlanMissingCutOuts(plan) {
+		missing[sha] = true
+	}
 	for _, sha := range editspec.PlanCutOuts(plan) {
+		if missing[sha] {
+			continue
+		}
 		if plan.CutOutSources == nil {
 			plan.CutOutSources = map[string]string{}
 		}

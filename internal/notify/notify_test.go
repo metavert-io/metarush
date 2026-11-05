@@ -138,6 +138,44 @@ func TestBatteryPausedOncePerEpisode(t *testing.T) {
 	}
 }
 
+// What waits is counted in the job labels' words with their plurals (never
+// "2 steady copys" or "3 visuals"); kinds that read the same are one count,
+// and kinds MetaRush has no words for are jobs.
+func TestBatteryPausedSaysWhatWaitsPlainly(t *testing.T) {
+	a := testapp.New(t)
+	ctx := context.Background()
+	since := time.Now().UTC().Add(-time.Minute).Truncate(time.Second)
+	var waiting []models.Job
+	add := func(user, typ string, n int) {
+		for range n {
+			waiting = append(waiting, models.Job{ID: ids.New(ids.Job), Type: typ, CreatedBy: models.Actor{UserID: user}})
+		}
+	}
+	add("usr_maya", "mezzanine", 2)
+	add("usr_maya", "evidence", 1)
+	add("usr_maya", "visual", 3)
+	add("usr_maya", "render", 1)
+	add("usr_maya", "render-shape", 1)
+	add("usr_maya", "a-kind-from-a-newer-build", 1)
+	add("usr_sam", "evidence", 1)
+	BatteryPaused(ctx, a, "studio-mac", 18, 25, since, waiting)
+	want := map[string][2]string{
+		"usr_maya": {"1 job, 3 looks at what's on screen, 2 renders, 1 scene analysis and 2 steady copies paused on studio-mac",
+			"Battery at 18% (below 25%). They resume when you plug in, or choose Process now in the activity bar."},
+		"usr_sam": {"1 scene analysis paused on studio-mac",
+			"Battery at 18% (below 25%). It resumes when you plug in, or choose Process now in the activity bar."},
+	}
+	got := notifications(t, a, models.NotifyBatteryPaused)
+	if len(got) != len(want) {
+		t.Fatalf("%d notifications, want %d", len(got), len(want))
+	}
+	for _, n := range got {
+		if w := want[n.UserID]; n.Title != w[0] || n.Body != w[1] {
+			t.Errorf("%s: %q / %q, want %q / %q", n.UserID, n.Title, n.Body, w[0], w[1])
+		}
+	}
+}
+
 func TestReadySentence(t *testing.T) {
 	cases := map[string][]string{
 		"You can now watch it, read what was said and see its scenes.": {"thumbnail", "preview copy", "frame grid", "transcript", "scene analysis"},
@@ -1258,7 +1296,7 @@ func TestWordHelpers(t *testing.T) {
 	if capFirst("") != "" || capFirst("two people at a table") != "Two people at a table" {
 		t.Errorf("capFirst: %q, %q", capFirst(""), capFirst("two people at a table"))
 	}
-	if got := jobKinds(map[string]int{"render": 1, "diarize": 2, "transcribe": 3, "": 1}); got != "1 job, 2 speaker detections, 1 final render and 3 transcriptions" {
+	if got := jobKinds(map[string]int{"render": 1, "diarize": 2, "transcribe": 3, "": 1}); got != "1 job, 1 render, 2 speaker detections and 3 transcriptions" {
 		t.Errorf("jobKinds = %q", got)
 	}
 	if got := counts(2, 1); got != "2 problems, 1 thing worth checking" {

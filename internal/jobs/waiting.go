@@ -242,42 +242,51 @@ func names(ws []models.WorkerDevice) string {
 // Label is a person-facing name for a job type.
 func Label(typ string) string { return label(typ) }
 
-// typeLabels name every job type for people (TestEveryJobTypeIsNamed holds
-// them to the types in queue.go).
-var typeLabels = map[string]string{
-	TypeThumbnail:       "thumbnail",
-	TypeContactSheet:    "frame grid",
-	TypeWaveform:        "waveform",
-	TypeTranscribe:      "transcription",
-	TypeRender:          "render",
-	TypeRenderShape:     "render",
-	TypeQA:              "quality check",
-	TypeProxy:           "preview copy",
-	TypeMezzanine:       "steady copy",
-	TypeEvidence:        "scene analysis",
-	TypeDiarize:         "speaker detection",
-	TypeVoiceover:       "narration",
-	TypeImport:          "link import",
-	TypeResourceUpload:  "copy of a linked file",
-	TypeVisual:          "look at what's on screen",
-	TypeDescribe:        "scene descriptions",
-	TypeFetch:           "repository or web page",
-	TypeStorageMove:     "media move",
-	TypeGenerate:        "piece of AI work",
-	TypeRemotionImport:  "Remotion project",
-	TypeRemotionRender:  "clip from a Remotion project",
-	TypeInspect:         "measurements for fixes",
-	TypePrepare:         "fixed copy",
-	TypeRemotionTask:    "work on a Remotion project",
-	TypeRemotionRefresh: "refresh of a Remotion project",
-	TypeRemotionPush:    "changes sent back to a repository",
-	TypeAbilityRun:      "run of an ability",
-	TypeSwitches:        "picture changes",
+// Words names a job type for people, one job and more than one ("steady
+// copy", "steady copies"); a type without a label is a job.
+func Words(typ string) (one, many string) {
+	if w, ok := typeLabels[typ]; ok {
+		return w[0], w[1]
+	}
+	return "job", "jobs"
+}
+
+// typeLabels name every job type for people, one job and more than one
+// (TestEveryJobTypeIsNamed holds them to the types in queue.go).
+var typeLabels = map[string][2]string{
+	TypeThumbnail:       {"thumbnail", "thumbnails"},
+	TypeContactSheet:    {"frame grid", "frame grids"},
+	TypeWaveform:        {"waveform", "waveforms"},
+	TypeTranscribe:      {"transcription", "transcriptions"},
+	TypeRender:          {"render", "renders"},
+	TypeRenderShape:     {"render", "renders"},
+	TypeQA:              {"quality check", "quality checks"},
+	TypeProxy:           {"preview copy", "preview copies"},
+	TypeMezzanine:       {"steady copy", "steady copies"},
+	TypeEvidence:        {"scene analysis", "scene analyses"},
+	TypeDiarize:         {"speaker detection", "speaker detections"},
+	TypeVoiceover:       {"narration", "narrations"},
+	TypeImport:          {"link import", "link imports"},
+	TypeResourceUpload:  {"copy of a linked file", "copies of linked files"},
+	TypeVisual:          {"look at what's on screen", "looks at what's on screen"},
+	TypeDescribe:        {"scene description", "scene descriptions"},
+	TypeFetch:           {"repository or web page", "repositories or web pages"},
+	TypeStorageMove:     {"media move", "media moves"},
+	TypeGenerate:        {"piece of AI work", "pieces of AI work"},
+	TypeRemotionImport:  {"Remotion project", "Remotion projects"},
+	TypeRemotionRender:  {"clip from a Remotion project", "clips from Remotion projects"},
+	TypeInspect:         {"measurement for fixes", "measurements for fixes"},
+	TypePrepare:         {"fixed copy", "fixed copies"},
+	TypeRemotionTask:    {"piece of work on a Remotion project", "pieces of work on Remotion projects"},
+	TypeRemotionRefresh: {"refresh of a Remotion project", "refreshes of Remotion projects"},
+	TypeRemotionPush:    {"set of changes sent back to a repository", "sets of changes sent back to repositories"},
+	TypeAbilityRun:      {"run of an ability", "runs of abilities"},
+	TypeSwitches:        {"search for where the picture changes", "searches for where the picture changes"},
 }
 
 func label(typ string) string {
-	if l, ok := typeLabels[typ]; ok {
-		return l
+	if w, ok := typeLabels[typ]; ok {
+		return w[0]
 	}
 	return typ
 }

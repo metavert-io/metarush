@@ -26,9 +26,10 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
 - External programs run only through `internal/tools` (an allowlist, typed arguments, no shell). Downloads are pinned
   by URL and SHA-256, checked before use, and refused under `go test`; a model's licence is read from its own
   repository and recorded with its pin, and is never GPL or for non-commercial use only. Inside WSL, Windows'
-  browser opens only through `tools.OpenInBrowser` (a checked address, cmd.exe's characters escaped), programs on
-  Windows' side of PATH are never run but `cmd.exe`, and WSL is asked of `internal/wsl` (`wsl.Here()`), never read
-  from `/proc` or the environment elsewhere; the dashboard's bind stays 127.0.0.1 there too.
+  browser opens only through `tools.OpenInBrowser` (a checked address at 127.0.0.1, never localhost; Windows' own
+  `rundll32.exe url.dll,FileProtocolHandler` from System32 only, never a command interpreter), programs on Windows'
+  side of PATH are never run, and WSL is asked of `internal/wsl` (`wsl.Here()`), never read from `/proc` or the
+  environment elsewhere; the dashboard's bind stays 127.0.0.1 there too.
 - Tests never call a real service: use the fakes in `internal/testutil` (fakeeleven, fakeyoutube, fakebucket,
   fakerclone, fakeoidc and the rest) and the test MongoDB.
 - Signing in with an organization's account lets nobody in for having an account at the provider: only a linked

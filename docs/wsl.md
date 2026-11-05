@@ -116,11 +116,16 @@ it running.
 ## 5. Opening the dashboard
 
 `metarush dashboard` (and setup's last step) opens the dashboard in your **Windows** browser: through `wslview` when
-it is installed, else Windows' own `cmd.exe` (`start <address>`), which WSL lets Ubuntu run. The address is
-`http://127.0.0.1:4845` with a one-time sign-in; WSL forwards `127.0.0.1` and `localhost` from Windows to Ubuntu, so
-Edge and Chrome reach it as they would on a Mac. If Ubuntu can't start Windows programs (`[interop] enabled=false`),
-MetaRush prints the link and says to open it in your Windows browser.
+it is installed, else Windows' own `rundll32.exe` from `C:\Windows\System32` (`url.dll,FileProtocolHandler
+<address>`, which hands the address to Windows as if you had clicked it; no command interpreter reads it), which WSL
+lets Ubuntu run. MetaRush never runs a copy of it found anywhere else. The address is `http://127.0.0.1:4845` with a
+one-time sign-in; WSL forwards `127.0.0.1` from Windows to Ubuntu, so Edge and Chrome reach it as they would on a Mac.
+If Ubuntu can't start Windows programs (`[interop] enabled=false`), MetaRush prints the link and says to open it in
+your Windows browser.
 
+- **Use `127.0.0.1`, not `localhost`.** For `localhost` a browser tries `[::1]` first, where any program on Windows
+  (and, with mirrored networking, in Ubuntu) could be listening and would get the one-time sign-in. MetaRush's own
+  links say `127.0.0.1`, and it never hands Windows' browser a `localhost` address.
 - **Only this PC can open it.** MetaRush listens on 127.0.0.1 only, inside WSL as everywhere. If you turned on WSL's
   **mirrored networking** (`networkingMode=mirrored` in `.wslconfig`), MetaRush still listens only on this PC: other
   computers on your network can't open it (doctor says so). To open it from other computers, use Tailscale
@@ -143,7 +148,11 @@ changed.
   that come from the Windows side say so: they take longer to add, and copying footage into your Linux home first is
   faster (`cp /mnt/c/Users/<you>/Videos/*.mp4 ~/Videos/`). A drive plugged in after Ubuntu started isn't visible
   until WSL restarts, or you mount it (`sudo mkdir -p /mnt/e && sudo mount -t drvfs E: /mnt/e`); a network folder's
-  Windows address (`\\server\share`) and another Linux's files can't be opened as they are, and MetaRush says so.
+  Windows address (`\\server\share`) and another Linux's files can't be opened as they are, and MetaRush says so,
+  with the command that mounts the share behind Details. A path without its drive (`\Users\<you>`) or relative to a
+  drive's current folder (`C:Videos`) is refused too, never taken as a file in the current folder; so is a
+  `\\wsl.localhost\…` path when MetaRush can't tell which Linux it runs in (`metarush service install` tells the
+  background service the distribution's name, so install it from an Ubuntu terminal).
 - **A watched folder or a linked folder** may be on the Windows side (an OBS recordings folder, say): MetaRush looks
   for new files there every 5 seconds (every 2 on Linux's own disk) and says it comes in more slowly. In the
   dashboard you can type it as Windows gives it, or choose it with Browse folders → Windows folder (inside your
@@ -151,9 +160,15 @@ changed.
 - **Your Linux home in File Explorer**: **Linux** → **Ubuntu** in the navigation pane, or `\\wsl.localhost\Ubuntu\home\<you>`.
   Keep footage, MetaRush's folder and the storage folder there.
 - **Delivering to a Windows folder** works (`metarush deliver --revision <version> --out "C:\Users\<you>\Desktop\Client"`,
-  or a `/mnt/c/…` path), more slowly. Delivered files are named so Windows keeps them. A folder in your OneDrive,
-  Dropbox, Google Drive, Box or iCloud Drive (`C:\Users\<you>\OneDrive`, any case) is a sync folder to MetaRush, as on
-  a Mac: what may leave a client's projects is asked first, and MetaRush never writes a key or password there.
+  or a `/mnt/c/…` path), more slowly. Delivered files are named so Windows keeps them. A sync folder is one to
+  MetaRush, as on a Mac — what may leave a client's projects is asked first, and MetaRush never writes a key or
+  password there: OneDrive, Dropbox, Google Drive, Box or iCloud Drive in your Windows user's folder
+  (`C:\Users\<you>\OneDrive`, `OneDrive - <organization>`, any case) or at the top of any drive (`D:\Dropbox`,
+  `E:\OneDrive`), Google Drive's own drive (`G:\My Drive`), your organization's SharePoint and Teams libraries that
+  OneDrive syncs (`C:\Users\<you>\<organization>`, beside `OneDrive - <organization>`), iCloud Photos
+  (`Pictures\iCloud Photos`), and wherever Dropbox's own settings say its folders are (`info.json` in your Windows
+  user's `AppData`). A sync folder moved deeper than the top of a drive, other than Dropbox's, isn't recognised: keep
+  deliveries for clients outside it or check its name.
 - **Editing apps on Windows**: a timeline sent to an editing app (`metarush export timeline … --media <folder>`) with
   its footage folder on the Windows side gets copies of the footage there (never Ubuntu's links, which Windows apps
   can't follow); the timeline names the footage by its Ubuntu address, so relink it once in the editing app.
@@ -203,14 +218,18 @@ MetaRush (it uses the `metarush` on your PATH, or `METARUSH=<program>`, and neve
 ```bash
 scripts/wsl-smoke.sh            # what MetaRush detects, doctor, and Windows reaching Ubuntu's 127.0.0.1
 scripts/wsl-smoke.sh --setup    # also a throwaway MetaRush: setup with the database on this computer (a download of
-                                # about 85 MB), the dashboard's opener, a Windows path, then everything removed
+                                # about 85 MB), a Windows path, the real opener (a browser window opens), then
+                                # everything removed
 ```
 
 It checks what MetaRush detects (WSL 2, the distribution, interop, systemd) and doctor's WINDOWS checks, and —
 through PowerShell — that Windows reaches a server on Ubuntu's 127.0.0.1. With `--setup` it also sets up a MetaRush of
 its own in a temporary folder (the database on this computer on WSL's kernel, no components, no background service),
-asks which program would open the dashboard (nothing opens), has Windows ask the dashboard for its health at
-127.0.0.1 and localhost, adds a sound file by its `C:\Users\Public\…` path (a dry run), stops it and removes it all.
+asks which program would open the dashboard, has Windows ask the dashboard for its health at 127.0.0.1 (and at
+localhost, which WSL forwards too), adds a sound file by its `C:\Users\Public\…` path (a dry run), then opens a
+sign-in link with `&` and `%` in it through the real opener: Windows' default browser opens (a window appears) and a
+stand-in on the dashboard's port checks the address arrived exactly as MetaRush printed it. Then it stops and removes
+it all.
 Then by hand, in Edge and Chrome:
 
 1. `metarush dashboard`: the dashboard opens in Windows' default browser, signed in.

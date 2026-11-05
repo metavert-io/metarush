@@ -192,12 +192,20 @@ Read `docs/architecture.md` before structural changes.
   the Linux MetaRush inside Ubuntu on Windows. Ask `wsl.Here()` (read once from WSL's files; tests play WSL with
   `wsl.Pretend` and `Probe` stand-ins), never `/proc` or `WSL_DISTRO_NAME` yourself; its `Report` holds the words
   (doctor's WINDOWS checks, setup, `WhatWorks.windows`, `version.show`). WSL 1 is refused by setup and init; the
-  service needs systemd (never edit `/etc/wsl.conf` or `.wslconfig` for a person); Windows' browser opens through the
-  allowlisted `wslview`/`cmd.exe` (`tools.OpenInBrowser`: checked address, `CmdEscape`, quiet) and reaches 127.0.0.1
-  (the bind never changes); programs on Windows' side of PATH are never used but `cmd.exe`. Typed paths go through
-  `wsl.LinuxPath` (`ingest.TypedPath[s]`), Windows-side files say they're slow (`wsl.SlowFiles`, `slow` fields),
-  folders there poll every `wsl.WatchEvery`; the database is refused there (`localdb.ErrWindowsSide`);
-  `secretpath` knows Windows users' sync folders; names written for Windows go through `internal/winname`.
+  service needs systemd (never edit `/etc/wsl.conf` or `.wslconfig` for a person; its unit carries
+  `WSL_DISTRO_NAME`, which WSL gives terminals only); Windows' browser opens through the allowlisted `wslview`, else
+  Windows' own `rundll32.exe url.dll,FileProtocolHandler` (`tools.OpenInBrowser`: an address checked by
+  `BrowserAddress`, at 127.0.0.1 only, never localhost; quiet; no command interpreter ever reads it), and reaches
+  127.0.0.1 (the bind never changes); Windows' programs come only from where Windows keeps them (`tools.windowsOnly`,
+  never PATH), and other programs on Windows' side of PATH are never used; `OpenURL`'s page sits in /tmp (a plain
+  path). Typed paths go through `wsl.LinuxPath` (`ingest.TypedPath[s]`: a path without its drive, relative to a
+  drive's current folder, a server without a share, or `\\wsl.localhost` without this distribution's name is refused;
+  commands in Details quoted with `wsl.ShellQuote`), Windows-side files say they're slow (`wsl.SlowFiles`, `slow`
+  fields), folders there poll every `wsl.WatchEvery`, the Windows user's folder is where links lead
+  (`wsl.InWindowsHome`); the database is refused there (`localdb.ErrWindowsSide`); `secretpath` knows Windows users'
+  sync folders (`secretpath/windows.go`: user folder, a drive's top, SharePoint beside `OneDrive - <org>`, Dropbox's
+  `info.json`); the notes' folder paths are owners' (`Report.WithoutPaths`); names written for Windows go through
+  `internal/winname`.
 - **Project motion graphics** (D68–D70, `internal/motion`, `video/render/motion`, docs/motion-graphics-as-code.md):
   `motion/<name>/` components are versioned by the SHA-256 of a canonical archive Go builds; `motion check` scans the
   parsed TSX against the import allowlist, type-checks, bundles with MetaRush's esbuild config and draws test frames

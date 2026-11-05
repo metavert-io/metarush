@@ -7,15 +7,19 @@
   moves Ubuntu to WSL 2. The background service needs systemd: without it setup says so and what to turn on in
   Ubuntu's WSL settings, and never changes them itself; and since Windows stops Ubuntu shortly after its last window
   closes, MetaRush says which Windows setting keeps it running. `metarush dashboard` opens your Windows browser
-  (through wslview, or Windows' own cmd.exe), which reaches the dashboard at 127.0.0.1 on this PC only, mirrored
-  networking or not. Paths typed or pasted as Windows gives them (`C:\Users\you\Videos\clip.mp4`, in quotes from
-  File Explorer's Copy as path, or `\\wsl.localhost\Ubuntu\…`) work in the terminal and in the watched folder;
+  (through wslview, or Windows' own rundll32.exe from System32, which no command interpreter stands between), which
+  reaches the dashboard at 127.0.0.1 on this PC only, mirrored networking or not; Windows' browser is never handed a
+  localhost address. Paths typed or pasted as Windows gives them (`C:\Users\you\Videos\clip.mp4`, in quotes from
+  File Explorer's Copy as path, or `\\wsl.localhost\Ubuntu\…`) work in the terminal and in the watched folder, and a
+  path without its drive, or relative to a drive's current folder, is refused in plain words;
   files from the Windows side say they come in more slowly and that copying into your Linux home is faster; watched
   and linked folders there are looked through every 5 seconds, and the dashboard can choose one inside your Windows
   user's folder. The database is never kept on the Windows side; a WSL kernel MongoDB 8 can't run on gets MongoDB 7.0,
-  with the advice to update WSL from Windows. Your OneDrive, Dropbox and Google Drive folders on Windows count as sync
-  folders, a timeline's footage on the Windows side is copied rather than linked, and Claude Code, FFmpeg or Node.js
-  installed only on Windows are named rather than used. How to set it up: docs/wsl.md.
+  with the advice to update WSL from Windows. Your OneDrive, Dropbox, Google Drive, Box and iCloud folders on Windows
+  count as sync folders — in your Windows user's folder, at the top of any drive, where Dropbox's settings say, and
+  your organization's SharePoint and Teams libraries — a timeline's footage on the Windows side is copied rather than
+  linked, and Claude Code, FFmpeg or Node.js installed only on Windows are named rather than used. How to set it up:
+  docs/wsl.md.
 - **The renderer says when this computer lacks libraries its browser needs**. A fresh Ubuntu (in WSL, a container or
   a server) often lacks a few of the system libraries Remotion's browser links against, so every render would stop at
   once. Setup's what-works list, Home's Getting started and doctor now say so before the first render, with the one

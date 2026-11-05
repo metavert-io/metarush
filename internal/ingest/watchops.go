@@ -552,15 +552,16 @@ func init() {
 	ops.Def("watch.reveal", "Open the watched folder (or another folder) in Finder", ops.Flags{LocalOnly: true}, RevealFolder)
 	ops.Def("watch.browse", "List folders under your home folder (the watched-folder picker; never leaves the home folder)", ops.Flags{OwnerOnly: true}, func(ctx context.Context, a *app.App, in *BrowseIn) (*BrowseOut, error) {
 		home := realPath(userHome())
-		p := expandHome(in.Path)
+		p := in.Path
+		if typed, err := TypedPath(p); err == nil {
+			p = typed // C:\Users\You\Videos inside WSL (D520)
+		}
+		p = expandHome(p)
 		if p == "" {
 			p = home
 		}
 		if !filepath.IsAbs(p) {
 			return nil, apperr.New(apperr.InvalidInput, "Give the folder's full location, from the top of the disk or your home folder.")
-		}
-		if typed, err := TypedPath(p); err == nil {
-			p = expandHome(typed) // C:\Users\Sam\Videos inside WSL (D520)
 		}
 		p = realPath(filepath.Clean(p))
 		winHome := wsl.HereWindowsHome() // inside WSL: the Windows user's folder may be browsed too (D521)

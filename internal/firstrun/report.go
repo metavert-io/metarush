@@ -112,6 +112,12 @@ func noKeys(cfg *config.Config, ts *tools.Set) []WorksItem {
 	out = append(out, e2)
 	rd := WorksItem{Key: "renders", Name: "Finished videos", Says: "Made on this computer at full quality, in every shape you need (wide, square, vertical)."}
 	switch rs := renderer.New(cfg, ts).Check(false); {
+	case rs.Ready && !renderer.BrowserLibraries(rs.VideoDir).OK():
+		// Its browser lacks some of the system's libraries (a fresh Ubuntu in
+		// WSL): every render would stop at once (D522).
+		libs := renderer.BrowserLibraries(rs.VideoDir)
+		rd.Says = renderer.LibrariesSay + "."
+		rd.Next, rd.Command, rd.Needs = renderer.LibrariesNext, libs.Command, "a few system libraries"
 	case rs.Ready:
 		rd.Ready = true
 	case !has("node"):

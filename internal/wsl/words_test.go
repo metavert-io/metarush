@@ -133,8 +133,13 @@ func TestWordsArePlain(t *testing.T) {
 		says = append(says, e.Plain, e.Next)
 	}
 	i := Info{Version: 2, Distro: "Ubuntu", DistroKnown: true, Drives: map[string]string{"/mnt/c": "c"}}
-	for _, typed := range []string{`E:\x`, `\\wsl.localhost\Debian\x`, `\\nas\share\x`} {
+	for _, typed := range []string{`E:\x`, `\\wsl.localhost\Debian\x`, `\\nas\share\x`, `C:Videos\x`, `\Users\Sam`, `\\nas`} {
 		_, err := i.LinuxPath(typed)
+		pe := err.(*PathError)
+		says = append(says, pe.Plain, pe.Next)
+	}
+	i.DistroKnown = false
+	if _, err := i.LinuxPath(`\\wsl.localhost\Ubuntu\x`); err != nil {
 		pe := err.(*PathError)
 		says = append(says, pe.Plain, pe.Next)
 	}
@@ -145,5 +150,38 @@ func TestWordsArePlain(t *testing.T) {
 		if f := plainwords.Check(s); len(f) > 0 {
 			t.Errorf("%q: %v", s, f)
 		}
+	}
+}
+
+// For someone who isn't an owner the report keeps every word and drops the
+// folders' paths behind Details (they name the Windows user); nothing else
+// changes, and the original is left alone.
+func TestReportWithoutPaths(t *testing.T) {
+	i := Info{Version: 2, Distro: "Ubuntu", DistroKnown: true, Interop: true, Drives: map[string]string{"/mnt/c": "c"}}
+	r := ReportFor(i, WindowsSettings{}, []Place{{What: PlaceStorage, Path: "/mnt/c/Users/Sam/MetaRush"}, {What: PlaceWatched, Path: "/mnt/c/Users/Sam/Videos/OBS"}})
+	w := r.WithoutPaths()
+	if len(w.Notes) != len(r.Notes) || w.Says != r.Says {
+		t.Fatalf("%+v", w)
+	}
+	files := 0
+	for k, n := range w.Notes {
+		o := r.Notes[k]
+		if n.Says != o.Says || n.Next != o.Next || n.Ready != o.Ready || n.Key != o.Key {
+			t.Errorf("words changed: %+v", n)
+		}
+		if n.Key == "files" {
+			files++
+			if n.Command != "" || !strings.Contains(o.Command, "/Users/Sam/") {
+				t.Errorf("paths: %q (was %q)", n.Command, o.Command)
+			}
+		} else if n.Command != o.Command {
+			t.Errorf("%s: %q", n.Key, n.Command)
+		}
+	}
+	if files != 2 {
+		t.Fatalf("%d notes about folders", files)
+	}
+	if (*Report)(nil).WithoutPaths() != nil {
+		t.Fatal("nil")
 	}
 }

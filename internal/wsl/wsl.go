@@ -41,7 +41,7 @@ type Info struct {
 	Name string `json:"name,omitempty"`
 	// Kernel is the Linux kernel's release (`uname -r`).
 	Kernel string `json:"kernel,omitempty"`
-	// Interop: Ubuntu can start Windows programs (cmd.exe), so MetaRush can
+	// Interop: Ubuntu can start Windows programs (rundll32.exe), so MetaRush can
 	// open the Windows browser.
 	Interop bool `json:"interop"`
 	// Systemd: systemd runs as the first process, so the background service
@@ -171,6 +171,20 @@ func (p Probe) Detect() Info {
 	}
 	i.Drives = parseDrives(mounts)
 	return i
+}
+
+// PlainDistroName reports whether name is a distribution's name as WSL allows
+// it (letters, digits, ".", "_" and "-"), safe to write into a setting.
+func PlainDistroName(name string) bool {
+	if name == "" || len(name) > 64 {
+		return false
+	}
+	for _, r := range name {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
 }
 
 // wsl1Kernel reports WSL 1's kernel name: "4.4.0-19041-Microsoft" (and its

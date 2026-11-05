@@ -338,7 +338,7 @@ func ValidateWatchDir(a *app.App, dir string, create, homeOnly bool) (string, er
 	dir = filepath.Clean(dir)
 	// The dashboard chooses inside the home folder; inside WSL also inside
 	// the Windows user's own folder, which Windows guards like a home (D521).
-	if homeOnly && !within(realPath(dir), realPath(userHome())) && !wsl.InWindowsHome(dir) {
+	if homeOnly && !within(realPath(dir), realPath(userHome())) && !wsl.InWindowsHome(realPath(dir)) {
 		msg := "Choose a folder inside your home folder."
 		if wsl.Here().In() {
 			msg = "Choose a folder inside your Linux home folder, or inside your own folder on Windows."

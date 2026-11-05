@@ -15,6 +15,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/config"
 	"github.com/metavert-io/metarush/internal/tools"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // fakeLaunchctl records its calls and keeps a "loaded" flag like launchd.
@@ -245,6 +246,40 @@ func TestLabels(t *testing.T) {
 	other := Options{Home: filepath.Join(u, "studio"), UserHome: u, OS: "linux"}
 	if !strings.HasPrefix(other.Label(), "metarush-") || other.Label() == o.Label() {
 		t.Fatal(other.Label())
+	}
+}
+
+// Inside WSL the unit tells the service its distribution's name, which WSL
+// gives a terminal and not systemd's services (D520), so Windows' paths into
+// it are taken there too; never a name WSL wouldn't allow, nor one WSL didn't
+// say.
+func TestSystemdUnitInsideWSL(t *testing.T) {
+	u := t.TempDir()
+	o := Options{Home: filepath.Join(u, ".metarush"), Exe: exeFile(t), OS: "linux", UserHome: u}
+	for _, c := range []struct {
+		w    wsl.Info
+		want string
+	}{
+		{wsl.Info{Version: 2, Distro: "Ubuntu-24.04", DistroKnown: true}, `"WSL_DISTRO_NAME=Ubuntu-24.04"`},
+		{wsl.Info{Version: 2, Distro: "Ubuntu"}, ""},                          // os-release's name, not WSL's
+		{wsl.Info{Version: 2, Distro: "Ubuntu $(id)", DistroKnown: true}, ""}, // not a name WSL allows
+		{wsl.Info{}, ""},
+	} {
+		restore := wsl.Pretend(c.w)
+		unit := o.Unit()
+		restore()
+		env := ""
+		for _, line := range strings.Split(unit, "\n") {
+			if strings.HasPrefix(line, "Environment=") {
+				env = line
+			}
+		}
+		if !strings.Contains(env, `"METARUSH_SERVICE=systemd"`) {
+			t.Fatalf("%+v: %s", c.w, env)
+		}
+		if c.want == "" && strings.Contains(env, "WSL_DISTRO_NAME") || c.want != "" && !strings.Contains(env, " "+c.want) {
+			t.Errorf("%+v: %s", c.w, env)
+		}
 	}
 }
 

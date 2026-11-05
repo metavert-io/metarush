@@ -100,6 +100,23 @@ func TestWatchedFolderOnTheWindowsSide(t *testing.T) {
 	if _, err := ValidateWatchDir(a, filepath.Join(c, "Users", "Public"), false, true); reason(err) != "outside_home" || !strings.Contains(err.Error(), "your own folder on Windows") {
 		t.Fatalf("another user's folder from the dashboard: %v", err)
 	}
+	// A link in the Windows user's folder that leads out of both homes is
+	// outside them, and nothing is made through it.
+	elsewhere, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(elsewhere, filepath.Join(you, "Elsewhere")); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{filepath.Join(you, "Elsewhere"), filepath.Join(you, "Elsewhere", "New"), `C:\Users\You\Elsewhere\New`} {
+		if _, err := ValidateWatchDir(a, dir, true, true); reason(err) != "outside_home" {
+			t.Fatalf("%s through a link: %v", dir, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(elsewhere, "New")); err == nil {
+		t.Fatal("a folder was made through the link")
+	}
 	if _, err := ValidateWatchDir(a, `E:\Footage`, false, false); reason(err) != "windows_path" || !strings.Contains(err.Error(), "Drive E:") {
 		t.Fatalf("a drive WSL doesn't show: %v", err)
 	}

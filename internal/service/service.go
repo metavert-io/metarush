@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/metavert-io/metarush/internal/tools"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // Platforms.
@@ -302,12 +303,19 @@ func (o Options) Unit() string {
 	if o.WorkerOnly {
 		mode = "worker only"
 	}
+	env := q("PATH="+o.servicePath()) + " " + q("METARUSH_SERVICE=systemd")
+	// Inside WSL the service is told its distribution's name, which WSL gives a
+	// terminal but not systemd's services (D520): a Windows path into it
+	// (\\wsl.localhost\<name>\…) is taken only when the name is known.
+	if w := wsl.Here(); w.In() && w.DistroKnown && wsl.PlainDistroName(w.Distro) {
+		env += " " + q("WSL_DISTRO_NAME="+w.Distro)
+	}
 	return "# Written by `metarush service install`; `metarush service uninstall` removes it.\n" +
 		"[Unit]\nDescription=MetaRush daemon (" + mode + ") for " + strings.ReplaceAll(o.Home, "%", "%%") + "\n" +
 		"Wants=network-online.target\nAfter=network-online.target\n\n" +
 		"[Service]\nType=simple\nExecStart=" + strings.Join(exec, " ") + "\n" +
 		"WorkingDirectory=" + q(o.Home) + "\n" +
-		"Environment=" + q("PATH="+o.servicePath()) + " " + q("METARUSH_SERVICE=systemd") + "\n" +
+		"Environment=" + env + "\n" +
 		"Restart=on-failure\nRestartSec=10\n" +
 		// Stopping or restarting the service stops MetaRush only: the database on this
 		// computer (D254) runs in the same group and is stopped cleanly by `metarush stop`,

@@ -19,8 +19,15 @@ import (
 
 var (
 	drivePathRe = regexp.MustCompile(`^([A-Za-z]):(?:[\\/](.*))?$`)
-	wslUNCRe    = regexp.MustCompile(`(?i)^(?:\\\\|//)(?:wsl\.localhost|wsl\$)[\\/]+([^\\/]+)(?:[\\/]+(.*))?$`)
-	uncRe       = regexp.MustCompile(`^(?:\\\\|//)[^\\/]+[\\/]`)
+	// driveRelRe is a path relative to a folder on a drive (C:Videos\x):
+	// Windows reads it from that drive's current folder, which Ubuntu can't know.
+	driveRelRe = regexp.MustCompile(`^([A-Za-z]):[^\\/]`)
+	wslUNCRe   = regexp.MustCompile(`(?i)^(?:\\\\|//)(?:wsl\.localhost|wsl\$)[\\/]+([^\\/]+)(?:[\\/]+(.*))?$`)
+	// uncRe is any other address starting with two slashes: a network
+	// computer (\\nas, \\nas\share\x), or Windows' own \\?\ and \\.\ forms.
+	uncRe = regexp.MustCompile(`^(?:\\\\|//)`)
+	// shareRe is a network folder's computer and share (\\nas\Sam's Videos).
+	shareRe = regexp.MustCompile(`^(?:\\\\|//)([^\\/]+)[\\/]+([^\\/]+)`)
 )
 
 // PathError is a typed path MetaRush can't open from Ubuntu as it is, said in
@@ -78,8 +85,11 @@ func Unquote(typed string) string {
 // \\wsl.localhost\<this distribution>\home\you → /home/you) and quotes from
 // "Copy as path" go; outside WSL, and for anything that isn't a Windows path,
 // the text comes back as it was typed. A drive WSL doesn't show (one plugged
-// in after it started), another distribution's files and network folders are
-// a *PathError in plain words.
+// in after it started), a Windows path without its drive or relative to a
+// drive's current folder (\Users\Sam, C:Videos), another distribution's
+// files — and any distribution's when WSL didn't say this one's name (a
+// background service may not be told) — and network folders are a
+// *PathError in plain words.
 func (i Info) LinuxPath(typed string) (string, error) {
 	if !i.In() {
 		return typed, nil
@@ -89,26 +99,53 @@ func (i Info) LinuxPath(typed string) (string, error) {
 		letter := strings.ToLower(m[1])
 		base, mounted := i.mountFor(letter)
 		if !mounted {
+			at := ShellQuote(i.driveRoot() + letter)
 			return "", &PathError{Typed: typed, Plain: "Drive " + strings.ToUpper(letter) + ": isn't visible in Ubuntu: WSL shows only the drives it found when it started.",
 				Next:    "Restart WSL (shut it down from Windows, then open Ubuntu again), or mount the drive in Ubuntu (docs/wsl.md says how).",
-				Command: "sudo mkdir -p " + i.driveRoot() + letter + " && sudo mount -t drvfs " + strings.ToUpper(letter) + ": " + i.driveRoot() + letter}
+				Command: "sudo mkdir -p " + at + " && sudo mount -t drvfs " + strings.ToUpper(letter) + ": " + at}
 		}
 		rest := strings.ReplaceAll(m[2], `\`, "/")
 		return path.Join(base, path.Clean("/"+rest)), nil
 	}
+	if m := driveRelRe.FindStringSubmatch(s); m != nil {
+		d := strings.ToUpper(m[1])
+		return "", &PathError{Typed: typed, Plain: "That path doesn't say which folder on drive " + d + ": it starts from, so MetaRush in " + i.distroWord() + " can't find it.",
+			Next: wholeWindowsPath}
+	}
 	if m := wslUNCRe.FindStringSubmatch(s); m != nil {
-		if i.DistroKnown && !strings.EqualFold(m[1], i.Distro) {
+		if !i.DistroKnown {
+			return "", &PathError{Typed: typed, Plain: "MetaRush can't tell from here which Linux on this PC that path is in, so it can't open it.",
+				Next: "Give the path as " + i.distroWord() + " shows it, from the top of its disk, or add the file from a terminal in " + i.distroWord() + "."}
+		}
+		if !strings.EqualFold(m[1], i.Distro) {
 			return "", &PathError{Typed: typed, Plain: "That file is in another Linux on this PC (" + m[1] + "), which MetaRush in " + i.distroWord() + " can't open.",
 				Next: "Copy it into your home folder in " + i.distroWord() + " first, then add it from there."}
 		}
 		return path.Clean("/" + strings.ReplaceAll(m[2], `\`, "/")), nil
 	}
 	if uncRe.MatchString(s) {
-		return "", &PathError{Typed: typed, Plain: "That's a network folder's Windows address, which MetaRush in Ubuntu can't open as it is.",
-			Next:    "Copy the files into your Linux home folder first, or mount the network folder in Ubuntu (docs/wsl.md says how).",
-			Command: "sudo mount -t drvfs '" + s + "' /mnt/share"}
+		e := &PathError{Typed: typed, Plain: "That's a network folder's Windows address, which MetaRush in Ubuntu can't open as it is.",
+			Next: "Copy the files into your Linux home folder first, or mount the network folder in Ubuntu (docs/wsl.md says how)."}
+		if m := shareRe.FindStringSubmatch(s); m != nil && m[1] != "?" && m[1] != "." {
+			e.Command = "sudo mkdir -p /mnt/share && sudo mount -t drvfs " + ShellQuote(`\\`+m[1]+`\`+m[2]) + " /mnt/share"
+		}
+		return "", e
+	}
+	if strings.HasPrefix(s, `\`) {
+		return "", &PathError{Typed: typed, Plain: "That Windows path doesn't say which drive it's on, so MetaRush in " + i.distroWord() + " can't find it.",
+			Next: wholeWindowsPath}
 	}
 	return s, nil
+}
+
+// wholeWindowsPath is what to do about a Windows path without its drive or
+// its first folders.
+const wholeWindowsPath = "Give the whole path, the way File Explorer's Copy as path gives it, with the drive letter first."
+
+// ShellQuote quotes s for a POSIX shell (the commands people copy from
+// Details): in single quotes, each single quote in s written as '"'"'.
+func ShellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
 
 // HereLinuxPath is LinuxPath on this computer.
@@ -333,13 +370,14 @@ func HereWindowsHome() string {
 
 // InWindowsHome reports whether p is inside the Windows user's own folder
 // (the folder itself counts), so the dashboard may choose a folder there as
-// it may in the Linux home (D521).
+// it may in the Linux home (D521). Links are followed as far as the path
+// exists, so a link inside the folder that leads out of it is outside.
 func InWindowsHome(p string) bool {
 	h := HereWindowsHome()
-	if h == "" || p == "" {
+	if h == "" || p == "" || !filepath.IsAbs(p) {
 		return false
 	}
-	h, p = strings.ToLower(filepath.Clean(h)), strings.ToLower(filepath.Clean(p))
+	h, p = strings.ToLower(resolveExisting(filepath.Clean(h))), strings.ToLower(resolveExisting(filepath.Clean(p)))
 	return p == h || strings.HasPrefix(p, h+"/")
 }
 

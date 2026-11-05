@@ -1,7 +1,9 @@
 package wsl
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -67,7 +69,7 @@ func wsl2Files() map[string]string {
 		"mnt/c/Users/Sam/":                    "",
 		"mnt/c/Users/Public/":                 "",
 		"mnt/c/Users/Default/":                "",
-		"mnt/c/Windows/System32/cmd.exe":      "MZ",
+		"mnt/c/Windows/System32/rundll32.exe": "MZ",
 		"mnt/c/Users/Sam/.wslconfig":          "[general]\ninstanceIdleTimeout=-1\n",
 		"mnt/c/Users/Sam/OneDrive - Contoso/": "",
 	}
@@ -224,6 +226,174 @@ func TestLinuxPath(t *testing.T) {
 	}
 	if got, err := root.LinuxPath(`Q:\x`); err != nil || got != "/q/x" {
 		t.Fatalf("no mount table: a guess, not a refusal: %q %v", got, err)
+	}
+}
+
+// What Ubuntu can't tell from a Windows path is refused in plain words, never
+// taken as a file name in the current folder: a path relative to a drive's
+// current folder (C:Videos), one without its drive (\Users\Sam), a network
+// computer without a share, Windows' \\?\ forms — and another Linux's
+// address while WSL didn't say this one's name, as a background service may
+// not be told. The command to mount a network folder quotes its name for the
+// shell, an apostrophe included.
+func TestLinuxPathRefusesWhatItCantTell(t *testing.T) {
+	i := ubuntu("/mnt/c")
+	for typed, says := range map[string]string{
+		`C:foo`:             "which folder on drive C:",
+		`c:Videos\clip.mp4`: "which folder on drive C:",
+		`"D:Exports"`:       "which folder on drive D:",
+		`\Users\Sam\Videos`: "doesn't say which drive",
+		`\x.mp4`:            "doesn't say which drive",
+		`\\server`:          "network folder",
+		`\\`:                "network folder",
+		`//server`:          "network folder",
+		`\\?\C:\x`:          "network folder",
+		`\\.\C:\`:           "network folder",
+		`\\?\UNC\nas\share`: "network folder",
+	} {
+		got, err := i.LinuxPath(typed)
+		var pe *PathError
+		if !errors.As(err, &pe) || !strings.Contains(pe.Plain, says) || pe.Next == "" || got != "" {
+			t.Errorf("%q: %q %v", typed, got, err)
+		}
+		if pe != nil && strings.HasPrefix(typed, `\\`) && pe.Command != "" && !strings.Contains(typed, "UNC") {
+			t.Errorf("%q: a mount command for no share: %s", typed, pe.Command)
+		}
+	}
+	// Without the distribution's name, no \\wsl.localhost address is taken,
+	// this distribution's own spelling included.
+	j := i
+	j.DistroKnown = false
+	for _, typed := range []string{`\\wsl.localhost\Debian\home\x`, `\\wsl.localhost\Ubuntu\home\x`, `//wsl$/Ubuntu/tmp`} {
+		var pe *PathError
+		if got, err := j.LinuxPath(typed); !errors.As(err, &pe) || !strings.Contains(pe.Plain, "can't tell from here which Linux") {
+			t.Errorf("unknown distribution: %q → %q %v", typed, got, err)
+		}
+	}
+	if got, err := j.LinuxPath(`C:\Users\Sam`); err != nil || got != "/mnt/c/Users/Sam" {
+		t.Errorf("drives still work without the name: %q %v", got, err)
+	}
+	// The mount command: the share's own name, quoted for the shell.
+	_, err := i.LinuxPath(`\\nas\Sam's Videos\2026\clip.mp4`)
+	var pe *PathError
+	if !errors.As(err, &pe) {
+		t.Fatal(err)
+	}
+	words := shellWords(t, pe.Command)
+	want := []string{"sudo", "mkdir", "-p", "/mnt/share", "&&", "sudo", "mount", "-t", "drvfs", `\\nas\Sam's Videos`, "/mnt/share"}
+	if strings.Join(words, "|") != strings.Join(want, "|") {
+		t.Fatalf("the command %s reads as %q", pe.Command, words)
+	}
+	for _, s := range []string{"plain", "it's", "a'b'c", "''", "", `\\nas\x y`, `$HOME "x" \n`} {
+		if got := shellWords(t, ShellQuote(s)); len(got) != 1 || got[0] != s {
+			t.Errorf("ShellQuote(%q) = %s reads as %q", s, ShellQuote(s), got)
+		}
+		// …and a real shell reads it back the same.
+		if sh, err := exec.LookPath("sh"); err == nil {
+			out, err := exec.Command(sh, "-c", "printf '%s' "+ShellQuote(s)).Output()
+			if err != nil || string(out) != s {
+				t.Errorf("sh read ShellQuote(%q) as %q (%v)", s, out, err)
+			}
+		}
+	}
+	// The drive's mount point, quoted too.
+	k := Info{Version: 2, Distro: "Ubuntu", DistroKnown: true, DriveRoot: "/windows drives/", Drives: map[string]string{"/windows drives/c": "c"}}
+	if _, err := k.LinuxPath(`E:\x`); !errors.As(err, &pe) || strings.Join(shellWords(t, pe.Command), "|") != "sudo|mkdir|-p|/windows drives/e|&&|sudo|mount|-t|drvfs|E:|/windows drives/e" {
+		t.Fatalf("a drive not shown: %v %q", err, pe.Command)
+	}
+}
+
+// shellWords splits a command as a POSIX shell would (single and double
+// quotes, backslashes outside quotes), enough to check the commands people
+// copy.
+func shellWords(t *testing.T, cmd string) []string {
+	t.Helper()
+	var out []string
+	var cur strings.Builder
+	in, quote := false, byte(0)
+	for k := 0; k < len(cmd); k++ {
+		c := cmd[k]
+		switch {
+		case quote == '\'':
+			if c == '\'' {
+				quote = 0
+			} else {
+				cur.WriteByte(c)
+			}
+		case quote == '"':
+			if c == '"' {
+				quote = 0
+			} else {
+				cur.WriteByte(c)
+			}
+		case c == '\'' || c == '"':
+			quote, in = c, true
+		case c == '\\':
+			k++
+			if k < len(cmd) {
+				cur.WriteByte(cmd[k])
+			}
+			in = true
+		case c == ' ':
+			if in {
+				out = append(out, cur.String())
+				cur.Reset()
+				in = false
+			}
+		default:
+			cur.WriteByte(c)
+			in = true
+		}
+	}
+	if quote != 0 {
+		t.Fatalf("unbalanced quotes in %s", cmd)
+	}
+	if in {
+		out = append(out, cur.String())
+	}
+	return out
+}
+
+// The Windows user's folder is where links lead, not where they are: a link
+// inside it that leads out, and anything below that link, is outside it; a
+// link elsewhere that leads in is inside.
+func TestInWindowsHomeFollowsLinks(t *testing.T) {
+	tmp, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := filepath.Join(tmp, "mnt", "c")
+	sam := filepath.Join(c, "Users", "Sam")
+	elsewhere := filepath.Join(tmp, "elsewhere")
+	for _, d := range []string{filepath.Join(sam, "Videos"), elsewhere, filepath.Join(tmp, "home")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(elsewhere, filepath.Join(sam, "Out")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(sam, "Videos"), filepath.Join(tmp, "home", "win")); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("USERPROFILE", `C:\Users\Sam`)
+	t.Cleanup(Pretend(Info{Version: 2, Distro: "Ubuntu", DistroKnown: true, Interop: true, DriveRoot: "/mnt/", Drives: map[string]string{c: "c"}}))
+	if HereWindowsHome() != sam {
+		t.Fatalf("Windows home %q", HereWindowsHome())
+	}
+	for p, in := range map[string]bool{
+		sam:                                    true,
+		filepath.Join(sam, "Videos"):           true,
+		filepath.Join(sam, "videos", "New"):    true,
+		filepath.Join(sam, "Out"):              false,
+		filepath.Join(sam, "Out", "New"):       false,
+		filepath.Join(tmp, "home", "win", "x"): true,
+		elsewhere:                              false,
+		"Users/Sam":                            false,
+	} {
+		if got := InWindowsHome(p); got != in {
+			t.Errorf("InWindowsHome(%s) = %v", p, got)
+		}
 	}
 }
 

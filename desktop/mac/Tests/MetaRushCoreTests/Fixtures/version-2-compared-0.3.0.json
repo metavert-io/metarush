@@ -1,0 +1,17 @@
+{
+  "data": {
+    "version": "0.2.0",
+    "release": "0.2.0",
+    "dev": false,
+    "commit": "bbbbbbb",
+    "date": "2026-11-03T00:00:00Z",
+    "releaseDate": "2026-10-20",
+    "editSpec": 12,
+    "compared": {
+      "other": "0.3.0",
+      "order": -1,
+      "known": true
+    }
+  },
+  "ok": true
+}

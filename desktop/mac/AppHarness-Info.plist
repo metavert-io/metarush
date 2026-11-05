@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  AppHarness's identity (tests and the build only, never shipped), linked into its executable
+  (Package.swift). Its preferences, where Sparkle keeps the date a signed feed first failed, go to
+  this identifier, which the update test removes before and after: never to a name of its own in
+  the person's Library (D478).
+-->
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>io.metarush.app-update-test.harness</string>
+	<key>CFBundleName</key>
+	<string>AppHarness</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+</dict>
+</plist>

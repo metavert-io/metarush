@@ -72,13 +72,50 @@ type Status struct {
 	// WorkerOnly says the service runs without the dashboard.
 	WorkerOnly bool   `json:"workerOnly"`
 	Binary     string `json:"binary,omitempty"` // the metarush the service runs
-	SameBinary bool   `json:"sameBinary"`       // ... is the binary asking
-	Home       string `json:"home"`
-	Log        string `json:"log"`
+	SameBinary bool   `json:"sameBinary"`       // ... is the binary asking (links followed)
+	// OtherCopy: the service starts another copy of MetaRush than the one
+	// asking, which asks before it takes such a service over (D473). A link
+	// that leads to the program asking (~/.local/bin/metarush → this one) is
+	// this copy; which copy actually runs is the daemon's own record
+	// (DaemonState.Program), which a link changed later doesn't change.
+	OtherCopy bool   `json:"otherCopy,omitempty"`
+	Home      string `json:"home"`
+	Log       string `json:"log"`
 	// Linger (systemd) says whether it also runs while nobody is logged in.
 	Linger  *bool  `json:"linger,omitempty"`
 	Problem string `json:"problem,omitempty"`
 	Fix     string `json:"fix,omitempty"`
+	// Daemon is the MetaRush running for this home, whoever started it (this
+	// service or the dashboard), as it says it is; nil when none runs. Only
+	// `metarush service status` fills it (D474): the Mac app checks that the
+	// build answering after an update is the new one.
+	Daemon *DaemonState `json:"daemon,omitempty"`
+}
+
+// DaemonState is the running MetaRush as its record (state/daemon.json) and
+// its dashboard's health check say.
+type DaemonState struct {
+	PID       int       `json:"pid"`
+	Port      int       `json:"port,omitempty"`
+	Mode      string    `json:"mode,omitempty" jsonschema:"enum=,enum=full,enum=worker-only"`
+	Service   string    `json:"service,omitempty"` // launchd | systemd when the service started it
+	StartedAt time.Time `json:"startedAt"`
+	// Version and Commit are the build that answered the health check (a
+	// worker without the dashboard: Version from its record, no Commit).
+	Version string `json:"version,omitempty"`
+	Commit  string `json:"commit,omitempty"`
+	// Answering: its dashboard answered just now.
+	Answering bool `json:"answering"`
+	// Program is the program file the daemon runs, as it found itself when it
+	// started (links followed then, so a link changed since doesn't change
+	// it); "" from builds that didn't record it.
+	Program string `json:"program,omitempty"`
+	// SameCopy: the daemon runs this copy of MetaRush — the program file where
+	// the asking one is (an older build there counts); nil when it didn't say.
+	SameCopy *bool `json:"sameCopy,omitempty"`
+	// Newer: the daemon is a newer build than the asking program, which then
+	// leaves it alone (D472).
+	Newer bool `json:"newer,omitempty"`
 }
 
 // Plan is what install writes and runs (shown by --dry-run).
@@ -443,6 +480,7 @@ func (o Options) Get(ctx context.Context) Status {
 	st.Binary, st.WorkerOnly = parseProgram(string(b), p)
 	if o.Exe != "" && st.Binary != "" {
 		st.SameBinary = sameFile(st.Binary, o.Exe)
+		st.OtherCopy = !st.SameBinary
 	}
 	if p == Systemd {
 		out, err := o.run(ctx, []string{tools.Systemctl, "--user", "show", o.Label(), "--property=LoadState,ActiveState,SubState,MainPID,ExecMainStatus,UnitFileState"})
@@ -550,14 +588,28 @@ func parseProgram(content, platform string) (string, bool) {
 
 // StableExecutable is the path of this binary that survives upgrades: a
 // Homebrew Cellar path (which changes with every version) becomes the
-// <prefix>/opt/metarush link.
+// <prefix>/opt/metarush link, and the copy inside MetaRush.app stays where
+// the app is (an update replaces the app in place). A temporary copy macOS
+// made of the app is refused (ErrTemporaryCopy).
 func StableExecutable() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
+	return stableFrom(exe)
+}
+
+// ErrTemporaryCopy: this MetaRush runs from the temporary copy macOS makes of
+// an app opened where it was downloaded (App Translocation), a folder that is
+// gone after a restart, so nothing may be set to run from there (D476).
+var ErrTemporaryCopy = errors.New("MetaRush is running from a temporary copy macOS made of the app")
+
+func stableFrom(exe string) (string, error) {
 	if abs, err := filepath.Abs(exe); err == nil {
 		exe = abs
+	}
+	if strings.Contains(exe, "/AppTranslocation/") {
+		return "", ErrTemporaryCopy
 	}
 	if i := strings.Index(exe, "/Cellar/"); i > 0 {
 		prefix, base := exe[:i], filepath.Base(exe)
@@ -599,6 +651,31 @@ type Daemon struct {
 	// service manager that started it (launchd | systemd), if any.
 	Mode    string `json:"mode,omitempty"`
 	Service string `json:"service,omitempty"`
+	// Program is the copy of MetaRush it runs (ThisProgram, when it started),
+	// so the record keeps saying which copy runs even when a link to it is
+	// changed later (D474).
+	Program string `json:"program,omitempty"`
+}
+
+// ThisProgram is the copy of MetaRush this program is: its file with every
+// link followed, then the lasting path of that file (StableExecutable's: a
+// Homebrew version folder becomes Homebrew's own path for the formula, which an
+// upgrade keeps). A daemon records it as its Program; another program compares
+// its own with it, so a link changed later can't make another copy look like
+// this one. An update that replaces the file in place (MetaRush.app's) keeps
+// the path, so an older build there still counts as this copy.
+func ThisProgram() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	}
+	if stable, err := stableFrom(exe); err == nil {
+		return stable
+	}
+	return exe
 }
 
 // ReadDaemon reads a home's daemon record; ok is false when no daemon runs.

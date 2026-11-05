@@ -1,0 +1,115 @@
+{
+  "data": {
+    "home": "/Users/you/.metarush",
+    "setUp": true,
+    "storage": {
+      "suggested": "folder",
+      "folder": "/Users/you/.metarush/media",
+      "says": "Footage, preview copies and finished videos are kept in a folder on this computer; a cloud storage bucket your team shares is the advanced choice."
+    },
+    "database": {
+      "suggested": "here",
+      "here": true,
+      "says": "Your projects are kept in a database on this computer; MetaRush keeps it running."
+    },
+    "port": 4851,
+    "service": {
+      "suggested": false,
+      "installed": true,
+      "running": true,
+      "otherCopy": true,
+      "otherVersion": "0.3.0",
+      "newer": true,
+      "says": "MetaRush already starts when you log in, from another copy that is newer than this one (version 0.3.0), so setup leaves it as it is."
+    },
+    "skills": {
+      "suggested": true,
+      "claudeInstalled": true,
+      "says": "Claude Code learns MetaRush's video skills, so you can edit by asking."
+    },
+    "components": [
+      {
+        "name": "ffmpeg",
+        "title": "FFmpeg",
+        "unlocks": "Bringing in footage",
+        "features": [
+          "Bringing in footage"
+        ],
+        "required": false,
+        "suggested": true,
+        "ready": true,
+        "status": "ready",
+        "says": "FFmpeg is on this computer.",
+        "size": "45 MB",
+        "time": "about a minute",
+        "how": "homebrew",
+        "canRemove": false,
+        "ticked": false,
+        "downloadMB": 45,
+        "minutes": 1
+      },
+      {
+        "name": "node",
+        "title": "Node.js",
+        "unlocks": "Runs the renderer",
+        "features": [
+          "Runs the renderer"
+        ],
+        "required": false,
+        "suggested": true,
+        "ready": false,
+        "status": "missing",
+        "says": "Node.js isn't on this computer yet.",
+        "size": "50 MB",
+        "time": "about a minute",
+        "how": "homebrew",
+        "canRemove": false,
+        "ticked": true,
+        "downloadMB": 50,
+        "minutes": 1
+      },
+      {
+        "name": "renderer",
+        "title": "The Remotion renderer",
+        "unlocks": "Finished videos and review copies",
+        "features": [
+          "Finished videos and review copies"
+        ],
+        "required": false,
+        "suggested": true,
+        "ready": false,
+        "status": "missing",
+        "says": "The Remotion renderer isn't on this computer yet.",
+        "size": "400 MB",
+        "time": "about a minute",
+        "licence": "Remotion, which renders your videos, is free for individuals and for companies of up to 3 people; larger companies need a Remotion Company License (remotion.dev/license) before using it.",
+        "how": "homebrew",
+        "canRemove": false,
+        "ticked": true,
+        "downloadMB": 400,
+        "minutes": 5
+      },
+      {
+        "name": "studio-voice",
+        "title": "Studio voices",
+        "unlocks": "Studio voices",
+        "features": [
+          "Studio voices"
+        ],
+        "required": false,
+        "suggested": false,
+        "ready": false,
+        "status": "missing",
+        "says": "Studio voices isn't on this computer yet.",
+        "size": "1.8 GB",
+        "time": "about a minute",
+        "how": "homebrew",
+        "canRemove": false,
+        "ticked": false,
+        "downloadMB": 1800,
+        "minutes": 15
+      }
+    ]
+  },
+  "ok": true
+}

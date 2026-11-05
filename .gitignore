@@ -16,6 +16,9 @@
 /dist/
 /metarush
 *.test
+# MetaRush.app (desktop/mac): SwiftPM's build folder and scripts/mac-app.sh's output
+desktop/mac/.build/
+desktop/mac/.swiftpm/
 coverage.out
 # Coverage (scripts/coverage.sh, npm run test:coverage -w web)
 .coverage/

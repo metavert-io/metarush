@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "E_NOT_CONFIGURED",
+    "message": "MetaRush isn't set up on this machine yet",
+    "hint": "MetaRush's checkup (doctor) says what is wrong and how to fix it.",
+    "details": {
+      "command": "metarush doctor"
+    }
+  },
+  "ok": false
+}

@@ -20,7 +20,9 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
 ## Secrets and outside services
 - Keys never go into argv, logs, the database, `config.yaml`, errors or responses: the keychain or the home's secrets
   file through `internal/providers` and `internal/secretpath`. New kinds of secret are registered with the activity
-  log's redactor. A database address with a password comes from stdin or the environment.
+  log's redactor — a value from a request (a link, ticket, state, code, pairing, password) only once it is found
+  real, never before: a made-up one would hide that word everywhere in the log. A database address with a password
+  comes from stdin or the environment.
 - External programs run only through `internal/tools` (an allowlist, typed arguments, no shell). Downloads are pinned
   by URL and SHA-256, checked before use, and refused under `go test`; a model's licence is read from its own
   repository and recorded with its pin, and is never GPL or for non-commercial use only.
@@ -75,6 +77,20 @@ the full rulebook and `docs/architecture.md` describes the system; where this su
   `dangerouslySetInnerHTML`.
 - Everything a person reads is plain words for a video maker: no IDs, codes, flags or JSON outside Details,
   `--details` or `--json` (`internal/plainwords` enforces it). The word "recipe" belongs to the Recipes feature only.
+
+## MetaRush.app (desktop/mac)
+- The Mac app adds no behaviour of its own: it runs the `metarush` it carries with `--json` and shows the answers.
+  Decisions live in `MetaRushCore` (tested headlessly); the app target stays thin; the app never asks for or keeps a
+  password or key. Text it shows goes in `Words.swift` (checked by `TestAppSpeaksPlainly`).
+- Its updates are EdDSA-signed (Sparkle), the feed too, and checked before anything is unpacked
+  (`SURequireSignedFeed`, `SUVerifyUpdateBeforeExtraction`, `SUSignedFeedFailureExpirationInterval` 0 in
+  `desktop/mac/Info.plist`: keep all three; updates are zips only): no private key
+  and no real public key in the repository; the test key is made at run time. A change to an answer the app reads
+  regenerates its fixtures (`TestMacAppFixtures`, from typed outputs, never hand-written maps). Tests never run the
+  built app or its program against a real home, service or `~/.local/bin`, never write the person's preferences and
+  never register a login item.
+- Another copy of MetaRush (Homebrew, a script, a link) is never taken over, stopped or replaced without the person's
+  yes, and never when it is newer; a worker stays a worker.
 
 ## Repository hygiene
 No real people, organisations, hostnames, tokens or deployment identifiers in code, tests, fixtures or docs; tests use

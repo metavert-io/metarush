@@ -1,0 +1,12 @@
+{
+  "data": {
+    "dir": "/Users/you/.claude/skills",
+    "installed": [
+      "video-render/SKILL.md"
+    ],
+    "updated": [],
+    "unchanged": [],
+    "skippedModified": []
+  },
+  "ok": true
+}

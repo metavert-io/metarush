@@ -53,6 +53,8 @@ type daemonState struct {
 	// manager that started it (launchd | systemd), empty for `metarush dashboard`.
 	Mode    string `json:"mode,omitempty"`
 	Service string `json:"service,omitempty"`
+	// Program is the program file it runs, links followed now (D474).
+	Program string `json:"program,omitempty"`
 }
 
 func serveCmd() *cobra.Command {
@@ -288,7 +290,7 @@ func serveCmd() *cobra.Command {
 			// Drafts from videos someone liked that no computer finished (its
 			// claim gone stale, or the last look's news missed) are made (D444).
 			go recipes.RunDraftSweep(ctx, a, srv.Log)
-			st := daemonState{PID: os.Getpid(), Port: a.Cfg.Dashboard.Port, StartedAt: time.Now().UTC(), Version: versionString(), Mode: "full", Service: os.Getenv("METARUSH_SERVICE")}
+			st := daemonState{PID: os.Getpid(), Port: a.Cfg.Dashboard.Port, StartedAt: time.Now().UTC(), Version: versionString(), Mode: "full", Service: os.Getenv("METARUSH_SERVICE"), Program: service.ThisProgram()}
 			if workerOnly {
 				st.Mode, st.Port = "worker-only", 0
 			}
@@ -403,7 +405,7 @@ func serveHeld(c *cobra.Command, a *app.App, ctx context.Context, cancel context
 			}
 		}
 	}()
-	st := daemonState{PID: os.Getpid(), Port: a.Cfg.Dashboard.Port, StartedAt: time.Now().UTC(), Version: versionString(), Mode: "held", Service: os.Getenv("METARUSH_SERVICE")}
+	st := daemonState{PID: os.Getpid(), Port: a.Cfg.Dashboard.Port, StartedAt: time.Now().UTC(), Version: versionString(), Mode: "held", Service: os.Getenv("METARUSH_SERVICE"), Program: service.ThisProgram()}
 	if workerOnly {
 		st.Port = 0
 	}
@@ -447,7 +449,7 @@ func serveClient(c *cobra.Command, a *app.App, ctx context.Context, cancel conte
 			}
 		}
 	}()
-	st := daemonState{PID: os.Getpid(), Port: a.Cfg.Dashboard.Port, StartedAt: time.Now().UTC(), Version: versionString(), Mode: "client", Service: os.Getenv("METARUSH_SERVICE")}
+	st := daemonState{PID: os.Getpid(), Port: a.Cfg.Dashboard.Port, StartedAt: time.Now().UTC(), Version: versionString(), Mode: "client", Service: os.Getenv("METARUSH_SERVICE"), Program: service.ThisProgram()}
 	if workerOnly {
 		st.Port = 0
 	}
@@ -665,7 +667,7 @@ func dashboardCmd() *cobra.Command {
 			if next != "" {
 				u += "&next=" + next
 			}
-			res := map[string]any{"url": u, "started": started, "expiresInMinutes": 10, "dashboard": base, "remote": remoteLink}
+			res := DashboardOut{URL: u, Started: started, ExpiresInMinutes: 10, Dashboard: base, Remote: remoteLink}
 			return emit(c, res, func() {
 				if started {
 					fmt.Fprintln(os.Stderr, "Started MetaRush in the background.")
@@ -722,6 +724,33 @@ func openBrowser(u string) {
 	}
 }
 
+// StopOut is `metarush stop --json`.
+type StopOut struct {
+	Stopped bool `json:"stopped"`
+	// Reason says why nothing was stopped ("not running").
+	Reason  string `json:"reason,omitempty"`
+	PID     int    `json:"pid,omitempty"`
+	Service string `json:"service,omitempty"` // the service manager that runs it (it starts again at login)
+	// DatabaseStopped: the database on this computer stopped too.
+	DatabaseStopped bool `json:"databaseStopped"`
+}
+
+// DashboardOut is `metarush dashboard --json`: a one-time sign-in link.
+type DashboardOut struct {
+	URL              string `json:"url"`
+	Started          bool   `json:"started"` // MetaRush was started for it
+	ExpiresInMinutes int    `json:"expiresInMinutes"`
+	Dashboard        string `json:"dashboard"` // the dashboard's address, without the sign-in
+	Remote           bool   `json:"remote"`    // a link for another computer (--remote)
+}
+
+// MigrateOut is `metarush migrate --json`.
+type MigrateOut struct {
+	Applied        []string          `json:"applied"`
+	CatchUp        []catchup.Outcome `json:"catchUp"`
+	RendererNotice string            `json:"rendererNotice"`
+}
+
 func stopCmd() *cobra.Command {
 	var keepDB bool
 	c := &cobra.Command{
@@ -754,7 +783,7 @@ func stopCmd() *cobra.Command {
 				if dbErr != nil {
 					return failErr(c, databaseErr(dbErr, "The database on this computer didn't stop"))
 				}
-				return emit(c, map[string]any{"stopped": false, "reason": "not running", "databaseStopped": dbStopped}, func() {
+				return emit(c, StopOut{Reason: "not running", DatabaseStopped: dbStopped}, func() {
 					fmt.Println("MetaRush isn't running in the background on this machine.")
 					if dbStopped {
 						fmt.Println("Stopped the database on this computer.")
@@ -769,7 +798,7 @@ func stopCmd() *cobra.Command {
 			}
 			if err := syscall.Kill(st.PID, syscall.SIGTERM); err != nil {
 				_ = os.Remove(filepath.Join(cfg.StateDir(), "daemon.json"))
-				return emit(c, map[string]any{"stopped": false, "reason": err.Error()}, func() {
+				return emit(c, StopOut{Reason: err.Error()}, func() {
 					fmt.Println("MetaRush wasn't running in the background on this machine.")
 					if detailsMode(c) {
 						fmt.Println("reason:", err)
@@ -784,7 +813,7 @@ func stopCmd() *cobra.Command {
 			if dbErr != nil {
 				return failErr(c, databaseErr(dbErr, "MetaRush stopped, but the database on this computer didn't"))
 			}
-			return emit(c, map[string]any{"stopped": true, "pid": st.PID, "service": st.Service, "databaseStopped": dbStopped}, func() {
+			return emit(c, StopOut{Stopped: true, PID: st.PID, Service: st.Service, DatabaseStopped: dbStopped}, func() {
 				fmt.Println("Stopped MetaRush on this machine.")
 				if dbStopped {
 					fmt.Println("Stopped the database on this computer too.")
@@ -996,7 +1025,7 @@ func migrateCmd() *cobra.Command {
 			// An installation that rendered from a checkout hears, once, that it
 			// now renders with this version's own renderer.
 			notice := renderer.New(a.Cfg, a.Tools).NoticeOnce()
-			return emit(c, map[string]any{"applied": applied, "catchUp": outs, "rendererNotice": notice}, func() {
+			return emit(c, MigrateOut{Applied: applied, CatchUp: outs, RendererNotice: notice}, func() {
 				if notice != "" {
 					fmt.Println(rendererNoticeWords)
 					if detailsMode(c) {

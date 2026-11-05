@@ -1,0 +1,28 @@
+{
+  "data": {
+    "platform": "launchd",
+    "label": "metarush.daemon",
+    "file": "/Users/you/Library/LaunchAgents/metarush.daemon.plist",
+    "installed": true,
+    "loaded": true,
+    "running": true,
+    "workerOnly": false,
+    "binary": "/Users/you/.local/bin/metarush",
+    "sameBinary": true,
+    "home": "/Users/you/.metarush",
+    "log": "/Users/you/.metarush/logs/daemon.log",
+    "daemon": {
+      "pid": 4242,
+      "port": 4845,
+      "mode": "full",
+      "service": "launchd",
+      "startedAt": "2026-11-03T12:00:00Z",
+      "version": "0.1.0",
+      "commit": "aaaaaaa",
+      "answering": true,
+      "program": "/Applications/MetaRush.app/Contents/Helpers/metarush",
+      "sameCopy": true
+    }
+  },
+  "ok": true
+}

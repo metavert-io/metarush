@@ -1,6 +1,36 @@
 # Changelog
 
 ## Unreleased
+- **On a Mac, MetaRush is an app that sets itself up and keeps itself up to date**. MetaRush.app is a small menu-bar
+  app: drag it into Applications, open it, and its panels ask setup's questions with the suggested answers — where
+  footage and projects are kept, MetaRush starting when you log in, the app opening when you log in, Claude Code's
+  skills, the optional components — then set MetaRush up and open the dashboard. It never asks for a password or a
+  key: a cloud bucket or a database you already have is set up in Terminal. Its menu says whether MetaRush is running,
+  its version, whether another copy runs it and the first problems the checkup found, and has Open MetaRush, Check for
+  Updates…, Start/Stop MetaRush, Show Logs and Open at Login. Updates and the list of them come signed and are checked
+  before anything is downloaded or unpacked; after an update to a newer version the app brings MetaRush up to date
+  once (Claude Code's skills, the renderer, your projects' records), restarts it and checks the new version is the
+  one running — an update that didn't finish is offered again with Try Again, never retried by itself. Where another
+  copy of MetaRush already runs (Homebrew, a script), the app opens no panels by itself, asks before it takes that
+  copy's place in the background, in the terminal link or in Applications, and never replaces a newer copy. It
+  carries the metarush program and, if you agree, links it so your terminal and Claude Code find it (another copy
+  already there is kept). Linux keeps its background service and Windows the browser. How it works and how it is
+  built and released: docs/mac-app.md.
+- **Setup's questions, and which MetaRush is running, for scripts and apps**. `metarush setup questions --json` gives
+  what setup would ask on this computer with its suggested answers and the components it ticks, changing nothing;
+  `metarush service status --json` adds the MetaRush running for the home, the version and commit it answers with and
+  the copy of MetaRush it runs (`daemon`: `program`, `sameCopy`, `newer`; `otherCopy` when the service starts another
+  copy); `metarush doctor --json` carries each check's plain words (`say`, `do`). When another
+  copy of MetaRush runs the background service, `metarush setup` leaves it as it is unless asked
+  (`--take-over-service`, or yes at its question) and never lets an older copy take a newer one's place; setting the
+  service up again keeps a worker without the dashboard a worker. `metarush service install --keep-newer` changes
+  nothing when a newer copy runs, or one that doesn't say which version it is; `metarush version --compare <version>`
+  says whether this MetaRush is newer, the same or older. The background service is never set to run from the temporary copy macOS makes of
+  an app opened where it was downloaded.
+- **Made-up sign-in values can't hide words in the activity log**. A sign-in link, an organization sign-in's answer,
+  a browser extension's pairing code or token, or a password that someone sends MetaRush is kept out of the activity
+  log only once it turns out to be real. Before, whatever a visitor sent there was taken for a secret, so a made-up
+  one equal to a word — a person's email, say — blanked that word out of every later entry.
 - **Replace the background behind the people in a clip**. On a clip in the Edit tab, **Replace the background…** puts
   a colour, a blur of the clip itself, a picture from the resources library or another clip behind the people in it,
   their edges softened, with a still to check it first; the preview, the review copy and the final render show it the

@@ -1,0 +1,15 @@
+{
+  "data": {
+    "platform": "launchd",
+    "label": "metarush.daemon",
+    "file": "/Users/you/Library/LaunchAgents/metarush.daemon.plist",
+    "installed": false,
+    "loaded": false,
+    "running": false,
+    "workerOnly": false,
+    "sameBinary": false,
+    "home": "/Users/you/.metarush",
+    "log": "/Users/you/.metarush/logs/daemon.log"
+  },
+  "ok": true
+}

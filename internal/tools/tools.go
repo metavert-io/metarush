@@ -311,10 +311,15 @@ func (s *Set) webBrowser(ctx context.Context) string {
 // OpenPageKept is how long the page OpenURL opens is kept for the browser to read.
 var OpenPageKept = time.Minute
 
-// RevealFolder opens a folder in Finder (macOS) or the desktop's file manager (Linux).
+// RevealFolder opens a folder in Finder (macOS) or the desktop's file manager
+// (Linux). Inside WSL there is no file manager the person sees (Windows'
+// File Explorer isn't one of MetaRush's programs): ErrUnsupported.
 func (s *Set) RevealFolder(ctx context.Context, dir string) error {
 	if strings.HasPrefix(dir, "-") || !filepath.IsAbs(dir) {
 		return fmt.Errorf("refusing to open %q", dir)
+	}
+	if wsl.Here().In() {
+		return ErrUnsupported
 	}
 	switch {
 	case runtime.GOOS == "darwin" && s.Has(Open):

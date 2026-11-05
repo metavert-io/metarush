@@ -111,7 +111,7 @@ func TestWatchedFolderOnTheWindowsSide(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.EverySeconds != 5 || !strings.Contains(st.Slow, "on the Windows side (C:)") || st.DisplayDir != `C:\Users\You\Videos\OBS` {
+	if st.EverySeconds != 5 || !strings.Contains(st.Slow, "on the Windows side (C:)") || st.DisplayDir != `C:\Users\You\Videos\OBS` || st.CanReveal {
 		t.Fatalf("status: %+v", st)
 	}
 	// The watcher looks every 5 s there.

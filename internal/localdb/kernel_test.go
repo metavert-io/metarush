@@ -329,9 +329,13 @@ func TestAnUpgradeWithinTheSeriesNeedsNoOldServer(t *testing.T) {
 // A kernel WSL 2 brings from Windows (D522): judged like any other, and what
 // to do is WSL's (update it from Windows), never the distribution's packages.
 func TestWSLKernels(t *testing.T) {
-	today := Kernel{Release: "6.6.87.2-microsoft-standard-WSL2", Version: "#1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025"}
-	if KernelRefuses(Current.Version, today) || !today.FromWSL() {
-		t.Fatalf("WSL's kernel today: %v %v", KernelRefuses(Current.Version, today), today.FromWSL())
+	for _, k := range []Kernel{
+		{Release: "6.6.87.2-microsoft-standard-WSL2", Version: "#1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025"},
+		{Release: "6.18.54.1-microsoft-standard-WSL2", Version: "#1 SMP PREEMPT_DYNAMIC"}, // WSL 3.0.3 (GitHub's Windows runner, Nov 2026)
+	} {
+		if KernelRefuses(Current.Version, k) || !k.FromWSL() {
+			t.Fatalf("WSL's kernel %s: %v %v", k.Release, KernelRefuses(Current.Version, k), k.FromWSL())
+		}
 	}
 	later := Kernel{Release: "6.19.4.1-microsoft-standard-WSL2", Version: "#1 SMP"}
 	if !KernelRefuses(Current.Version, later) || KernelRefuses(Older.Version, later) {

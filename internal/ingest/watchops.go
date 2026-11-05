@@ -403,6 +403,10 @@ func watchStatus(ctx context.Context, a *app.App) *WatchStatusOut {
 	out := &WatchStatusOut{Enabled: w.Enabled, Dir: w.Dir, DisplayDir: DisplayPath(w.Dir), ProjectID: w.ProjectID, MoveProcessed: w.MoveProcessed,
 		StableSeconds: w.StableSeconds, Suggested: sug, SuggestedDisplay: DisplayPath(sug), ConfigPath: config.Path(a.Cfg.Home()),
 		CanChoose: runtime.GOOS == "darwin" && a.Tools.Has(tools.OSAScript), CanReveal: (runtime.GOOS == "darwin" && a.Tools.Has(tools.Open)) || (runtime.GOOS == "linux" && a.Tools.Has(tools.XDGOpen))}
+	if wsl.Here().In() {
+		// Inside WSL no picker or file manager shows on the person's screen (D518).
+		out.CanChoose, out.CanReveal = false, false
+	}
 	if w.Dir != "" {
 		out.Skipped = CountSkipped(a.Cfg.StateDir(), w.Dir)
 	}

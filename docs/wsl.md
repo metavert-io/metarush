@@ -75,9 +75,9 @@ metarush setup
 Setup says it runs in Ubuntu on Windows and asks its usual questions. The suggested answers are right for WSL:
 
 - **The database on this computer** is MongoDB for Ubuntu, downloaded at setup and kept in your Linux home. WSL's
-  own Linux kernel (6.6 today) runs MongoDB 8; if a later WSL kernel is one MongoDB 8 refuses (6.19 through 7.0.13),
-  setup says so before downloading and sets up MongoDB 7.0 instead, as on any Linux. A WSL kernel is updated from
-  Windows (`wsl --update` in PowerShell), never with Ubuntu's packages.
+  own Linux kernel (6.18 with WSL 3.0, late 2026) runs MongoDB 8; if a later WSL kernel is one MongoDB 8 refuses
+  (6.19 through 7.0.13), setup says so before downloading and sets up MongoDB 7.0 instead, as on any Linux. A WSL
+  kernel is updated from Windows (`wsl --update` in PowerShell), never with Ubuntu's packages.
 - **Where things are kept**: keep MetaRush's own folder (`~/.metarush`) and the storage folder in your Linux home.
   Setup refuses the database on a Windows drive (`/mnt/c/…`): MongoDB needs Linux's own disk.
 - **Components**: as on any Linux — Homebrew where it is installed, else MetaRush's pinned downloads (Node.js, the

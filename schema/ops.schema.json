@@ -4528,6 +4528,9 @@
         },
         "summary": {
           "type": "string"
+        },
+        "slow": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -8586,6 +8589,9 @@
           "description": "Absent at the home folder (browsing never leaves it)."
         },
         "home": {
+          "type": "string"
+        },
+        "windowsHome": {
           "type": "string"
         },
         "entries": {
@@ -13685,6 +13691,9 @@
         },
         "arch": {
           "type": "string"
+        },
+        "wsl": {
+          "type": "integer"
         },
         "this": {
           "type": "boolean"
@@ -23509,6 +23518,9 @@
         },
         "note": {
           "type": "string"
+        },
+        "slow": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -31094,6 +31106,9 @@
         "knowsMoves": {
           "type": "string"
         },
+        "wsl": {
+          "type": "integer"
+        },
         "state": {
           "type": "string",
           "enum": [
@@ -34384,6 +34399,9 @@
           "type": "boolean"
         },
         "text": {
+          "type": "string"
+        },
+        "slow": {
           "type": "string"
         }
       },
@@ -65346,6 +65364,9 @@
         "claude": {
           "$ref": "#/$defs/ClaudeCode"
         },
+        "windows": {
+          "$ref": "#/$defs/WindowsReport"
+        },
         "summary": {
           "type": "string"
         },
@@ -75241,6 +75262,9 @@
         },
         "computersError": {
           "type": "string"
+        },
+        "windows": {
+          "$ref": "#/$defs/WindowsReport"
         }
       },
       "additionalProperties": false,
@@ -76185,6 +76209,12 @@
         },
         "note": {
           "type": "string"
+        },
+        "slow": {
+          "type": "string"
+        },
+        "everySeconds": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,
@@ -76672,6 +76702,66 @@
         "label",
         "seconds",
         "share"
+      ]
+    },
+    "WindowsNote": {
+      "properties": {
+        "key": {
+          "type": "string",
+          "enum": [
+            "wsl-version",
+            "background",
+            "keep-running",
+            "browser",
+            "network",
+            "files"
+          ]
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "says": {
+          "type": "string"
+        },
+        "next": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "key",
+        "ready",
+        "says"
+      ]
+    },
+    "WindowsReport": {
+      "properties": {
+        "version": {
+          "type": "integer"
+        },
+        "distro": {
+          "type": "string"
+        },
+        "says": {
+          "type": "string"
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/WindowsNote"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "version",
+        "says",
+        "notes"
       ]
     },
     "Word": {

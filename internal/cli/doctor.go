@@ -88,7 +88,7 @@ func doctorCmd() *cobra.Command {
 var checkTitles = map[string]string{
 	"system": "THIS MACHINE", "config": "THIS MACHINE", "security": "SAFETY", "tools": "VIDEO TOOLS",
 	"link imports": "IMPORTING FROM LINKS", "on-screen index": "LOOKING AT YOUR FOOTAGE", "renderer": "RENDERS",
-	"database": "DATABASE", "workspace": "WORKSPACE", "storage": "STORAGE", "worker": "BACKGROUND WORK", "dashboard": "DASHBOARD",
+	"database": "DATABASE", "workspace": "WORKSPACE", "storage": "STORAGE", "worker": "BACKGROUND WORK", "dashboard": "DASHBOARD", "windows": "WINDOWS",
 	"clearer voices": "CLEARER VOICES", "google drive": "GOOGLE DRIVE", "claude code": "CLAUDE CODE", "components": "COMPONENTS",
 }
 
@@ -213,6 +213,7 @@ func runDoctor(parent context.Context) []Check {
 			add("config", "config", "fail", err.Error(), "run `metarush init`", "MetaRush isn't set up on this machine yet", "Set it up first.")
 		}
 		ts := tools.New(config.Tools{})
+		wslChecks(nil, ts, add) // inside WSL: which one, and what it needs (D515)
 		toolChecks(parent, ts, add, config.Default(h))
 		claudeChecks(parent, ts, add)
 		return out
@@ -235,6 +236,7 @@ func runDoctor(parent context.Context) []Check {
 		add("security", "dashboard bind", "ok", "127.0.0.1 only (Host-checked, one-time sign-in links)", "")
 	}
 	ts := tools.New(cfg.Tools)
+	wslChecks(cfg, ts, add)            // wsl.go: inside WSL on Windows (D515–D521)
 	remoteChecks(parent, cfg, ts, add) // remote.go: remote access over Tailscale, when it is on
 	toolChecks(parent, ts, add, cfg)
 	componentChecks(parent, cfg, ts, add) // the optional components: how many are here (D324)

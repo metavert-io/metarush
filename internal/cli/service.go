@@ -19,6 +19,7 @@ import (
 	"github.com/metavert-io/metarush/internal/service"
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/version"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // serviceCmd installs the daemon as a per-user background service (D76).
@@ -96,6 +97,13 @@ func serviceInstallCmd() *cobra.Command {
 					return fail(c, apperr.InvalidInput, err.Error(), "")
 				}
 				return emit(c, map[string]any{"dryRun": true, "plan": plan}, func() { printPlan("Would write", plan) })
+			}
+			if w := wsl.Here(); w.In() && !w.Systemd {
+				// D517: inside WSL the service is a systemd user unit, and
+				// this distribution doesn't run systemd (yet).
+				bg := w.Background()
+				return failErr(c, apperr.New(apperr.NotConfigured, "%s", bg.Says).WithHint(bg.Next).
+					WithDetails(map[string]any{"reason": "wsl_no_systemd", "systemdAsked": w.SystemdAsked}).WithCommand(bg.Command))
 			}
 			if _, err := os.Stat(o.Exe); err != nil {
 				return failErr(c, apperr.New(apperr.InvalidInput, "MetaRush's program file isn't where the service would run it from.").
@@ -276,6 +284,19 @@ func printServiceStatus(st service.Status, details bool) {
 	}
 	if st.Linger != nil && !*st.Linger {
 		fmt.Println("  It runs only while you are logged in.")
+	}
+	if w := wsl.Here(); w.In() {
+		// Inside WSL, Windows stops the distribution once its last window
+		// closes, and MetaRush with it, unless WSL is told not to (D517).
+		if n := w.KeepRunning(wsl.HereWindowsSettings()); !n.Ready {
+			fmt.Println("  " + n.Says)
+			fmt.Println("  " + n.Next)
+			if details {
+				for _, line := range strings.Split(n.Command, "\n") {
+					fmt.Println("    " + line)
+				}
+			}
+		}
 	}
 	if details {
 		if st.Problem != "" {

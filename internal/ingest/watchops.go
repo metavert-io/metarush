@@ -19,6 +19,7 @@ import (
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/tools"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // Watch states.
@@ -53,6 +54,11 @@ type WatchStatusOut struct {
 	CanChoose        bool         `json:"canChoose" jsonschema:"description=This machine has a native folder picker (macOS)."`
 	CanReveal        bool         `json:"canReveal" jsonschema:"description=The folder can be opened in Finder or the file manager."`
 	Note             string       `json:"note,omitempty"`
+	// Slow says, inside WSL, that the folder is on the Windows side: looked
+	// through every few seconds, its files coming in more slowly (D521).
+	Slow string `json:"slow,omitempty"`
+	// EverySeconds is how often MetaRush looks through the folder.
+	EverySeconds int `json:"everySeconds,omitempty"`
 }
 
 // WatchImportIn has no fields.
@@ -167,14 +173,17 @@ type BrowseEntry struct {
 
 // BrowseOut is a folder listing.
 type BrowseOut struct {
-	Path      string        `json:"path"`
-	Display   string        `json:"display"`
-	Parent    string        `json:"parent,omitempty" jsonschema:"description=Absent at the home folder (browsing never leaves it)."`
-	Home      string        `json:"home"`
-	Entries   []BrowseEntry `json:"entries"`
-	Truncated bool          `json:"truncated,omitempty"`
-	Blocked   string        `json:"blocked,omitempty" jsonschema:"description=Why this folder itself cannot be watched."`
-	Suggested string        `json:"suggested"`
+	Path    string `json:"path"`
+	Display string `json:"display"`
+	Parent  string `json:"parent,omitempty" jsonschema:"description=Absent at the home folder (browsing never leaves it)."`
+	Home    string `json:"home"`
+	// WindowsHome is, inside WSL, the Windows user's own folder (C:\Users\Sam
+	// as WSL shows it), which can be browsed too (D521).
+	WindowsHome string        `json:"windowsHome,omitempty"`
+	Entries     []BrowseEntry `json:"entries"`
+	Truncated   bool          `json:"truncated,omitempty"`
+	Blocked     string        `json:"blocked,omitempty" jsonschema:"description=Why this folder itself cannot be watched."`
+	Suggested   string        `json:"suggested"`
 }
 
 // MkdirIn creates a folder under the home directory (for the folder picker).
@@ -188,7 +197,9 @@ func userHome() string {
 	return filepath.Clean(h)
 }
 
-// DisplayPath shortens the home directory to ~.
+// DisplayPath shortens the home directory to ~; inside WSL a folder on
+// Windows' side is shown as Windows names it (C:\Users\Sam\Videos), which is
+// also what MetaRush takes back when it is typed (D520).
 func DisplayPath(p string) string {
 	h := userHome()
 	switch {
@@ -198,6 +209,11 @@ func DisplayPath(p string) string {
 		return "~"
 	case strings.HasPrefix(p, h+string(filepath.Separator)):
 		return "~" + p[len(h):]
+	}
+	if w := wsl.Here(); w.UnderDrive(p) {
+		if win, ok := w.WindowsPath(p); ok {
+			return win
+		}
 	}
 	return p
 }
@@ -266,6 +282,19 @@ func blockedReason(a *app.App, dir string) string {
 	case dir == home || realPath(dir) == realPath(home):
 		return "Watching your whole home folder would add everything in it. Choose a folder just for new videos, for example " + DisplayPath(SuggestedWatchDir()) + "."
 	}
+	if w := wsl.Here(); w.In() {
+		// Windows' drives inside WSL (D521): a whole drive, the folder of
+		// every user, or a whole user's folder is too much to watch.
+		if mount, _, ok := wsl.WindowsDriveFolder(filepath.Join(dir, "x")); ok && filepath.Clean(dir) == mount {
+			return "Watching a whole Windows drive is not allowed. Choose a folder just for new videos."
+		}
+		if root, first, ok := wsl.WindowsUserFolder(filepath.Join(dir, "x")); ok && first == "x" && strings.EqualFold(filepath.Clean(dir), root) {
+			return "Watching your whole Windows user folder would add everything in it. Choose a folder just for new videos, for example a new folder in Videos."
+		}
+		if mount, first, ok := wsl.WindowsDriveFolder(dir); ok && strings.EqualFold(first, "Users") && strings.EqualFold(filepath.Clean(dir), mount+"/"+first) {
+			return "Watching every Windows user's folder is not allowed. Choose a folder just for new videos."
+		}
+	}
 	// Being inside one of MetaRush's folders is checked before containing one (the
 	// installation folder contains the cache), in a fixed order, so the same folder
 	// always gets the same explanation.
@@ -292,13 +321,29 @@ func blockedReason(a *app.App, dir string) string {
 // ValidateWatchDir checks a folder for watching; homeOnly restricts it to the
 // home folder (the dashboard's folder picker).
 func ValidateWatchDir(a *app.App, dir string, create, homeOnly bool) (string, error) {
-	dir = expandHome(dir)
+	// Inside WSL a Windows path (C:\Users\Sam\Videos\Inbox) is the folder WSL
+	// shows it as (D520).
+	typed, err := TypedPath(dir)
+	if err != nil {
+		var pe *wsl.PathError
+		if errors.As(err, &pe) {
+			return "", apperr.New(apperr.InvalidInput, "%s", pe.Plain).WithHint(pe.Next).WithDetails(map[string]any{"reason": "windows_path"}).WithCommand(pe.Command)
+		}
+		return "", apperr.Wrap(apperr.InvalidInput, err, "MetaRush can't use that folder.")
+	}
+	dir = expandHome(typed)
 	if dir == "" || !filepath.IsAbs(dir) {
 		return "", apperr.New(apperr.InvalidInput, "Give the folder's full location, from the top of the disk or your home folder.")
 	}
 	dir = filepath.Clean(dir)
-	if homeOnly && !within(realPath(dir), realPath(userHome())) {
-		return "", apperr.New(apperr.InvalidInput, "Choose a folder inside your home folder.").WithDetails(map[string]any{"reason": "outside_home"})
+	// The dashboard chooses inside the home folder; inside WSL also inside
+	// the Windows user's own folder, which Windows guards like a home (D521).
+	if homeOnly && !within(realPath(dir), realPath(userHome())) && !wsl.InWindowsHome(realPath(dir)) {
+		msg := "Choose a folder inside your home folder."
+		if wsl.Here().In() {
+			msg = "Choose a folder inside your Linux home folder, or inside your own folder on Windows."
+		}
+		return "", apperr.New(apperr.InvalidInput, "%s", msg).WithDetails(map[string]any{"reason": "outside_home"})
 	}
 	if r := blockedReason(a, dir); r != "" {
 		return "", apperr.New(apperr.InvalidInput, "%s", r).WithDetails(map[string]any{"reason": "blocked"})
@@ -358,6 +403,10 @@ func watchStatus(ctx context.Context, a *app.App) *WatchStatusOut {
 	out := &WatchStatusOut{Enabled: w.Enabled, Dir: w.Dir, DisplayDir: DisplayPath(w.Dir), ProjectID: w.ProjectID, MoveProcessed: w.MoveProcessed,
 		StableSeconds: w.StableSeconds, Suggested: sug, SuggestedDisplay: DisplayPath(sug), ConfigPath: config.Path(a.Cfg.Home()),
 		CanChoose: runtime.GOOS == "darwin" && a.Tools.Has(tools.OSAScript), CanReveal: (runtime.GOOS == "darwin" && a.Tools.Has(tools.Open)) || (runtime.GOOS == "linux" && a.Tools.Has(tools.XDGOpen))}
+	if wsl.Here().In() {
+		// Inside WSL no picker or file manager shows on the person's screen (D518).
+		out.CanChoose, out.CanReveal = false, false
+	}
 	if w.Dir != "" {
 		out.Skipped = CountSkipped(a.Cfg.StateDir(), w.Dir)
 	}
@@ -373,6 +422,11 @@ func watchStatus(ctx context.Context, a *app.App) *WatchStatusOut {
 	if w.Dir != "" {
 		if st, err := os.Stat(w.Dir); err == nil && st.IsDir() {
 			out.Exists = true
+		}
+		out.EverySeconds = 2
+		if wd := wsl.Here(); wd.OnWindows(w.Dir) {
+			out.EverySeconds = int(wsl.WatchEvery / time.Second)
+			out.Slow = "This folder is on the Windows side (" + strings.ToUpper(wd.Drive(w.Dir)) + ":): " + wsl.FolderSlowly + " " + wsl.SpeedTip
 		}
 	}
 	if Live != nil {
@@ -502,7 +556,11 @@ func init() {
 	ops.Def("watch.reveal", "Open the watched folder (or another folder) in Finder", ops.Flags{LocalOnly: true}, RevealFolder)
 	ops.Def("watch.browse", "List folders under your home folder (the watched-folder picker; never leaves the home folder)", ops.Flags{OwnerOnly: true}, func(ctx context.Context, a *app.App, in *BrowseIn) (*BrowseOut, error) {
 		home := realPath(userHome())
-		p := expandHome(in.Path)
+		p := in.Path
+		if typed, err := TypedPath(p); err == nil {
+			p = typed // C:\Users\You\Videos inside WSL (D520)
+		}
+		p = expandHome(p)
 		if p == "" {
 			p = home
 		}
@@ -510,15 +568,21 @@ func init() {
 			return nil, apperr.New(apperr.InvalidInput, "Give the folder's full location, from the top of the disk or your home folder.")
 		}
 		p = realPath(filepath.Clean(p))
-		if !within(p, home) {
-			return nil, apperr.New(apperr.InvalidInput, "Only folders inside your home folder can be browsed here.").WithDetails(map[string]any{"reason": "outside_home"})
+		winHome := wsl.HereWindowsHome() // inside WSL: the Windows user's folder may be browsed too (D521)
+		inWindows := winHome != "" && wsl.InWindowsHome(p)
+		if !within(p, home) && !inWindows {
+			msg := "Only folders inside your home folder can be browsed here."
+			if winHome != "" {
+				msg = "Only folders inside your Linux home folder or your own folder on Windows can be browsed here."
+			}
+			return nil, apperr.New(apperr.InvalidInput, "%s", msg).WithDetails(map[string]any{"reason": "outside_home"})
 		}
 		ents, err := os.ReadDir(p)
 		if err != nil {
 			return nil, apperr.Wrap(apperr.InvalidInput, err, "MetaRush can't look inside %s.", DisplayPath(p))
 		}
-		out := &BrowseOut{Path: p, Display: DisplayPath(p), Home: home, Entries: []BrowseEntry{}, Blocked: blockedReason(a, p), Suggested: SuggestedWatchDir()}
-		if p != home {
+		out := &BrowseOut{Path: p, Display: DisplayPath(p), Home: home, WindowsHome: winHome, Entries: []BrowseEntry{}, Blocked: blockedReason(a, p), Suggested: SuggestedWatchDir()}
+		if p != home && !(inWindows && strings.EqualFold(p, filepath.Clean(winHome))) {
 			out.Parent = filepath.Dir(p)
 		}
 		for _, e := range ents {
@@ -526,7 +590,7 @@ func init() {
 			full := filepath.Join(p, name)
 			isDir := e.IsDir()
 			if e.Type()&os.ModeSymlink != 0 {
-				if st, err := os.Stat(full); err == nil && st.IsDir() && within(realPath(full), home) {
+				if st, err := os.Stat(full); err == nil && st.IsDir() && (within(realPath(full), home) || wsl.InWindowsHome(realPath(full))) {
 					isDir = true
 				}
 			}
@@ -550,8 +614,12 @@ func init() {
 			return nil, apperr.New(apperr.InvalidInput, "A folder's name can't contain slashes.")
 		}
 		home := realPath(userHome())
-		parent := realPath(filepath.Clean(expandHome(in.Parent)))
-		if !filepath.IsAbs(parent) || !within(parent, home) {
+		parentTyped := in.Parent
+		if typed, err := TypedPath(in.Parent); err == nil {
+			parentTyped = typed
+		}
+		parent := realPath(filepath.Clean(expandHome(parentTyped)))
+		if !filepath.IsAbs(parent) || !within(parent, home) && !wsl.InWindowsHome(parent) {
 			return nil, apperr.New(apperr.InvalidInput, "Folders can only be made inside your home folder.").WithDetails(map[string]any{"reason": "outside_home"})
 		}
 		full := filepath.Join(parent, name)

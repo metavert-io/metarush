@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
@@ -20,6 +21,8 @@ import (
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/transcripts"
 	"github.com/metavert-io/metarush/internal/version"
+	"github.com/metavert-io/metarush/internal/winname"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // ExportTimelineIn writes a revision as a timeline other editing apps open.
@@ -105,6 +108,20 @@ func ExportTimeline(ctx context.Context, a *app.App, in *ExportTimelineIn, progr
 	}
 	if in.Link && in.Media == "" {
 		return nil, invalid("To link the footage instead of copying it, also choose a footage folder.")
+	}
+	// Inside WSL, Windows paths (C:\Users\Sam\Timelines\cut.otio) are where
+	// WSL shows them (D520).
+	typedOut, err := wsl.HereLinuxPath(in.Out)
+	if err != nil {
+		return nil, typedPathErr(err, in.Out)
+	}
+	in.Out = typedOut
+	if in.Media != "" {
+		typedMedia, err := wsl.HereLinuxPath(in.Media)
+		if err != nil {
+			return nil, typedPathErr(err, in.Media)
+		}
+		in.Media = typedMedia
 	}
 	out, err := filepath.Abs(in.Out)
 	if err != nil {
@@ -195,6 +212,11 @@ func ExportTimeline(ctx context.Context, a *app.App, in *ExportTimelineIn, progr
 			return nil, apperr.Wrap(apperr.InvalidInput, err, "MetaRush couldn't make the footage folder %s.", filepath.Base(mediaDir)).WithDetails(map[string]any{"folder": mediaDir})
 		}
 		res.MediaDir = mediaDir
+		if in.Link && wsl.HereOnWindows(mediaDir) {
+			// Windows' editing apps can't follow Ubuntu's links (D521).
+			in.Link = false
+			res.Notes = append(res.Notes, "The footage folder is on the Windows side, where Windows' editing apps can't follow Ubuntu's links, so the footage was copied there instead.")
+		}
 	}
 	// Originals come from this machine's cache, else the media store.
 	manifest := readMediaManifest(mediaDir)
@@ -317,7 +339,7 @@ func ExportTimeline(ctx context.Context, a *app.App, in *ExportTimelineIn, progr
 	}
 	res.Markers = len(tl.Markers)
 	res.Duration = float64(tl.Duration) / float64(tl.FPS)
-	res.Notes = notes
+	res.Notes = append(notes, res.Notes...) // the format's notes, then the export's own (D521)
 	if res.Notes == nil {
 		res.Notes = []string{}
 	}
@@ -397,7 +419,9 @@ func exportMedia(as *models.Asset, mf ExportMediaFile) *interchange.Media {
 }
 
 // readableName is a file name people recognize: the clip's title and its
-// original extension, without characters file systems refuse.
+// original extension, without characters file systems refuse, and one
+// Windows keeps (D523: no device names, cut at a whole character), since the
+// editing app that opens it is often on Windows.
 func readableName(as *models.Asset) string {
 	ext := filepath.Ext(as.Name)
 	if ext == "" {
@@ -422,11 +446,14 @@ func readableName(as *models.Asset) string {
 		return r
 	}, base)
 	base = strings.Trim(base, ". ")
-	if len(base) > 120 {
-		base = strings.TrimSpace(base[:120])
+	if utf8.RuneCountInString(base) > 120 {
+		base = strings.TrimRight(strings.TrimSpace(string([]rune(base)[:120])), ". ")
 	}
 	if base == "" {
 		base = "clip"
+	}
+	if winname.Reserved(base) {
+		base = "_" + base
 	}
 	return base + ext
 }

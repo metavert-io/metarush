@@ -537,6 +537,9 @@ export type ComputerVersion = ops.ComputerVersion;
 /* The first run (setup.status, D256): what works with no keys, what a key adds, Claude Code (D255). */
 export type SetupStatusOut = ops.SetupStatusOut;
 export type WorksItem = ops.WorksItem;
+/* MetaRush inside WSL on Windows (D515): what it says about the background service, the browser, Windows' folders. */
+export type WindowsReport = ops.WindowsReport;
+export type WindowsNote = ops.WindowsNote;
 /* Components (D324–D327): what MetaRush needs, the optional parts that unlock features, adding and removing them. */
 export type ComponentState = ops.ComponentState;
 export type ComponentsOut = ops.ComponentsOut;

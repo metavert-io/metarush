@@ -465,6 +465,13 @@ func rendererChecks(cfg *config.Config, ts *tools.Set, add addCheck) {
 			detail += " (its browser is downloaded with the first render)"
 			say += " (the first render also downloads the browser it draws in)"
 		}
+		if libs := renderer.BrowserLibraries(st.VideoDir); !libs.OK() {
+			// A fresh Ubuntu (in WSL, say) lacks some of the libraries the
+			// renderer's browser links against: every render would stop.
+			add("renderer", "renderer", "warn", detail+"; its browser lacks "+strings.Join(libs.Missing, ", "), libs.Command,
+				renderer.LibrariesSay, renderer.LibrariesNext)
+			break
+		}
 		add("renderer", "renderer", "ok", detail, "", say)
 	case st.State == renderer.StateInstalling:
 		say, do := rendererProblem(st)

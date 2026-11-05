@@ -64,6 +64,9 @@ type AddPathsOut struct {
 	Files   []AddedFile       `json:"files"`
 	Folders []LinkedFolderOut `json:"folders"`
 	Summary string            `json:"summary"`
+	// Slow says, inside WSL, that files came from the Windows side, which
+	// Ubuntu reads slowly, and what is faster (D521).
+	Slow string `json:"slow,omitempty"`
 }
 
 // isTimeline reports a timeline file (or an .fcpxmld bundle) another editing app exported.
@@ -99,6 +102,27 @@ func addResourceFile(ctx context.Context, a *app.App, path string, o resources.A
 		}
 	}
 	return af
+}
+
+// typedPath is a path a person typed as this computer opens it: inside WSL
+// a Windows path (C:\Users\Sam\…) opens where WSL shows it (D520); one that
+// can't be opened from Ubuntu is a failed file in plain words (ok false).
+func typedPath(raw string, out *AddPathsOut) (string, bool) {
+	p, err := ingest.TypedPath(raw)
+	if err != nil {
+		out.Files = append(out.Files, AddedFile{Path: raw, Name: filepath.Base(filepath.FromSlash(strings.ReplaceAll(raw, `\`, "/"))), Status: "failed", Message: ingest.TypedPathText(err)})
+		return "", false
+	}
+	return expandHome(strings.TrimSpace(p)), true
+}
+
+// slowAdded says, inside WSL, that files came from the Windows side (D521).
+func slowAdded(out *AddPathsOut) string {
+	rs := make([]ingest.Result, 0, len(out.Files))
+	for _, f := range out.Files {
+		rs = append(rs, ingest.Result{Path: f.Path, Status: f.Status})
+	}
+	return ingest.SlowNote(rs)
 }
 
 func expandHome(p string) string {
@@ -163,7 +187,10 @@ func init() {
 		}
 		tr := in.Transcribe == nil || *in.Transcribe
 		for _, raw := range in.Paths {
-			path := expandHome(strings.TrimSpace(raw))
+			path, ok := typedPath(raw, out)
+			if !ok {
+				continue
+			}
 			st, err := os.Stat(path)
 			if err != nil {
 				out.Files = append(out.Files, AddedFile{Path: raw, Name: filepath.Base(raw), Status: "failed", Message: "Can't find " + filepath.Base(raw) + "."})
@@ -208,7 +235,7 @@ func init() {
 				out.Files = append(out.Files, af)
 			}
 		}
-		out.Summary = summarizeAdded(out)
+		out.Summary, out.Slow = summarizeAdded(out), slowAdded(out)
 		return out, nil
 	})
 	ops.Def("resources.add", "Add pictures (PNG, JPEG, WebP; HEIC converted), SVGs (cleaned), PDFs (pages become pictures) and fonts to a project's resources or the workspace library; a folder is linked and kept in step", ops.Flags{Mutating: true, LocalOnly: true}, func(ctx context.Context, a *app.App, in *ResourcesAddIn) (*AddPathsOut, error) {
@@ -231,7 +258,10 @@ func init() {
 		}
 		one := len(in.Paths) == 1
 		for _, raw := range in.Paths {
-			path := expandHome(strings.TrimSpace(raw))
+			path, ok := typedPath(raw, out)
+			if !ok {
+				continue
+			}
 			st, err := os.Stat(path)
 			if err != nil {
 				out.Files = append(out.Files, AddedFile{Path: raw, Name: filepath.Base(raw), Status: "failed", Message: "Can't find " + filepath.Base(raw) + "."})
@@ -261,7 +291,7 @@ func init() {
 				out.Files = append(out.Files, addResourceFile(ctx, a, f, o))
 			}
 		}
-		out.Summary = summarizeAdded(out)
+		out.Summary, out.Slow = summarizeAdded(out), slowAdded(out)
 		return out, nil
 	})
 }

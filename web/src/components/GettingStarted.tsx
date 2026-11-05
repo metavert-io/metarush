@@ -4,6 +4,7 @@ import { useOp } from '../api/queries';
 import type { ComponentState, WorksItem } from '../api/types';
 import { Button, cx, ErrorPanel, Skeleton } from '../ui/primitives';
 import { AddComponentButton, useAddComponent } from './Components';
+import { WindowsNotes } from './WindowsNotes';
 
 /**
  * The dashboard's first run (D256): what works now, free and on this computer,
@@ -12,7 +13,8 @@ import { AddComponentButton, useAddComponent } from './Components';
  * while the workspace has no projects and no footage, or when setup opened
  * the dashboard (`/?welcome=1`). What isn't ready offers Add it for the
  * component that makes it work, and the optional components not here yet
- * are listed with Add it, the suggested ones first (D324).
+ * are listed with Add it, the suggested ones first (D324). Inside WSL on
+ * Windows it also says what to know there (D515).
  */
 export function GettingStarted({ className }: { className?: string }) {
   const [params, setParams] = useSearchParams();
@@ -90,6 +92,12 @@ export function GettingStarted({ className }: { className?: string }) {
               <Database size={15} className="mt-0.5 shrink-0 text-subtle" />
               <span className="min-w-0">{q.data.database.says}</span>
             </p>
+            {q.data.windows ? (
+              <div>
+                <h3 className="text-[12px] font-medium uppercase tracking-wide text-subtle">On Windows</h3>
+                <WindowsNotes className="mt-2" report={q.data.windows} />
+              </div>
+            ) : null}
             <p className="text-[12.5px] text-muted">Start by dropping footage into the box below, or ask Claude Code to start a project for you.</p>
           </div>
         </div>

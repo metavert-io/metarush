@@ -133,6 +133,13 @@ func KernelRefuses(v string, k Kernel) bool {
 	return inBadRange(release)
 }
 
+// FromWSL reports a kernel WSL 2 brings from Windows ("6.6.87.2-microsoft-
+// standard-WSL2"): updated with WSL, never by the distribution's packages.
+func (k Kernel) FromWSL() bool {
+	l := strings.ToLower(k.Release)
+	return strings.Contains(l, "microsoft") || strings.Contains(l, "wsl")
+}
+
 // HasTheFix reports whether the kernel carries the kernel.org fix (7.0.14 or
 // later) although its release says otherwise: an Ubuntu kernel that still
 // calls itself 7.0.0. A MongoDB that reads Ubuntu's signature (8.0.35 on)
@@ -146,6 +153,10 @@ func (k Kernel) HasTheFix() bool {
 // it, in plain words.
 func kernelWhy(v string, k Kernel) (why, todo string) {
 	why = "MongoDB " + v + " can't start on this computer's Linux kernel (" + k.Release + "): MongoDB 8 stops on kernels 6.19 through 7.0.13 because of a known problem between them."
+	if k.FromWSL() {
+		// Inside WSL the kernel is Windows' to update (D515).
+		return why, "WSL brings its own kernel from Windows: update WSL from Windows PowerShell and restart it, and a kernel from 7.0.14 on lets MongoDB 8 run (docs/wsl.md says how)."
+	}
 	if k.HasTheFix() {
 		return why, "This kernel already has the fix (it is built from " + k.upstream() + ") but still calls itself " + k.Release +
 			", which this MongoDB can't tell; a newer MongoDB that can comes with a MetaRush update."

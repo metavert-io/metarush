@@ -160,8 +160,11 @@ the Mac with the version it runs and says when it is older. When something is of
 [add a machine](docs/runbook-add-machine.md).
 
 ### Windows 11
-There is no Windows build; use MetaRush in Edge or Chrome from a Mac or Linux computer that runs it, over Tailscale
-([docs/windows.md](docs/windows.md)).
+There is no Windows build. Use MetaRush in Edge or Chrome from a Mac or Linux computer that runs it, over Tailscale
+([docs/windows.md](docs/windows.md)), or, if you work in a terminal, run MetaRush itself in Ubuntu on WSL 2 on your
+PC ([docs/wsl.md](docs/wsl.md)): setup, doctor and the dashboard say what is different there (systemd for the
+background service, keeping Ubuntu running, files on the Windows side), `metarush dashboard` opens your Windows
+browser, and paths typed as Windows gives them (`C:\Users\you\Videos\…`) work.
 
 Details, tokens, signing and the database on this computer: [docs/installation.md](docs/installation.md).
 
@@ -266,7 +269,8 @@ computer only, and any other HTTPS proxy works too, with `--url` (a worked examp
 
 ### From Windows 11
 Use Edge or Chrome against the Mac or Linux computer that runs MetaRush, over Tailscale
-([docs/windows.md](docs/windows.md)); downloads get names Windows keeps.
+([docs/windows.md](docs/windows.md)); downloads get names Windows keeps. Or run MetaRush in WSL 2 on the PC itself
+([docs/wsl.md](docs/wsl.md)): the dashboard opens in Windows' browser at 127.0.0.1, on that PC only.
 
 ### Always know what is happening
 - **The activity bar** shows uploads, footage being prepared, renders, quality checks and Claude Code requests with

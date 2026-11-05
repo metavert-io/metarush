@@ -77,6 +77,7 @@ var clockAllowed = map[string]struct {
 	"internal/cache/quota.go Cache.ReadQuotaStatus":                 {1, "this computer's cache"},
 	"internal/cache/repair.go Cache.Repair":                         {1, "local files' times"},
 	"internal/intake/folders.go scanner.publish":                    {1, "an in-process throttle"},
+	"internal/intake/folders.go FolderManager.pass":                 {1, "how often this process looks through a folder on Windows' side inside WSL: its own memory"},
 	"internal/intake/folders.go scanner.scan":                       {4, "a linked folder's scan on this computer: local files' times and its own memory"},
 	"internal/localdb/install.go counting.Read":                     {1, "an in-process throttle"},
 	"internal/localdb/upgrade.go Server.Watch":                      {1, "the database on this computer: failures in this process's memory"},

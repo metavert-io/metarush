@@ -25,6 +25,7 @@ import (
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/version"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // App is an opened installation.
@@ -243,9 +244,21 @@ func (a *App) TouchInstallation(ctx context.Context) {
 	b := version.Current()
 	// lastSeenAt is the database server's time: other computers compare it
 	// with theirs (a move waits for every computer running now, D335).
-	_ = a.DB.Update(ctx, store.CInstallations, a.WorkspaceID(), a.Cfg.Installation.ID, map[string]any{"$set": map[string]any{
+	upd := map[string]any{"$set": map[string]any{
 		"version": b.Version, "commit": b.Commit, "built": b.Date, "knowsMoves": MovesMark(b.Version, b.Commit)},
-		"$currentDate": map[string]any{"lastSeenAt": true}})
+		"$currentDate": map[string]any{"lastSeenAt": true}}
+	withWSL(upd)
+	_ = a.DB.Update(ctx, store.CInstallations, a.WorkspaceID(), a.Cfg.Installation.ID, upd)
+}
+
+// withWSL adds to an installation's update the WSL it runs in (D515), or
+// takes it away on a computer that isn't WSL.
+func withWSL(upd map[string]any) {
+	if v := wsl.Here().Version; v > 0 {
+		upd["$set"].(map[string]any)["wsl"] = v
+	} else {
+		upd["$unset"] = map[string]any{"wsl": ""}
+	}
 }
 
 // sayBuild records this build on the installation's record, once per
@@ -257,9 +270,10 @@ func (a *App) sayBuild(ctx context.Context) {
 	b := version.Current()
 	// lastUsedAt: a terminal's command on this computer changes things too,
 	// so a take-over from elsewhere waits (by the server's clock).
-	_, _ = a.DB.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": a.Cfg.Installation.ID, "workspaceId": a.WorkspaceID()},
-		bson.M{"$set": bson.M{"version": b.Version, "commit": b.Commit, "built": b.Date, "knowsMoves": MovesMark(b.Version, b.Commit)},
-			"$currentDate": bson.M{"lastUsedAt": true}})
+	upd := map[string]any{"$set": map[string]any{"version": b.Version, "commit": b.Commit, "built": b.Date, "knowsMoves": MovesMark(b.Version, b.Commit)},
+		"$currentDate": map[string]any{"lastUsedAt": true}}
+	withWSL(upd)
+	_, _ = a.DB.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": a.Cfg.Installation.ID, "workspaceId": a.WorkspaceID()}, upd)
 }
 
 // MovesMark is what a MetaRush that knows about moving the database records

@@ -1,10 +1,9 @@
 package api
 
 import (
-	"path"
 	"strings"
-	"unicode"
-	"unicode/utf8"
+
+	"github.com/metavert-io/metarush/internal/winname"
 )
 
 // downloadName is a file name every computer people download to can keep
@@ -13,41 +12,9 @@ import (
 // COM1–COM9 and LPT1–LPT9 (with any extension), so those characters become
 // "-", the end is trimmed and a device name gets "_" in front. The extension
 // stays; a name longer than 180 characters is cut before it, at a whole
-// character.
-func downloadName(name string) string {
-	var b strings.Builder
-	for _, r := range name {
-		switch {
-		case r < 0x20 || r == 0x7f || unicode.IsControl(r):
-		case strings.ContainsRune(`\/:*?"<>|`, r):
-			b.WriteRune('-')
-		default:
-			b.WriteRune(r)
-		}
-	}
-	n := strings.TrimSpace(b.String())
-	ext := path.Ext(n)
-	if len(ext) > 12 || strings.TrimRight(ext, ". ") == "" {
-		ext = ""
-	}
-	stem := strings.TrimRight(strings.TrimSuffix(n, ext), ". ")
-	if utf8.RuneCountInString(stem) > 180 {
-		stem = strings.TrimRight(string([]rune(stem)[:180]), ". ")
-	}
-	if stem == "" {
-		stem = "download"
-	}
-	base := strings.ToUpper(stem)
-	if i := strings.IndexByte(base, '.'); i >= 0 {
-		base = base[:i]
-	}
-	switch base {
-	case "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-		"LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9":
-		stem = "_" + stem
-	}
-	return stem + ext
-}
+// character. The rules are internal/winname's, which names what MetaRush
+// writes for Windows too (D523).
+func downloadName(name string) string { return winname.Safe(name, "download") }
 
 // attachment is the Content-Disposition of a download named name, the name
 // made safe for every computer (downloadName) and written as RFC 6266

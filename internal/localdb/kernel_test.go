@@ -325,3 +325,30 @@ func TestAnUpgradeWithinTheSeriesNeedsNoOldServer(t *testing.T) {
 		t.Errorf("the state says %s", st.Version)
 	}
 }
+
+// A kernel WSL 2 brings from Windows (D522): judged like any other, and what
+// to do is WSL's (update it from Windows), never the distribution's packages.
+func TestWSLKernels(t *testing.T) {
+	for _, k := range []Kernel{
+		{Release: "6.6.87.2-microsoft-standard-WSL2", Version: "#1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025"},
+		{Release: "6.18.54.1-microsoft-standard-WSL2", Version: "#1 SMP PREEMPT_DYNAMIC"}, // WSL 3.0.3 (GitHub's Windows runner, Nov 2026)
+	} {
+		if KernelRefuses(Current.Version, k) || !k.FromWSL() {
+			t.Fatalf("WSL's kernel %s: %v %v", k.Release, KernelRefuses(Current.Version, k), k.FromWSL())
+		}
+	}
+	later := Kernel{Release: "6.19.4.1-microsoft-standard-WSL2", Version: "#1 SMP"}
+	if !KernelRefuses(Current.Version, later) || KernelRefuses(Older.Version, later) {
+		t.Fatal("a WSL kernel in MongoDB 8's refused range gets the older MongoDB")
+	}
+	why, todo := kernelWhy(Current.Version, later)
+	if !strings.Contains(why, "6.19.4.1-microsoft-standard-WSL2") || !strings.Contains(todo, "WSL brings its own kernel from Windows") || strings.Contains(todo, "Updating the kernel") {
+		t.Fatalf("%q / %q", why, todo)
+	}
+	for _, f := range plainwords.Check(todo) {
+		t.Errorf("not plain: %s", f)
+	}
+	if (Kernel{Release: "7.0.0-38-generic"}).FromWSL() {
+		t.Fatal("Ubuntu's own kernel isn't WSL's")
+	}
+}

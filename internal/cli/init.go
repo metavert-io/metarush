@@ -27,6 +27,7 @@ import (
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/version"
 	"github.com/metavert-io/metarush/internal/wsarchive"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 type initOpts struct {
@@ -135,6 +136,9 @@ func gitConfig(key string) string {
 }
 
 func runInit(c *cobra.Command, o *initOpts) error {
+	if err := refuseWSL1(c); err != nil { // D516
+		return err
+	}
 	result, err := initialize(c, o)
 	if err != nil {
 		return err
@@ -551,10 +555,15 @@ func initialize(c *cobra.Command, o *initOpts) (map[string]any, error) {
 	if hasPrior && prior.State == models.InstallationInvited {
 		set["joinedAt"] = now
 	}
+	upd := bson.M{"$set": set, "$setOnInsert": bson.M{"createdAt": now}, "$currentDate": bson.M{"lastSeenAt": true}}
+	if v := wsl.Here().Version; v > 0 {
+		set["wsl"] = v // D515: other computers show it as Windows
+	} else {
+		upd["$unset"] = bson.M{"wsl": ""}
+	}
 	// When it was last seen is compared by other computers (a take-over, a
 	// move): the database server's time (D360).
-	if _, err := db.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": inst.ID}, bson.M{"$set": set, "$setOnInsert": bson.M{"createdAt": now},
-		"$currentDate": bson.M{"lastSeenAt": true}}, options.UpdateOne().SetUpsert(true)); err != nil {
+	if _, err := db.C(store.CInstallations).UpdateOne(ctx, bson.M{"_id": inst.ID}, upd, options.UpdateOne().SetUpsert(true)); err != nil {
 		return nil, err
 	}
 	// Assemble and persist config (secrets to keychain or env placeholders).

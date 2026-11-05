@@ -29,6 +29,12 @@ the archive signed and checked, and after each one the app brings MetaRush up to
 doesn't open its setup by itself and never takes that copy's place without asking — nor ever when that copy is newer.
 How it works, its updates, its key and how it is built and released: [mac-app.md](mac-app.md).
 
+## On Windows
+There is no Windows build. Use MetaRush from Edge or Chrome against a Mac or a Linux computer that runs it
+([windows.md](windows.md)), or run MetaRush itself in Ubuntu on WSL 2 on your PC: it is the Linux MetaRush, set up
+as below, with what differs there — systemd for the background service, keeping Ubuntu running, the dashboard in
+your Windows browser, files on the Windows side, the renderer's libraries — in [wsl.md](wsl.md).
+
 ## With Homebrew (macOS and Linux)
 ```bash
 brew tap metavert-io/metarush                       # the tap metavert-io/homebrew-metarush
@@ -453,9 +459,10 @@ metarush footage visuals status
   They go into the models folder (`tools.modelsDir`, `screen-index/`), shared by every home on the computer;
   `metarush components --details` shows each address. A Mac in the same workspace still gets the first look at a new
   clip while it is about (it sees more), and clips imported before catch up when a computer gains the component.
-- **Windows:** neither runs there yet, so the index is skipped: `doctor` says so, and a Mac or a Linux computer in the
-  same workspace indexes the clips. Everything else, including visual change detection and smart contact sheets,
-  works everywhere.
+- **Windows:** neither runs on Windows itself, so the index is skipped there: `doctor` says so, and a Mac or a Linux
+  computer in the same workspace indexes the clips; MetaRush in WSL 2 on a Windows PC is Linux, and looks with the
+  open models ([wsl.md](wsl.md)). Everything else, including visual change detection and smart contact sheets, works
+  everywhere.
 
 ## Optional: the browser extension
 The "Send to MetaRush" extension saves videos from your own signed-in browser when a download is blocked. Load it

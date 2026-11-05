@@ -46,6 +46,7 @@ Google's and ElevenLabs' real addresses (a test that forgets its fake fails befo
 | Nightly, on version tags, by hand | GitHub (`browser.yml`) | the browser runs that work on Linux, one job each, as coverage builds; a failed run's homes, logs and screenshots as an artifact |
 | When the bootstrap changes, weekly, by hand | GitHub (`bootstrap.yml`) | `./bootstrap.sh --dry-run` on macOS |
 | When MetaRush.app or what it runs and reads changes, weekly, by hand | GitHub (`mac-app.yml`) | on macOS: the app's Swift tests, `go test ./internal/macapp/` (the update test with the real Sparkle, the release script's signing) and a full `scripts/mac-app.sh build` with the dashboard |
+| When what runs in WSL changes, weekly, by hand | GitHub (`wsl.yml`) | on Windows (`windows-2025`): Ubuntu 24.04 on WSL 2 (`Vampire/setup-wsl`) and `scripts/wsl-smoke.sh --setup` in it — what MetaRush detects and says, the database on WSL's kernel, Windows reaching Ubuntu's 127.0.0.1, a `C:\` path, and the real opener: Windows' default browser opens a sign-in link with `&` and `%` in it, checked to arrive exactly at a stand-in on the dashboard's port ([wsl.md](wsl.md)) |
 | Before a release | your Mac | `scripts/check.sh --release`: everything in `--full`, then `scripts/release.sh --snapshot` |
 
 `scripts/check.sh --full` (an hour or more) runs, one after another: a sweep of leftovers, the dashboard (types,

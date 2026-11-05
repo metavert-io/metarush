@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // Location kinds.
@@ -39,7 +40,7 @@ type Verdict struct {
 	Path    string `json:"path"`
 	Kind    string `json:"kind,omitempty"`    // "" (safe) | git | sync
 	Root    string `json:"root,omitempty"`    // the git work tree or the sync folder
-	Service string `json:"service,omitempty"` // iCloud Drive | Google Drive | OneDrive | Dropbox | Box | git
+	Service string `json:"service,omitempty"` // iCloud Drive | iCloud Photos | Google Drive | OneDrive | SharePoint | Dropbox | Box | git
 	// Ignored reports (for KindGit) that git ignores the path, so it would not
 	// be committed. Tracked files are never ignored, whatever .gitignore says.
 	Ignored bool `json:"ignored,omitempty"`
@@ -171,6 +172,12 @@ func (in Inspector) syncFolder(p string) (service, root string) {
 			if l := strings.ToLower(name); strings.HasPrefix(l, "googledrive") || strings.HasPrefix(l, "google drive") {
 				return "Google Drive", filepath.Join("/Volumes", name)
 			}
+		}
+	}
+	if in.goos() == "linux" || wsl.Here().In() {
+		// Windows' drives as WSL shows them (/mnt/c, D523): windows.go.
+		if s, root := windowsSyncFolder(p); s != "" {
+			return s, root
 		}
 	}
 	return "", ""

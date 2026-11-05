@@ -16,6 +16,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/secretpath"
 	"github.com/metavert-io/metarush/internal/tools"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // ClaudeCode is Claude Code on this computer, as Claude Code itself reports it.
@@ -72,8 +73,19 @@ func ForgetClaude() {
 func checkClaude(ctx context.Context, ts *tools.Set) ClaudeCode {
 	if !ts.Has(tools.Claude) || testing.Testing() && !ts.Explicit(tools.Claude) {
 		// Tests never run the person's own Claude Code (tools.claude names a fake).
-		return ClaudeCode{Says: "Claude Code isn't installed on this computer. MetaRush works without it — the dashboard edits, makes transcripts and renders — and with it you edit by asking in plain words.",
+		c := ClaudeCode{Says: "Claude Code isn't installed on this computer. MetaRush works without it — the dashboard edits, makes transcripts and renders — and with it you edit by asking in plain words.",
 			Next: "Install Claude Code, then open it once and sign in.", Command: InstallCommand}
+		if w := wsl.Here(); w.In() {
+			// Inside WSL, Claude Code runs in the Linux MetaRush runs in; a
+			// copy installed on Windows is left alone (D518).
+			d := firstNonEmptyWord(w.Distro, "Ubuntu")
+			c.Says = "Claude Code isn't installed in " + d + ". MetaRush works without it — the dashboard edits, makes transcripts and renders — and with it you edit by asking in plain words."
+			if ts.WindowsCopy(tools.Claude) != "" {
+				c.Says = "Claude Code is installed on Windows, but MetaRush runs in " + d + " and needs its own copy there. MetaRush works without it meanwhile."
+			}
+			c.Next = "Install Claude Code in " + d + ", then open it there once and sign in."
+		}
+		return c
 	}
 	run := func(args ...string) (string, error) {
 		c, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
@@ -144,4 +156,13 @@ func firstLine(s string) string {
 		s = s[:i]
 	}
 	return s
+}
+
+func firstNonEmptyWord(vs ...string) string {
+	for _, v := range vs {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }

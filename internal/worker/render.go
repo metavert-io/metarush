@@ -61,6 +61,11 @@ func plainFailure(err error) string {
 	if errors.As(err, &p) {
 		return p.Plain()
 	}
+	if err != nil && strings.Contains(err.Error(), "error while loading shared libraries") {
+		// The renderer's browser lacks some of the system's libraries (a
+		// fresh Ubuntu in WSL, say): doctor names them and the command.
+		return "The render couldn't start: the renderer's browser needs a few of this computer's own libraries. MetaRush's checkup, doctor, names them and the one command that adds them."
+	}
 	return "The render stopped with an error. Render it again; if it fails again, its details say what went wrong."
 }
 

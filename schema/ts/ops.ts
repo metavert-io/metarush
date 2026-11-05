@@ -6203,6 +6203,7 @@ export interface AddPathsOut {
 files: AddedFile[]
 folders: LinkedFolderOut[]
 summary: string
+slow?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -6246,6 +6247,7 @@ paused?: boolean
 machines: LinkedFolderMachine[]
 unlinked?: boolean
 text: string
+slow?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -23709,6 +23711,7 @@ skipped: number
 failed: number
 dryRun: boolean
 note?: string
+slow?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -34994,6 +34997,7 @@ export interface SetupStatusOut {
 noKeys: WorksItem[]
 withKeys: WorksItem[]
 claude: ClaudeCode
+windows?: WindowsReport
 summary: string
 firstRun: boolean
 database: SetupDatabase
@@ -35024,6 +35028,27 @@ installed: boolean
 version?: string
 signedIn?: boolean
 billing?: ("" | "plan" | "api" | "unknown")
+ready: boolean
+says: string
+next?: string
+command?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WindowsReport".
+ */
+export interface WindowsReport {
+version: number
+distro?: string
+says: string
+notes: WindowsNote[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "WindowsNote".
+ */
+export interface WindowsNote {
+key: ("wsl-version" | "background" | "keep-running" | "browser" | "network" | "files")
 ready: boolean
 says: string
 next?: string
@@ -37810,6 +37835,7 @@ whatsNew: ReleaseNotes[]
 computers: ComputerVersion[]
 older: number
 computersError?: string
+windows?: WindowsReport
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -37839,6 +37865,7 @@ name: string
 hostname?: string
 os?: string
 arch?: string
+wsl?: number
 this: boolean
 version?: string
 release?: string
@@ -38777,6 +38804,7 @@ display: string
  */
 parent?: string
 home: string
+windowsHome?: string
 entries: BrowseEntry[]
 truncated?: boolean
 /**
@@ -38865,6 +38893,8 @@ canChoose: boolean
  */
 canReveal: boolean
 note?: string
+slow?: string
+everySeconds?: number
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -39456,6 +39486,7 @@ lastUsedAt?: string
 commit?: string
 built?: string
 knowsMoves?: string
+wsl?: number
 state?: ("invited" | "active" | "revoked")
 storageKeyId?: string
 storageKey?: StorageKeyRef

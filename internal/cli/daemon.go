@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,6 +42,7 @@ import (
 	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/worker"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // daemonState is <home>/state/daemon.json (service.Daemon reads it).
@@ -680,7 +680,11 @@ func dashboardCmd() *cobra.Command {
 			if next != "" {
 				u += "&next=" + next
 			}
-			res := DashboardOut{URL: u, Started: started, ExpiresInMinutes: 10, Dashboard: base, Remote: remoteLink}
+			ts := tools.New(cfg.Tools)
+			res := DashboardOut{URL: u, Started: started, ExpiresInMinutes: 10, Dashboard: base, Remote: remoteLink, OpensWith: ts.BrowserOpener()}
+			if w := wsl.Here(); w.In() {
+				res.Windows = true
+			}
 			return emit(c, res, func() {
 				if started {
 					fmt.Fprintln(os.Stderr, "Started MetaRush in the background.")
@@ -693,7 +697,12 @@ func dashboardCmd() *cobra.Command {
 				}
 				fmt.Println(u)
 				if !printOnly && !noOpen {
-					openBrowser(u)
+					if how, err := openBrowser(ts, u); err != nil || how == "" {
+						fmt.Fprintln(os.Stderr, openYourselfWords())
+						if detailsMode(c) && err != nil {
+							fmt.Fprintf(os.Stderr, "  opener: %v\n", err)
+						}
+					}
 				}
 			})
 		},
@@ -728,13 +737,22 @@ func spawnDaemon(h string, cfg *config.Config) error {
 	return cmd.Process.Release()
 }
 
-func openBrowser(u string) {
-	switch runtime.GOOS {
-	case "darwin":
-		_ = exec.Command("open", u).Start()
-	case "linux":
-		_ = exec.Command("xdg-open", u).Start()
+// openBrowser opens a link to the dashboard in the person's browser on this
+// computer — inside WSL, Windows' default browser (D518) — through the
+// allowlisted openers, and says which program opened it ("" and an error
+// when none could: the person opens the printed link).
+func openBrowser(ts *tools.Set, u string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	return ts.OpenInBrowser(ctx, u)
+}
+
+// openYourselfWords is said when no browser could be opened from here.
+func openYourselfWords() string {
+	if wsl.Here().In() {
+		return "Open this link in your Windows browser (Edge or Chrome on this PC): it works from Windows as it is, once, within 10 minutes."
 	}
+	return "Open this link in a browser on this computer: it works once, within 10 minutes."
 }
 
 // StopOut is `metarush stop --json`.
@@ -755,6 +773,12 @@ type DashboardOut struct {
 	ExpiresInMinutes int    `json:"expiresInMinutes"`
 	Dashboard        string `json:"dashboard"` // the dashboard's address, without the sign-in
 	Remote           bool   `json:"remote"`    // a link for another computer (--remote)
+	// OpensWith is the program that opens a browser here (open, wslview,
+	// rundll32.exe, xdg-open; "" when none can: open the link yourself).
+	OpensWith string `json:"opensWith,omitempty"`
+	// Windows: MetaRush runs inside WSL, so the link opens in Windows'
+	// browser, which reaches 127.0.0.1 here through WSL (D518, D519).
+	Windows bool `json:"windows,omitempty"`
 }
 
 // MigrateOut is `metarush migrate --json`.

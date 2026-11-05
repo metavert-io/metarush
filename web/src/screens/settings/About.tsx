@@ -7,6 +7,7 @@ import { absolute, platformLabel, plural, relative } from '../../lib/format';
 import { useHost, type Host } from '../../lib/host';
 import { unwrapMarkdown, versionDay } from '../../lib/version';
 import { Badge, Button, cx, Details, ErrorPanel, Freshness, Skeleton, Theirs } from '../../ui/primitives';
+import { WindowsNotes } from '../../components/WindowsNotes';
 
 /*
  * Settings → General (About MetaRush) (D130): the version that answers (the computer
@@ -73,6 +74,7 @@ function ThisVersion({ d, host }: { d: VersionShowOut; host: Host }) {
         {day ? <span className="text-[13.5px] text-muted">{day}</span> : null}
       </div>
       {host.remote ? <p className="mt-1 text-[12.5px] text-muted">Running on {host.machine}, the computer this dashboard comes from.</p> : null}
+      {d.windows ? <WindowsNotes className="mt-3" report={d.windows} onlyToDo /> : null}
       {d.dev ? (
         <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-[12px] text-accent-text">
           <Sparkle size={13} weight="fill" aria-hidden /> Includes changes that aren't in a release yet.
@@ -175,7 +177,7 @@ function ComputerRow({ c, host }: { c: ComputerVersion; host: Host }) {
         {/* One line of text: a wrap ends a line with "·", never starts one with it. */}
         <div className="mt-0.5 text-[12px] leading-relaxed text-muted">
           <span className={cx(c.standing === 'older' && 'font-medium text-fg')}>{what}</span>
-          {c.os ? <span className="text-subtle">{` · ${platformLabel(c.os, c.arch ?? '')}`}</span> : null}
+          {c.os ? <span className="text-subtle">{` · ${platformLabel(c.os, c.arch ?? '', c.wsl)}`}</span> : null}
           {c.lastSeenAt && !c.this ? (
             <span className="text-subtle" title={absolute(c.lastSeenAt)}>
               {` · seen ${relative(c.lastSeenAt)}`}

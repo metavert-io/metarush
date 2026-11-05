@@ -354,12 +354,16 @@ func runSSOTest(c *cobra.Command, a *app.App, noOpen bool) (*sso.TestResult, err
 		return nil, failErr(c, err)
 	}
 	fmt.Fprintln(os.Stderr, out.Summary)
-	if noOpen {
+	opened := false
+	if !noOpen {
+		how, err := openBrowser(a.Tools, out.URL)
+		opened = err == nil && how != ""
+	}
+	if opened {
+		fmt.Fprintln(os.Stderr, "Opening it in your browser… (it waits up to 10 minutes; Ctrl-C stops waiting)")
+	} else {
 		fmt.Fprintln(os.Stderr, "Open this link in a browser on this computer:")
 		fmt.Println(out.URL)
-	} else {
-		openBrowser(out.URL)
-		fmt.Fprintln(os.Stderr, "Opening it in your browser… (it waits up to 10 minutes; Ctrl-C stops waiting)")
 	}
 	ctx, cancel := signalCtx(c.Context())
 	defer cancel()

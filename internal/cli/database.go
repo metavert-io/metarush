@@ -309,6 +309,11 @@ func databaseErr(err error, what string) error {
 		return apperr.New(apperr.Database, "%s", sentence(le.Plain)).WithHint(le.Next).
 			WithDetails(map[string]any{"problem": localdb.ErrKernel.Error(), "kernel": localdb.ReadKernel().Release})
 	}
+	if le := (*localdb.Error)(nil); errors.Is(err, localdb.ErrWindowsSide) && errors.As(err, &le) {
+		// Inside WSL, a home on one of Windows' drives (D522).
+		return apperr.New(apperr.InvalidInput, "%s: %s.", what, strings.TrimSuffix(le.Plain, ".")).WithHint(le.Next).
+			WithDetails(map[string]any{"reason": "windows_side"}).WithCommand("metarush setup --home ~/.metarush")
+	}
 	if errors.Is(err, localdb.ErrNoBuild) {
 		return apperr.New(apperr.NotConfigured, "%s: MongoDB doesn't make its database for this kind of computer.", what).
 			WithHint("Use a database elsewhere instead, such as MongoDB Atlas (it has a free tier).")

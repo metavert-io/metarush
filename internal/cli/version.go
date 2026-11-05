@@ -124,6 +124,9 @@ func aboutHere(c *cobra.Command) *ops.VersionShowOut {
 // printAbout is `metarush version --details`: Settings → General as text.
 func printAbout(o *ops.VersionShowOut) {
 	fmt.Println(o.Plain())
+	if o.Windows != nil {
+		fmt.Println(o.Windows.Says) // inside WSL on Windows (D515)
+	}
 	exact := "version " + o.Version
 	if o.DevCount != nil {
 		exact += fmt.Sprintf(": %s past %s", plural(*o.DevCount, "commit"), o.Release)
@@ -142,6 +145,9 @@ func printAbout(o *ops.VersionShowOut) {
 			line += " (this computer)"
 		}
 		line += " · " + osWords(m.OS)
+		if m.WSL > 0 {
+			line = strings.TrimSuffix(line, osWords(m.OS)) + fmt.Sprintf("Windows (WSL %d)", m.WSL)
+		}
 		switch {
 		case m.State == models.InstallationInvited:
 			line += " · invited, not joined yet"

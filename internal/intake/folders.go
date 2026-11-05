@@ -24,6 +24,7 @@ import (
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/resources"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/wsl"
 )
 
 // Linked folders (D81): a folder on someone's computer that a project (or the
@@ -166,6 +167,10 @@ type scanner struct {
 	status  models.LinkedFolderMachine
 	last    time.Time // last publish
 	pubKey  string
+	// windows: the folder is on the Windows side inside WSL, looked through
+	// every wsl.WatchEvery rather than every pass (D521); passed is when.
+	windows bool
+	passed  time.Time
 }
 
 type seenFile struct {
@@ -186,7 +191,7 @@ type ScanResult struct {
 
 func newScanner(a *app.App, rec models.LinkedFolder, path string) *scanner {
 	at := stateTime(a, rec.ID)
-	return &scanner{a: a, rec: rec, path: path, state: loadState(a, rec.ID), stateAt: at, seen: map[string]seenFile{}}
+	return &scanner{a: a, rec: rec, path: path, state: loadState(a, rec.ID), stateAt: at, seen: map[string]seenFile{}, windows: wsl.HereOnWindows(path)}
 }
 
 func fileKey(st fs.FileInfo) string { return fmt.Sprintf("%d|%d", st.Size(), st.ModTime().UnixNano()) }
@@ -545,6 +550,10 @@ func (m *FolderManager) pass(ctx context.Context) {
 		asked := m.asked[fp.ID]
 		delete(m.asked, fp.ID)
 		m.mu.Unlock()
+		if s.windows && !asked && time.Since(s.passed) < wsl.WatchEvery {
+			continue // on the Windows side: looked through less often (D521)
+		}
+		s.passed = time.Now()
 		res := s.scan(ctx, asked)
 		for _, e := range res.Errors {
 			m.log("linked folder %s: couldn't add %s", rec.Name, e)
@@ -593,6 +602,9 @@ type LinkedFolderRow struct {
 	Unlinked bool                         `json:"unlinked,omitempty"`
 	// Text says how it stands, in plain words.
 	Text string `json:"text"`
+	// Slow says, inside WSL, that the folder is on the Windows side: looked
+	// through every few seconds, its files coming in more slowly (D521).
+	Slow string `json:"slow,omitempty"`
 }
 
 // LinkedFolderOut is a folder after a change.
@@ -652,6 +664,9 @@ func folderRow(ctx context.Context, a *app.App, f models.LinkedFolder) LinkedFol
 	}
 	if fp, ok := localPath(a, f.ID); ok {
 		row.HerePath, row.Paused = ingest.DisplayPath(fp.Path), fp.Off
+		if w := wsl.Here(); w.OnWindows(fp.Path) {
+			row.Slow = "On the Windows side (" + strings.ToUpper(w.Drive(fp.Path)) + ":): " + wsl.FolderSlowly + " " + wsl.SpeedTip
+		}
 		if LiveFolders != nil {
 			if s, ok := LiveFolders.Snapshot(f.ID); ok {
 				row.Here = &s

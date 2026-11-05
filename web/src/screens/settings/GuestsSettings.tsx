@@ -86,7 +86,7 @@ export function GuestsSettings() {
         <Skeleton className="h-16" />
       ) : (
         <div className="space-y-4">
-          <OwnerOnly note className="space-y-3">
+          <OwnerOnly className="space-y-3">
             <div className="flex flex-wrap items-center gap-3">
               <span className="w-40 text-[12.5px] text-muted">Let guests in</span>
               <Segmented

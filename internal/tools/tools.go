@@ -505,17 +505,24 @@ const linuxbrewBin = LinuxbrewPrefix + "/bin"
 
 // lookPathWSL finds name on PATH inside WSL: the first copy on Linux's own
 // disk, and (win) the first one on a Windows drive, which is used only for
-// cmd.exe. Relative folders on PATH are never searched.
+// cmd.exe. Windows' folders are looked in only for cmd.exe and Claude Code
+// (whose npm copy on Windows is a script Ubuntu could start, so it is named,
+// never run): reading them is slow, and Windows' other programs end in .exe.
+// Relative folders on PATH are never searched.
 func lookPathWSL(name string, w wsl.Info) (found, win string) {
 	for _, d := range filepath.SplitList(os.Getenv("PATH")) {
 		if d == "" || !filepath.IsAbs(d) {
+			continue
+		}
+		onWindows := w.UnderDrive(d)
+		if onWindows && name != CmdExe && name != Claude {
 			continue
 		}
 		p := filepath.Join(d, name)
 		if !fileExec(p) {
 			continue
 		}
-		if w.UnderDrive(d) {
+		if onWindows {
 			if name == CmdExe {
 				return p, ""
 			}

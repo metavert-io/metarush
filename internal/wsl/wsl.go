@@ -36,6 +36,9 @@ type Info struct {
 	// `wsl -d` and `wsl --set-version` take.
 	Distro      string `json:"distro,omitempty"`
 	DistroKnown bool   `json:"distroKnown,omitempty"`
+	// Name is what the distribution calls itself (/etc/os-release NAME:
+	// "Ubuntu"), what MetaRush's words say; Distro is for commands.
+	Name string `json:"name,omitempty"`
 	// Kernel is the Linux kernel's release (`uname -r`).
 	Kernel string `json:"kernel,omitempty"`
 	// Interop: Ubuntu can start Windows programs (cmd.exe), so MetaRush can
@@ -145,9 +148,9 @@ func (p Probe) Detect() Info {
 		i.Version = 1
 	}
 	i.Distro, i.DistroKnown = name, name != ""
+	i.Name = parseKeyValues(p.read("etc/os-release"))["NAME"]
 	if i.Distro == "" {
-		osr := parseKeyValues(p.read("etc/os-release"))
-		i.Distro = osr["NAME"]
+		i.Distro = i.Name
 	}
 	if interopFile != "" {
 		// "enabled" or "disabled" on its first line ([interop] enabled=false

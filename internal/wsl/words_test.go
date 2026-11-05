@@ -82,6 +82,18 @@ func TestReport(t *testing.T) {
 	if SlowFiles(1) == SlowFiles(2) || !strings.Contains(SlowFiles(3), "3 of these files") {
 		t.Fatal("slow files")
 	}
+	// Words say the distribution as people call it; commands take WSL's name for it.
+	named := Info{Version: 1, Distro: "Ubuntu-24.04", DistroKnown: true, Name: "Ubuntu"}
+	if n := named.WSL1(); !strings.HasPrefix(n.Says, "Ubuntu runs on WSL 1") || !strings.Contains(n.Command, "wsl --set-version Ubuntu-24.04 2") {
+		t.Fatalf("names: %+v", n)
+	}
+	named.Version = 2
+	if h := named.Headline(); h != "MetaRush runs in Ubuntu on Windows (WSL 2)." {
+		t.Fatalf("headline %q", h)
+	}
+	if w, _ := named.WindowsPath("/home/you"); w != `\\wsl.localhost\Ubuntu-24.04\home\you` {
+		t.Fatalf("windows path %q", w)
+	}
 }
 
 // Every sentence people read passes the plain-words check (commands, files

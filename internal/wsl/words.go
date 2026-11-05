@@ -58,12 +58,15 @@ const DefaultIdle = 15 * time.Second
 // (as it does everywhere), less often than on Linux's own disk.
 const WatchEvery = 5 * time.Second
 
+// distroWord is the distribution as people call it ("Ubuntu", not WSL's
+// "Ubuntu-24.04").
 func (i Info) distroWord() string {
-	d := strings.TrimSpace(i.Distro)
-	if d == "" {
-		return "Linux"
+	for _, d := range []string{i.Name, i.Distro} {
+		if d = strings.TrimSpace(d); d != "" {
+			return d
+		}
 	}
-	return d
+	return "Linux"
 }
 
 // distroName is the name `wsl -d` takes, or a stand-in for it.

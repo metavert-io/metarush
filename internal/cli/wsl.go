@@ -8,6 +8,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/firstrun"
 	"github.com/metavert-io/metarush/internal/tools"
 	"github.com/metavert-io/metarush/internal/wsl"
 )
@@ -102,20 +103,14 @@ func wslChecks(cfg *config.Config, ts *tools.Set, add addCheck) {
 		add("windows", name, status, firstNonEmpty(n.Command, n.Says), n.Command, strings.TrimSuffix(n.Says, "."), n.Next)
 	}
 	if ts != nil {
-		for _, t := range []string{tools.Claude, tools.FFmpeg, tools.Node} {
-			if win := ts.WindowsCopy(t); win != "" {
-				add("windows", t+" on Windows", "info", "only a Windows copy on PATH: "+win+" (left alone)", "install it in "+orText(w.Distro, "Ubuntu"),
-					strings.TrimSuffix(windowsOnlyWords(t, w), "."), "Install it in "+orText(w.Distro, "Ubuntu")+" too; Settings → Components says how.")
-			}
+		// Claude Code installed on Windows only (an npm script on Windows'
+		// PATH): named, never run (D518).
+		if win := ts.WindowsCopy(tools.Claude); win != "" {
+			d := orText(w.Distro, "Ubuntu")
+			add("windows", "claude code on Windows", "info", "only a Windows copy on PATH: "+win+" (left alone)", "install Claude Code in "+d+": "+firstrun.InstallCommand,
+				"Claude Code is installed on Windows, but MetaRush in "+d+" can't use Windows' copy", "Install Claude Code in "+d+" too, then open it there once and sign in.")
 		}
 	}
-}
-
-// windowsOnlyWords says that a program is installed on Windows but not in
-// the Linux MetaRush runs in.
-func windowsOnlyWords(tool string, w wsl.Info) string {
-	what := map[string]string{tools.Claude: "Claude Code", tools.FFmpeg: "FFmpeg", tools.Node: "Node.js"}[tool]
-	return what + " is installed on Windows, but MetaRush in " + orText(w.Distro, "Ubuntu") + " can't use Windows' copy."
 }
 
 func onOffWord(b bool) string {

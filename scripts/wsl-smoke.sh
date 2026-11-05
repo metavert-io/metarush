@@ -37,8 +37,8 @@ command -v python3 >/dev/null || { echo "python3 is needed to read MetaRush's JS
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/metarush-wsl-smoke-XXXXXX")"
 home="$tmp/home"
 export XDG_CONFIG_HOME="$tmp/config" # the database port registry and the rest stay in the throwaway folder
-export METARUSH_MONGODB_URI=""
-unset METARUSH_HOME
+# None of your own MetaRush settings (a database address, a home): an empty variable would count too.
+for v in $(compgen -e | grep '^METARUSH_' || true); do unset "$v"; done
 server=""
 winfolder=""
 pass=0
@@ -166,7 +166,10 @@ if [ "$setup" = 1 ]; then
         done
       fi
     else
-      bad "the dashboard didn't start: $(tail -3 "$tmp/dash.err")"
+      bad "the dashboard didn't start: $(json "$tmp/dash.json" 'd["error"]["message"]') $(tail -3 "$tmp/dash.err")"
+      echo "        its details: $(json "$tmp/dash.json" 'd["error"]["details"]')"
+      echo "        the end of its log:"
+      tail -25 "$home/logs/daemon.log" 2>/dev/null | sed 's/^/          /'
     fi
     # A path as File Explorer copies it, from the Windows side: found, and said to be slow.
     pub="$(wslpath -u 'C:\Users\Public' 2>/dev/null || echo /mnt/c/Users/Public)"
@@ -184,7 +187,8 @@ PY
       path="$(json "$tmp/ingest.json" 'd["data"]["ingest"]["results"][0]["path"]')"
       status="$(json "$tmp/ingest.json" 'd["data"]["ingest"]["results"][0]["status"]')"
       slow="$(json "$tmp/ingest.json" 'd["data"]["ingest"]["slow"]')"
-      [ "$status" = "would-ingest" ] && [ "$path" = "$winfolder/tone.wav" ] && ok "$typed is $path" || bad "the Windows path: $status $path $(tail -2 "$tmp/ingest.err")"
+      [ "$status" = "would-ingest" ] && [ "$path" = "$winfolder/tone.wav" ] && ok "$typed is $path" ||
+        bad "the Windows path: $status $path $(json "$tmp/ingest.json" 'd["error"]["message"]') $(json "$tmp/ingest.json" 'd["data"]["ingest"]["results"]') $(tail -2 "$tmp/ingest.err")"
       [ -n "$slow" ] && ok "it says: $slow" || bad "no word that the Windows side is slower"
     else
       skipped "no writable C:\\Users\\Public to add a file from"

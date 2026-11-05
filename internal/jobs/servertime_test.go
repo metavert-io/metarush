@@ -74,44 +74,72 @@ func TestWhenAJobMayRunIsTheServersTime(t *testing.T) {
 		t.Fatalf("a slow computer's worker didn't take a new job: %+v", got)
 	}
 
+	// waitsItsTime has the job wait (wait does it on a slow computer, for the
+	// job as held and its holder, and says how long), then a worker ten
+	// minutes fast looks for it at once: while it waits, it isn't taken. A
+	// look that ended after the job's time, by the server's clock (the
+	// machine stalled longer than the wait), can't tell either way, so the
+	// job waits again, longer. Once the server's time is past the wait, a
+	// worker ten minutes slow takes it.
+	waitsItsTime := func(what string, held *models.Job, wait func(held *models.Job, owner string, try int) time.Duration) *models.Job {
+		t.Helper()
+		owner := "ins_slow"
+		var due time.Time
+		for try := 0; ; try++ {
+			var d time.Duration
+			on(slow, func() { d = wait(held, owner, try) })
+			due = nextRunAt(j.ID)
+			took := lease(fast, worker("ins_fast"))
+			if server().Before(due) { // it looked while the job waited
+				if took != nil {
+					t.Fatalf("a fast computer skipped %s: %+v", what, took)
+				}
+				break
+			}
+			if try == 2 {
+				t.Fatalf("this machine never looked within %s (%v by the server's clock): it can't tell", what, d)
+			}
+			if took == nil { // due by now: held again, to wait again
+				if took = lease(slow, worker("ins_slow")); took == nil || took.ID != j.ID {
+					t.Fatalf("a slow computer left the job waiting after %s: %+v", what, took)
+				}
+			}
+			held, owner = took, took.Lease.Owner
+		}
+		time.Sleep(due.Sub(server()) + 200*time.Millisecond)
+		taken := lease(slow, worker("ins_slow"))
+		if taken == nil || taken.ID != j.ID {
+			t.Fatalf("a slow computer left the job waiting after %s: %+v", what, taken)
+		}
+		return taken
+	}
+
 	// Its attempt fails on the slow computer: a worker ten minutes fast waits
 	// out the retry's whole wait, by the server's time.
-	const wait = 4 * time.Second // long enough for a loaded machine to look within it
+	const wait = 4 * time.Second // a look that can't be made within it makes it longer
 	old := RetryBase
 	RetryBase = wait
 	t.Cleanup(func() { RetryBase = old })
-	before := server()
-	on(slow, func() {
-		if err := q.Fail(ctx, got, "ins_slow", errors.New("boom"), true); err != nil {
+	got = waitsItsTime("the retry's wait", got, func(held *models.Job, owner string, _ int) time.Duration {
+		before := server()
+		if err := q.Fail(ctx, held, owner, errors.New("boom"), true); err != nil {
 			t.Fatal(err)
 		}
+		d := RetryBackoff(held.AttemptCount) // twice as long each time: one more attempt
+		if at := nextRunAt(j.ID).Sub(before); at < d-time.Second || at > d+time.Minute {
+			t.Fatalf("the retry's wait is the server's now plus the backoff: %v", at)
+		}
+		return d
 	})
-	if d := nextRunAt(j.ID).Sub(before); d < wait-time.Second || d > wait+time.Minute {
-		t.Fatalf("the retry's wait is the server's now plus the backoff: %v", d)
-	}
-	if got := lease(fast, worker("ins_fast")); got != nil {
-		t.Fatalf("a fast computer skipped the retry's wait: %+v", got)
-	}
-	time.Sleep(wait + 200*time.Millisecond)
-	got = lease(slow, worker("ins_slow"))
-	if got == nil || got.ID != j.ID {
-		t.Fatalf("a slow computer left a due retry waiting: %+v", got)
-	}
 
 	// Postponed for a while on a slow computer: the same.
-	on(slow, func() {
-		if err := q.Postpone(ctx, got, "ins_slow", wait, "Waiting for the render's record."); err != nil {
+	got = waitsItsTime("a postponement", got, func(held *models.Job, owner string, try int) time.Duration {
+		d := wait << try
+		if err := q.Postpone(ctx, held, owner, d, "Waiting for the render's record."); err != nil {
 			t.Fatal(err)
 		}
+		return d
 	})
-	if got := lease(fast, worker("ins_fast")); got != nil {
-		t.Fatalf("a fast computer skipped a postponement: %+v", got)
-	}
-	time.Sleep(wait + 200*time.Millisecond)
-	got = lease(slow, worker("ins_slow"))
-	if got == nil || got.ID != j.ID {
-		t.Fatalf("a slow computer left a postponed job waiting: %+v", got)
-	}
 
 	// Put back by a stopping worker on a fast computer: due at once for a
 	// slow one.

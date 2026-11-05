@@ -26,6 +26,7 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/editspec"
 	"github.com/metavert-io/metarush/internal/ids"
+	"github.com/metavert-io/metarush/internal/jobs"
 	"github.com/metavert-io/metarush/internal/links"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/store"
@@ -494,10 +495,14 @@ func BatteryPaused(ctx context.Context, a *app.App, machine string, percent, thr
 			kinds[j.Type]++
 			jobIDs = append(jobIDs, j.ID)
 		}
+		resume := "They resume"
+		if len(js) == 1 {
+			resume = "It resumes"
+		}
 		n := models.Notification{Kind: models.NotifyBatteryPaused, UserID: u, Tone: "warning", Machine: machine,
 			GroupKey: fmt.Sprintf("battery:%s:%d", a.Cfg.Installation.ID, since.Unix()), Link: "/?activity=open",
 			Title:   fmt.Sprintf("%s paused on %s", capFirst(jobKinds(kinds)), machine),
-			Body:    fmt.Sprintf("Battery at %d%% (below %d%%). They resume when you plug in, or choose Process now in the activity bar.", percent, threshold),
+			Body:    fmt.Sprintf("Battery at %d%% (below %d%%). %s when you plug in, or choose Process now in the activity bar.", percent, threshold, resume),
 			Details: map[string]any{"jobIds": jobIDs, "batteryPercent": percent, "threshold": threshold}}
 		_, err := Upsert(ctx, a, n, Once)
 		warn(a, "battery", err)
@@ -818,29 +823,27 @@ func UploadInterrupted(ctx context.Context, a *app.App, uploadID, name string, p
 	warn(a, "upload", err)
 }
 
+// jobKinds counts jobs by type in the job labels' words ("2 steady copies and
+// 1 transcription"); types that read the same are counted together.
 func jobKinds(kinds map[string]int) string {
-	var keys []string
-	for k := range kinds {
-		keys = append(keys, k)
+	count, many := map[string]int{}, map[string]string{}
+	for typ, n := range kinds {
+		one, m := jobs.Words(typ)
+		count[one] += n
+		many[one] = m
 	}
-	sort.Strings(keys)
-	var parts []string
-	for _, k := range keys {
-		name := stepLabel[k]
-		switch k {
-		case "transcribe":
-			name = "transcription"
-		case "render":
-			name = "final render"
-		case "diarize":
-			name = "speaker detection"
-		case "":
-			name = "job"
+	names := make([]string, 0, len(count))
+	for one := range count {
+		names = append(names, one)
+	}
+	sort.Strings(names)
+	parts := make([]string, 0, len(names))
+	for _, one := range names {
+		if count[one] == 1 {
+			parts = append(parts, "1 "+one)
+		} else {
+			parts = append(parts, fmt.Sprintf("%d %s", count[one], many[one]))
 		}
-		if name == "" {
-			name = k
-		}
-		parts = append(parts, plural(kinds[k], name))
 	}
 	return list(parts)
 }

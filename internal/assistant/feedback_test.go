@@ -398,10 +398,9 @@ func TestFeedbackTurnedDownNotesReachTheConversation(t *testing.T) {
 	if n := m.deliverInbox(ctx); n > 1 {
 		t.Fatalf("delivered: %d", n)
 	}
-	cv = waitIdle(t, m, id)
-	if s := cv.Turns[len(cv.Turns)-1].Shown; s != "I turned down version 2: Still abrupt" {
-		t.Fatalf("sent from the inbox: %q", s)
-	}
+	// Claude answers it, whichever sent it: when the loop took it, its
+	// message may still be on its way when this call returns.
+	cv = waitShown(t, m, id, "I turned down version 2: Still abrupt")
 	sent := 0
 	for _, tu := range cv.Turns {
 		if tu.Shown == "I turned down version 2: Still abrupt" {

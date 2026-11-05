@@ -146,6 +146,24 @@ func waitIdle(t *testing.T, m *Manager, id string) *Conversation {
 	return cv
 }
 
+// waitShown waits until the conversation has no running turn and nothing
+// queued, and its last message is the one shown so: sent by something in the
+// background, it may not have started when waitIdle would look.
+func waitShown(t *testing.T, m *Manager, id, shown string) *Conversation {
+	t.Helper()
+	var cv *Conversation
+	eventually(t, "the message “"+shown+"”", func() bool {
+		c, err := m.Get(context.Background(), id, true, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cv = c
+		n := len(c.Turns)
+		return c.State == ConvIdle && len(c.Queue) == 0 && n > 0 && c.Turns[n-1].Shown == shown && TurnTerminal(c.Turns[n-1].State)
+	})
+	return cv
+}
+
 func running(m *Manager, id string) bool {
 	c, err := m.Get(context.Background(), id, false, false)
 	return err == nil && c.State == ConvWorking
@@ -1402,6 +1420,22 @@ func TestErrorsAreReportedHonestly(t *testing.T) {
 	t.Run("claude does not start", func(t *testing.T) {
 		a := testApp(t, "")
 		m := withFake(t, a, fakeclaude.Options{Body: "echo 'segfault in the fake' >&2\nexit 3"})
+		out, _ := m.Ask(ctx, AssistantAskIn{AssistantMessageIn: AssistantMessageIn{Prompt: "hi"}})
+		if cv := waitIdle(t, m, out.Conversation.ID); cv.Turns[0].State != TurnFailed || !strings.Contains(cv.Turns[0].Error, "segfault in the fake") {
+			t.Fatalf("crashed: %+v", cv.Turns[0])
+		}
+	})
+	t.Run("claude stops while its message goes to it", func(t *testing.T) {
+		// Still running when its message is recorded, but no longer reading:
+		// MetaRush can't hand the message over and ends it. What it said on
+		// its way out is still why (it ending a moment sooner is the case
+		// above; which of the two happens is a race, pinned here).
+		a := testApp(t, "")
+		closed := filepath.Join(t.TempDir(), "closed")
+		m := withFake(t, a, fakeclaude.Options{Body: "echo 'segfault in the fake' >&2\nexec 0<&-\ntouch '" + closed + "'\nsleep 30\nexit 3"})
+		m.handOver = func() {
+			eventually(t, "Claude Code to stop reading", func() bool { _, err := os.Stat(closed); return err == nil })
+		}
 		out, _ := m.Ask(ctx, AssistantAskIn{AssistantMessageIn: AssistantMessageIn{Prompt: "hi"}})
 		if cv := waitIdle(t, m, out.Conversation.ID); cv.Turns[0].State != TurnFailed || !strings.Contains(cv.Turns[0].Error, "segfault in the fake") {
 			t.Fatalf("crashed: %+v", cv.Turns[0])

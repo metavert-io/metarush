@@ -219,6 +219,7 @@
   take the cut's real shape instead of a guess.
 - **One answer to "what shape is this project"**. A project's shape comes from its main cut, else any cut, else where
   the brief says it goes, else the shape most of its footage is in; `metarush project show` says which and why.
+- **Battery notifications name what waits in plain words**. They say "2 steady copies paused on studio-mac", never "2 steady copys" or "3 visuals".
 
 ## 0.15.0 — 31 Oct 2026
 - **A conversation you rename keeps its new name**. A rename at the very moment a conversation saved could show the old

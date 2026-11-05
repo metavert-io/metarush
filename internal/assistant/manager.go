@@ -88,6 +88,11 @@ type Manager struct {
 	started bool
 	closed  bool
 	reaping bool
+	// stop is closed when Close begins (the inbox loop ends). busy counts what
+	// Close waits for before it ends the processes: the inbox loop, and Claude
+	// Code starting for a message (none starts once Close has begun).
+	stop chan struct{}
+	busy sync.WaitGroup
 
 	probeMu sync.Mutex
 	probed  *probeResult
@@ -123,12 +128,14 @@ type Manager struct {
 	maxLive   int
 	workEvery time.Duration // how often running work is looked at
 	tellAfter time.Duration // outcomes arriving within this make one note
+	handOver  func()        // runs just before a message goes to Claude Code
 }
 
 // New builds the dashboard daemon's manager for an opened installation and
 // makes it the one ops use.
 func New(a *app.App, exe string) *Manager {
 	m := newManager(a, exe, false)
+	m.busy.Add(1)
 	go m.inboxLoop()      // notes for Claude from elsewhere (D186)
 	RecordClaudeConfig(a) // where its Claude Code keeps sessions, for a handover run in a terminal (D345)
 	return m
@@ -138,7 +145,7 @@ func New(a *app.App, exe string) *Manager {
 func NewTerminal(a *app.App, exe string) *Manager { return newManager(a, exe, true) }
 
 func newManager(a *app.App, exe string, terminal bool) *Manager {
-	m := &Manager{App: a, Exe: exe, convs: map[string]*conv{}, names: map[string]string{}, terminal: terminal}
+	m := &Manager{App: a, Exe: exe, convs: map[string]*conv{}, names: map[string]string{}, terminal: terminal, stop: make(chan struct{})}
 	managers.Lock()
 	managers.m[a.Cfg.Home()] = m
 	managers.Unlock()
@@ -159,10 +166,21 @@ func For(a *app.App) *Manager {
 }
 
 // Close ends every Claude Code process this manager holds (the conversations
-// stay resumable) and forgets the manager.
+// stay resumable) and forgets the manager. The inbox loop stops first, and
+// what is under way finishes before the processes end (a note from the inbox
+// being sent, Claude Code starting for a message), so no Claude Code it
+// started outlives it; none starts once Close has begun.
 func (m *Manager) Close() {
 	m.mu.Lock()
-	m.closed = true
+	if !m.closed {
+		m.closed = true
+		if m.stop != nil { // nil only in a bare Manager a test makes
+			close(m.stop)
+		}
+	}
+	m.mu.Unlock()
+	m.busy.Wait()
+	m.mu.Lock()
 	cs := make([]*conv, 0, len(m.convs))
 	for _, c := range m.convs {
 		cs = append(cs, c)
@@ -186,6 +204,17 @@ func (m *Manager) Close() {
 		delete(managers.m, m.App.Cfg.Home())
 	}
 	managers.Unlock()
+}
+
+// enter counts work Close waits for; false once Close has begun.
+func (m *Manager) enter() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return false
+	}
+	m.busy.Add(1)
+	return true
 }
 
 func (m *Manager) dir() string          { return m.App.Cfg.AssistantDir() }
@@ -1279,6 +1308,9 @@ func (m *Manager) startTurn(c *conv, msg message) (int, error) {
 	c.mu.Unlock()
 	m.save(c, true)
 	m.changed(c.id)
+	if m.handOver != nil {
+		m.handOver()
+	}
 	if err := p.write(userMessage(sent, sid)); err != nil {
 		p.kill() // its exit ends the turn
 	}
@@ -1413,6 +1445,13 @@ func (m *Manager) ensureProc(c *conv) (*proc, error) {
 	old := c.proc
 	c.respawn = false
 	c.mu.Unlock()
+	// A MetaRush that is stopping starts no Claude Code; one starting now
+	// finishes first, and Close then ends it with the rest.
+	if !m.enter() {
+		return nil, apperr.New(apperr.Conflict, "MetaRush is stopping, so Claude Code didn't start. Send your message again once MetaRush is running.").
+			WithDetails(map[string]any{"reason": "stopping"})
+	}
+	defer m.busy.Done()
 	if old != nil && old.alive() {
 		m.endProcess(c)
 	}
@@ -1597,7 +1636,7 @@ func (m *Manager) spawn(c *conv) (*proc, error) {
 	started := make(chan int, 1)
 	var closeR sync.Once
 	go func() {
-		_, err := m.App.Tools.Run(ctx, tools.Spec{Tool: tools.Claude, Args: args, Dir: cwd, Env: env, CleanEnv: true, MaxLine: 32 << 20, Stdin: r,
+		res, err := m.App.Tools.Run(ctx, tools.Spec{Tool: tools.Claude, Args: args, Dir: cwd, Env: env, CleanEnv: true, MaxLine: 32 << 20, Stdin: r,
 			OnStart: func(pid int) {
 				closeR.Do(func() { _ = r.Close() })
 				started <- pid
@@ -1610,8 +1649,13 @@ func (m *Manager) spawn(c *conv) (*proc, error) {
 		}
 		p.err = err
 		var ef *tools.ErrFailed
-		if errors.As(err, &ef) {
+		switch {
+		case errors.As(err, &ef):
 			p.stderr = ef.Stderr
+		case err != nil && res != nil:
+			// Ended by MetaRush, say when it couldn't hand a message to a
+			// process already on its way out: what that said is still why.
+			p.stderr = strings.TrimSpace(string(res.Stderr))
 		}
 		if p.logf != nil {
 			_ = p.logf.Close()

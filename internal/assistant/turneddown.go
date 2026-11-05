@@ -165,6 +165,11 @@ func (m *Manager) deliverInbox(ctx context.Context) int {
 	}
 	sent := 0
 	for _, d := range docs {
+		select {
+		case <-m.stop:
+			return sent // a MetaRush that is stopping leaves the rest for the next one
+		default:
+		}
 		c, err := m.live(ctx, d.ID, true)
 		if err != nil {
 			continue
@@ -183,16 +188,17 @@ func (m *Manager) sendInbox(ctx context.Context, c *conv) int {
 	return len(notes)
 }
 
-// inboxLoop is the daemon's look for notes from elsewhere.
+// inboxLoop is the daemon's look for notes from elsewhere, until the manager
+// closes (Close waits for a look under way).
 func (m *Manager) inboxLoop() {
+	defer m.busy.Done()
 	t := time.NewTicker(inboxEvery)
 	defer t.Stop()
-	for range t.C {
-		m.mu.Lock()
-		closed := m.closed
-		m.mu.Unlock()
-		if closed {
+	for {
+		select {
+		case <-m.stop:
 			return
+		case <-t.C:
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		m.deliverInbox(ctx)

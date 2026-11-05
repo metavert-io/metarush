@@ -980,8 +980,9 @@ func setup(ctx context.Context, a *app.App, in *AbilitySetupIn) (*AbilitySetupOu
 			if !known[name] {
 				return nil, apperr.New(apperr.InvalidInput, "“%s” doesn't use a key called %s.", v.Title, name)
 			}
+			// Hidden in this call's entries (a secret-named field), and in
+			// everything logged from then on once kept (StoreKey).
 			val := strings.TrimSpace(in.Keys[name])
-			a.Log.Secret(val)
 			if _, err := providers.StoreKey(a.Cfg, name, val, false); err != nil {
 				return nil, err
 			}

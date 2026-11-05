@@ -96,6 +96,7 @@
 | `internal/version`, `VERSION`, `version_files.go` | This build: the release from `VERSION` and the stamps `scripts/version.sh` puts in (with fallbacks for a plain `go build`), the `Info` every surface reports, `Compare` (a build N commits past a release is newer than it), and the embedded CHANGELOG.md read into release notes with plain headlines (`ParseChangelog`, `WhatsNew`); `version.show` in `internal/ops` adds the version each computer runs |
 | `internal/models` | MongoDB documents (source of truth for generated TS types); `renamed.go` reads the renamed fields under either name |
 | `internal/store` | MongoDB access, versioned additive migrations (37 renames the old fields in place, `renames.go`), the only (test-only) drop |
+| `internal/secretfields` | Operations' input fields that hold a secret though their names don't say so (`account.password`'s current and new): the activity log hides them like secret-named fields, migration 71 cleaned the entries older versions wrote with them, the spool and workspace exports clean them the same way (`Scrub`) |
 | `internal/oldnames` | The retired stored names ("recipe" is the Recipes feature's word only): the only place they are written, for migration 37 and the readers and filters that take both names while computers upgrade |
 | `internal/media` | `Store` interface; filesystem and S3-compatible drivers (resumable multipart, presign, range) |
 | `internal/cache` | Local content-addressed cache (APFS clones, resumable verified downloads, pin/prune) |

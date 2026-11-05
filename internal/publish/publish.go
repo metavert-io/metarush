@@ -216,15 +216,20 @@ func deleteSecret(cfg *config.Config, name string) error {
 	return config.DeleteSecret(cfg.Home(), name)
 }
 
-// SaveClient keeps the platform client in this computer's keychain.
+// SaveClient keeps the platform client in this computer's keychain. Its
+// secret is hidden in everything this process logs once kept (in the call
+// that sent it before, as a secret-named field).
 func SaveClient(cfg *config.Config, platform string, c Client) error {
 	c.ID, c.Secret = strings.TrimSpace(c.ID), strings.TrimSpace(c.Secret)
 	if c.ID == "" || c.Secret == "" || strings.ContainsAny(c.ID+c.Secret, " \t\r\n") {
 		return &Problem{Msg: "The client ID and secret are both needed, as the platform shows them (no spaces)."}
 	}
-	logbook.RememberSecret(c.Secret)
 	b, _ := json.Marshal(c)
-	return storeSecret(cfg, clientSecretName(platform), string(b))
+	if err := storeSecret(cfg, clientSecretName(platform), string(b)); err != nil {
+		return err
+	}
+	logbook.RememberSecret(c.Secret)
+	return nil
 }
 
 // LoadClient reads the platform client (ErrNotSetUp when there is none).

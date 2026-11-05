@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/secretfields"
 )
 
 // Secrets kept by other packages. The providers registry reports every API key
@@ -206,25 +207,109 @@ func loggerFor(ctx context.Context) *Logger {
 // secretInputHint cheaply rules out inputs without secret-named fields.
 var secretInputHint = []string{"key", "secret", "token", "password", "authorization", "cookie", "credential"}
 
+// scrubSecretFields takes the values of an operation's secret fields
+// (internal/secretfields) out of an entry an older version prepared with them
+// as typed: one it spooled, written by a newer version (migration 71 cleaned
+// those already in the database).
+func scrubSecretFields(e *Entry) bool {
+	if e.Op == nil || e.Op.Input == nil {
+		return false
+	}
+	var msg, hint, advice *string
+	if e.Error != nil {
+		msg, hint, advice = &e.Error.Message, &e.Error.Hint, &e.Error.Advice
+	}
+	return secretfields.Scrub(e.Op.Name, e.Op.Input, &e.Summary, &e.Op.Command, msg, hint, advice)
+}
+
+// inputHidden is an operation's input with what its call hides taken out
+// before it is shortened: its own secret fields (fields that hold a secret
+// though their names don't say so, internal/secretfields) by name, and
+// the values its call was sent in secret-named fields wherever else they
+// appear in it. Inputs with neither are left as they are.
+func (p *pending) inputHidden() json.RawMessage {
+	if p.e.Op == nil || len(p.raw) == 0 {
+		return p.raw
+	}
+	fields := secretfields.Of(p.e.Op.Name)
+	if len(fields) == 0 && len(p.hide) == 0 {
+		return p.raw
+	}
+	call := NewRedactor()
+	call.Add(p.hide...)
+	rep := call.exact()
+	var v any
+	if json.Unmarshal(p.raw, &v) != nil {
+		if rep == nil {
+			return p.raw
+		}
+		return json.RawMessage(rep.Replace(string(p.raw)))
+	}
+	if m, ok := v.(map[string]any); ok {
+		for k, x := range m {
+			if fields[k] && x != nil && x != "" {
+				m[k] = Redacted
+			}
+		}
+	}
+	if rep != nil {
+		v = replaceIn(rep, v)
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return p.raw
+	}
+	return b
+}
+
+// replaceIn replaces exact values in every string of a decoded JSON value.
+func replaceIn(rep *strings.Replacer, v any) any {
+	switch x := v.(type) {
+	case string:
+		return rep.Replace(x)
+	case map[string]any:
+		for k, val := range x {
+			x[k] = replaceIn(rep, val)
+		}
+	case []any:
+		for i, val := range x {
+			x[i] = replaceIn(rep, val)
+		}
+	}
+	return v
+}
+
 // SecretInputs returns the values of secret-named fields in an operation's
-// JSON input (an API key being saved or tested, a password): they are hidden
-// in everything this process logs afterwards — the call's own errors and the
-// requests it makes included. Short values are left out (they would hide
-// ordinary words).
+// JSON input (an API key being saved or tested, a password, a confirm token).
+// The call hides them in everything it logs — its own entry, the requests it
+// makes, the programs and jobs it runs, the calls it makes — and nowhere else:
+// a value the operation hasn't taken is nobody's secret, and one made up to
+// equal an ordinary word must not blank that word out of the log. What an
+// operation takes (a key it keeps, a password it sets or checks) it reports
+// itself (RememberSecret, Logger.Secret). Short values are left out (they
+// would hide ordinary words).
 func SecretInputs(raw json.RawMessage) []string {
+	return secretInputs(raw, nil)
+}
+
+// secretInputs is SecretInputs with an operation's own secret fields
+// (internal/secretfields).
+func secretInputs(raw json.RawMessage, fields map[string]bool) []string {
 	if len(raw) < 8 {
 		return nil
 	}
-	low := strings.ToLower(string(raw))
-	hit := false
-	for _, h := range secretInputHint {
-		if strings.Contains(low, h) {
-			hit = true
-			break
+	if len(fields) == 0 {
+		low := strings.ToLower(string(raw))
+		hit := false
+		for _, h := range secretInputHint {
+			if strings.Contains(low, h) {
+				hit = true
+				break
+			}
 		}
-	}
-	if !hit {
-		return nil
+		if !hit {
+			return nil
+		}
 	}
 	var v any
 	if json.Unmarshal(raw, &v) != nil {
@@ -243,7 +328,7 @@ func SecretInputs(raw json.RawMessage) []string {
 			}
 		case map[string]any:
 			for k, val := range x {
-				walk(val, secret || SecretName(k), depth+1)
+				walk(val, secret || SecretName(k) || depth == 0 && fields[k], depth+1)
 			}
 		case []any:
 			for _, val := range x {

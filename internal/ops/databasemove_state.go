@@ -55,14 +55,18 @@ func SaveMoveAddress(cfg *config.Config, uri string) error {
 	if err := checkAddress(uri); err != nil {
 		return err
 	}
-	rememberAddress(uri)
 	if cfg.SecretMode() == "env" {
-		return localdb.WriteSecretFile(moveAddressFile(cfg.Home()), "the new database's address", uri, false)
+		if err := localdb.WriteSecretFile(moveAddressFile(cfg.Home()), "the new database's address", uri, false); err != nil {
+			return err
+		}
+		rememberAddress(uri) // kept: hidden in everything logged from now on
+		return nil
 	}
 	if _, err := config.StoreSecret(cfg.Home(), moveAddressName, uri); err != nil {
 		return apperr.New(apperr.NotConfigured, "This computer's keychain didn't take the new database's address.").
 			WithDetails(map[string]any{"problem": scrubAddresses(err.Error())})
 	}
+	rememberAddress(uri)
 	return nil
 }
 

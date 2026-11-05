@@ -194,13 +194,14 @@ func ValidateKeyShape(key string) error {
 }
 
 // StoreKey saves a key where this installation keeps secrets. allowUnsafe
-// passes --allow-unsafe-secret-path to the env-mode file check.
+// passes --allow-unsafe-secret-path to the env-mode file check. A key it
+// keeps is hidden in everything this process logs from then on; one it
+// refuses is not (the call that sent it hides it in its own entries).
 func StoreKey(cfg *config.Config, name, key string, allowUnsafe bool) (string, error) {
 	key, err := ShapeKey(name, key)
 	if err != nil {
 		return "", err
 	}
-	seen(key)
 	if v := os.Getenv(EnvVar(name)); v != "" && !dotEnvHas(cfg.Home(), EnvVar(name)) {
 		return "", apperr.New(apperr.Conflict, "This machine's settings already give MetaRush a %s key, and it would override a saved key.", titleOf(name)).
 			WithHint("Remove " + EnvVar(name) + " from this machine's environment (or change it there) instead.").WithDetails(map[string]any{"envVar": EnvVar(name)})
@@ -209,11 +210,13 @@ func StoreKey(cfg *config.Config, name, key string, allowUnsafe bool) (string, e
 		if err := config.SetDotEnvVar(cfg.Home(), EnvVar(name), key, allowUnsafe); err != nil {
 			return "", err
 		}
+		seen(key)
 		return SourceFile, nil
 	}
 	if _, err := config.StoreSecret(cfg.Home(), secretName(name), key); err != nil {
 		return "", apperr.Wrap(apperr.NotConfigured, err, "MetaRush couldn't save the key in this computer's keychain.")
 	}
+	seen(key)
 	return SourceKeychain, nil
 }
 

@@ -148,6 +148,8 @@ func init() {
 		})
 	ops.Def("users.role", "Make a person an owner or a member (owners)", ops.Flags{Mutating: true, HumanOnly: true, OwnerOnly: true}, roleOp)
 	ops.Def("account.password", "Change your own password (asks for the current one); signs you out everywhere", ops.Flags{Mutating: true, HumanOnly: true}, passwordOp)
+	// Its "current" and "new" are passwords though their names don't say
+	// so: internal/secretfields declares them for the activity log.
 	ops.Def("account.update", "Change your own name or email (an email change asks for your password)", ops.Flags{Mutating: true, HumanOnly: true}, updateOp)
 	ops.Def("account.signoutEverywhere", "Sign yourself out on every computer and browser", ops.Flags{Mutating: true, HumanOnly: true}, signoutOp)
 }

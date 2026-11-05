@@ -14,7 +14,8 @@ import (
 )
 
 // Migration is one versioned, idempotent schema step. Migrations only ever add
-// (indexes, fields) or rename fields in place (37); they never drop data.
+// (indexes, fields), rename fields in place (37) or take a secret out of a
+// record where an older version kept it (71); they never drop data.
 type Migration struct {
 	Version int
 	Name    string
@@ -233,6 +234,8 @@ var Migrations = []Migration{
 	}},
 	{Version: 68, Name: "guests: people outside the workspace an owner shares with, what they may see, their sign-in links and browsers", Up: migrateGuests},
 	{Version: 69, Name: "guests' requests, and the comments they leave; look-alike letters in emails keep their own key", Up: migrateGuestActivity},
+	// v70 belongs to a build merged in parallel.
+	{Version: 71, Name: "passwords older versions wrote into the activity log taken out", Up: scrubLogSecretFields},
 }
 
 // migrateGuests indexes guests (D490: one per email in a workspace), their

@@ -427,6 +427,9 @@ func setPassword(ctx context.Context, a *app.App, userID, pw string, signOut boo
 		options.Replace().SetUpsert(true)); err != nil {
 		return err
 	}
+	// This person's password now: hidden in everything this process logs (a
+	// password only sent, never set or checked, is hidden only in its call).
+	a.Log.Secret(pw)
 	update := bson.M{"$set": bson.M{"passwordSetAt": now}}
 	if signOut {
 		update["$currentDate"] = signOutNow()
@@ -443,6 +446,9 @@ func verifyCurrent(ctx context.Context, a *app.App, userID, pw string) bool {
 		return false
 	}
 	ok, _ := VerifyPassword(pw, c.Hash)
+	if ok {
+		a.Log.Secret(pw) // a password that works: hidden in everything this process logs
+	}
 	return ok
 }
 

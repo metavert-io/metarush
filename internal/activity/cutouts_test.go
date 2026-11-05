@@ -104,19 +104,55 @@ func TestCutOutRows(t *testing.T) {
 	})
 
 	t.Run("put back for another computer", func(t *testing.T) {
-		// Waiting for a computer with room for it (or with the model): the job
-		// is put back until then, its reason in its progress. The row says it
-		// tries again, with Process now — not the reason (see the report).
+		// Waiting for a computer with room for it, or with the model: the job was
+		// put back (its last try postponed, the reason as its progress). The row
+		// says that reason, in its wait line, and the waiting group says it waits
+		// for another computer — never that it ran into a problem.
+		for _, reason := range []string{
+			"Waiting for a computer of this workspace with room to make the cut-out; this one hasn't.",
+			"Waiting for a computer of this workspace that makes cut-outs with Apple Vision person segmentation; this one can't.",
+		} {
+			b := setup(t)
+			b.workers = []models.WorkerDevice{onlineWorker("studio-mac", jobs.TypeMatte)}
+			j := matte("mte_1", models.JobQueued, func(j *models.Job) {
+				ended := b.now.Add(-time.Minute)
+				j.NextRunAt = b.now.Add(4 * time.Minute)
+				j.Progress = models.Progress{Message: reason}
+				j.Attempts = []models.Attempt{{Worker: here, StartedAt: b.now.Add(-2 * time.Minute), EndedAt: &ended, Outcome: jobs.OutcomePostponed, Error: reason}}
+			})
+			it := one(t, b, j)
+			want := strings.TrimSuffix(reason, ".") + ". It looks again in about 4 minutes."
+			if it.State != StateWaiting || it.StageLabel != "Waiting for another computer" || it.Waiting == nil || it.Waiting.Code != jobs.WaitRetry ||
+				it.Waiting.Text != want || !it.CanProcessNow || len(it.ProcessJobIDs) != 1 || it.ProcessJobIDs[0] != j.ID {
+				t.Fatalf("put back: %+v %+v", it, it.Waiting)
+			}
+			b.finish()
+			if len(b.out.Waiting) != 1 || b.out.Waiting[0].Text != "1 cut-out waiting for another computer" || !b.out.Waiting[0].CanProcessNow {
+				t.Fatalf("the waiting group: %+v", b.out.Waiting)
+			}
+			for _, said := range []string{it.StageLabel, it.Waiting.Text, b.out.Waiting[0].Text, b.out.Headline} {
+				if strings.Contains(said, "problem") {
+					t.Fatalf("put back isn't a problem: %q", said)
+				}
+			}
+		}
+		// A try that failed waits to try again after a problem, and says so.
 		b := setup(t)
 		b.workers = []models.WorkerDevice{onlineWorker("studio-mac", jobs.TypeMatte)}
 		j := matte("mte_1", models.JobQueued, func(j *models.Job) {
+			ended := b.now.Add(-time.Minute)
 			j.NextRunAt = b.now.Add(4 * time.Minute)
-			j.Progress = models.Progress{Message: "Waiting for a computer of this workspace with room to make the cut-out; this one hasn't."}
+			j.Progress = models.Progress{Message: "Found the people in 30 of 120 frames"}
+			j.Attempts = []models.Attempt{{Worker: here, StartedAt: b.now.Add(-2 * time.Minute), EndedAt: &ended, Outcome: "failed", Error: "the model stopped"}}
 		})
 		it := one(t, b, j)
-		if it.State != StateWaiting || it.StageLabel != "Waiting" || it.Waiting == nil || it.Waiting.Code != jobs.WaitRetry ||
-			it.Waiting.Text != "It ran into a problem and tries again in about 4 minutes." || !it.CanProcessNow || len(it.ProcessJobIDs) != 1 || it.ProcessJobIDs[0] != j.ID {
-			t.Fatalf("put back: %+v %+v", it, it.Waiting)
+		if it.StageLabel != "Waiting" || it.Waiting == nil || it.Waiting.Code != jobs.WaitRetry ||
+			it.Waiting.Text != "It ran into a problem and tries again in about 4 minutes." || !it.CanProcessNow {
+			t.Fatalf("a try that failed: %+v %+v", it, it.Waiting)
+		}
+		b.finish()
+		if len(b.out.Waiting) != 1 || b.out.Waiting[0].Text != "1 cut-out trying again after a problem" {
+			t.Fatalf("the waiting group after a problem: %+v", b.out.Waiting)
 		}
 	})
 

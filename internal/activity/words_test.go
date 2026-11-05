@@ -130,6 +130,8 @@ func TestWaitText(t *testing.T) {
 		{1, jobs.WaitReason{Code: jobs.WaitBusy, Machine: "mini"}, "qa", "1 quality check waiting its turn on mini"},
 		{2, jobs.WaitReason{Code: jobs.WaitBusy, Machine: "mini"}, "fetch", "2 web pages or repositories waiting their turn on mini"},
 		{1, jobs.WaitReason{Code: jobs.WaitRetry}, "generate", "1 generated clip trying again after a problem"},
+		{1, jobs.WaitReason{Code: jobs.WaitRetry, Text: "It ran into a problem and tries again in about 4 minutes."}, "cut-out", "1 cut-out trying again after a problem"},
+		{2, jobs.WaitReason{Code: jobs.WaitRetry, Text: "Waiting for a computer of this workspace with room to make the cut-out; this one hasn't. It looks again in about 4 minutes."}, "cut-out", "2 cut-outs waiting for another computer"},
 		{1, jobs.WaitReason{Code: "something-new"}, "mystery", "1 job waiting"},
 		{4, jobs.WaitReason{Code: "something-new"}, "mystery", "4 jobs waiting"},
 	}

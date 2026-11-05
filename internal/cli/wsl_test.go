@@ -224,25 +224,34 @@ func TestSetupRefusesTheDatabaseOnTheWindowsSide(t *testing.T) {
 	}
 }
 
-// Inside WSL the dashboard's link opens in Windows' browser through cmd.exe
-// (a stand-in here), escaped; without interop the person is told to open it
-// in their Windows browser (D518).
+// Inside WSL the dashboard's link opens in Windows' browser through Windows'
+// own rundll32.exe (a stand-in where Windows keeps it), the address as it is;
+// without interop the person is told to open it in their Windows browser
+// (D518).
 func TestDashboardLinkOpensInWindows(t *testing.T) {
-	playWSL(t, 2, true, true)
-	bin := t.TempDir()
-	out := filepath.Join(t.TempDir(), "args")
-	if err := os.WriteFile(filepath.Join(bin, tools.CmdExe), []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > '"+out+"'\n"), 0o755); err != nil {
+	w := playWSL(t, 2, true, true)
+	var c string
+	for m := range w.Drives {
+		c = m
+	}
+	sys32 := filepath.Join(c, "Windows", "System32")
+	if err := os.MkdirAll(sys32, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(tools.EnvToolDirs, bin)
+	out := filepath.Join(t.TempDir(), "args")
+	if err := os.WriteFile(filepath.Join(sys32, tools.Rundll32), []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > '"+out+"'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(tools.EnvToolDirs, sys32)
 	ts := tools.New(config.Tools{})
-	how, err := openBrowser(ts, "http://127.0.0.1:4845/auth?t=0123abcd&next=/p/prj_1")
-	if err != nil || how != tools.CmdExe {
+	u := "http://127.0.0.1:4845/auth?t=0123abcd&next=/p/prj_1"
+	how, err := openBrowser(ts, u)
+	if err != nil || how != tools.Rundll32 {
 		t.Fatalf("%q %v", how, err)
 	}
 	b, _ := os.ReadFile(out)
-	if got := strings.Split(strings.TrimSpace(string(b)), "\n"); len(got) != 3 || got[2] != "http://127.0.0.1:4845/auth?t=0123abcd^&next=/p/prj_1" {
-		t.Fatalf("cmd.exe got %q", got)
+	if got := strings.Split(strings.TrimSpace(string(b)), "\n"); len(got) != 2 || got[0] != "url.dll,FileProtocolHandler" || got[1] != u {
+		t.Fatalf("rundll32.exe got %q", got)
 	}
 	if w := openYourselfWords(); !strings.Contains(w, "Windows browser") {
 		t.Fatalf("words: %q", w)

@@ -169,20 +169,22 @@ const (
 	// address to Windows' default browser (D518). Only an address MetaRush
 	// checked is passed (OpenInBrowser).
 	WSLView = "wslview"
-	// CmdExe is Windows' own command interpreter, reached from Ubuntu through
-	// WSL's interop (D518): MetaRush runs only `cmd.exe /c start <address>`,
-	// the address checked and cmd's special characters escaped, to open the
-	// dashboard in Windows' default browser. It is the one program on the
-	// Windows side MetaRush runs; every other program found there is left
-	// alone (Windows copies of Ubuntu's tools don't work from it).
-	CmdExe = "cmd.exe"
+	// Rundll32 is Windows' own rundll32.exe, reached from Ubuntu through WSL's
+	// interop (D518): MetaRush runs only `rundll32.exe
+	// url.dll,FileProtocolHandler <address>`, the address checked, to open the
+	// dashboard in Windows' default browser — no command interpreter reads
+	// the address. It is the one program on the Windows side MetaRush runs,
+	// and only from where Windows keeps it (windowsOnly), never from PATH;
+	// every other program found there is left alone (Windows copies of
+	// Ubuntu's tools don't work from it).
+	Rundll32 = "rundll32.exe"
 )
 
 var allowed = map[string]bool{FFmpeg: true, FFprobe: true, Node: true, Whisper: true, WhisperServer: true, Sherpa: true, SherpaDiar: true, Atlas: true, Claude: true,
 	OSAScript: true, Open: true, XDGOpen: true, Say: true, EspeakNG: true, YtDlp: true, Deno: true, Brew: true, Pdftoppm: true, Pdfinfo: true, Sips: true,
 	Vision: true, Swiftc: true, Launchctl: true, Systemctl: true, Loginctl: true, Git: true, GH: true, D2: true, DeepFilter: true, StudioPython: true, NvidiaSMI: true,
 	Self: true, Tailscale: true, Stabilizer: true, SandboxExec: true, Bwrap: true, Rclone: true, Mongod: true, Lsof: true, SherpaTTS: true, C2PATool: true,
-	WSLView: true, CmdExe: true}
+	WSLView: true, Rundll32: true}
 
 // Allowed says whether name is one of the programs MetaRush may run.
 func Allowed(name string) bool { return allowed[name] }
@@ -190,6 +192,12 @@ func Allowed(name string) bool { return allowed[name] }
 // systemOnly are tools found only at fixed system paths (never PATH or
 // config): what keeps a refresh apart must be the system's own.
 var systemOnly = map[string][]string{SandboxExec: {"/usr/bin/sandbox-exec"}, Bwrap: {"/usr/bin/bwrap", "/bin/bwrap"}, Lsof: {"/usr/sbin/lsof", "/usr/bin/lsof"}}
+
+// windowsOnly are Windows' own programs MetaRush runs inside WSL (D518),
+// found only where Windows keeps them, as WSL shows its C: drive — never on
+// PATH, where a folder a person or a program can write to (~/.local/bin,
+// %APPDATA%\npm) may come first, nor in config.
+var windowsOnly = map[string]string{Rundll32: `C:\Windows\System32\rundll32.exe`}
 
 // macTailscale is where the Tailscale app for macOS keeps its command-line
 // tool when it isn't on PATH (the app's own binary answers CLI commands).
@@ -259,7 +267,7 @@ func (s *Set) OpenURL(ctx context.Context, raw string) (done func(), err error) 
 	if err := s.openerAllowed(tool); err != nil {
 		return func() {}, err
 	}
-	dir, err := os.MkdirTemp("", "metarush-open-")
+	dir, err := openPageDir()
 	if err != nil {
 		return func() {}, err
 	}
@@ -278,15 +286,20 @@ func (s *Set) OpenURL(ctx context.Context, raw string) (done func(), err error) 
 	switch tool {
 	case Open:
 		spec.Args = []string{"-a", s.webBrowser(ctx), page}
-	case CmdExe:
+	case Rundll32:
 		// Windows reads the page where it sees Ubuntu's files
 		// (\\wsl.localhost\<distribution>\tmp\…); wslview finds that itself.
 		win, ok := wsl.Here().WindowsPath(page)
-		if !ok || strings.ContainsAny(win, " \t\"") {
+		if !ok || !plainPagePath(win) {
 			done()
 			return done, ErrUnsupported
 		}
-		spec = cmdStart(win)
+		spec = rundllOpen(win)
+	case WSLView:
+		if !plainPagePath(page) {
+			done()
+			return done, ErrUnsupported
+		}
 	}
 	if _, err = s.Run(ctx, spec); err != nil {
 		done()
@@ -434,8 +447,14 @@ func New(cfg config.Tools) *Set {
 		if name == Self {
 			continue
 		}
-		if (name == CmdExe || name == WSLView) && !w.In() {
+		if (name == Rundll32 || name == WSLView) && !w.In() {
 			continue // Windows' openers mean something only inside WSL
+		}
+		if win, ok := windowsOnly[name]; ok {
+			if p := windowsProgram(w, win); p != "" {
+				s.paths[name] = p
+			}
+			continue
 		}
 		if fixed, ok := systemOnly[name]; ok {
 			for _, p := range fixed {
@@ -465,8 +484,7 @@ func New(cfg config.Tools) *Set {
 		}
 		if only == nil && w.In() {
 			// Inside WSL, PATH also has Windows' folders (/mnt/c/…): programs
-			// there are Windows' and are left alone, except Windows' own
-			// cmd.exe, which opens the browser (D518).
+			// there are Windows' and are left alone (D518).
 			if p, win := lookPathWSL(name, w); p != "" {
 				s.paths[name] = p
 				continue
@@ -488,13 +506,6 @@ func New(cfg config.Tools) *Set {
 		if name == Tailscale && s.paths[name] == "" && runtime.GOOS == "darwin" && only == nil && fileExec(macTailscale) {
 			s.paths[name] = macTailscale
 		}
-		if name == CmdExe && s.paths[name] == "" && only == nil {
-			// Windows' PATH isn't passed on ([interop] appendWindowsPath=false,
-			// a background service): cmd.exe where Windows keeps it.
-			if p := windowsCmd(w); p != "" {
-				s.paths[name] = p
-			}
-		}
 	}
 	// whisper-server from the same build as whisper-cli: the one next to it.
 	if s.paths[WhisperServer] == "" && cfg.WhisperServer == "" && s.paths[Whisper] != "" {
@@ -509,18 +520,18 @@ func New(cfg config.Tools) *Set {
 const linuxbrewBin = LinuxbrewPrefix + "/bin"
 
 // lookPathWSL finds name on PATH inside WSL: the first copy on Linux's own
-// disk, and (win) the first one on a Windows drive, which is used only for
-// cmd.exe. Windows' folders are looked in only for cmd.exe and Claude Code
-// (whose npm copy on Windows is a script Ubuntu could start, so it is named,
-// never run): reading them is slow, and Windows' other programs end in .exe.
-// Relative folders on PATH are never searched.
+// disk, and (win) the first one on a Windows drive, which is never run.
+// Windows' folders are looked in only for Claude Code (whose npm copy on
+// Windows is a script Ubuntu could start, so it is named, never run): reading
+// them is slow, and Windows' other programs end in .exe. Relative folders on
+// PATH are never searched.
 func lookPathWSL(name string, w wsl.Info) (found, win string) {
 	for _, d := range filepath.SplitList(os.Getenv("PATH")) {
 		if d == "" || !filepath.IsAbs(d) {
 			continue
 		}
 		onWindows := w.UnderDrive(d)
-		if onWindows && name != CmdExe && name != Claude {
+		if onWindows && name != Claude {
 			continue
 		}
 		p := filepath.Join(d, name)
@@ -528,9 +539,6 @@ func lookPathWSL(name string, w wsl.Info) (found, win string) {
 			continue
 		}
 		if onWindows {
-			if name == CmdExe {
-				return p, ""
-			}
 			if win == "" {
 				win = p
 			}
@@ -541,18 +549,18 @@ func lookPathWSL(name string, w wsl.Info) (found, win string) {
 	return "", win
 }
 
-// windowsCmd is Windows' cmd.exe on its C: drive as WSL shows it ("" when
-// it isn't there).
-func windowsCmd(w wsl.Info) string {
+// windowsProgram is one of Windows' own programs (its Windows path) where
+// WSL shows it ("" outside WSL, or when it isn't there).
+func windowsProgram(w wsl.Info, win string) string {
 	if !w.In() {
 		return ""
 	}
-	c, err := w.LinuxPath(`C:\Windows\System32\cmd.exe`)
-	if err != nil {
+	p, err := w.LinuxPath(win)
+	if err != nil || !filepath.IsAbs(p) {
 		return ""
 	}
-	if fileExec(c) {
-		return c
+	if fileExec(p) {
+		return p
 	}
 	return ""
 }
@@ -696,7 +704,7 @@ func (s *Set) Path(name string) string {
 // Use points an allowlisted tool at a binary that exists now (for example
 // metarush-vision right after it was built) and forgets its cached version.
 func (s *Set) Use(name, path string) bool {
-	if _, fixed := systemOnly[name]; fixed || !allowed[name] || !fileExec(path) {
+	if _, fixed := systemOnly[name]; fixed || windowsOnly[name] != "" || !allowed[name] || !fileExec(path) {
 		return false
 	}
 	s.mu.Lock()
@@ -813,7 +821,7 @@ var missingFor = map[string]string{
 	Rclone:   "to read Google Drive folders without syncing them",
 	Mongod:   "for the database on this computer",
 	C2PATool: "to put Content Credentials into delivered videos",
-	WSLView:  "to open your Windows browser", CmdExe: "to open your Windows browser",
+	WSLView:  "to open your Windows browser", Rundll32: "to open your Windows browser",
 }
 
 // Result is a finished command.

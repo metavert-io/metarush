@@ -14,13 +14,14 @@ import (
 	"github.com/metavert-io/metarush/internal/wsl"
 )
 
-// Only https, or http on this computer, with characters no opener reads as
-// its own, is ever handed to a browser opener.
+// Only https, or http at 127.0.0.1 on this computer, with characters no
+// opener reads as its own, is ever handed to a Windows opener: never
+// localhost or [::1], which Windows' browser tries first and any program
+// there may listen on.
 func TestBrowserAddress(t *testing.T) {
 	for _, ok := range []string{
 		"http://127.0.0.1:4845/auth?t=0123456789abcdef&next=/p/prj_01",
-		"http://localhost:4845/auth?t=abc&next=/%3Fwelcome%3D1",
-		"http://[::1]:4845/",
+		"http://127.0.0.1:4845/auth?t=abc&next=/%3Fwelcome%3D1",
 		"https://accounts.example.com/o/oauth2/v2/auth?client_id=c&state=s",
 	} {
 		if _, err := BrowserAddress(ok); err != nil {
@@ -28,6 +29,7 @@ func TestBrowserAddress(t *testing.T) {
 		}
 	}
 	for _, bad := range []string{
+		"http://localhost:4845/auth?t=abc&next=/%3Fwelcome%3D1", "http://LOCALHOST:4845/", "http://[::1]:4845/", "http://127.0.0.2:4845/",
 		"", "-n http://127.0.0.1:4845/", "http://example.com:4845/", "file:///etc/passwd", "javascript:alert(1)",
 		"http://127.0.0.1:4845/auth?t=a b", `http://127.0.0.1:4845/"&calc`, "http://127.0.0.1:4845/$(id)", "http://127.0.0.1:4845/`id`",
 		"http://127.0.0.1:4845/a;b", "http://127.0.0.1:4845/a,b", "http://127.0.0.1:4845/a^b", "http://127.0.0.1:4845/a|b", "http://127.0.0.1:4845/(a)",
@@ -36,16 +38,6 @@ func TestBrowserAddress(t *testing.T) {
 		if _, err := BrowserAddress(bad); err == nil {
 			t.Errorf("%q passed", bad)
 		}
-	}
-}
-
-// cmd.exe reads ^ & | < > ( ) % ! " as its own; each gets a caret.
-func TestCmdEscape(t *testing.T) {
-	if got := CmdEscape(`http://127.0.0.1:4845/auth?t=ab&next=/%3Fwelcome%3D1`); got != `http://127.0.0.1:4845/auth?t=ab^&next=/^%3Fwelcome^%3D1` {
-		t.Fatalf("%q", got)
-	}
-	if got := CmdEscape(`a^b|c<d>e(f)g!h"i`); got != `a^^b^|c^<d^>e^(f^)g^!h^"i` {
-		t.Fatalf("%q", got)
 	}
 }
 
@@ -67,38 +59,49 @@ func recorded(t *testing.T, out string) []string {
 	return strings.Split(strings.TrimSuffix(string(b), "\n"), "\n")
 }
 
-// Inside WSL the dashboard opens in Windows' browser: wslview when it is
-// there, else `cmd.exe /c start` with cmd's characters escaped, run from the
-// C: drive; nothing opens a browser inside Ubuntu, and without interop
-// nothing runs at all.
-func TestOpenInBrowserInsideWSL(t *testing.T) {
-	tmp, _ := filepath.EvalSymlinks(t.TempDir())
-	c := filepath.Join(tmp, "mnt", "c")
-	if err := os.MkdirAll(c, 0o755); err != nil {
+// windowsDrive plays Windows' C: drive in a temporary folder, with a
+// stand-in rundll32.exe where Windows keeps it that records what it got into
+// out; it returns the drive's folder and System32's.
+func windowsDrive(t *testing.T, tmp, out string) (c, sys32 string) {
+	t.Helper()
+	c = filepath.Join(tmp, "mnt", "c")
+	sys32 = filepath.Join(c, "Windows", "System32")
+	if err := os.MkdirAll(sys32, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	recorder(t, sys32, Rundll32, out)
+	return c, sys32
+}
+
+// Inside WSL the dashboard opens in Windows' browser: wslview when it is
+// there, else Windows' own rundll32.exe from System32, which gets the address
+// as it is (`url.dll,FileProtocolHandler <address>`: no command interpreter
+// reads it), run from the C: drive; nothing opens a browser inside Ubuntu,
+// and without interop nothing runs at all.
+func TestOpenInBrowserInsideWSL(t *testing.T) {
+	tmp, _ := filepath.EvalSymlinks(t.TempDir())
+	out := filepath.Join(tmp, "out")
+	c, sys32 := windowsDrive(t, tmp, out)
 	bin := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	out := filepath.Join(tmp, "out")
-	recorder(t, bin, CmdExe, out)
 	recorder(t, bin, XDGOpen, out+".xdg")
-	t.Setenv(EnvToolDirs, bin)
+	t.Setenv(EnvToolDirs, bin+string(os.PathListSeparator)+sys32)
 	w := wsl.Info{Version: 2, Distro: "Ubuntu", DistroKnown: true, Interop: true, DriveRoot: "/mnt/", Drives: map[string]string{c: "c"}}
 	t.Cleanup(wsl.Pretend(w))
 
-	u := "http://127.0.0.1:4845/auth?t=0123abcd&next=/%3Fwelcome%3D1"
+	u := "http://127.0.0.1:4845/auth?t=0123abcd&next=/%3Fwelcome%3D1&pct=%25PATH%25"
 	s := New(config.Tools{})
-	if got := s.BrowserOpener(); got != CmdExe {
+	if got := s.BrowserOpener(); got != Rundll32 {
 		t.Fatalf("opener %q", got)
 	}
 	how, err := s.OpenInBrowser(context.Background(), u)
-	if err != nil || how != CmdExe {
+	if err != nil || how != Rundll32 {
 		t.Fatalf("%q %v", how, err)
 	}
-	if got := recorded(t, out); strings.Join(got, "|") != c+"|/c|start|http://127.0.0.1:4845/auth?t=0123abcd^&next=/^%3Fwelcome^%3D1" {
-		t.Fatalf("cmd.exe got %q", got)
+	if got := recorded(t, out); strings.Join(got, "|") != c+"|url.dll,FileProtocolHandler|"+u {
+		t.Fatalf("rundll32.exe got %q", got)
 	}
 	if _, err := os.Stat(out + ".xdg"); err == nil {
 		t.Fatal("a browser inside Ubuntu was opened")
@@ -114,9 +117,11 @@ func TestOpenInBrowserInsideWSL(t *testing.T) {
 		t.Fatalf("wslview got %q", got)
 	}
 
-	// An address with a character cmd.exe or a shell reads is never handed on.
+	// An address with a character a shell reads, or on this computer at
+	// anything but 127.0.0.1, is never handed on.
 	_ = os.Remove(out)
-	for _, bad := range []string{"http://127.0.0.1:4845/auth?t=a&next=$(id)", "http://127.0.0.1:4845/auth?t=a&next=/x;calc", "http://127.0.0.1:4845/a#b"} {
+	for _, bad := range []string{"http://127.0.0.1:4845/auth?t=a&next=$(id)", "http://127.0.0.1:4845/auth?t=a&next=/x;calc", "http://127.0.0.1:4845/a#b",
+		"http://localhost:4845/auth?t=a", "http://[::1]:4845/auth?t=a"} {
 		if _, err := s.OpenInBrowser(context.Background(), bad); err == nil {
 			t.Fatalf("opened %q", bad)
 		}
@@ -135,17 +140,19 @@ func TestOpenInBrowserInsideWSL(t *testing.T) {
 }
 
 // Sign-in pages (OpenURL) inside WSL: the page's Windows address goes to
-// cmd.exe, never the sign-in address itself.
+// rundll32.exe, never the sign-in address itself, and the page is kept in
+// /tmp whatever TMPDIR says, so its path holds only plain characters.
 func TestOpenURLInsideWSL(t *testing.T) {
 	tmp, _ := filepath.EvalSymlinks(t.TempDir())
-	bin := filepath.Join(tmp, "bin")
-	if err := os.MkdirAll(bin, 0o755); err != nil {
+	out := filepath.Join(tmp, "out")
+	c, sys32 := windowsDrive(t, tmp, out)
+	odd := filepath.Join(tmp, "tmp;a,b=c&d")
+	if err := os.MkdirAll(odd, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	out := filepath.Join(tmp, "out")
-	recorder(t, bin, CmdExe, out)
-	t.Setenv(EnvToolDirs, bin)
-	t.Cleanup(wsl.Pretend(wsl.Info{Version: 2, Distro: "Ubuntu", DistroKnown: true, Interop: true, DriveRoot: "/mnt/", Drives: map[string]string{"/mnt/nothere": "c"}}))
+	t.Setenv("TMPDIR", odd)
+	t.Setenv(EnvToolDirs, sys32)
+	t.Cleanup(wsl.Pretend(wsl.Info{Version: 2, Distro: "Ubuntu", DistroKnown: true, Interop: true, DriveRoot: "/mnt/", Drives: map[string]string{c: "c"}}))
 	s := New(config.Tools{})
 	done, err := s.OpenURL(context.Background(), "https://accounts.example.com/o/oauth2/v2/auth?state=SECRETSTATE")
 	if err != nil {
@@ -153,36 +160,56 @@ func TestOpenURLInsideWSL(t *testing.T) {
 	}
 	defer done()
 	got := recorded(t, out)
-	if len(got) != 4 || got[1] != "/c" || got[2] != "start" || !strings.HasPrefix(got[3], `\\wsl.localhost\Ubuntu\`) || !strings.HasSuffix(got[3], `\open.html`) ||
-		strings.Contains(strings.Join(got, " "), "SECRETSTATE") {
-		t.Fatalf("cmd.exe got %q", got)
+	if len(got) != 3 || got[0] != c || got[1] != "url.dll,FileProtocolHandler" || !strings.HasPrefix(got[2], `\\wsl.localhost\Ubuntu\tmp\metarush-open-`) ||
+		!strings.HasSuffix(got[2], `\open.html`) || !plainPagePath(got[2]) || strings.Contains(strings.Join(got, " "), "SECRETSTATE") {
+		t.Fatalf("rundll32.exe got %q", got)
+	}
+	page := "/tmp/" + strings.ReplaceAll(strings.TrimPrefix(got[2], `\\wsl.localhost\Ubuntu\tmp\`), `\`, "/")
+	if b, err := os.ReadFile(page); err != nil || !strings.Contains(string(b), "SECRETSTATE") {
+		t.Fatalf("the page %s: %v", page, err)
+	}
+	done()
+	if _, err := os.Stat(filepath.Dir(page)); !os.IsNotExist(err) {
+		t.Fatalf("the page's folder is still there: %v", err)
+	}
+
+	// Without the distribution's name Windows can't be told where the page is.
+	t.Cleanup(wsl.Pretend(wsl.Info{Version: 2, Distro: "Ubuntu", Interop: true, DriveRoot: "/mnt/", Drives: map[string]string{c: "c"}}))
+	if _, err := New(config.Tools{}).OpenURL(context.Background(), "https://accounts.example.com/o/oauth2/v2/auth?state=s"); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("no distribution name: %v", err)
 	}
 }
 
 // Inside WSL, PATH also lists Windows' folders: programs there are Windows'
-// and are left alone (only named, for doctor), except Windows' own cmd.exe,
-// found on PATH or where Windows keeps it.
+// and are left alone (only named, for doctor). Windows' own rundll32.exe is
+// taken only from System32, never from PATH — not from a Linux folder that
+// comes first (~/.local/bin), a Windows folder a program can write to
+// (%APPDATA%\npm), METARUSH_TOOL_DIRS or config — and without it nothing
+// opens Windows' browser.
 func TestWindowsProgramsAreLeftAlone(t *testing.T) {
 	tmp, _ := filepath.EvalSymlinks(t.TempDir())
 	c := filepath.Join(tmp, "mnt", "c")
 	linuxBin := filepath.Join(tmp, "usr", "bin")
+	localBin := filepath.Join(tmp, "home", "you", ".local", "bin")
 	npm := filepath.Join(c, "Users", "Sam", "AppData", "Roaming", "npm")
 	sys32 := filepath.Join(c, "Windows", "System32")
-	for _, d := range []string{linuxBin, npm, sys32} {
+	for _, d := range []string{linuxBin, localBin, npm, sys32} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	// deep-filter stands for any program both sides have (one no computer
 	// running these tests has in Homebrew's folder, which a Mac prefers).
-	for _, p := range []string{filepath.Join(npm, Claude), filepath.Join(npm, DeepFilter), filepath.Join(linuxBin, DeepFilter), filepath.Join(sys32, CmdExe)} {
+	for _, p := range []string{filepath.Join(npm, Claude), filepath.Join(npm, DeepFilter), filepath.Join(linuxBin, DeepFilter), filepath.Join(sys32, Rundll32),
+		filepath.Join(npm, Rundll32), filepath.Join(localBin, Rundll32)} {
 		if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	t.Setenv(EnvToolDirs, "")
 	os.Unsetenv(EnvToolDirs) // restored after the test (t.Setenv)
-	t.Setenv("PATH", npm+string(os.PathListSeparator)+linuxBin+string(os.PathListSeparator)+sys32)
+	sep := string(os.PathListSeparator)
+	t.Setenv("PATH", localBin+sep+npm+sep+linuxBin+sep+sys32)
 	t.Cleanup(wsl.Pretend(wsl.Info{Version: 2, Distro: "Ubuntu", DistroKnown: true, Interop: true, DriveRoot: "/mnt/", Drives: map[string]string{c: "c"}}))
 
 	s := New(config.Tools{})
@@ -195,24 +222,42 @@ func TestWindowsProgramsAreLeftAlone(t *testing.T) {
 	if s.Path(Claude) == "" && s.WindowsCopy(Claude) != filepath.Join(npm, Claude) {
 		t.Fatalf("the Windows copy isn't named: %q", s.WindowsCopy(Claude))
 	}
-	if p := s.Path(CmdExe); p != filepath.Join(sys32, CmdExe) {
-		t.Fatalf("cmd.exe: %q", p)
+	if p := s.Path(Rundll32); p != filepath.Join(sys32, Rundll32) {
+		t.Fatalf("rundll32.exe from %q, not System32", p)
+	}
+	if s.Use(Rundll32, filepath.Join(localBin, Rundll32)) || s.Path(Rundll32) != filepath.Join(sys32, Rundll32) {
+		t.Fatalf("rundll32.exe pointed elsewhere: %q", s.Path(Rundll32))
 	}
 	for _, d := range SearchDirs() {
 		if strings.HasPrefix(d, c) {
 			t.Fatalf("a Windows folder is watched for programs: %s", d)
 		}
 	}
-	// Windows' PATH not passed on: cmd.exe where Windows keeps it.
+	// Only these folders (tests, browser runs): still only where Windows keeps it.
+	t.Setenv(EnvToolDirs, localBin)
+	if p := New(config.Tools{}).Path(Rundll32); p != filepath.Join(sys32, Rundll32) {
+		t.Fatalf("rundll32.exe with only %s: %q", localBin, p)
+	}
+	t.Setenv(EnvToolDirs, "")
+	os.Unsetenv(EnvToolDirs)
+	// Windows' PATH not passed on: still where Windows keeps it.
 	t.Setenv("PATH", linuxBin)
-	if p := New(config.Tools{}).Path(CmdExe); p != filepath.Join(sys32, CmdExe) {
-		t.Fatalf("cmd.exe without Windows' PATH: %q", p)
+	if p := New(config.Tools{}).Path(Rundll32); p != filepath.Join(sys32, Rundll32) {
+		t.Fatalf("rundll32.exe without Windows' PATH: %q", p)
+	}
+	// Not in System32: no opener, whatever PATH has.
+	if err := os.Remove(filepath.Join(sys32, Rundll32)); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", localBin+sep+npm)
+	if s := New(config.Tools{}); s.Has(Rundll32) || s.BrowserOpener() == Rundll32 {
+		t.Fatalf("an opener from PATH: %q", s.Path(Rundll32))
 	}
 	// Outside WSL, Windows' openers mean nothing.
 	t.Cleanup(wsl.Pretend(wsl.Info{}))
-	t.Setenv("PATH", sys32)
-	if New(config.Tools{}).Has(CmdExe) {
-		t.Fatal("cmd.exe outside WSL")
+	t.Setenv("PATH", localBin)
+	if New(config.Tools{}).Has(Rundll32) {
+		t.Fatal("rundll32.exe outside WSL")
 	}
 }
 

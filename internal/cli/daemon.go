@@ -774,7 +774,7 @@ type DashboardOut struct {
 	Dashboard        string `json:"dashboard"` // the dashboard's address, without the sign-in
 	Remote           bool   `json:"remote"`    // a link for another computer (--remote)
 	// OpensWith is the program that opens a browser here (open, wslview,
-	// cmd.exe, xdg-open; "" when none can: open the link yourself).
+	// rundll32.exe, xdg-open; "" when none can: open the link yourself).
 	OpensWith string `json:"opensWith,omitempty"`
 	// Windows: MetaRush runs inside WSL, so the link opens in Windows'
 	// browser, which reaches 127.0.0.1 here through WSL (D518, D519).

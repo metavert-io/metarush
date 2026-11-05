@@ -40,7 +40,7 @@ type Verdict struct {
 	Path    string `json:"path"`
 	Kind    string `json:"kind,omitempty"`    // "" (safe) | git | sync
 	Root    string `json:"root,omitempty"`    // the git work tree or the sync folder
-	Service string `json:"service,omitempty"` // iCloud Drive | Google Drive | OneDrive | Dropbox | Box | git
+	Service string `json:"service,omitempty"` // iCloud Drive | iCloud Photos | Google Drive | OneDrive | SharePoint | Dropbox | Box | git
 	// Ignored reports (for KindGit) that git ignores the path, so it would not
 	// be committed. Tracked files are never ignored, whatever .gitignore says.
 	Ignored bool `json:"ignored,omitempty"`
@@ -175,16 +175,9 @@ func (in Inspector) syncFolder(p string) (service, root string) {
 		}
 	}
 	if in.goos() == "linux" || wsl.Here().In() {
-		// Windows' drives as WSL shows them (/mnt/c, D523): a Windows user's
-		// sync folders (C:\Users\Sam\OneDrive, "OneDrive - Contoso",
-		// Dropbox…, any case), and Google Drive's own drive (G:\My Drive).
-		if root, first, ok := wsl.WindowsUserFolder(p); ok && first != "" {
-			if s := homeSyncService(first, true); s != "" {
-				return s, root + "/" + first
-			}
-		}
-		if mount, first, ok := wsl.WindowsDriveFolder(p); ok && (strings.EqualFold(first, "My Drive") || strings.EqualFold(first, "Shared drives")) {
-			return "Google Drive", mount + "/" + first
+		// Windows' drives as WSL shows them (/mnt/c, D523): windows.go.
+		if s, root := windowsSyncFolder(p); s != "" {
+			return s, root
 		}
 	}
 	return "", ""

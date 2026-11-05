@@ -101,6 +101,16 @@ func TestWindowsSyncFoldersUnderWSL(t *testing.T) {
 		"/mnt/c/Users/Sam/Box/x":                        "Box",
 		"/mnt/g/My Drive/Deliveries/x":                  "Google Drive",
 		"/mnt/g/Shared drives/Team/x":                   "Google Drive",
+		// Moved to the top of another drive, where the services offer to put them.
+		"/mnt/d/Dropbox/Deliveries/x":                           "Dropbox",
+		"/mnt/c/Dropbox/x":                                      "Dropbox",
+		"/mnt/d/Dropbox (Contoso)/x":                            "Dropbox",
+		"/mnt/e/OneDrive/x":                                     "OneDrive",
+		"/mnt/d/OneDrive - Contoso/x":                           "OneDrive",
+		"/mnt/e/Google Drive/x":                                 "Google Drive",
+		"/mnt/d/iCloudDrive/x":                                  "iCloud Drive",
+		"/mnt/d/Box/x":                                          "Box",
+		"/mnt/c/Users/Sam/Pictures/iCloud Photos/Uploads/x.mp4": "iCloud Photos",
 	} {
 		v := in.Inspect(p)
 		if v.Kind != KindSync || v.Service != want {
@@ -110,7 +120,8 @@ func TestWindowsSyncFoldersUnderWSL(t *testing.T) {
 	if v := in.Inspect("/mnt/c/Users/Sam/OneDrive/Deliveries"); v.Root != "/mnt/c/Users/Sam/OneDrive" {
 		t.Errorf("root %q", v.Root)
 	}
-	for _, p := range []string{"/mnt/c/Users/Sam/Videos/Exports", "/mnt/c/Users/Public/Dropbox", "/mnt/c/Dropbox/x", "/mnt/d/Footage/OneDrive/x", "/home/you/Videos"} {
+	for _, p := range []string{"/mnt/c/Users/Sam/Videos/Exports", "/mnt/c/Users/Public/Dropbox", "/mnt/d/Footage/OneDrive/x", "/mnt/d/Footage/x",
+		"/mnt/c/Users/Sam/Pictures/Holiday/x", "/mnt/c/Users/Sam/Contoso/x", "/home/you/Videos"} {
 		if v := in.Inspect(p); v.Unsafe() {
 			t.Errorf("%s flagged: %+v", p, v)
 		}
@@ -314,5 +325,65 @@ func TestSecretEnvNames(t *testing.T) {
 	in := []string{"PATH=/bin", "METARUSH_PUBLISH_YOUTUBE_CLIENT={}", "METARUSH_PUBLISH_YOUTUBE_PERSON_USR_A={}", "METARUSH_MONGODB_ADMIN_URI=x", "METARUSH_TAILSCALE=/x"}
 	if got := Inheritable(in); strings.Join(got, ",") != "PATH=/bin,METARUSH_TAILSCALE=/x" {
 		t.Errorf("Inheritable: %v", got)
+	}
+}
+
+// Where Windows' clients put sync folders beyond their names (D523): OneDrive
+// syncs an organization's SharePoint and Teams libraries into a folder named
+// after the organization, beside "OneDrive - <organization>"; Dropbox's own
+// settings (info.json in the Windows user's AppData) say where its folders
+// are, at any depth on any drive. A delivery there goes to the cloud.
+func TestWindowsSyncFoldersFromWindowsSettings(t *testing.T) {
+	tmp, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, d := filepath.Join(tmp, "mnt", "c"), filepath.Join(tmp, "mnt", "d")
+	sam := filepath.Join(c, "Users", "Sam")
+	for _, dir := range []string{
+		filepath.Join(sam, "OneDrive - Contoso"),
+		filepath.Join(sam, "Contoso", "Marketing - Documents"),
+		filepath.Join(sam, "Fabrikam"), // no "OneDrive - Fabrikam" beside it: a folder of Sam's own
+		filepath.Join(sam, "AppData", "Local", "Dropbox"),
+		filepath.Join(sam, "AppData", "Roaming", "Dropbox"),
+		filepath.Join(d, "Work", "Dropbox", "Client"),
+		filepath.Join(d, "Work", "Team Box", "Client"),
+		filepath.Join(d, "Work", "Footage"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write := func(p, s string) {
+		if err := os.WriteFile(p, []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(sam, "AppData", "Local", "Dropbox", "info.json"), `{"personal": {"path": "D:\\Work\\Dropbox", "host": 1, "is_team": false}}`)
+	write(filepath.Join(sam, "AppData", "Roaming", "Dropbox", "info.json"), `{"business": {"path": "D:\\Work\\Team Box", "subscription_type": "Business"}}`)
+	t.Setenv("USERPROFILE", `C:\Users\Sam`)
+	t.Cleanup(wsl.Pretend(wsl.Info{Version: 2, Distro: "Ubuntu", DistroKnown: true, Interop: true, DriveRoot: "/mnt/", Drives: map[string]string{c: "c", d: "d"}}))
+	in := Inspector{Home: "/home/you", Git: "-", GOOS: "linux"}
+	for p, want := range map[string][2]string{
+		filepath.Join(sam, "Contoso", "Marketing - Documents", "cut.mp4"): {"SharePoint", filepath.Join(sam, "Contoso")},
+		filepath.Join(sam, "contoso", "Teams Chat", "x"):                  {"SharePoint", filepath.Join(sam, "contoso")},
+		filepath.Join(d, "Work", "Dropbox", "Client", "cut.mp4"):          {"Dropbox", filepath.Join(d, "Work", "Dropbox")},
+		filepath.Join(d, "Work", "Team Box", "Client", "cut.mp4"):         {"Dropbox", filepath.Join(d, "Work", "Team Box")},
+		filepath.Join(d, "WORK", "DROPBOX", "new folder"):                 {"Dropbox", filepath.Join(d, "Work", "Dropbox")},
+	} {
+		if v := in.Inspect(p); v.Kind != KindSync || v.Service != want[0] || v.Root != want[1] {
+			t.Errorf("%s: %+v, want %s at %s", p, v, want[0], want[1])
+		}
+	}
+	for _, p := range []string{filepath.Join(sam, "Fabrikam", "x"), filepath.Join(d, "Work", "Footage", "x"), filepath.Join(d, "Work", "x")} {
+		if v := in.Inspect(p); v.Unsafe() {
+			t.Errorf("%s flagged: %+v", p, v)
+		}
+	}
+	// Settings that can't be read, or say nothing usable, add nothing.
+	write(filepath.Join(sam, "AppData", "Local", "Dropbox", "info.json"), `{"personal": {"path": "\\\\nas\\Dropbox"}}`)
+	write(filepath.Join(sam, "AppData", "Roaming", "Dropbox", "info.json"), `not json`)
+	if v := in.Inspect(filepath.Join(d, "Work", "Dropbox", "Client", "cut.mp4")); v.Unsafe() {
+		t.Errorf("without Dropbox's settings: %+v", v)
 	}
 }

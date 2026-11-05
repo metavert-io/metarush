@@ -3,7 +3,6 @@ package remote
 import (
 	"context"
 	"mime"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
+	"github.com/metavert-io/metarush/internal/emailkey"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/models"
 	"github.com/metavert-io/metarush/internal/store"
@@ -62,7 +62,7 @@ func DisplayName(login, name string) string {
 // PersonFor returns the person a Tailscale account is, making them on their
 // first sign-in (created reports that). It records when they signed in.
 func PersonFor(ctx context.Context, a *app.App, login, displayName string) (models.User, bool, error) {
-	login = strings.ToLower(strings.TrimSpace(login))
+	login = emailkey.Of(login)
 	if login == "" {
 		return models.User{}, false, apperr.New(apperr.InvalidInput, "There is no Tailscale account to sign in with.")
 	}
@@ -90,12 +90,14 @@ func PersonFor(ctx context.Context, a *app.App, login, displayName string) (mode
 	return nu, true, nil
 }
 
-// findLogin finds the person a Tailscale account belongs to (nil: nobody yet).
+// findLogin finds the person a Tailscale account belongs to (nil: nobody yet):
+// its login, else their email, matched by the one rule (emailkey).
 func findLogin(ctx context.Context, a *app.App, login string) (*models.User, error) {
 	var us []models.User
 	err := a.DB.Find(ctx, store.CUsers, a.WorkspaceID(), bson.M{"$or": bson.A{
 		bson.M{"logins": login},
-		bson.M{"email": bson.Regex{Pattern: "^" + regexp.QuoteMeta(login) + "$", Options: "i"}},
+		bson.M{"emailKey": login},
+		bson.M{"email": bson.M{"$regex": emailkey.Pattern(login)}},
 	}}, &us)
 	if err != nil {
 		return nil, apperr.Wrap(apperr.Database, err, "MetaRush couldn't look up who this is in its database.")
@@ -133,7 +135,7 @@ func Known(ctx context.Context, a *app.App, logins []string) map[string]models.U
 // person whether they use this computer or another one. It never takes an
 // account another person already has.
 func LinkThisComputer(ctx context.Context, a *app.App, login string) (bool, error) {
-	login = strings.ToLower(strings.TrimSpace(login))
+	login = emailkey.Of(login)
 	if login == "" || a.Cfg.User.ID == "" {
 		return false, nil
 	}

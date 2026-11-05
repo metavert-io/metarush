@@ -39,8 +39,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: 'people',
     label: 'People',
-    line: 'Your account and who signs in',
-    intro: 'Who can open this MetaRush and how they sign in (with their organization’s account too), your own account and picture, and opening it from other computers.',
+    line: 'Your account, who signs in, guests',
+    intro: 'Who can open this MetaRush and how they sign in (with their organization’s account too), guests outside the workspace you share versions with, your own account and picture, and opening it from other computers.',
     icon: (s) => <UsersThree size={s} />,
   },
   {
@@ -136,6 +136,7 @@ const OLD_ANCHORS: Record<string, string> = {
   'your-account': '/settings/people#your-account',
   'remote-access': '/settings/people#remote-access',
   'sign-in': '/settings/people#sign-in',
+  guests: '/settings/people#guests',
   'claude-code': '/settings/claude#claude-code',
   'claude-usage': '/settings/claude#claude-usage',
   'watched-folder': '/settings/footage#watched-folder',

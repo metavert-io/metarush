@@ -59,11 +59,16 @@ func init() { _ = Register(Operations{}) }
 func (Operations) Kind() string { return KindOperation }
 
 // Entries lists every registered operation, people-only ones included (find
-// says they are a person's to do).
+// says they are a person's to do), but the guest API's: those answer a guest
+// on the guest page, never someone finding what MetaRush does (owners look
+// with the guests operations, D492).
 func (Operations) Entries(context.Context, *app.App) ([]Entry, error) {
 	all := ops.All()
 	out := make([]Entry, 0, len(all))
 	for _, op := range all {
+		if op.Guest {
+			continue
+		}
 		out = append(out, OperationEntry(op))
 	}
 	return out, nil

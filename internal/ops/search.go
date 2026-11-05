@@ -670,6 +670,13 @@ func Search(ctx context.Context, a *app.App, in *SearchIn) (*SearchOut, error) {
 			sc.Snippet = append(append([]SnippetPart{{Text: "“"}}, sc.Snippet...), SnippetPart{Text: "” (" + OutsideQuoteNote + ")"})
 			sc.Author = OutsideName(c.Outside.Name)
 		}
+		if c.Guest != nil && AIReader(a) { // a guest's words (D492): quoted, like an outside reviewer's
+			for i := range sc.Snippet {
+				sc.Snippet[i].Text = quoteMarks.Replace(sc.Snippet[i].Text)
+			}
+			sc.Snippet = append(append([]SnippetPart{{Text: "“"}}, sc.Snippet...), SnippetPart{Text: "” (" + GuestQuoteNote + ")"})
+			sc.Author = GuestQuoteName(c.Guest)
+		}
 		out.Comments = append(out.Comments, sc)
 	}
 	sort.SliceStable(out.Comments, func(i, j int) bool { return rankScore[out.Comments[i].Rank] > rankScore[out.Comments[j].Rank] })

@@ -1000,6 +1000,8 @@ var lateNouns = map[string]string{
 	store.CRecipeRuns:      "a run of a recipe (Recipes)",
 	store.CDrafts:          "a draft from an AI app", store.CPresenters: "a presenter", store.CTrainingOptOuts: "a training opt-out",
 	store.CRecordings: "a screen recording", store.CSpokenChanges: "a changed spoken word", store.CReviewLinks: "a review link",
+	store.CGuests: "a guest", store.CGuestGrants: "something shared with a guest", store.CGuestLinks: "a guest's sign-in link",
+	store.CGuestSessions: "a guest's sign-in", store.CGuestActivity: "a guest's request",
 	store.CHandovers: "a handover between computers", store.CLateLooks: "a look at an old database", store.CLateWrites: "a record found written late",
 	store.CLogEntries: "an activity log entry", store.CImprovementItems: "an item of the weekly report", store.CImprovementReports: "a weekly report",
 	store.CSpeakers: "the voices heard in a clip", store.CPeople: "a named person", store.CTodos: "a to-do", store.CFaces: "a face",

@@ -37,6 +37,12 @@ func ContractTypes() []ContractType {
 		{"linkAccept", LinkAccept{}},
 		{"ssoStart", SSOStart{}},
 		{"ssoStartResult", SSOStartResult{}},
+		// The guest listener's own payloads (D492): the guest page reads them.
+		{"guestState", GuestState{}},
+		{"guestLinkIn", GuestLinkIn{}},
+		{"guestSignedIn", GuestSignedIn{}},
+		{"guestSsoStartOut", GuestSSOStartOut{}},
+		{"guestCommentBody", GuestCommentBody{}},
 		{"opInfo", OpInfo{}},
 		{"upload", uploads.Record{}},
 		{"uploadList", UploadList{}},

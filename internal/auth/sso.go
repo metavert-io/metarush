@@ -21,6 +21,7 @@ import (
 	"github.com/metavert-io/metarush/internal/app"
 	"github.com/metavert-io/metarush/internal/apperr"
 	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/emailkey"
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/models"
@@ -451,7 +452,7 @@ var domainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9
 // CleanSSO checks a setup and fills in what its provider fixes.
 func CleanSSO(in models.SSOSettings) (*models.SSOSettings, error) {
 	st := models.SSOSettings{Provider: strings.ToLower(strings.TrimSpace(in.Provider)), ClientID: strings.TrimSpace(in.ClientID),
-		Domain: strings.ToLower(strings.TrimSpace(in.Domain)), Label: strings.TrimSpace(in.Label), AlsoPassword: in.AlsoPassword, AlsoTailscale: in.AlsoTailscale}
+		Domain: emailkey.Of(in.Domain), Label: strings.TrimSpace(in.Label), AlsoPassword: in.AlsoPassword, AlsoTailscale: in.AlsoTailscale}
 	if st.ClientID == "" || len(st.ClientID) > 255 || strings.ContainsAny(st.ClientID, " \t\r\n") {
 		return nil, apperr.New(apperr.InvalidInput, "Give the app's client ID, as the provider shows it.").WithDetails(map[string]any{"reason": "client_id"})
 	}
@@ -788,7 +789,7 @@ func PersonForSSO(ctx context.Context, a *app.App, st *models.SSOSettings, id *s
 		return nil, false, ssoRefusal(SSOGuest, "Guests and personal Microsoft accounts can't sign in with this sign-in.",
 			"Sign in with an account of the organization itself, or ask an owner to let you sign in with a password.", id)
 	}
-	if st.Domain == "" || id.Domain == "" || !strings.EqualFold(st.Domain, id.Domain) {
+	if st.Domain == "" || id.Domain == "" || emailkey.Of(st.Domain) != emailkey.Of(id.Domain) { // as emails are matched: a look-alike isn't the domain
 		return nil, false, notMember(a, st, id)
 	}
 	// The allowed domain: a new member, with their verified email.

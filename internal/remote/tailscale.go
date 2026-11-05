@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/metavert-io/metarush/internal/config"
+	"github.com/metavert-io/metarush/internal/emailkey"
 	"github.com/metavert-io/metarush/internal/tools"
 )
 
@@ -150,7 +151,7 @@ func parseStatus(b []byte, out Tailscale) Tailscale {
 		out.HostName = strings.TrimSpace(st.Self.HostName)
 		if len(st.Self.Tags) == 0 {
 			if u, ok := st.User[strconv.FormatInt(st.Self.UserID, 10)]; ok {
-				out.Login = strings.ToLower(strings.TrimSpace(u.LoginName))
+				out.Login = emailkey.Of(u.LoginName)
 				out.DisplayName = strings.TrimSpace(u.DisplayName)
 			}
 		}

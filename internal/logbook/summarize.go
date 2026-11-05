@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/metavert-io/metarush/internal/ids"
 )
 
 // Size limits for what an entry keeps.
@@ -45,6 +47,37 @@ func Tail(s string, n int) string {
 // privateFields are input fields holding prompt text: kept only under the
 // log.prompts rules (workspace: shortened; local and off: not in the database).
 var privateFields = map[string]bool{"prompt": true}
+
+// GuestInput is what an operation a guest called keeps of its input (the
+// guest channel, D497): the IDs it names, its numbers and switches, and of
+// anything else — what a guest typed, a comment — only its size. A guest's
+// words never reach the activity log, which people and AI apps read without
+// the quoting their comments get elsewhere.
+func GuestInput(r *Redactor, raw json.RawMessage) map[string]any {
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return map[string]any{"_unparsed": fmt.Sprintf("[%d bytes]", len(raw))}
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	for k, v := range m {
+		switch x := v.(type) {
+		case string:
+			if x == "" || ids.Prefix(x) != "" {
+				out[k] = r.String(x)
+			} else {
+				out[k] = fmt.Sprintf("[%d characters]", utf8.RuneCountInString(x))
+			}
+		case float64, bool, nil:
+			out[k] = x
+		default:
+			out[k] = "[left out]"
+		}
+	}
+	return out
+}
 
 // ShortenInput decodes an operation's JSON input and keeps a short, redacted
 // summary of it.

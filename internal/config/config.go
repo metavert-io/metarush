@@ -67,6 +67,9 @@ type Config struct {
 	// Abilities holds settings for abilities on this machine: the community
 	// catalogues it suggests to owners (D481).
 	Abilities Abilities `yaml:"abilities,omitempty"`
+	// Guests is this computer's guest listener (D491): off unless a person
+	// turns guests on here; 127.0.0.1 only. Read it with GuestListener.
+	Guests Guests `yaml:"guests,omitempty"`
 
 	home       string        `yaml:"-"`
 	secretMode string        `yaml:"-"` // inferred from the raw file when Secrets is empty
@@ -246,6 +249,7 @@ type liveSettings struct {
 	threshold   atomic.Int32
 	remote      atomic.Pointer[Remote]
 	screenIndex atomic.Pointer[string]
+	guests      atomic.Pointer[Guests]
 }
 
 // ScreenIndex chooses how this computer looks at what's on screen (D408):

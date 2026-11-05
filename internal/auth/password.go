@@ -17,6 +17,8 @@ import (
 
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/text/unicode/norm"
+
+	"github.com/metavert-io/metarush/internal/emailkey"
 )
 
 // Argon2id settings (OWASP's stronger profile). A stored hash with other
@@ -157,8 +159,11 @@ func CheckPassword(pw, email, name string) error {
 	return nil
 }
 
-// EmailKey is how emails are compared: trimmed and lower-cased.
-func EmailKey(email string) string { return strings.ToLower(strings.TrimSpace(email)) }
+// EmailKey is how emails (and Tailscale accounts) are compared: trimmed and
+// in lower case, except the two characters whose lower case is an ASCII
+// letter, which keep their own key (emailkey: else another address, written
+// with one of them, would match).
+func EmailKey(email string) string { return emailkey.Of(email) }
 
 // ValidEmail is a light check that an email looks like one.
 func ValidEmail(email string) bool {

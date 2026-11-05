@@ -28,8 +28,10 @@ to "Just me" signs everyone else out and keeps their records.
 
 ## Accounts
 
-Accounts are the workspace's `users` (`usr_…`): `name`, `email` (and `emailKey`, lower-cased and trimmed, unique per
-workspace), `role` (`owner` | `member`), `state` (`active` | `invited` | `disabled` | `earlier`), `sessionsValidAfter`,
+Accounts are the workspace's `users` (`usr_…`): `name`, `email` (and `emailKey`: trimmed and lower-cased, unique per
+workspace — so `Kate@…` and `kate@…`, or `Émile@…` and `émile@…`, are one person — except for the two characters whose
+lower case is an ASCII letter, the Kelvin sign K and the capital I with a dot, which keep their own key, so a look-alike
+never matches `kate@…`; Tailscale accounts are matched the same way), `role` (`owner` | `member`), `state` (`active` | `invited` | `disabled` | `earlier`), `sessionsValidAfter`,
 the Tailscale `logins` linked to them, and `sso`: the accounts at the organization's provider that are them (a stable
 key per account — Google's account ID, Microsoft's directory and person IDs, another provider's issuer and subject —
 unique in the workspace, with the email it vouched for; never a token). Roles are minimal: owners manage people and the sign-in method and change
@@ -57,6 +59,7 @@ owners'); the dashboard disables the controls and says "Only an owner can change
 | This computer's folders and programs | `watch.browse` (listing the host's folders), `resources.link\|folder` and `/api/resources/folders/choose` (linking a host folder), `sound.setup` (installing studio quality), `ai.local.setup` (downloading an AI model that runs on this computer), `components.add\|remove` (adding or removing a program or model on this computer), `ingest.url` with `browserSignIn` (lending this computer's browser sign-in) | adding files by dropping them, importing links without the browser's sign-in |
 | Automatic work and deleting for good | `render.follow.set` (review copies that follow the latest version), `asset.delete` (like emptying the Trash) | asking for a review copy, moving clips to the Trash |
 | Review links for people outside the workspace | turning them off, letting only owners send them, the longest a link lasts (`share.settings.set`, people only) | sending a version for review (`share.create`, people only, unless owners keep it to themselves), sending a link again, taking one back, reading what came back |
+| Guests ([guests.md](guests.md)) | turning guests on or off and where this computer answers them (`guests.settings.set`, people only, turning on at this computer); sharing with a guest, their sign-in links and taking things back (`guests.share\|link\|revoke`, people only); what guests did (`guests.activity`); looking at what a guest sees (`guest.shared\|watch\|comments` with a guest named) | `guests.status`, who has what (`guests.list`), reading guests' comments on a version |
 | Content Credentials ([content-credentials.md](content-credentials.md)) | this computer's signing certificate and key (`credentials.setup\|remove`, people only); whether delivered videos carry them (`credentials.set`, and `content.credentials.set` for a client's Content Settings; asking less is a person's) | `credentials.status`, trying them on a sample (`credentials.test`), reading a video's (`credentials.check`), delivering |
 | Exporting the workspace | making an archive of the whole workspace (`workspace.export`, people only) and seeing the exports made on this computer (`workspace.exports`); restoring one is a step at a terminal or in setup, never in the dashboard; saying a restored copy is now the workspace, which lifts its pause on deleting by itself (`workspace.adopt`, people only) | — |
 | Estimates of what outside AI services cost | asking everyone for estimates (`account.preferences.set` `requireEstimates`) | your own estimates on or off (`account.preferences.set` `estimates`) |

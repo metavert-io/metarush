@@ -136,6 +136,11 @@ history, and stays.
 | `footage_insights` | as it is | what MetaRush learned from the footage (scenes, pauses, what is on screen) |
 | `generation_spend` | as it is | what was spent on AI work, per project and day |
 | `generations` | as it is | AI work that was asked for, what it made and cost (written once) |
+| `guest_activity` | as it is | what guests did: who, from which address, what and when |
+| `guest_grants` | as it is | what each guest may see and until when, as the record of what was shared |
+| `guest_links` | left out | one-time sign-in links sent to guests: credentials; owners send new ones |
+| `guest_sessions` | left out | guests' signed-in browsers: credentials; guests sign in again |
+| `guests` | as it is | guests owners shared versions with: their emails and names |
 | `handovers` | as it is | handovers of a computer's role to another computer and take-overs, as history: which computer took over from which, and when (never a passphrase or a key) |
 | `improvement_items` | as it is | gaps and friction the weekly report found |
 | `improvement_reports` | as it is | the weekly reports |

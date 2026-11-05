@@ -2019,6 +2019,83 @@ input: GenIDIn
 output: GenView
 }
 /**
+ * Leave a comment on a version shared with this guest as a commenter, pinned to a time or not (the guest page only; it comes back to the version)
+ */
+"guest.comment": {
+input: GuestCommentIn
+output: GuestCommentOut
+}
+/**
+ * This guest's comments on a version shared with them (the guest page; owners may look at what a guest sees)
+ */
+"guest.comments": {
+input: GuestCommentsIn
+output: GuestCommentsOut
+}
+/**
+ * What was shared with this guest: the projects and versions they may watch, until when, and whether they may comment (the guest page; owners may look at what a guest sees)
+ */
+"guest.shared": {
+input: GuestSharedIn
+output: GuestSharedOut
+}
+/**
+ * Watch a version shared with this guest: its review copy, through a short-lived link (the guest page; owners may look at what a guest sees)
+ */
+"guest.watch": {
+input: GuestWatchIn
+output: GuestWatchOut
+}
+/**
+ * What guests did, newest first: who, from which address, what they opened, watched or wrote, and what was turned away; and who asked unusually often (owners)
+ */
+"guests.activity": {
+input: GuestsActivityIn
+output: GuestsActivityOut
+}
+/**
+ * Make a one-time sign-in link for a guest to send them yourself (it works once, for a day at most, in the browser that opens it; earlier unused links stop working); owners, people only
+ */
+"guests.link": {
+input: GuestsLinkIn
+output: GuestsLinkOut
+}
+/**
+ * Guests outside the workspace and what each may see: the projects or versions, as a viewer or a commenter, until when, and whether they are signed in
+ */
+"guests.list": {
+input: GuestsListIn
+output: GuestsListOut
+}
+/**
+ * Take back one thing shared with a guest, or everything shared with them: it stops at once and, with nothing left, they are signed out; owners, people only
+ */
+"guests.revoke": {
+input: GuestsRevokeIn
+output: GuestsRevokeOut
+}
+/**
+ * Turn guests on or off (off signs every guest out at once), or move where this computer's guest listener answers (owners, people only)
+ */
+"guests.settings.set": {
+input: GuestsSettingsSetIn
+output: GuestsStatusOut
+}
+/**
+ * Share a project (every version with a review copy) or some of its versions with a guest outside the workspace, as a viewer or a commenter, until a day you choose (at most 90 days; What may leave is asked); owners, people only
+ */
+"guests.share": {
+input: GuestsShareIn
+output: GuestsShareOut
+}
+/**
+ * Whether guests (people outside the workspace you share versions with) are let in, where this computer answers them, how they sign in, and how many have something shared now
+ */
+"guests.status": {
+input: GuestsStatusIn
+output: GuestsStatusOut
+}
+/**
  * Put one idea on MetaRush's improvement list: something it couldn't do that the person needed (the same title again is the same idea)
  */
 "improve.add": {
@@ -13899,6 +13976,7 @@ author: Actor
 resolved: boolean
 createdAt: string
 outside?: CommentOutside
+guest?: CommentGuest
 quoted?: string
 }
 /**
@@ -13911,6 +13989,16 @@ linkId: string
 seat: number
 n: number
 made?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "CommentGuest".
+ */
+export interface CommentGuest {
+id: string
+grantId: string
+name?: string
+email: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
@@ -14695,7 +14783,7 @@ looser?: string[]
  * via the `definition` "LeavePlaceOut".
  */
 export interface LeavePlaceOut {
-place: ("ai" | "abilities" | "claude" | "storage" | "delivery")
+place: ("ai" | "abilities" | "claude" | "storage" | "delivery" | "reviewers" | "guests")
 title: string
 says: string
 kinds: string[]
@@ -21954,6 +22042,375 @@ projectId?: string
 }
 /**
  * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestCommentIn".
+ */
+export interface GuestCommentIn {
+version: string
+at?: number
+body: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestCommentOut".
+ */
+export interface GuestCommentOut {
+comment: GuestComment
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestComment".
+ */
+export interface GuestComment {
+id: string
+at?: number
+body: string
+made: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestCommentsIn".
+ */
+export interface GuestCommentsIn {
+version: string
+as?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestCommentsOut".
+ */
+export interface GuestCommentsOut {
+comments: GuestComment[]
+canComment: boolean
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestSharedIn".
+ */
+export interface GuestSharedIn {
+as?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestSharedOut".
+ */
+export interface GuestSharedOut {
+guest: GuestSelf
+shares: GuestShare[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestSelf".
+ */
+export interface GuestSelf {
+name?: string
+email: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestShare".
+ */
+export interface GuestShare {
+project: string
+role: string
+canComment: boolean
+ends: string
+endsWords: string
+from?: string
+message?: string
+kept?: boolean
+versions: GuestVersion[]
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestVersion".
+ */
+export interface GuestVersion {
+id: string
+number: number
+cut?: string
+made: string
+duration: number
+ready: boolean
+shape?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestWatchIn".
+ */
+export interface GuestWatchIn {
+version: string
+as?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestWatchOut".
+ */
+export interface GuestWatchOut {
+version: GuestVersion
+project: string
+url: string
+type: string
+poster?: string
+until?: string
+canComment: boolean
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsActivityIn".
+ */
+export interface GuestsActivityIn {
+guest?: string
+projectId?: string
+refused?: boolean
+limit?: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsActivityOut".
+ */
+export interface GuestsActivityOut {
+rows: ActivityRow[]
+unusual: string[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "ActivityRow".
+ */
+export interface ActivityRow {
+activity: GuestActivity
+who: string
+says: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestActivity".
+ */
+export interface GuestActivity {
+id: string
+workspaceId: string
+guestId?: string
+what: string
+projectId?: string
+revisionId?: string
+from?: string
+at: string
+status?: number
+refused?: boolean
+reason?: string
+computer?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsLinkIn".
+ */
+export interface GuestsLinkIn {
+guest: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsLinkOut".
+ */
+export interface GuestsLinkOut {
+url: string
+expiresAt: string
+ends: string
+guest: Guest
+warnings: string[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "Guest".
+ */
+export interface Guest {
+id: string
+workspaceId: string
+email: string
+name?: string
+state: ("active" | "revoked")
+createdBy: Actor
+createdAt: string
+revokedAt?: string
+revokedBy?: Actor
+lastSeenAt?: string
+signedInWith?: ("" | "link" | "sso")
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsListIn".
+ */
+export interface GuestsListIn {
+projectId?: string
+all?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsListOut".
+ */
+export interface GuestsListOut {
+guests: GuestView[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestView".
+ */
+export interface GuestView {
+guest: Guest
+grants: GrantView[]
+live: number
+signedIn: number
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GrantView".
+ */
+export interface GrantView {
+grant: GuestGrant
+projectName: string
+versions: number[]
+live: boolean
+stateWords: string
+ends: string
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestGrant".
+ */
+export interface GuestGrant {
+id: string
+workspaceId: string
+guestId: string
+projectId: string
+revisionIds: string[]
+role: ("viewer" | "commenter")
+endsAt: string
+message?: string
+kinds: string[]
+projects: string[]
+exposes: string[]
+createdBy: Actor
+createdAt: string
+revokedAt?: string
+revokedBy?: Actor
+endReason?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsRevokeIn".
+ */
+export interface GuestsRevokeIn {
+grant?: string
+guest?: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsRevokeOut".
+ */
+export interface GuestsRevokeOut {
+guest: Guest
+ended: number
+signedOut: number
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsSettingsSetIn".
+ */
+export interface GuestsSettingsSetIn {
+on?: boolean
+port?: number
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsStatusOut".
+ */
+export interface GuestsStatusOut {
+on: boolean
+listening: boolean
+running: boolean
+address: string
+port: number
+internet: boolean
+signIn: string[]
+sso?: string
+ssoCallback?: string
+guests: number
+grants: number
+signedIn: number
+updatedAt?: string
+updatedBy?: Actor
+lines: string[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsShareIn".
+ */
+export interface GuestsShareIn {
+email: string
+name?: string
+projectId: string
+/**
+ * @maxItems 50
+ */
+versions?: string[]
+role: ("viewer" | "commenter" | "approver")
+days?: number
+until?: string
+message?: string
+dryRun?: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsShareOut".
+ */
+export interface GuestsShareOut {
+may: boolean
+why?: string
+code?: string
+hint?: string
+shared: boolean
+projectName: string
+versions: GrantVersion[]
+role: string
+roleWords: string
+endsAt: string
+ends: string
+exposes: string[]
+kinds: string[]
+guest?: Guest
+grant?: GuestGrant
+newGuest?: boolean
+warnings: string[]
+summary: string
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GrantVersion".
+ */
+export interface GrantVersion {
+id: string
+number: number
+cut?: string
+ready: boolean
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestsStatusIn".
+ */
+export interface GuestsStatusIn {
+
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
  * via the `definition` "AddIn".
  */
 export interface AddIn {
@@ -22264,7 +22721,7 @@ workspaceId: string
 at: string
 kind: ("op" | "op_summary" | "job" | "tool" | "claude" | "action" | "event" | "provider")
 level: ("info" | "warn" | "error")
-channel: ("cli" | "dashboard" | "assistant" | "worker" | "watch" | "skill-eval" | "claude-terminal" | "mcp" | "recipe")
+channel: ("cli" | "dashboard" | "assistant" | "worker" | "watch" | "skill-eval" | "claude-terminal" | "mcp" | "recipe" | "guest")
 userId?: string
 userName?: string
 agent?: string
@@ -22665,7 +23122,7 @@ workspaceId: string
 at: string
 kind: ("op" | "op_summary" | "job" | "tool" | "claude" | "action" | "event" | "provider")
 level: ("info" | "warn" | "error")
-channel: ("cli" | "dashboard" | "assistant" | "worker" | "watch" | "skill-eval" | "claude-terminal" | "mcp" | "recipe")
+channel: ("cli" | "dashboard" | "assistant" | "worker" | "watch" | "skill-eval" | "claude-terminal" | "mcp" | "recipe" | "guest")
 userId?: string
 userName?: string
 agent?: string
@@ -23551,7 +24008,7 @@ level?: string[]
  */
 problems?: boolean
 /**
- * cli, dashboard, assistant, worker, watch, skill-eval, claude-terminal, mcp.
+ * cli, dashboard, assistant, worker, watch, skill-eval, claude-terminal, mcp, guest.
  */
 channel?: string[]
 op?: string
@@ -23613,7 +24070,7 @@ workspaceId: string
 at: string
 kind: ("op" | "op_summary" | "job" | "tool" | "claude" | "action" | "event" | "provider")
 level: ("info" | "warn" | "error")
-channel: ("cli" | "dashboard" | "assistant" | "worker" | "watch" | "skill-eval" | "claude-terminal" | "mcp" | "recipe")
+channel: ("cli" | "dashboard" | "assistant" | "worker" | "watch" | "skill-eval" | "claude-terminal" | "mcp" | "recipe" | "guest")
 userId?: string
 userName?: string
 agent?: string
@@ -23716,7 +24173,7 @@ level?: string[]
  */
 problems?: boolean
 /**
- * cli, dashboard, assistant, worker, watch, skill-eval, claude-terminal, mcp.
+ * cli, dashboard, assistant, worker, watch, skill-eval, claude-terminal, mcp, guest.
  */
 channel?: string[]
 op?: string
@@ -25399,7 +25856,7 @@ export interface NotificationRow {
 id: string
 workspaceId: string
 userId: string
-kind: ("file_ready" | "render_finished" | "render_failed" | "qa_done" | "assistant_proposal" | "duplicate_skipped" | "battery_paused" | "upload_interrupted" | "speakers" | "speakers_recognized" | "narration_ready" | "narration_failed" | "import_failed" | "on_screen" | "scenes_described" | "generation_ready" | "generation_failed" | "fixes_missed" | "remotion_waiting" | "signin_locked" | "content_settings" | "recipe_run" | "recipe_planned" | "ability_waiting" | "ability_run" | "auto_spent" | "recording_expiring" | "publish_stopped" | "outside_comments" | "review_link_ended" | "late_writes" | "person_joined")
+kind: ("file_ready" | "render_finished" | "render_failed" | "qa_done" | "assistant_proposal" | "duplicate_skipped" | "battery_paused" | "upload_interrupted" | "speakers" | "speakers_recognized" | "narration_ready" | "narration_failed" | "import_failed" | "on_screen" | "scenes_described" | "generation_ready" | "generation_failed" | "fixes_missed" | "remotion_waiting" | "signin_locked" | "content_settings" | "recipe_run" | "recipe_planned" | "ability_waiting" | "ability_run" | "auto_spent" | "recording_expiring" | "publish_stopped" | "outside_comments" | "review_link_ended" | "late_writes" | "person_joined" | "guest_comments" | "guest_volume")
 groupKey: string
 tone: ("success" | "error" | "warning" | "info")
 title: string
@@ -26610,7 +27067,7 @@ summary: string
  * via the `definition` "ReceiptLeftPlace".
  */
 export interface ReceiptLeftPlace {
-place: ("ai" | "abilities" | "claude" | "storage" | "delivery" | "reviewers")
+place: ("ai" | "abilities" | "claude" | "storage" | "delivery" | "reviewers" | "guests")
 to: string
 kinds: string[]
 count: number
@@ -38437,6 +38894,7 @@ estimates?: EstimateSettings
 shipGate?: ShipGateSettings
 reviewLinks?: ReviewLinkSettings
 contentCredentials?: ContentCredentialsSettings
+guests?: GuestSettings
 deletionsPaused?: DeletionsPause
 }
 /**
@@ -38511,6 +38969,15 @@ export interface ReviewLinkSettings {
 off?: boolean
 ownersOnly?: boolean
 maxDays?: number
+updatedAt: string
+updatedBy: Actor
+}
+/**
+ * This interface was referenced by `Ops`'s JSON-Schema
+ * via the `definition` "GuestSettings".
+ */
+export interface GuestSettings {
+on: boolean
 updatedAt: string
 updatedBy: Actor
 }

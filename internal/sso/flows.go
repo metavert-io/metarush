@@ -38,6 +38,9 @@ const (
 	ForSignIn = "signin" // the sign-in page
 	ForInvite = "invite" // joining with an invite link
 	ForTest   = "test"   // an owner's test of a setup
+	// ForGuest is a guest signing in on the guest listener (D496): only its
+	// own callback finishes it, never the dashboard's.
+	ForGuest = "guest"
 )
 
 // Flow is one sign-in in progress.
@@ -308,4 +311,7 @@ func (s *Store) ClearTest() { _ = os.Remove(filepath.Join(s.dir, "test.json")) }
 const (
 	BeginPath    = "/auth/sso/begin"
 	CallbackPath = "/auth/sso/callback"
+	// The guest listener's own steps (D496), on the guest address.
+	GuestBeginPath    = "/guest/sso/begin"
+	GuestCallbackPath = "/guest/sso/callback"
 )

@@ -50,6 +50,7 @@ const (
 	ChannelClaudeTerminal = "claude-terminal" // Claude Code in a terminal ran the command (CLAUDECODE=1)
 	ChannelMCP            = "mcp"             // an app connected through `metarush mcp serve` (Claude Desktop, Claude Code)
 	ChannelRecipe         = "recipe"          // a run of a recipe, for the person who started it (D204)
+	ChannelGuest          = "guest"           // a guest outside the workspace, through the guest listener (D497)
 )
 
 // Channels lists every channel.
@@ -64,7 +65,7 @@ type Entry struct {
 	At          time.Time `bson:"at" json:"at"`
 	Kind        string    `bson:"kind" json:"kind" jsonschema:"enum=op,enum=op_summary,enum=job,enum=tool,enum=claude,enum=action,enum=event,enum=provider"`
 	Level       string    `bson:"level" json:"level" jsonschema:"enum=info,enum=warn,enum=error"`
-	Channel     string    `bson:"channel" json:"channel" jsonschema:"enum=cli,enum=dashboard,enum=assistant,enum=worker,enum=watch,enum=skill-eval,enum=claude-terminal,enum=mcp,enum=recipe"` // recipe: Recipes' runs
+	Channel     string    `bson:"channel" json:"channel" jsonschema:"enum=cli,enum=dashboard,enum=assistant,enum=worker,enum=watch,enum=skill-eval,enum=claude-terminal,enum=mcp,enum=recipe,enum=guest"` // recipe: Recipes' runs; guest: guests' requests
 	UserID      string    `bson:"userId,omitempty" json:"userId,omitempty"`
 	UserName    string    `bson:"userName,omitempty" json:"userName,omitempty"`
 	// Agent names the AI app that made the call (codex, cursor…, D248).

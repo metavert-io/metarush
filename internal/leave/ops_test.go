@@ -57,7 +57,7 @@ func TestWhatMayLeave(t *testing.T) {
 
 	// Nothing set: today's behaviour.
 	shown := do[leave.LeaveOut](t, a, "content.leave", leave.LeaveIn{ProjectID: acme.ID}, ops.Caller{})
-	if !shown.Rules.Empty() || !strings.HasPrefix(shown.Summary, "Anything MetaRush offers may leave") || len(shown.Places) != 6 {
+	if !shown.Rules.Empty() || !strings.HasPrefix(shown.Summary, "Anything MetaRush offers may leave") || len(shown.Places) != 7 { // guests are the seventh place (D498)
 		t.Fatalf("nothing set: %+v", shown)
 	}
 

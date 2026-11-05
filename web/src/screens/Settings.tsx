@@ -38,6 +38,7 @@ import { LogPage, LogSettingsCard } from './Log';
 import { RemoteAccessSettings } from './settings/RemoteAccess';
 import { UsersSettings } from './settings/Users';
 import { SignInSettings } from './settings/SignInSettings';
+import { GuestsSettings } from './settings/GuestsSettings';
 import { AboutMetaRush } from './settings/About';
 import { IntegrationsPage } from './settings/Integrations';
 import { AbilityCataloguesSettings } from '../components/abilities/Catalogues';
@@ -265,6 +266,7 @@ function SectionBody({ id }: { id: SettingsSectionId }) {
         <div className="space-y-6">
           <UsersSettings />
           <SignInSettings />
+          <GuestsSettings />
           <OwnerOnly note>
             <RemoteAccessSettings />
           </OwnerOnly>

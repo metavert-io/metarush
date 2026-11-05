@@ -15,7 +15,12 @@ import (
 
 // parityExceptions are ops without a dedicated CLI command, each with the reason.
 // Keep this list short: every feature must be controllable from the CLI.
-var parityExceptions = map[string]string{}
+var parityExceptions = map[string]string{
+	// Only a guest writes their comments, on their own guest page (D492);
+	// members comment with `metarush comment`, and owners read a guest's
+	// with `metarush guests comments`.
+	"guest.comment": "a guest's own step on the guest page: nobody comments as a guest from the command line",
+}
 
 // Every registered op needs a dedicated CLI command (the dashboard is a
 // convenience layer, never the only way to do something). A command "uses" an

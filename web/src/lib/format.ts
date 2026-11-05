@@ -227,6 +227,8 @@ export function viaLabel(via: string | undefined, origin?: string, agentName?: s
       return 'a watched folder';
     case 'extension':
       return 'the browser extension';
+    case 'guest': // a guest outside the workspace, on the guest page (D492)
+      return 'the guest page';
     case 'worker':
       return 'MetaRush';
     case 'mcp':

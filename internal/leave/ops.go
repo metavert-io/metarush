@@ -181,7 +181,7 @@ type LeaveSetIn struct {
 
 // LeavePlaceOut is one place as the dashboard and the CLI show it.
 type LeavePlaceOut struct {
-	Place string `json:"place" jsonschema:"enum=ai,enum=abilities,enum=claude,enum=storage,enum=delivery"`
+	Place string `json:"place" jsonschema:"enum=ai,enum=abilities,enum=claude,enum=storage,enum=delivery,enum=reviewers,enum=guests"`
 	Title string `json:"title"`
 	// Says what goes there, in plain words.
 	Says string `json:"says"`
@@ -274,6 +274,7 @@ var placeKinds = map[string][]string{
 	models.PlaceStorage:   models.LeaveKinds,
 	models.PlaceDelivery:  models.LeaveKinds,
 	models.PlaceReviewers: models.LeaveKinds,
+	models.PlaceGuests:    models.LeaveKinds,
 }
 
 var placeSays = map[string]string{
@@ -283,6 +284,7 @@ var placeSays = map[string]string{
 	models.PlaceStorage:   "Where the workspace keeps its media (a cloud bucket, or a folder a sync service uploads) and its words (the database).",
 	models.PlaceDelivery:  "Videos delivered to a folder a sync service uploads, timeline exports and the files Recipes makes for another workspace.",
 	models.PlaceReviewers: "Review links a person sends to someone without an account: the version's review copy (its picture, sound, faces and graphics) and, when the link shows them, its words and who speaks. The page is kept in the workspace's cloud storage until the link ends.",
+	models.PlaceGuests:    "Guests an owner shares a project or some of its versions with: they watch the review copies (their picture, sound, faces and graphics, and captions drawn in the picture) on MetaRush's guest page, and commenters leave comments. Asked when something is shared and again whenever a guest opens a version.",
 }
 
 func placesOut(ctx context.Context, a *app.App, rules *models.LeaveRules) []LeavePlaceOut {
@@ -336,7 +338,7 @@ func nonNil(xs []string) []string {
 func Problems(r *models.LeaveRules) string {
 	for place, p := range r.Places {
 		if !slices.Contains(models.LeavePlaces, place) {
-			return fmt.Sprintf("“%s” isn't a place things leave to (ai, abilities, claude, storage, delivery, reviewers)", place)
+			return fmt.Sprintf("“%s” isn't a place things leave to (ai, abilities, claude, storage, delivery, reviewers, guests)", place)
 		}
 		for _, k := range p.Keep {
 			if !slices.Contains(models.LeaveKinds, k) {
@@ -353,8 +355,8 @@ func Problems(r *models.LeaveRules) string {
 				}
 			}
 		}
-		if (place == models.PlaceStorage || place == models.PlaceDelivery || place == models.PlaceReviewers) && len(p.Only) > 0 {
-			return "cloud storage, delivery and people outside the workspace take no list of receivers"
+		if (place == models.PlaceStorage || place == models.PlaceDelivery || place == models.PlaceReviewers || place == models.PlaceGuests) && len(p.Only) > 0 {
+			return "cloud storage, delivery, people outside the workspace and guests take no list of receivers"
 		}
 	}
 	if len([]rune(r.Note)) > 500 {
@@ -395,7 +397,7 @@ func set(ctx context.Context, a *app.App, in *LeaveSetIn) (*LeaveOut, error) {
 	place := func(name string) (models.LeavePlace, error) {
 		name = strings.ToLower(strings.TrimSpace(name))
 		if !slices.Contains(models.LeavePlaces, name) {
-			return models.LeavePlace{}, apperr.New(apperr.InvalidInput, "“%s” isn't a place things leave to: say ai, abilities, claude, storage, delivery or reviewers.", name)
+			return models.LeavePlace{}, apperr.New(apperr.InvalidInput, "“%s” isn't a place things leave to: say ai, abilities, claude, storage, delivery, reviewers or guests.", name)
 		}
 		return r.Places[name], nil
 	}

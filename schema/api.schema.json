@@ -3961,6 +3961,90 @@
         "operation"
       ]
     },
+    "GuestCommentBody": {
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "body": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "body"
+      ]
+    },
+    "GuestLinkIn": {
+      "properties": {
+        "token": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "token"
+      ]
+    },
+    "GuestSSOStartOut": {
+      "properties": {
+        "url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url"
+      ]
+    },
+    "GuestSelf": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "email"
+      ]
+    },
+    "GuestSignedIn": {
+      "properties": {
+        "guest": {
+          "$ref": "#/$defs/GuestSelf"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "guest"
+      ]
+    },
+    "GuestState": {
+      "properties": {
+        "signedIn": {
+          "type": "boolean"
+        },
+        "guest": {
+          "$ref": "#/$defs/GuestSelf"
+        },
+        "sso": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "signedIn"
+      ]
+    },
     "ImageRef": {
       "properties": {
         "root": {
@@ -8576,6 +8660,21 @@
     "ssoStartResult": {
       "$ref": "#/$defs/SSOStartResult"
     },
+    "guestState": {
+      "$ref": "#/$defs/GuestState"
+    },
+    "guestLinkIn": {
+      "$ref": "#/$defs/GuestLinkIn"
+    },
+    "guestSignedIn": {
+      "$ref": "#/$defs/GuestSignedIn"
+    },
+    "guestSsoStartOut": {
+      "$ref": "#/$defs/GuestSSOStartOut"
+    },
+    "guestCommentBody": {
+      "$ref": "#/$defs/GuestCommentBody"
+    },
     "opInfo": {
       "$ref": "#/$defs/OpInfo"
     },
@@ -8719,6 +8818,11 @@
     "linkAccept",
     "ssoStart",
     "ssoStartResult",
+    "guestState",
+    "guestLinkIn",
+    "guestSignedIn",
+    "guestSsoStartOut",
+    "guestCommentBody",
     "opInfo",
     "upload",
     "uploadList",

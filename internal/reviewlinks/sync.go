@@ -25,6 +25,7 @@ import (
 	"github.com/metavert-io/metarush/internal/notify"
 	"github.com/metavert-io/metarush/internal/ops"
 	"github.com/metavert-io/metarush/internal/store"
+	"github.com/metavert-io/metarush/internal/withdrawn"
 )
 
 // Comments come back (D315): MetaRush reads each live link's comment slots
@@ -152,7 +153,7 @@ func syncNow(ctx context.Context, a *app.App, id string) (*ShareSyncOut, error) 
 	paused := a.DB.DeletionsPaused(ctx, a.WorkspaceID())
 	// What was made with consents that were withdrawn: asked at every look,
 	// so a link the withdrawal itself didn't end ends here.
-	gone, err := withdrawn(ctx, a)
+	gone, err := withdrawn.Made(ctx, a)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +208,7 @@ func syncNow(ctx context.Context, a *app.App, id string) (*ShareSyncOut, error) 
 				continue
 			}
 			// It plays what was made with a consent that was withdrawn.
-			if who, bad, err := withdrawnIn(ctx, a, l.RevisionID, gone); err != nil {
+			if who, bad, err := withdrawn.In(ctx, a, l.RevisionID, gone); err != nil {
 				return nil, err
 			} else if bad {
 				line, err := endWhy(ctx, a, l, nil, withdrawnWhy(who))

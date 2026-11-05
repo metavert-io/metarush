@@ -27,6 +27,23 @@
   nothing when a newer copy runs, or one that doesn't say which version it is; `metarush version --compare <version>`
   says whether this MetaRush is newer, the same or older. The background service is never set to run from the temporary copy macOS makes of
   an app opened where it was downloaded.
+- **Share versions with guests outside the workspace**. **Share with a guest…** on a version's page shares that
+  version, or every version of the project with a review copy, with someone outside the workspace — as a viewer or a
+  commenter, until a day you choose (at most 90 days at once) — and makes a one-time sign-in link to send them. Guests
+  open MetaRush's guest page, never the dashboard: what was shared with them, its review copies, and for commenters
+  their own comments pinned to times, which come back to the version marked "(guest)". They sign in with the link or,
+  when people here sign in with your organization's account, with an account whose email the provider vouches for —
+  no passwords. Taking something back, or turning guests off, signs them out at once. Owners turn guests on, share
+  and take things back in Settings → People → Guests (or `metarush guests …`), see every guest request in plain words
+  and hear when a guest asks unusually often; a client's What may leave can keep their things from guests, and a
+  version that plays someone else's video or anything made with a consent that was withdrawn is never shown to them.
+  **Nothing is reachable from the internet yet**: the guest address is this computer's own (`http://127.0.0.1:4846`),
+  served by a web server of its own on 127.0.0.1 only; a later release gives guests a public address.
+- **Look-alike letters in an email no longer match**. People's sign-ins, invites, guests, Tailscale accounts and the
+  email an organization's sign-in vouches for still match in any case (Émile@… is émile@…), but the two characters
+  that only look like a plain letter — the Kelvin sign K and the capital I with a dot, which other software turns into
+  k and i — no longer match it. The database's stored keys for emails written with them are brought in line when this
+  version updates it.
 - **Made-up sign-in values can't hide words in the activity log**. A sign-in link, an organization sign-in's answer,
   a browser extension's pairing code or token, or a password that someone sends MetaRush is kept out of the activity
   log only once it turns out to be real. Before, whatever a visitor sent there was taken for a secret, so a made-up

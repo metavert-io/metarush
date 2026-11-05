@@ -1213,6 +1213,45 @@ Read `docs/architecture.md` before structural changes.
   nil)`; held: as a draft, or `anyway` with a note; tests stand in for it). Tests: `go test ./internal/reviewlinks/` on
   `fakebucket` (checks link and header signatures, signed headers, expiry; `Ahead` moves the links' clock); browser
   run `scripts/outside-reviewers-e2e.sh` (ports 5590–5599).
+- **Guests: people outside the workspace on a server of their own** (D490–D504, `internal/guests`,
+  `internal/api/guests.go`, `guests_sso.go`, `guestpage/`, `web/src/components/ShareWithGuest.tsx`,
+  `web/src/screens/settings/GuestsSettings.tsx`, docs/guests.md): a guest is an email with grants (`guests`, `gst_`;
+  `guest_grants`, `ggr_`: a project — every version with a review copy — or `revisionIds`, role viewer | commenter,
+  approver refused until approvals by guests; `endsAt` required, ≤ 90 days, the server's time; migrations 68–69),
+  never a member. Owners, people only: `guests.share` (a `dryRun` plan; What may leave's place `guests` asked with
+  `leave.Check` for every project the versions touch (`leave.RevisionTouchesChecked`: a lookup that didn't answer
+  refuses), quietly again at every watch; a reference — sent out anyway or not — anything made with a withdrawn
+  consent (`internal/withdrawn`, shared with review links; past `withdrawn.MaxNested` nested cuts refused too) or
+  changed words whose consent is gone is never shown: `mayShow`, failing closed), `guests.link` (256 random bits in the address's fragment, SHA-256 in `guest_links`, once, ≤ 24 h
+  and never past a grant, the page's button claims it), `guests.revoke` (a grant or the guest: last grant or the guest
+  gone deletes `guest_sessions`), `guests.settings.set` (the workspace's `guests.on` + this computer's config.yaml
+  `guests.listen|port`; on only at this computer; off ends every session); `guests.status|list` open,
+  `guests.activity` owners. The **guest listener** (`Server.ApplyGuests`/`ListenGuests`, the daemon and
+  `followConfig`) binds 127.0.0.1 alone (`guestListen`, port 4846, tests port 0) with its own mux (`SkipClean`; only
+  `/`, `/welcome`, `/guest/api/*`, `/guest/sso/*`, `/guest/media/*`), the guest address's exact Host, `Tailscale-*`
+  and forwarded headers deleted before anything reads them (`visitor` = the connection; `relayed` is the one seam a
+  relay sets: its own header, only on its own port; nil now), strict JSON ≤ 16 KB, no query on the API,
+  `X-MetaRush-Guest` + same-origin on POSTs,
+  per-address limits (`guestRequestsPerMinute`, `guestSignInsPerMinute`), the page by CSP hash. Guest ops
+  (`ops.Flags.Guest`: `guest.shared|watch|comments|comment`, HumanOnly) answer for `guests.SignedFrom(ctx)` with
+  `Caller.Guest`; dispatch refuses a guest caller on any other op and members on mutating guest ops (owners read
+  with `as`); `guests.Check` re-reads session, guest, live grants and the switch on every request; anything not
+  named is `notShared` (a project's grant names only versions with a finished review copy, as its page lists).
+  The log keeps a guest op's input as IDs and sizes only (`logbook.GuestInput`, channel `guest`). Video: bucket → `PresignGet` 5 min, renewed by the page (never through the host; a store that can't sign
+  refuses); folder store → `/guest/media/<rev>/<render>` with ranges, `MediaFor` per request, `whileShown` cuts a
+  stream within `guestRecheck` once its version isn't the guest's to watch (`StillShown`); only tokens found are
+  kept out of the log (`logbook.RememberSecret` after the lookup, never what a visitor sent). Sign-in: `mr_guest`
+  (`__Host-` + Secure over HTTPS), new token every sign-in;
+  organization accounts through the members' live setup on `sso.GuestBeginPath|GuestCallbackPath`, purpose
+  `sso.ForGuest` (the dashboard's steps refuse it), cookie `mr_guest_sso`, `guests.ForSSO` (trusted email = a guest's
+  with live grants; Microsoft guests refused; first account linked, another of the scope refused). Comments carry
+  `Comment.guest`, are quoted for AI readers (`QuoteOutside`), ring the sharer (`guest_comments`). Every request →
+  `guests.Record` (`guest_activity`, the log's `guest` channel, phrases in `logbook/describe_guests.go`; ranges and
+  anonymous requests once a minute per address and kind; `VolumePerHour` → `guest_volume` to owners; `guests.Run` tidies, honouring
+  `DeletionsPaused`). Emails match through
+  `internal/emailkey` — Tailscale accounts too (Unicode's lower case except the Kelvin sign and the capital I with a
+  dot, which keep their own key; migration 69 gives emails with them theirs). Browser run
+  `scripts/guests-e2e.sh` (ports 5820–5829, `scripts/guestseed`).
 - **Exporting and restoring a workspace** (D329–D333, `internal/wsarchive`, `internal/ops/workspacearchive.go`,
   `internal/cli/workspace_archive.go`, `web/src/screens/settings/WorkspaceExport.tsx`, docs/workspace-export.md): an
   archive is a private folder (0700/0600) or `--tar` file: `manifest.json` (format, maker, the migration level as every
@@ -1424,6 +1463,7 @@ scripts/about-e2e.sh                                      # Settings → General
 scripts/playback-e2e.sh                                   # players through a database outage (D180); review copies and stills in the Edit tab and on a version's page (D187)
 scripts/accounts-e2e.sh                                   # sign-in methods, invites, sign in/out, reset links, password change (D183)
 scripts/sso-e2e.sh                                        # signing in with an organization's account through a stand-in provider: set up, test, switch, another app waiting, invite, a domain's person, a stranger, two tabs (D425–D434, D450–D454; ports 5790–5799)
+scripts/guests-e2e.sh                                     # guests: an owner turns guests on and shares a version, the guest signs in by link in another browser, watches, comments; the owner takes it back and the guest is out (D490–D504; ports 5820–5829)
 scripts/delivery-e2e.sh                                   # delivery notes, translated captions, whose Claude answers, the receipt (D237–D241; ports 5410–5419)
 scripts/ship-gate-e2e.sh                                  # the ship gate and promises: Held by…, a promise measured on a real render, Deliver anyway… with a note, the receipt (D298–D302; ports 5560–5569)
 scripts/content-credentials-e2e.sh                        # Content Credentials: required in Settings → Delivery, held (gate off too: Deliver anyway… with a note), a test certificate, Deliver… from the version page, a failing signing held until a sample works, the files read back, the key nowhere else (D415–D424, D435–D439; ports 5780–5789; C2PATOOL= for the real one)

@@ -240,6 +240,8 @@ func (l *Logger) channelFor(via string) string {
 		return ChannelMCP
 	case models.ViaRecipe:
 		return ChannelRecipe
+	case models.ViaGuest:
+		return ChannelGuest
 	case "", "cli":
 		if l.procChannel != "" {
 			return l.procChannel
@@ -389,7 +391,11 @@ func (l *Logger) flushQueue(ctx context.Context) {
 func (l *Logger) prepare(ctx context.Context, p *pending) *spoolRecord {
 	e := p.e
 	if e.Op != nil && len(p.raw) > 0 {
-		e.Op.Input = ShortenInput(l.red, p.raw, l.Privacy())
+		if e.Channel == ChannelGuest {
+			e.Op.Input = GuestInput(l.red, p.raw)
+		} else {
+			e.Op.Input = ShortenInput(l.red, p.raw, l.Privacy())
+		}
 	}
 	if e.Op != nil && p.out != nil {
 		e.Op.Output = SummarizeOutput(p.out)

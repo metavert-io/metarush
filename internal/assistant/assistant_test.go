@@ -146,6 +146,24 @@ func waitIdle(t *testing.T, m *Manager, id string) *Conversation {
 	return cv
 }
 
+// waitShown waits until the conversation has no running turn and nothing
+// queued, and its last message is the one shown so: sent by something in the
+// background, it may not have started when waitIdle would look.
+func waitShown(t *testing.T, m *Manager, id, shown string) *Conversation {
+	t.Helper()
+	var cv *Conversation
+	eventually(t, "the message “"+shown+"”", func() bool {
+		c, err := m.Get(context.Background(), id, true, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cv = c
+		n := len(c.Turns)
+		return c.State == ConvIdle && len(c.Queue) == 0 && n > 0 && c.Turns[n-1].Shown == shown && TurnTerminal(c.Turns[n-1].State)
+	})
+	return cv
+}
+
 func running(m *Manager, id string) bool {
 	c, err := m.Get(context.Background(), id, false, false)
 	return err == nil && c.State == ConvWorking

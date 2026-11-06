@@ -223,7 +223,25 @@ func (d *DB) sayFirst(ctx context.Context) {
 	}
 }
 
-// Connect opens a MongoDB connection and pings it.
+// DefaultWait is how long MetaRush waits to find its database and to connect when the address names no wait of its
+// own (serverSelectionTimeoutMS, connectTimeoutMS).
+const DefaultWait = 8 * time.Second
+
+// ClientOptions are MetaRush's defaults with the address over them: an address that names a wait is taken at its
+// word (a zero or negative one counts as unnamed). MetaRush always names itself (appName).
+func ClientOptions(uri string) *options.ClientOptions {
+	o := options.Client().SetServerSelectionTimeout(DefaultWait).SetConnectTimeout(DefaultWait).ApplyURI(uri).SetAppName("metarush")
+	if o.ServerSelectionTimeout == nil || *o.ServerSelectionTimeout <= 0 {
+		o.SetServerSelectionTimeout(DefaultWait)
+	}
+	if o.ConnectTimeout == nil || *o.ConnectTimeout <= 0 {
+		o.SetConnectTimeout(DefaultWait)
+	}
+	return o
+}
+
+// Connect opens a MongoDB connection and pings it, waiting as long as the address says to find the server (and a
+// little more for the answer).
 func Connect(ctx context.Context, uri, name string) (*DB, error) {
 	if uri == "" {
 		return nil, errors.New("MetaRush has no MongoDB database to use on this machine: set MetaRush up first, or set METARUSH_MONGODB_URI")
@@ -231,12 +249,12 @@ func Connect(ctx context.Context, uri, name string) (*DB, error) {
 	if name == "" {
 		return nil, errors.New("MetaRush has no database name to use: set MetaRush up again")
 	}
-	opts := options.Client().ApplyURI(uri).SetAppName("metarush").SetServerSelectionTimeout(8 * time.Second).SetConnectTimeout(8 * time.Second)
+	opts := ClientOptions(uri)
 	client, err := mongo.Connect(opts)
 	if err != nil {
 		return nil, err
 	}
-	pctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	pctx, cancel := context.WithTimeout(ctx, *opts.ServerSelectionTimeout+2*time.Second)
 	defer cancel()
 	if err := client.Ping(pctx, readpref.Primary()); err != nil {
 		_ = client.Disconnect(context.Background())

@@ -108,6 +108,7 @@ and leaves `browser.yml`'s matrix.
 
 ```bash
 scripts/dev-mongo.sh start                       # the test MongoDB: 127.0.0.1:27018, replica set rs0
+scripts/dev-mongo.sh start --memory              # … on a RAM disk (a Mac; ops 3.3× faster); stop forgets it
 scripts/check.sh --quick                         # before a commit
 scripts/check.sh --full                          # before a merge or a release (an hour or more)
 go test -p 2 -timeout 90m ./internal/ops/        # one package (always -timeout 90m: ops and assistant need it under load)
@@ -125,7 +126,9 @@ Environment: `METARUSH_TEST_MONGODB_URI` (default the dev replica set; only 127.
 `METARUSH_REQUIRE_MONGO=1` (fail instead of skip without a MongoDB: CI), `METARUSH_TEST_DB_FRESH=1` (migrate every
 test database instead of copying the template), `METARUSH_TEST_DB_STATS=<file>` (note how each test database was made
 and how long it took), `KEEP=1` (a browser run keeps its home, database and dashboard running), `SKIP_BUILD=1` (use
-the `bin/metarush` and `web/dist` already built), `NO_BROWSER=1` (start the dashboard and stop there).
+the `bin/metarush` and `web/dist` already built), `NO_BROWSER=1` (start the dashboard and stop there). For
+`scripts/dev-mongo.sh`: `METARUSH_DEV_MONGO_PORT` (27018), `METARUSH_DEV_MONGO_MEMORY=1` (the same as `--memory`),
+`METARUSH_DEV_MONGO_MEMORY_GB` (the RAM disk's size, 4), `METARUSH_DEV_MONGO_LOG_MB` (a new log past this, 256).
 
 ### The live storage tests
 
@@ -181,6 +184,18 @@ indexes in one `createIndexes`. `TestTemplateCopiesMatchAFreshMigration` compare
 copying the template 3.1 s (median of 352). The same four packages (catchup, machines, jobs, transcripts) run fresh,
 template, template, fresh: 281 s, 161 s, 166 s, 280 s — 1.7× faster, their databases' setup 412 s → 155 s. On
 Linux (CI's MongoDB in Docker) migrating is far quicker, so the gain there is smaller.
+
+**On a Mac, keep the test MongoDB in memory** (`scripts/dev-mongo.sh start --memory`). There every collection and index
+mongod makes or drops waits for a full flush of the disk, so even a copy of the template is seconds of waiting; on a
+RAM disk it isn't. Measured on this project's development Mac (5 Nov 2026), `go test ./internal/ops/` alone: 1,109 s
+on disk, 334 s in memory (3.3×); its 223 databases' setup 579 s (2.6 s each) → 51 s (0.23 s each). The RAM disk
+(`/Volumes/metarush-test-mongo-<port>`; 4 GB of memory at most, all of it given back on `stop`; a quarter of it in use
+after that run) is the port's server while it is attached; `scripts/dev-mongo.sh stop` ejects it, and every database
+on it is gone. That is fine for test databases and wrong for anything else: `start.sh` refuses to run the dev
+installation against it, `--memory` refuses while the dev installation's daemon runs, and `scripts/check.sh` says
+so when a Mac's test MongoDB is on disk. One start or stop of a port runs at a time (a lock in `/tmp`), and only a
+RAM disk mounted at exactly that place is ever ejected. Elsewhere `--memory` is refused (Linux's flushes cost far
+less; CI runs `internal/ops` in about 10 minutes with coverage).
 
 Each test database carries a marker (`test_run`: process, computer, time). Before its first database, every test
 process sweeps (`internal/testutil/testdbs`): it drops the test databases of runs that are gone — a marker naming a

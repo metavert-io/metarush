@@ -19,7 +19,8 @@ projects, assets, transcripts, revisions, jobs, renders, audit events — so a s
 4. Run `METARUSH_MONGODB_URI='mongodb+srv://…' metarush init` (the URI goes to the keychain).
 
 ## Self-hosted / local
-- Development and tests: `scripts/dev-mongo.sh start` (single-node replica set on 127.0.0.1:27018) or
+- Development and tests: `scripts/dev-mongo.sh start` (single-node replica set on 127.0.0.1:27018; `--memory` keeps
+  a test server on a RAM disk on a Mac, docs/testing.md#test-databases) or
   `docker compose -f docker-compose.dev.yml up -d`.
 - Any reachable MongoDB ≥ 7 works; without a replica set, live updates fall back to polling.
 

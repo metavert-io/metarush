@@ -10,6 +10,13 @@ BACK=4841; FRONT=4840
 kill_port() { local p; p=$(lsof -ti tcp:"$1" -sTCP:LISTEN 2>/dev/null || true); [ -n "$p" ] && kill $p 2>/dev/null && sleep 0.5 || true; }
 
 scripts/dev-mongo.sh start >/dev/null
+# The in-memory test server (scripts/dev-mongo.sh start --memory) forgets everything when it stops.
+case "$(scripts/dev-mongo.sh status 2>/dev/null || true)" in
+  *"in memory"*)
+    echo "The local MongoDB (scripts/dev-mongo.sh) runs in memory for tests: the dev installation's database would be"
+    echo "gone when it stops. Stop it (scripts/dev-mongo.sh stop) and run ./start.sh again."
+    exit 1 ;;
+esac
 DEV_HOME=.dev/home   # this checkout's development installation
 if [ ! -f $DEV_HOME/config.yaml ]; then
   echo "No dev installation yet. Create one with:"

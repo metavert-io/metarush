@@ -1467,7 +1467,7 @@ Read `docs/architecture.md` before structural changes.
 | Dev dashboard (Vite) | 4840 |
 | Dev daemon | 4841 (installed default: 4845) |
 | Remotion Studio | 4842 (also `metarush motion studio`) |
-| Dev MongoDB | 127.0.0.1:27018, replica set `rs0` (`scripts/dev-mongo.sh`) |
+| Dev MongoDB | 127.0.0.1:27018, replica set `rs0` (`scripts/dev-mongo.sh`; `start --memory`: on a RAM disk, a Mac's tests) |
 | The database on this computer (`metarush setup`) | 127.0.0.1:27150–27199, replica set `metarush` (`<home>/database`) |
 | Dev database | `metarush-dev` (tests: `metarush-test-*`) |
 | Env prefix | `METARUSH_` |
@@ -1550,7 +1550,10 @@ scripts/handover-e2e.sh                                   # two computers: the d
   load before the template; 8.4 min at `-p 2` with coverage on a busy machine after; about 40 alone on a machine
   shared with other builds, Nov 2026, so `scripts/check.sh` and `scripts/coverage.sh` default to 90m,
   `GO_TEST_TIMEOUT`; it reached ~90 min alone with builders running, so run full checks with
-  `GO_TEST_TIMEOUT=150m`). Never rebuild `web/dist` while Go tests compile: packages embed it, and a rebuild in
+  `GO_TEST_TIMEOUT=150m`). Most of that is mongod waiting for macOS's full disk flushes: on a Mac run the test
+  MongoDB in memory (`scripts/dev-mongo.sh stop && scripts/dev-mongo.sh start --memory`; ops alone 18.5 min on disk →
+  5.6 min, setup 2.6 s → 0.23 s a database, 5 Nov 2026). `stop` ejects the RAM disk with everything on it, so never
+  the dev installation's database there (start.sh refuses). Never rebuild `web/dist` while Go tests compile: packages embed it, and a rebuild in
   flight fails them as "build failed". The coverage ratchet counts each package by every package's tests, so error
   and race paths reached only by chance swing it: give such a package direct tests (`internal/notify` has them). Every test process first drops the databases
   of runs that are gone (`internal/testutil/testdbs`); `go run ./scripts/sweeptestdbs [--drop]` is the same by hand

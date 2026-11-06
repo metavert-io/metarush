@@ -1574,7 +1574,7 @@ scripts/handover-e2e.sh                                   # two computers: the d
   in first. Give it `node_modules` as APFS clones (`cp -cR <main checkout>/node_modules node_modules`, same for `web/` and
   `video/`; the `@metarush/*` links are relative, so they resolve inside the worktree). E2E scripts use fixed ports:
   give each helper its own suites, and hold them while a full check run is going.
-- **Merging parallel branches into a batch** (`merge/batchN`, `--no-ff` as Jon Radoff): migrations stay in number
+- **Merging parallel branches into a batch** (`merge/batchN`, `--no-ff` under the maintainers' git identity): migrations stay in number
   order — replace a "vNN belongs to a build merged in parallel" placeholder with that branch's entry; browser-suite
   lists in `browser.yml` and `docs/testing.md` keep main's order with the new suites added; regenerate schema, types,
   `commands.json`, `firstparty.json` and the plugin (expect no diff); then run the guards that only fail across

@@ -1,0 +1,145 @@
+# Threat model, maintained with the Security Steward (format steward-tm/0.1).
+# IDs are permanent: retire a threat instead of deleting it, and never reuse a number.
+schema: steward-tm/0.1
+project: metavert-io/metarush
+prefix: MR
+model_version: 1
+reviewed_at_commit: 4dc6854cb97d3807cb56427bfb5bc94b9473dd15
+refs:
+  asi: "2026"
+  asvs: 5.0.0
+  llm: "2025"
+  stride: default
+summary: 'A video-production harness that runs on its owner''s Mac, published to the owner''s tailnet: a web dashboard and API, a dashboard assistant (Claude Code in a read-only workspace), link import, media processing and rendering, and the cloud accounts those use.'
+components:
+  - id: C1
+    name: Web dashboard and API
+    kind: service
+    exposure: tailnet
+  - id: C2
+    name: Dashboard assistant (Claude Code)
+    kind: service
+    exposure: local
+  - id: C3
+    name: Link import
+    kind: service
+  - id: C4
+    name: Media parsers and transcription
+    kind: service
+    exposure: local
+  - id: C5
+    name: Render sandbox
+    kind: service
+    exposure: local
+  - id: C6
+    name: Cloud credentials (storage, database, voice, video and model APIs, YouTube)
+    kind: secret
+  - id: C7
+    name: CI and release builds
+    kind: infrastructure
+boundaries:
+  - id: B1
+    name: Tailnet to the dashboard
+    between:
+      - C1
+  - id: B2
+    name: Assistant to the harness's own operations
+    between:
+      - C2
+      - C1
+assumptions:
+  - id: A1
+    text: The dashboard is reachable only on the owner's tailnet, never through Funnel.
+threats:
+  - id: T-MR-0001
+    title: Accounts are taken over by guessing or cracking passwords
+    targets:
+      - C1
+    tags:
+      - STRIDE:S
+      - CWE-307
+      - CWE-916
+      - ASVS:5.0.0:V6
+    status: mitigated
+    controls:
+      - M-MR-0001
+  - id: T-MR-0002
+    title: Another site makes the signed-in browser act on the dashboard
+    targets:
+      - C1
+    tags:
+      - STRIDE:T
+      - CWE-352
+      - ASVS:5.0.0:V3
+    status: mitigated
+    controls:
+      - M-MR-0002
+  - id: T-MR-0003
+    title: Forged Tailscale identity headers, or exposure through Funnel
+    targets:
+      - C1
+    tags:
+      - STRIDE:S
+      - CWE-290
+    status: mitigated
+    controls:
+      - M-MR-0003
+  - id: T-MR-0004
+    title: The assistant is steered into changing things instead of reading them
+    targets:
+      - C2
+      - C1
+    tags:
+      - STRIDE:E
+      - ASI02
+      - ASI03
+      - LLM06
+    status: mitigated
+    controls:
+      - M-MR-0004
+  - id: T-MR-0005
+    title: A secret is committed to the repository
+    targets:
+      - C6
+      - C7
+    tags:
+      - STRIDE:I
+      - CWE-798
+    status: mitigated
+    controls:
+      - M-MR-0005
+  - id: T-MR-0006
+    title: A compromised third-party GitHub Action runs in CI
+    targets:
+      - C7
+    tags:
+      - STRIDE:T
+      - CWE-1357
+    status: mitigated
+    controls:
+      - M-MR-0006
+controls:
+  - id: M-MR-0001
+    title: argon2id passwords, sessions stored only as hashes, lockout and per-address limits
+    evidence:
+      - internal/api/access.go
+  - id: M-MR-0002
+    title: SameSite=Strict __Host- cookies and a required CSRF header
+    evidence:
+      - internal/api/access.go
+  - id: M-MR-0003
+    title: 'Host guard: Tailscale headers accepted only from loopback; Funnel refused'
+    evidence:
+      - internal/api/access.go
+  - id: M-MR-0004
+    title: Assistant tool allowlist, read-only command shim, CLI guard and ops dispatcher
+    evidence:
+      - internal/assistant/workspace.go
+  - id: M-MR-0005
+    title: gitleaks, pinned by checksum, over the full history in CI
+    evidence:
+      - .github/workflows/secret-scan.yml
+  - id: M-MR-0006
+    title: Actions pinned by commit SHA
+    evidence:
+      - .github/workflows/ci.yml

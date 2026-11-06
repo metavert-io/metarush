@@ -21,7 +21,7 @@ PORT="${METARUSH_DEV_MONGO_PORT:-27018}"
 DISK_DATA="$ROOT/.dev/mongo"
 RAM_MOUNT="/Volumes/metarush-test-mongo-$PORT"
 RAM_MARK="$RAM_MOUNT/.metarush-ram-disk"
-# Shared by every checkout of this computer's user: one start or stop of the port at a time.
+# Shared by every checkout of this computer's user: one start or stop of the port at a time (the file stays).
 LOCK="/tmp/metarush-dev-mongo-$(id -u)-$PORT.lock"
 LOG_MB="${METARUSH_DEV_MONGO_LOG_MB:-256}"
 DEV_DAEMON_PORT=4841 # start.sh's
@@ -45,26 +45,32 @@ alive() {
 }
 ram_used() { df -P "$RAM_MOUNT" | awk 'NR == 2 { sub("%", "", $5); print $5 }'; }
 
+# A lock the kernel holds on descriptor 9 until this script ends, however it ends (nothing is left behind); mongod
+# gets the descriptor closed. flock (Linux) and lockf (macOS) both lock a descriptor; with neither, no lock.
 lock() {
-  local holder
-  for _ in $(seq 1 240); do
-    if mkdir "$LOCK" 2>/dev/null; then
-      echo $$ > "$LOCK/pid"; trap 'rm -rf -- "$LOCK"' EXIT; return 0
-    fi
-    holder="$(cat "$LOCK/pid" 2>/dev/null || true)"
-    if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then rm -rf -- "$LOCK"; continue; fi
-    sleep 0.5
-  done
+  local got=1
+  exec 9>>"$LOCK"
+  if command -v flock >/dev/null 2>&1; then
+    if flock -w 120 9; then got=0; fi
+  elif command -v lockf >/dev/null 2>&1; then
+    if lockf -s -t 120 9; then got=0; fi
+  else
+    got=0
+  fi
+  [ "$got" = 0 ] && return 0
   echo "another scripts/dev-mongo.sh has been starting or stopping port $PORT for 2 minutes ($LOCK)" >&2; exit 1
 }
 
 # The disk image mounted at exactly RAM_MOUNT, only when it is a RAM disk: its /dev/diskN. Ejecting goes by this,
-# never by a remembered number (macOS gives numbers out again).
+# never by a remembered number (macOS gives numbers out again). awk reads to the end (no broken pipe for hdiutil);
+# older hdiutil pads its columns with spaces.
 ram_device() {
-  hdiutil info 2>/dev/null | awk -F'\t' -v m="$RAM_MOUNT" '
+  { hdiutil info 2>/dev/null || true; } | awk -F'\t' -v m="$RAM_MOUNT" '
+    function trim(s) { sub(/ +$/, "", s); return s }
     /^image-path/ { ram = ($0 ~ /: ram:\/\//); dev = "" }
-    $1 ~ /^\/dev\/disk[0-9]+$/ && dev == "" { dev = $1 }
-    $NF == m && ram && dev != "" { print dev; exit }'
+    trim($1) ~ /^\/dev\/disk[0-9]+$/ && dev == "" { dev = trim($1) }
+    trim($NF) == m && ram && dev != "" && found == "" { found = dev }
+    END { if (found != "") print found }'
 }
 
 eject() { diskutil eject "$1" >/dev/null 2>&1 || hdiutil detach "$1" >/dev/null 2>&1; }
@@ -98,8 +104,8 @@ drop_ram_disk() {
 prune_logs() {
   local f n=0 huge=$((LOG_MB * 4 * 1048576))
   { ls -td "$1"/mongod.log.* 2>/dev/null || true; } | while IFS= read -r f; do
-    n=$((n + 1))
     [ -f "$f" ] || continue
+    n=$((n + 1))
     if [ "$n" -gt 1 ] || [ "$(wc -c < "$f")" -gt "$huge" ]; then rm -f -- "$f"; fi
   done
 }
@@ -120,6 +126,7 @@ case "${1:-start} ${2:-}" in
   "start " | "stop " | "status " | "uri ") ;;
   *) echo "usage: $0 [start [--memory]|stop|status|uri]" >&2; exit 2 ;;
 esac
+case "$LOG_MB" in '' | *[!0-9]*) echo "METARUSH_DEV_MONGO_LOG_MB must be a whole number of MB" >&2; exit 2 ;; esac
 
 case "${1:-start}" in
   uri) echo "$URI" ;;
@@ -191,7 +198,7 @@ case "${1:-start}" in
     "$MONGOD" --dbpath "$DATA" --bind_ip 127.0.0.1 --port "$PORT" --replSet rs0 --wiredTigerCacheSizeGB 2 \
       --wiredTigerEngineConfigString "file_manager=(close_idle_time=30,close_scan_interval=10,close_handle_minimum=500)" \
       --setParameter diagnosticDataCollectionEnabled=false \
-      --fork --logpath "$DATA/mongod.log" --pidfilepath "$DATA/mongod.pid" >/dev/null
+      --fork --logpath "$DATA/mongod.log" --pidfilepath "$DATA/mongod.pid" >/dev/null 9>&-
     prune_logs "$DATA"
     for _ in $(seq 1 240); do running && break; sleep 0.5; done
     if [ -n "$MONGOSH" ]; then

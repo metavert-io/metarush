@@ -21,7 +21,7 @@ func TestAnAddressSaysHowLongToWait(t *testing.T) {
 		{"mongodb://127.0.0.1:27018/?serverSelectionTimeoutMS=600000&connectTimeoutMS=600000", MaxWait, MaxWait},
 		// The driver reads 0 as no limit at all.
 		{"mongodb://127.0.0.1:27018/?serverSelectionTimeoutMS=0&connectTimeoutMS=0", MaxWait, MaxWait},
-		// Too many milliseconds for a time.Duration: it overflows to a negative number.
+		// Too many milliseconds for a time.Duration: this one wraps to a negative number.
 		{"mongodb://127.0.0.1:27018/?serverSelectionTimeoutMS=9223372036854", MaxWait, DefaultWait},
 		// MetaRush names itself whatever the address says.
 		{"mongodb://127.0.0.1:27018/?appName=Cluster0", DefaultWait, DefaultWait},

@@ -238,7 +238,8 @@ func ClientOptions(uri string) *options.ClientOptions {
 }
 
 // WithWaits applies the address over def for both waits: a wait the address names is taken at its word up to MaxWait.
-// The driver reads 0 as no limit, and a number too large overflows to a negative one: both get MaxWait.
+// The driver reads 0 as no limit, and a number too large for a time.Duration wraps around (to a negative wait or any
+// other): 0 and negative waits get MaxWait.
 func WithWaits(uri string, def time.Duration) *options.ClientOptions {
 	o := options.Client().SetServerSelectionTimeout(def).SetConnectTimeout(def).ApplyURI(uri)
 	o.SetServerSelectionTimeout(capWait(o.ServerSelectionTimeout, def))

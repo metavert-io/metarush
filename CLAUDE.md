@@ -406,7 +406,8 @@ Read `docs/architecture.md` before structural changes.
   `Caller.Remote` = any HTTP; no HTTP request behind a call (CLI, MCP, daemon) = the owner. The check precedes
   LocalOnly/HumanOnly ("Only an owner of this MetaRush can change that.", `details.owners`). The dashboard reads
   `api.Session.owner/owners` and wraps owner-only controls in `OwnerOnly` (a disabled fieldset + one "Only an owner can
-  change this. Owner: …" line, `components/OwnerOnly.tsx`); reading stays open.
+  change this. Owner: …" line, `components/OwnerOnly.tsx`); reading stays open. One such line per settings page: the
+  first owner-only part sets `note`, later parts on the same page leave it off (`accounts-e2e` counts them).
 - **Deleting a project archives it; owners clear archived projects out for good** (D196, `internal/ops/projectdelete.go`,
   `purge.go`, `purgemedia.go`, `web/src/components/project/ProjectDelete.tsx`, `/projects/archived`): `project.delete`
   (people only, any member) sets `archived`/`archivedAt`/`archivedBy` (`project.update` `archived` is the same, people
@@ -1548,7 +1549,10 @@ scripts/handover-e2e.sh                                   # two computers: the d
   assistant and ops packages on a loaded machine — always pass `-timeout 90m` (ops came close to 30 minutes under
   load before the template; 8.4 min at `-p 2` with coverage on a busy machine after; about 40 alone on a machine
   shared with other builds, Nov 2026, so `scripts/check.sh` and `scripts/coverage.sh` default to 90m,
-  `GO_TEST_TIMEOUT`). Every test process first drops the databases
+  `GO_TEST_TIMEOUT`; it reached ~90 min alone with builders running, so run full checks with
+  `GO_TEST_TIMEOUT=150m`). Never rebuild `web/dist` while Go tests compile: packages embed it, and a rebuild in
+  flight fails them as "build failed". The coverage ratchet counts each package by every package's tests, so error
+  and race paths reached only by chance swing it: give such a package direct tests (`internal/notify` has them). Every test process first drops the databases
   of runs that are gone (`internal/testutil/testdbs`); `go run ./scripts/sweeptestdbs [--drop]` is the same by hand
   (`--legacy` once for those made before run markers).
 - **Browser runs clean up after themselves** (D194, `scripts/lib/e2e.sh`): every `scripts/*-e2e.sh` and
@@ -1570,4 +1574,11 @@ scripts/handover-e2e.sh                                   # two computers: the d
   in first. Give it `node_modules` as APFS clones (`cp -cR <main checkout>/node_modules node_modules`, same for `web/` and
   `video/`; the `@metarush/*` links are relative, so they resolve inside the worktree). E2E scripts use fixed ports:
   give each helper its own suites, and hold them while a full check run is going.
+- **Merging parallel branches into a batch** (`merge/batchN`, `--no-ff` as Jon Radoff): migrations stay in number
+  order — replace a "vNN belongs to a build merged in parallel" placeholder with that branch's entry; browser-suite
+  lists in `browser.yml` and `docs/testing.md` keep main's order with the new suites added; regenerate schema, types,
+  `commands.json`, `firstparty.json` and the plugin (expect no diff); then run the guards that only fail across
+  branches — `TestDocsCountTheTools` (docs/mcp.md's tool counts), `TestSecretInputFieldsAreDeclared` (new op inputs
+  named like a secret go in `internal/secretfields` or its `notSecret`), the first-party menu's size guard,
+  `TestEveryCollectionIsClassified`, the purge catalogue and `readsShow` — before the full check.
 - **Releases**: `scripts/bump-version.sh minor|patch` → `git push origin main vX.Y.Z` → `scripts/deploy.sh` (verifies the daemon's version). Parallel feature branches merge cleanly when migration versions and port ranges are assigned up front; CHANGELOG entries always go under `## Unreleased`.

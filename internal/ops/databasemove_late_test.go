@@ -1294,13 +1294,24 @@ func TestLateEmptiedOldDatabaseHasItsOwnWords(t *testing.T) {
 	a := w.a
 	ctx := context.Background()
 	move := moveOf(t, a)
-	names, err := a.DB.DB.ListCollectionNames(ctx, bson.D{})
+	// Dropping everything drops the move's marker too, which lets the old
+	// computers' held logs out: their next flush would write an entry into the
+	// emptied database (1 new + 53 gone, not "emptied"). Close them first, while
+	// the marker still holds them, so this test is about an emptied database only.
+	w.a.Close()
+	w.b.Close()
+	old, err := store.Connect(ctx, testutil.URI(), a.DB.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = old.Close(context.Background()) })
+	names, err := old.DB.ListCollectionNames(ctx, bson.D{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range names {
 		if name != store.CTestRun {
-			if err := a.DB.DB.Collection(name).Drop(ctx); err != nil {
+			if err := old.DB.Collection(name).Drop(ctx); err != nil {
 				t.Fatal(err)
 			}
 		}

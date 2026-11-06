@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- **A database address that says how long to wait is taken at its word**. When your MongoDB address names its own
+  waits for finding and connecting to the server (`serverSelectionTimeoutMS`, `connectTimeoutMS`), MetaRush now uses
+  them: a shorter wait, or a longer one up to 30 seconds (an address asking for longer, or for no limit, gets 30; a
+  command that is just starting may still give up sooner). An address without them still waits 8 seconds, as before.
 - **MetaRush runs in WSL 2 on Windows, for people who work in a terminal**. Inside Ubuntu on Windows, MetaRush knows
   where it is and says so in setup, doctor (its WINDOWS checks), Home's Getting started (On Windows) and Settings →
   General, and Your computers shows the PC as Windows (WSL 2). Setup and init refuse WSL 1 with the one command that

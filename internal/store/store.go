@@ -223,7 +223,42 @@ func (d *DB) sayFirst(ctx context.Context) {
 	}
 }
 
-// Connect opens a MongoDB connection and pings it.
+// DefaultWait is how long MetaRush waits to find its database and to connect when the address names no wait of its
+// own (serverSelectionTimeoutMS, connectTimeoutMS).
+const DefaultWait = 8 * time.Second
+
+// MaxWait is the longest wait an address may name (the driver's own default). Many writes run without their caller's
+// deadline (context.WithoutCancel) and are bounded only by finding the server, and a long connect wait also slows
+// noticing a silent server: an address asking for longer — or for none at all (0) — gets this.
+const MaxWait = 30 * time.Second
+
+// ClientOptions are MetaRush's defaults with the address over them (see WithWaits); MetaRush always names itself.
+func ClientOptions(uri string) *options.ClientOptions {
+	return WithWaits(uri, DefaultWait).SetAppName("metarush")
+}
+
+// WithWaits applies the address over def for both waits: a wait the address names is taken at its word up to MaxWait.
+// The driver reads 0 as no limit, and a number too large for a time.Duration wraps around (to a negative wait or any
+// other): 0 and negative waits get MaxWait.
+func WithWaits(uri string, def time.Duration) *options.ClientOptions {
+	o := options.Client().SetServerSelectionTimeout(def).SetConnectTimeout(def).ApplyURI(uri)
+	o.SetServerSelectionTimeout(capWait(o.ServerSelectionTimeout, def))
+	o.SetConnectTimeout(capWait(o.ConnectTimeout, def))
+	return o
+}
+
+func capWait(d *time.Duration, def time.Duration) time.Duration {
+	switch {
+	case d == nil:
+		return def
+	case *d <= 0 || *d > MaxWait:
+		return MaxWait
+	}
+	return *d
+}
+
+// Connect opens a MongoDB connection and pings it, waiting as long as the address says to find the server (and a
+// little more for the answer).
 func Connect(ctx context.Context, uri, name string) (*DB, error) {
 	if uri == "" {
 		return nil, errors.New("MetaRush has no MongoDB database to use on this machine: set MetaRush up first, or set METARUSH_MONGODB_URI")
@@ -231,12 +266,12 @@ func Connect(ctx context.Context, uri, name string) (*DB, error) {
 	if name == "" {
 		return nil, errors.New("MetaRush has no database name to use: set MetaRush up again")
 	}
-	opts := options.Client().ApplyURI(uri).SetAppName("metarush").SetServerSelectionTimeout(8 * time.Second).SetConnectTimeout(8 * time.Second)
+	opts := ClientOptions(uri)
 	client, err := mongo.Connect(opts)
 	if err != nil {
 		return nil, err
 	}
-	pctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	pctx, cancel := context.WithTimeout(ctx, *opts.ServerSelectionTimeout+2*time.Second)
 	defer cancel()
 	if err := client.Ping(pctx, readpref.Primary()); err != nil {
 		_ = client.Disconnect(context.Background())

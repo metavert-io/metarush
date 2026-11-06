@@ -41,6 +41,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/metavert-io/metarush/internal/store"
 	"github.com/metavert-io/metarush/internal/tools"
 )
 
@@ -323,8 +324,11 @@ func (s *Server) connect(ctx context.Context, uri string) (*mongo.Client, error)
 	if uri == "" {
 		uri = "mongodb://127.0.0.1:" + strconv.Itoa(s.Port) + "/?directConnection=true"
 	}
-	return mongo.Connect(options.Client().ApplyURI(uri).SetServerSelectionTimeout(3 * time.Second).SetConnectTimeout(3 * time.Second))
+	return mongo.Connect(clientOptions(uri))
 }
+
+// clientOptions wait 3 s for this computer's own server unless the address names its own waits (store.WithWaits).
+func clientOptions(uri string) *options.ClientOptions { return store.WithWaits(uri, 3*time.Second) }
 
 // SignsIn reports whether an address signs in to the server (the driver
 // signs in when it connects; connectionStatus names who it is).

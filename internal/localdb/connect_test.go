@@ -3,9 +3,11 @@ package localdb
 import (
 	"testing"
 	"time"
+
+	"github.com/metavert-io/metarush/internal/store"
 )
 
-// This computer's own server is waited for 3 s, unless the address names its own waits.
+// This computer's own server is waited for 3 s, unless the address names its own waits (up to store.MaxWait).
 func TestOwnServerWaitsAsTheAddressSays(t *testing.T) {
 	for _, c := range []struct {
 		uri        string
@@ -13,6 +15,7 @@ func TestOwnServerWaitsAsTheAddressSays(t *testing.T) {
 	}{
 		{"mongodb://127.0.0.1:27150/?directConnection=true", 3 * time.Second, 3 * time.Second},
 		{"mongodb://127.0.0.1:27150/?directConnection=true&serverSelectionTimeoutMS=500&connectTimeoutMS=400", 500 * time.Millisecond, 400 * time.Millisecond},
+		{"mongodb://127.0.0.1:27150/?directConnection=true&serverSelectionTimeoutMS=0&connectTimeoutMS=600000", store.MaxWait, store.MaxWait},
 	} {
 		o := clientOptions(c.uri)
 		if err := o.Validate(); err != nil {

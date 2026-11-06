@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// An address that names its own waits is taken at its word; one that doesn't gets MetaRush's 8 s.
+// An address that names its own waits is taken at its word up to MaxWait; one that doesn't gets MetaRush's 8 s.
 func TestAnAddressSaysHowLongToWait(t *testing.T) {
 	ms := time.Millisecond
 	for _, c := range []struct {
@@ -15,10 +15,14 @@ func TestAnAddressSaysHowLongToWait(t *testing.T) {
 	}{
 		{"mongodb://127.0.0.1:27018/?replicaSet=rs0&directConnection=true", DefaultWait, DefaultWait},
 		{"mongodb://127.0.0.1:27018/?serverSelectionTimeoutMS=300&connectTimeoutMS=200", 300 * ms, 200 * ms},
-		{"mongodb://127.0.0.1:27018/?serverSelectionTimeoutMS=30000", 30 * time.Second, DefaultWait},
 		{"mongodb://127.0.0.1:27018/?connectTimeoutMS=1500", DefaultWait, 1500 * ms},
-		// Zero would mean "don't wait at all" to the driver: MetaRush waits as usual.
-		{"mongodb://127.0.0.1:27018/?serverSelectionTimeoutMS=0&connectTimeoutMS=0", DefaultWait, DefaultWait},
+		{"mongodb://127.0.0.1:27018/?serverSelectionTimeoutMS=30000", MaxWait, DefaultWait},
+		// Longer than MaxWait: writes made without their caller's deadline would wait that long.
+		{"mongodb://127.0.0.1:27018/?serverSelectionTimeoutMS=600000&connectTimeoutMS=600000", MaxWait, MaxWait},
+		// The driver reads 0 as no limit at all.
+		{"mongodb://127.0.0.1:27018/?serverSelectionTimeoutMS=0&connectTimeoutMS=0", MaxWait, MaxWait},
+		// Too many milliseconds for a time.Duration: it overflows to a negative number.
+		{"mongodb://127.0.0.1:27018/?serverSelectionTimeoutMS=9223372036854", MaxWait, DefaultWait},
 		// MetaRush names itself whatever the address says.
 		{"mongodb://127.0.0.1:27018/?appName=Cluster0", DefaultWait, DefaultWait},
 	} {
@@ -45,5 +49,20 @@ func TestAnUnreachableServerIsGivenUpOnAsTheAddressSays(t *testing.T) {
 	}
 	if took := time.Since(start); took > 4*time.Second {
 		t.Fatalf("gave up after %v; the address said 300 ms", took)
+	}
+}
+
+// The caller's own deadline still ends the wait first.
+func TestTheCallersDeadlineEndsTheWait(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	db, err := Connect(ctx, "mongodb://127.0.0.1:1/?directConnection=true", "metarush-test-unreachable")
+	if err == nil {
+		_ = db.Close(context.Background())
+		t.Fatal("connected to a server that isn't there")
+	}
+	if took := time.Since(start); took > 4*time.Second {
+		t.Fatalf("gave up after %v; the caller allowed 400 ms", took)
 	}
 }

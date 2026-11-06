@@ -227,17 +227,33 @@ func (d *DB) sayFirst(ctx context.Context) {
 // own (serverSelectionTimeoutMS, connectTimeoutMS).
 const DefaultWait = 8 * time.Second
 
-// ClientOptions are MetaRush's defaults with the address over them: an address that names a wait is taken at its
-// word (a zero or negative one counts as unnamed). MetaRush always names itself (appName).
+// MaxWait is the longest wait an address may name (the driver's own default). Many writes run without their caller's
+// deadline (context.WithoutCancel) and are bounded only by finding the server, and a long connect wait also slows
+// noticing a silent server: an address asking for longer — or for none at all (0) — gets this.
+const MaxWait = 30 * time.Second
+
+// ClientOptions are MetaRush's defaults with the address over them (see WithWaits); MetaRush always names itself.
 func ClientOptions(uri string) *options.ClientOptions {
-	o := options.Client().SetServerSelectionTimeout(DefaultWait).SetConnectTimeout(DefaultWait).ApplyURI(uri).SetAppName("metarush")
-	if o.ServerSelectionTimeout == nil || *o.ServerSelectionTimeout <= 0 {
-		o.SetServerSelectionTimeout(DefaultWait)
-	}
-	if o.ConnectTimeout == nil || *o.ConnectTimeout <= 0 {
-		o.SetConnectTimeout(DefaultWait)
-	}
+	return WithWaits(uri, DefaultWait).SetAppName("metarush")
+}
+
+// WithWaits applies the address over def for both waits: a wait the address names is taken at its word up to MaxWait.
+// The driver reads 0 as no limit, and a number too large overflows to a negative one: both get MaxWait.
+func WithWaits(uri string, def time.Duration) *options.ClientOptions {
+	o := options.Client().SetServerSelectionTimeout(def).SetConnectTimeout(def).ApplyURI(uri)
+	o.SetServerSelectionTimeout(capWait(o.ServerSelectionTimeout, def))
+	o.SetConnectTimeout(capWait(o.ConnectTimeout, def))
 	return o
+}
+
+func capWait(d *time.Duration, def time.Duration) time.Duration {
+	switch {
+	case d == nil:
+		return def
+	case *d <= 0 || *d > MaxWait:
+		return MaxWait
+	}
+	return *d
 }
 
 // Connect opens a MongoDB connection and pings it, waiting as long as the address says to find the server (and a

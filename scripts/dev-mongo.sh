@@ -73,20 +73,22 @@ ram_device() {
     END { if (found != "") print found }'
 }
 
-eject() { diskutil eject "$1" >/dev/null 2>&1 || hdiutil detach "$1" >/dev/null 2>&1; }
+# Disk image helpers may outlive this script: never with the lock (descriptor 9).
+eject() { diskutil eject "$1" >/dev/null 2>&1 9>&- || hdiutil detach "$1" >/dev/null 2>&1 9>&-; }
 
 make_ram_disk() {
   on_ram && return 0
   [ -e "$RAM_MOUNT" ] && { echo "$RAM_MOUNT exists but isn't this script's RAM disk: eject it or choose another METARUSH_DEV_MONGO_PORT" >&2; exit 1; }
   local gb="${METARUSH_DEV_MONGO_MEMORY_GB:-4}" dev
   case "$gb" in '' | *[!0-9]* | 0) echo "METARUSH_DEV_MONGO_MEMORY_GB must be a whole number of GB" >&2; exit 2 ;; esac
+  gb=$((10#$gb)) # 08 is eight, not a bad octal number
   # 512-byte sectors. diskutil image is the newer way; older macOS has only hdiutil.
-  dev="$(diskutil image attach --noMount "ram://$((gb * 2097152))" 2>/dev/null ||
-    hdiutil attach -nomount "ram://$((gb * 2097152))" 2>/dev/null || true)"
+  dev="$(diskutil image attach --noMount "ram://$((gb * 2097152))" 2>/dev/null 9>&- ||
+    hdiutil attach -nomount "ram://$((gb * 2097152))" 2>/dev/null 9>&- || true)"
   dev="$(echo "$dev" | awk '/^\/dev\/disk[0-9]+/ { print $1; exit }')"
   [ -n "$dev" ] || { echo "couldn't make a ${gb} GB RAM disk" >&2; exit 1; }
   # Mounted where it should be, and nothing else there: a volume of the same name puts it at "… 1".
-  if ! diskutil erasevolume APFS "${RAM_MOUNT#/Volumes/}" "$dev" >/dev/null || [ "$(ram_device)" != "$dev" ]; then
+  if ! diskutil erasevolume APFS "${RAM_MOUNT#/Volumes/}" "$dev" >/dev/null 9>&- || [ "$(ram_device)" != "$dev" ]; then
     eject "$dev" || true; echo "couldn't set up the RAM disk at $RAM_MOUNT" >&2; exit 1
   fi
   echo "a RAM disk made by scripts/dev-mongo.sh for the test MongoDB on port $PORT" > "$RAM_MARK"
@@ -127,6 +129,7 @@ case "${1:-start} ${2:-}" in
   *) echo "usage: $0 [start [--memory]|stop|status|uri]" >&2; exit 2 ;;
 esac
 case "$LOG_MB" in '' | *[!0-9]*) echo "METARUSH_DEV_MONGO_LOG_MB must be a whole number of MB" >&2; exit 2 ;; esac
+LOG_MB=$((10#$LOG_MB))
 
 case "${1:-start}" in
   uri) echo "$URI" ;;

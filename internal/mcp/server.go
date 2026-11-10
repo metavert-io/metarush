@@ -69,6 +69,11 @@ type Options struct {
 	// AllowChanges offers the operations that change MetaRush, each confirmed
 	// with a second call. Without it the server is read-only.
 	AllowChanges bool
+	// AllowSpending lets changes that spend money at an outside service run
+	// too (generated video, AI work, the AI voice, cloud clean-up): the
+	// person's word for this connection, beside budgets and daily limits.
+	// Without it they are refused (spending.go); it needs AllowChanges.
+	AllowSpending bool
 	// TokenTTL is how long a confirm token stays valid (default 10 minutes).
 	TokenTTL time.Duration
 	// Toolset is the list of tools offered: core (the default), review,
@@ -279,6 +284,11 @@ type Server struct {
 	byOp  map[string]*ops.Op // every operation, by tool name and by name
 	key   []byte             // confirm tokens: this process only
 
+	// used are the confirm tokens already redeemed, until they expire: each
+	// confirms one call, so a retried or repeated call never runs twice.
+	umu  sync.Mutex
+	used map[string]int64
+
 	wmu sync.Mutex
 	w   io.Writer
 
@@ -301,6 +311,9 @@ func New(a *app.App, o Options) (*Server, error) {
 	if o.Propose && o.AllowChanges {
 		return nil, apperr.New(apperr.InvalidInput, "Choose one: a connection either proposes changes for a person to review or makes them.")
 	}
+	if o.AllowSpending && !o.AllowChanges {
+		return nil, apperr.New(apperr.InvalidInput, "Spending is a change: allow changes too, or leave spending out.")
+	}
 	list, err := ToolListFor(o.Toolset, o.Access())
 	if err != nil {
 		return nil, err
@@ -311,7 +324,7 @@ func New(a *app.App, o Options) (*Server, error) {
 	if o.Agent != "" {
 		a.Actor.Agent = models.AgentSlug(o.Agent)
 	}
-	s := &Server{a: a, o: o, list: list, tools: map[string]*Tool{}, byOp: map[string]*ops.Op{}, key: make([]byte, 32), inflight: map[string]*call{}, proto: ProtocolVersions[0]}
+	s := &Server{a: a, o: o, list: list, tools: map[string]*Tool{}, byOp: map[string]*ops.Op{}, key: make([]byte, 32), used: map[string]int64{}, inflight: map[string]*call{}, proto: ProtocolVersions[0]}
 	if _, err := rand.Read(s.key); err != nil {
 		return nil, err
 	}
@@ -631,7 +644,42 @@ func (s *Server) runOp(ctx context.Context, tool string, op *ops.Op, args map[st
 			WithDetails(map[string]any{"reason": "mcp_read_only", "tool": tool, "op": op.Name}).WithCommand("metarush mcp serve --allow-changes")
 		s.record(ctx, op, args, err)
 		return s.failed(err)
-	case op.Mutating && !ownCheck(op):
+	case op.Mutating && !s.o.AllowSpending:
+		// Spending needs its own allowance (spending.go), asked before any token.
+		spend, err := s.spends(ctx, op, args)
+		if err != nil {
+			s.record(ctx, op, args, err)
+			return s.failed(err)
+		}
+		if spend {
+			err := apperr.New(apperr.Unauthorized, "This would spend money at an outside service, and this connection may make changes but not spend.").
+				WithHint("Price it first (a dry run or an estimate costs nothing) and show the person; they can do it themselves, or start MetaRush's MCP server with spending allowed too.").
+				WithDetails(map[string]any{"reason": "mcp_no_spending", "tool": tool, "op": op.Name}).WithCommand("metarush mcp serve --allow-changes --allow-spending")
+			s.record(ctx, op, args, err)
+			return s.failed(err)
+		}
+		if res := s.confirmed(ctx, tool, op, args, again); res != nil {
+			return res
+		}
+	case op.Mutating:
+		if res := s.confirmed(ctx, tool, op, args, again); res != nil {
+			return res
+		}
+	}
+	raw, _ := json.Marshal(args)
+	out, err := ops.Call(ctx, s.a, op.Name, raw, ops.Caller{})
+	if err != nil {
+		return s.failed(err)
+	}
+	return s.answer(out, "")
+}
+
+// confirmed is the two-step confirmation of a change (edits that check
+// themselves keep their own): nil once a valid, unused token came with the
+// call, else the answer to give (a new token, or why the one given won't do).
+func (s *Server) confirmed(ctx context.Context, tool string, op *ops.Op, args map[string]any, again string) map[string]any {
+	switch {
+	case !ownCheck(op):
 		key := confirmKey(op)
 		token, _ := args[key].(string)
 		delete(args, key)
@@ -659,18 +707,21 @@ func (s *Server) runOp(ctx context.Context, tool string, op *ops.Op, args map[st
 			}
 			return res
 		}
-		if !s.verify(op.Name, raw, token) {
+		exp, ok := s.verify(op.Name, raw, token)
+		if !ok {
 			err := apperr.New(apperr.ConfirmRequired, "That token is not for these arguments, or it expired.").WithHint(fmt.Sprintf("call again without %s to get a new one", key))
 			s.record(ctx, op, args, err)
 			return s.failed(err)
 		}
+		if !s.redeem(token, exp) {
+			err := apperr.New(apperr.ConfirmRequired, "That token was used already: each one confirms one call.").
+				WithHint(fmt.Sprintf("to make the change again, call again without %s to get a new one", key)).
+				WithDetails(map[string]any{"reason": "token_used", "tool": tool})
+			s.record(ctx, op, args, err)
+			return s.failed(err)
+		}
 	}
-	raw, _ := json.Marshal(args)
-	out, err := ops.Call(ctx, s.a, op.Name, raw, ops.Caller{})
-	if err != nil {
-		return s.failed(err)
-	}
-	return s.answer(out, "")
+	return nil
 }
 
 // answer is a tool result for an operation's answer: its JSON (or text, when
@@ -743,32 +794,61 @@ func canonical(args map[string]any) []byte {
 	return b
 }
 
-func (s *Server) sign(op string, raw []byte, exp int64) string {
+func (s *Server) sign(op string, raw []byte, exp int64, nonce string) string {
 	h := hmac.New(sha256.New, s.key)
 	h.Write([]byte(op))
 	h.Write([]byte{0})
 	h.Write(raw)
 	h.Write([]byte{0})
 	h.Write([]byte(strconv.FormatInt(exp, 10)))
+	h.Write([]byte{0})
+	h.Write([]byte(nonce))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
 // token is a confirm token for exactly this operation and these arguments.
+// Each is new (a random nonce), so one asked for again in the same second
+// isn't the one just redeemed.
 func (s *Server) token(op string, raw []byte, exp time.Time) string {
 	e := exp.Unix()
-	return "mcp1." + strconv.FormatInt(e, 10) + "." + s.sign(op, raw, e)
+	n := make([]byte, 8)
+	_, _ = rand.Read(n)
+	nonce := hex.EncodeToString(n)
+	return "mcp1." + strconv.FormatInt(e, 10) + "." + nonce + "." + s.sign(op, raw, e, nonce)
 }
 
-func (s *Server) verify(op string, raw []byte, token string) bool {
+// verify reports whether token confirms exactly this operation with these
+// arguments and hasn't expired, and when it expires.
+func (s *Server) verify(op string, raw []byte, token string) (int64, bool) {
 	parts := strings.Split(token, ".")
-	if len(parts) != 3 || parts[0] != "mcp1" {
-		return false
+	if len(parts) != 4 || parts[0] != "mcp1" || len(parts[2]) != 16 {
+		return 0, false
 	}
 	e, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil || time.Now().Unix() > e {
+		return 0, false
+	}
+	return e, hmac.Equal([]byte(parts[3]), []byte(s.sign(op, raw, e, parts[2])))
+}
+
+// redeem marks a verified token used and reports whether it was still unused.
+// It is used once the call starts, whatever the call's outcome: a change that
+// failed partway is never made again on the same confirmation. Tokens are
+// forgotten once they expire (they could no longer be redeemed anyway).
+func (s *Server) redeem(token string, exp int64) bool {
+	s.umu.Lock()
+	defer s.umu.Unlock()
+	now := time.Now().Unix()
+	for t, e := range s.used {
+		if now > e {
+			delete(s.used, t)
+		}
+	}
+	if _, ok := s.used[token]; ok {
 		return false
 	}
-	return hmac.Equal([]byte(parts[2]), []byte(s.sign(op, raw, e)))
+	s.used[token] = exp
+	return true
 }
 
 // progress turns an operation's progress into MCP progress notifications

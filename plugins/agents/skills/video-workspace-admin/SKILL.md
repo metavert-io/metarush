@@ -58,8 +58,9 @@ See [reference/cli.md](reference/cli.md) and [reference/safety.md](reference/saf
 9. **Claude Desktop or another MCP client.** `metarush mcp tools --json` lists what a client sees. Setup is the
    person's: `claude mcp add metarush -- metarush mcp serve` (Claude Code), or the `mcpServers` entry in Claude
    Desktop's config with the full path of `metarush` and `["mcp", "serve"]`. It is read-only unless they add
-   `--allow-changes` (then every change is confirmed with a second call); things only a person may do are never
-   offered.
+   `--allow-changes` (then every change is confirmed with a second call), and changes that spend money at an outside
+   service (generated video, AI work, the AI voice, cloud clean-up) also need `--allow-spending`; things only a person
+   may do are never offered.
 
 10. **The dashboard from another computer (Tailscale).** `metarush remote status --json`: whether remote access is
    on (`on`), the address (`url`), whether it works now (`ready`), what is left in plain words (`steps`: turning on

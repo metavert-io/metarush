@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- **An AI app connected with changes allowed doesn't spend money unless you say so**. `mcp serve --allow-changes`
+  no longer lets an app make changes that spend money at an outside service — generated video, AI work a service
+  makes, the AI voice, cloud clean-up, a cut-out made elsewhere — or start your own Claude Code. MetaRush prices each
+  such call first, so work on this computer and lines or clean-ups made before go on as before, and the app can
+  still price things and show you. To let a connection spend, start it with `--allow-spending` too; budgets and daily
+  limits still apply. If you connected an app with `--allow-changes` to generate shots or AI voices, add
+  `--allow-spending` to its settings.
+- **An AI app's confirmation works once**. With `mcp serve --allow-changes`, a confirm token now confirms one call:
+  the same call again with the same token (a retry, a loop) is refused, and calling again without it gets a fresh one.
 - **What you approve in the terminal can't hide anything**. Every "Type approve" (or start, send, delete) question
   now shows its screen and the question without hidden characters — codes a terminal obeys (erasing a line, writing
   the clipboard) and characters that hide or reorder words, which an AI app's or a catalogue's words could carry —

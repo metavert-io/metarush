@@ -51,12 +51,28 @@ connection is this server's read-only core ([docs/plugin.md](plugin.md)).
   people-only, owners', this computer's, paid, a render, or unlocking. It can't be combined with `--allow-changes`.
 - **`--allow-changes`** offers the operations that change MetaRush too, and each change is confirmed: the first call
   returns what it would do and a token; calling again with the same arguments plus the token does it (tokens are
-  bound to the exact operation and arguments, held only by that server process, and expire after 10 minutes). The
+  bound to the exact operation and arguments, held only by that server process, expire after 10 minutes and confirm
+  one call: the same call again with the same token — a retry, a loop — is refused (`details.reason` `token_used`),
+  and calling again without it gets a fresh one). The
   token goes in `confirmToken`, or in `mcpConfirmToken` for an operation with a `confirmToken` of its own
   (`brand.set`'s, for the cut it may change). The edits that check themselves keep their own check — `cut_check` (or
   `edit_check`) returns the token `cut.apply` (or `edit.apply`) needs, and the cut verbs take `dryRun` first; which
   operations do is a fixed list (`catalog.ChecksFirst`), never a guess from their fields. Through `run_change` the
   token goes beside `name` and `input`; an edit's own token goes inside `input`.
+- **`--allow-spending`** (with `--allow-changes`) lets changes spend money at an outside service too: generated video,
+  AI work that a service makes, the AI voice, cloud clean-up, a cut-out made elsewhere, and starting the person's own
+  Claude Code (`assistant.ask|continue`, `voiceover.askFit`, `footage.describe`, `improve.report`: billed to an API key
+  or counted against a plan). Without it those calls are refused before any token (`E_UNAUTHORIZED`,
+  `details.reason` `mcp_no_spending`), while pricing them — a dry run, an estimate — and work on this computer go on
+  as usual. It is decided per call (`internal/mcp/spending.go`): generated video and cut-outs from the call's
+  arguments; AI work, the AI voice and clean-up by asking first what this very call would cost (`ai.estimate`,
+  `voiceover.estimate`, `sound.enhance` with `estimate` — the plan the call itself runs, so a model the Content
+  Settings pin, a voice cleaned in the cloud before, or lines made before count as they would), refused when the price
+  is above nothing; a pricing that fails is the call's answer. A guard test wants every change that takes a price, or
+  that MetaRush counts as paid, to say when a call spends, or why only a person's does (a priced or keyed ability run
+  is always a person's). Budgets, daily limits, consent and people-only steps apply either way. The confirm token
+  can't stand in for this: it is the app's own second call, and a client's "always allow" on `run_change` covers
+  every change.
 - **Who approves a change: the person, in the client.** The confirm token is the model's own second call, so it is
   no one's approval; what asks a person is the client, which approves by tool (Claude Code's permission rules,
   `mcp__metarush__<tool>`, don't look at arguments; Claude Desktop's "always allow" is per tool). So no tool both reads

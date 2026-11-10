@@ -128,8 +128,8 @@ and switch it too. `metarush storage status` says the same in a terminal.
 
 ## MCP clients
 `metarush mcp serve` lets Claude Desktop, Claude Code and other MCP clients use MetaRush's operations as tools over
-stdio, read-only unless started with `--allow-changes` (each change then confirmed with a second call); people-only
-operations are never offered. Setup and safety: [mcp.md](mcp.md).
+stdio, read-only unless started with `--allow-changes` (each change then confirmed with a second call; spending at
+outside services also needs `--allow-spending`); people-only operations are never offered. Setup and safety: [mcp.md](mcp.md).
 
 ## Deploying from a checkout: `scripts/deploy.sh`
 ```bash

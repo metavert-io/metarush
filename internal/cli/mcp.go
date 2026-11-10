@@ -15,10 +15,10 @@ import (
 
 func mcpCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "mcp", Short: "Use MetaRush from MCP clients (Claude Desktop, Claude Code, Codex, Cursor): its operations as tools, read-only unless you let it propose or make changes"}
-	var allow bool
+	var allow, spend bool
 	var toolset string
 	serve := &cobra.Command{
-		Use:   "serve [--allow-changes | --propose] [--agent <name>] [--toolset core|review|edit|library|admin|all]",
+		Use:   "serve [--allow-changes [--allow-spending] | --propose] [--agent <name>] [--toolset core|review|edit|library|admin|all]",
 		Short: "Serve MetaRush's operations to an MCP client over standard input and output (the client starts it)",
 		Long: `Runs a Model Context Protocol server on standard input and output, for a client that starts it as
 a local (stdio) server. Its tools reach MetaRush's operations, the same ones the command line and the
@@ -35,8 +35,11 @@ as a draft that waits in Awaiting your review (a new version stays beside the cu
 approves it, says Not quite or turns it down; nothing people-only, paid or final runs. With
 --allow-changes, tools that change MetaRush are offered too, and each change is confirmed: the first
 call says what it would do and returns a confirm token, the second call with the token does it (edits
-keep their own check: cut_check, then cut_apply). --agent names the app (default: the name the client
-gives), so what it saves says which app made it.
+keep their own check: cut_check, then cut_apply); a token confirms one call. Changes that spend money
+at an outside service (generated video, AI work a service makes, the AI voice, cloud clean-up) or
+start your Claude Code also need --allow-spending; without it they can only be priced (budgets and
+daily limits apply either way). --agent names the app (default:
+the name the client gives), so what it saves says which app made it.
 
 Codex (~/.codex/config.toml):
     [mcp_servers.metarush]
@@ -70,6 +73,9 @@ no network port, no mcp-remote bridge (that is only for HTTP servers).`,
 			if proposing && allow {
 				return fail(c, apperr.InvalidInput, "Choose one: --propose (changes wait as drafts for a person) or --allow-changes (changes are made, each confirmed).", "")
 			}
+			if spend && !allow {
+				return fail(c, apperr.InvalidInput, "--allow-spending needs --allow-changes: spending is a change.", "")
+			}
 			a, err := openApp(c, "mcp")
 			if err != nil {
 				return err
@@ -77,7 +83,7 @@ no network port, no mcp-remote bridge (that is only for HTTP servers).`,
 			defer a.Close()
 			ctx, cancel := signalCtx(c.Context())
 			defer cancel()
-			s, err := mcp.New(a, mcp.Options{AllowChanges: allow, Propose: proposing, Agent: agent, Toolset: toolset})
+			s, err := mcp.New(a, mcp.Options{AllowChanges: allow, AllowSpending: spend, Propose: proposing, Agent: agent, Toolset: toolset})
 			if err != nil {
 				return failErr(c, err)
 			}
@@ -85,14 +91,17 @@ no network port, no mcp-remote bridge (that is only for HTTP servers).`,
 			switch {
 			case proposing:
 				mode = "proposing: changes are saved as drafts for a person to review"
+			case allow && spend:
+				mode = "changes allowed, each one confirmed, spending at outside services too"
 			case allow:
-				mode = "changes allowed, each one confirmed"
+				mode = "changes allowed, each one confirmed, no spending at outside services"
 			}
 			fmt.Fprintf(os.Stderr, "MetaRush MCP server for workspace %s: %d tools (%s), %s\n", a.Cfg.Workspace.Name, len(s.List()), toolsetName(toolset), mode)
 			return s.Serve(ctx, os.Stdin, out)
 		},
 	}
 	serve.Flags().BoolVar(&allow, "allow-changes", false, "also offer the tools that change MetaRush (each change is confirmed with a second call)")
+	serve.Flags().BoolVar(&spend, "allow-spending", false, "with --allow-changes: also let changes spend money at outside services (generated video, AI work, the AI voice, cloud clean-up), within budgets and daily limits")
 	serve.Flags().StringVar(&toolset, "toolset", mcp.ToolsetCore, "which tools to offer: "+strings.Join(mcp.Toolsets(), ", "))
 	var allowList bool
 	var listSet string

@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -23,6 +22,7 @@ import (
 	"github.com/metavert-io/metarush/internal/ids"
 	"github.com/metavert-io/metarush/internal/logbook"
 	"github.com/metavert-io/metarush/internal/models"
+	"github.com/metavert-io/metarush/internal/plainwords"
 	"github.com/metavert-io/metarush/internal/store"
 )
 
@@ -1219,25 +1219,11 @@ func approveDraftVersion(ctx context.Context, a *app.App, d *models.Draft, in *R
 	return &s, nil
 }
 
-// cleanText takes control and format characters out of an app's words:
+// cleanText takes hidden characters out of an app's words (plainwords.Clean):
 // terminal escapes (a clipboard write), bells, carriage returns, bidi
-// overrides and isolates, zero-width and other invisible characters
-// (Unicode's Cc and Cf, line and paragraph separators). Newlines and tabs stay.
-func cleanText(s string) string {
-	hidden := func(r rune) bool {
-		return r != '\n' && r != '\t' && (unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || r == 0x2028 || r == 0x2029)
-	}
-	if !strings.ContainsFunc(s, hidden) {
-		return s
-	}
-	var b strings.Builder
-	for _, r := range s {
-		if !hidden(r) {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
-}
+// overrides and isolates, zero-width characters, fillers, extra variation
+// selectors and bytes that aren't text. Newlines and tabs stay.
+func cleanText(s string) string { return plainwords.Clean(s) }
 
 // cleanValue is cleanText through every string of a JSON value.
 func cleanValue(v any) any {

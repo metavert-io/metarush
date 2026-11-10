@@ -1201,13 +1201,16 @@ func assetExtraCmds() []*cobra.Command {
 				}
 				return nil
 			}
-			if !jsonMode(c) {
-				fmt.Println(res.Message)
-			}
+			var page screen
+			page.show(func() {
+				if !jsonMode(c) {
+					fmt.Println(res.Message)
+				}
+			})
 			if !del.Forever {
 				return fail(c, apperr.InvalidInput, "Add --forever to delete it for good.", "")
 			}
-			if ask(fmt.Sprintf("Type %q to delete “%s” for good", "delete", res.Title), "") != "delete" {
+			if !page.decide(fmt.Sprintf("Type %q to delete “%s” for good", "delete", res.Title), "delete") {
 				return fail(c, apperr.Canceled, "nothing was deleted", "")
 			}
 			return runOpWith(c, a, "asset.delete", del, ops.Caller{Human: true}, func(o any) {

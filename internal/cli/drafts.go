@@ -178,7 +178,12 @@ func draftDecideCmd(verb string) *cobra.Command {
 			defer a.Close()
 			if decision != ops.DecideNotQuite {
 				word := strings.ReplaceAll(verb, "-", " ")
-				if ask(fmt.Sprintf("Type %q to %s this draft", word, word), "") != word {
+				// What is decided, before the question: the draft's one page.
+				pk, err := ops.CallTyped[ops.Packet](c.Context(), a, "review.packet", ops.PacketIn{ID: args[0]}, ops.Caller{})
+				if err != nil {
+					return failErr(c, err)
+				}
+				if !decide(func() { printPacket(pk, false) }, fmt.Sprintf("Type %q to %s this draft", word, word), word) {
 					return fail(c, apperr.Canceled, "Nothing changed.", "")
 				}
 			}

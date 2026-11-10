@@ -414,13 +414,15 @@ func motionDecision(c *cobra.Command, op, ref, word, note string, reject bool, s
 	if err != nil {
 		return failErr(c, err)
 	}
-	printMotionShow(show, false, false)
-	fmt.Println("Look at its test frames and preview (dashboard → Motion graphics) and read its files before you decide.")
-	if detailsMode(c) {
-		fmt.Println("its files: metarush motion show " + show.Row.Version + " --source")
+	page := func() {
+		printMotionShow(show, false, false)
+		fmt.Println("Look at its test frames and preview (dashboard → Motion graphics) and read its files before you decide.")
+		if detailsMode(c) {
+			fmt.Println("its files: metarush motion show " + show.Row.Version + " --source")
+		}
+		fmt.Println("Version:", show.Row.Version)
 	}
-	fmt.Println("Version:", show.Row.Version)
-	if ask(fmt.Sprintf("Type %q to %s this version of %s", word, word, show.Row.Name), "") != word {
+	if !decide(page, fmt.Sprintf("Type %q to %s this version of %s", word, word, show.Row.Name), word) {
 		return fail(c, apperr.Canceled, "nothing was decided", "")
 	}
 	in := ops.MotionDecideIn{Ref: show.Row.Name + "@" + show.Row.Hash, Reject: reject, Note: note, Shapes: shapes}

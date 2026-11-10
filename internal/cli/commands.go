@@ -1015,7 +1015,12 @@ func revisionCmd() *cobra.Command {
 			if reject {
 				verb = "reject"
 			}
-			if ask(fmt.Sprintf("Type %q to %s this version", verb, verb), "") != verb {
+			// What is decided, before the question: the version, who made it and why.
+			show, err := ops.CallTyped[ops.RevisionShowOut](c.Context(), a, "revision.show", ops.RevisionShowIn{ID: args[0]}, ops.Caller{})
+			if err != nil {
+				return failErr(c, err)
+			}
+			if !decide(func() { printRevisionShow(show, false) }, fmt.Sprintf("Type %q to %s version %d", verb, verb, show.Summary.Number), verb) {
 				return fail(c, apperr.Canceled, "Nothing changed.", "")
 			}
 			return runOpWith(c, a, "revision.approve", ops.RevisionApproveIn{ID: args[0], Reject: reject, Note: note}, ops.Caller{Human: true}, func(o any) {

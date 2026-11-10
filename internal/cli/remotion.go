@@ -645,9 +645,11 @@ func remotionDecision(c *cobra.Command, op, ref, word string, in remotion.Remoti
 	if err != nil {
 		return failErr(c, err)
 	}
-	printRemotionShow(show, false)
-	fmt.Println("Look at the change and its stills (dashboard → the project's Sources) before you decide.")
-	if ask(fmt.Sprintf("Type %q to %s version %d of %s", word, word, show.Version.Number, show.Source.Title), "") != word {
+	page := func() {
+		printRemotionShow(show, false)
+		fmt.Println("Look at the change and its stills (dashboard → the project's Sources) before you decide.")
+	}
+	if !decide(page, fmt.Sprintf("Type %q to %s version %d of %s", word, word, show.Version.Number, show.Source.Title), word) {
 		return fail(c, apperr.Canceled, "nothing was decided", "")
 	}
 	in.Ref = show.Source.Name + "@" + show.Version.Hash

@@ -43,9 +43,10 @@ func VersionLines(ctx context.Context, a *app.App, r *models.Revision) ([]transc
 // words are in the picture).
 func BurnsCaptionsIn(r *models.Revision) bool { return burnedIn(r) }
 
-// CleanText takes control and format characters out of words from outside
-// MetaRush — an AI app's, or a reviewer's through a review link — keeping
-// newlines and tabs (terminal escapes, bidi overrides, zero-width characters).
+// CleanText takes hidden characters out of words from outside MetaRush — an
+// AI app's, or a reviewer's through a review link — keeping newlines and tabs
+// (plainwords.Clean: terminal escapes, bidi overrides, zero-width characters,
+// fillers, extra variation selectors, bytes that aren't text).
 func CleanText(s string) string { return cleanText(s) }
 
 // OutsideQuoteNote says how an AI reads what someone outside the workspace

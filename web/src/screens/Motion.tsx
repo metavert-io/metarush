@@ -11,6 +11,7 @@ import { useToast } from '../ui/Toast';
 import { Badge, Button, cx, EmptyState, ErrorPanel, Freshness, SectionTitle, Skeleton, Theirs, type Tone } from '../ui/primitives';
 import { askInProject } from '../layout/assistant/store';
 import { shapeOf } from '../lib/shape';
+import { shownText } from '../lib/hidden';
 
 /*
  * Project motion graphics (D68): components a project carries as code. People
@@ -124,7 +125,7 @@ export function MotionListPage() {
                     {r.kind === 'library' ? <Badge tone="accent">Shared library</Badge> : null}
                     {r.warnings ? <Badge tone="info">{plural(r.warnings, 'note')}</Badge> : null}
                   </div>
-                  {r.summary ? <p className="mt-1 text-[13.5px] leading-relaxed text-muted">{r.summary}</p> : null}
+                  {r.summary ? <p className="mt-1 text-[13.5px] leading-relaxed text-muted">{shownText(r.summary)}</p> : null}
                   <LibraryLine row={r} />
                   <p className="mt-2 text-[12.5px] text-subtle">
                     Checked {relative(r.checkedAt)}
@@ -189,7 +190,7 @@ function Review({ data }: { data: MotionShowOut }) {
             <StateBadge row={r} />
             {r.kind === 'library' ? <Badge tone="accent">Shared library</Badge> : null}
           </div>
-          {r.summary ? <p className="mt-1.5 max-w-[70ch] text-[14px] leading-relaxed text-muted">{r.summary}</p> : null}
+          {r.summary ? <p className="mt-1.5 max-w-[70ch] text-[14px] leading-relaxed text-muted">{shownText(r.summary)}</p> : null}
           <LibraryLine row={r} />
           <p className="mt-1.5 text-[12.5px] text-subtle">
             Checked {relative(r.checkedAt)}
@@ -255,7 +256,7 @@ function Review({ data }: { data: MotionShowOut }) {
                         · {f.type}
                         {f.required ? '' : ', optional'}
                       </span>
-                      {f.description ? <span className="text-muted"> — {f.description}</span> : null}
+                      {f.description ? <span className="text-muted"> — {shownText(f.description)}</span> : null}
                       {data.preview && sampleOf(data.preview, f.name) !== undefined ? (
                         <span className="block text-[12px] text-subtle">In the test frames: {String(sampleOf(data.preview, f.name))}</span>
                       ) : null}

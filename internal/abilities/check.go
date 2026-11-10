@@ -64,8 +64,15 @@ func checkArchive(ctx context.Context, a *app.App, arc *Archive) (*checkResult, 
 		// A name means one thing in find, describe, run and the menu (D268).
 		res.Problems = append(res.Problems, Problem{Field: "name", Text: fmt.Sprintf("%s is the name of one of MetaRush's own abilities; give this one another name", m.Name)})
 	}
-	if _, ok := arc.File(NotesFile); !ok {
+	if b, ok := arc.File(NotesFile); !ok {
 		res.Warnings = append(res.Warnings, "It has no notes.md: Claude learns how to use it well from one.")
+	} else if p := fileProblem(NotesFile, b); p != nil {
+		res.Problems = append(res.Problems, *p)
+	}
+	if b, ok := arc.File(ManifestFile); ok {
+		if p := fileProblem(ManifestFile, b); p != nil {
+			res.Problems = append(res.Problems, *p)
+		}
 	}
 	if m != nil {
 		// What AI does to each kind of output it makes (D460): undeclared counts as made.

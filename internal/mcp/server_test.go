@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -275,6 +276,14 @@ func TestChangesAreConfirmed(t *testing.T) {
 	if n, _ := a.DB.C(store.CProjects).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "name": "Spring promo"}); n != 1 {
 		t.Fatalf("created %d projects", n)
 	}
+	// A token confirms one call: the same call again (a retry, a loop) is refused, and a new token makes it again.
+	again := c.call("project_create", map[string]any{"name": "Spring promo", "confirmToken": token})
+	if errCode(again) != "E_CONFIRM_REQUIRED" || !strings.Contains(fmt.Sprint(again["structuredContent"]), "token_used") {
+		t.Fatalf("the token was used twice: %v", again)
+	}
+	if n, _ := a.DB.C(store.CProjects).CountDocuments(ctx, bson.M{"workspaceId": a.WorkspaceID(), "name": "Spring promo"}); n != 1 {
+		t.Fatalf("created %d projects after a repeat", n)
+	}
 	// Edits keep their own flow: no token of ours, edit_apply asks for edit_check's.
 	if r := c.call("edit_apply", map[string]any{"plan": map[string]any{}}); r["isError"] != true || errCode(r) == "" {
 		t.Fatalf("edit_apply without its token: %v", r)
@@ -296,7 +305,7 @@ func TestTokensExpireAndCallsCancel(t *testing.T) {
 		t.Fatalf("2024-11-05 has no structured content: %v", first)
 	}
 	text := first["content"].([]any)[0].(map[string]any)["text"].(string)
-	tok := regexp.MustCompile(`"(mcp1\.[0-9]+\.[0-9a-f]+)"`).FindStringSubmatch(text)
+	tok := regexp.MustCompile(`"(mcp1\.[0-9]+\.[0-9a-f]+\.[0-9a-f]+)"`).FindStringSubmatch(text)
 	if tok == nil {
 		t.Fatalf("no token in %q", text)
 	}
@@ -309,5 +318,52 @@ func TestTokensExpireAndCallsCancel(t *testing.T) {
 	c.send(map[string]any{"jsonrpc": "2.0", "method": "notifications/cancelled", "params": map[string]any{"requestId": 99, "reason": "test"}})
 	if p := c.request("ping", nil); p["result"] == nil {
 		t.Fatalf("ping after cancel: %v", p)
+	}
+}
+
+// Two calls with one token at the same moment: exactly one runs.
+func TestATokenIsRedeemedOnce(t *testing.T) {
+	s, err := New(viaMCP(testapp.New(t)), Options{AllowChanges: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := canonical(map[string]any{"name": "Spring promo"})
+	tok := s.token("project.create", raw, time.Now().Add(time.Minute))
+	exp, ok := s.verify("project.create", raw, tok)
+	if !ok {
+		t.Fatal("a fresh token didn't verify")
+	}
+	var wins atomic.Int32
+	var wg sync.WaitGroup
+	for range 32 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if s.redeem(tok, exp) {
+				wins.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if wins.Load() != 1 {
+		t.Fatalf("redeemed %d times", wins.Load())
+	}
+	// Asked for again in the same second, a token is a new one, which works.
+	again := s.token("project.create", raw, time.Now().Add(time.Minute))
+	if again == tok {
+		t.Fatal("the same token twice")
+	}
+	if exp, ok := s.verify("project.create", raw, again); !ok || !s.redeem(again, exp) {
+		t.Fatal("a fresh token after a used one didn't work")
+	}
+	// Expired ones are forgotten (they no longer verify anyway).
+	s.redeem("mcp1.1.old", 1)
+	s.redeem("mcp1.x.new", time.Now().Add(time.Minute).Unix())
+	s.umu.Lock()
+	_, old := s.used["mcp1.1.old"]
+	n := len(s.used)
+	s.umu.Unlock()
+	if old || n != 3 {
+		t.Fatalf("used tokens kept: %d (expired one kept: %v)", n, old)
 	}
 }

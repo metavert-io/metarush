@@ -472,7 +472,7 @@ Browser extension): [browser-extension.md](browser-extension.md).
 ## Optional: Claude Desktop and other MCP clients
 MetaRush can be a local MCP server (stdio, off unless a client starts it): `claude mcp add metarush -- metarush mcp
 serve` for Claude Code, or an `mcpServers` entry with the full path of `metarush` and `["mcp", "serve"]` in Claude
-Desktop's config (no `mcp-remote` bridge: that is for HTTP servers). Read-only unless you add `--allow-changes`.
+Desktop's config (no `mcp-remote` bridge: that is for HTTP servers). Read-only unless you add `--allow-changes` (and `--allow-spending` for changes that cost money at an outside service).
 Details: [mcp.md](mcp.md).
 
 ## Optional: other editing apps

@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- **An AI app connected with changes allowed doesn't spend money unless you say so**. `mcp serve --allow-changes`
+  no longer lets an app make changes that spend money at an outside service — generated video, AI work a service
+  makes, the AI voice, cloud clean-up, a cut-out made elsewhere — or start your own Claude Code. MetaRush prices each
+  such call first, so work on this computer and lines or clean-ups made before go on as before, and the app can
+  still price things and show you. To let a connection spend, start it with `--allow-spending` too; budgets and daily
+  limits still apply. If you connected an app with `--allow-changes` to generate shots or AI voices, add
+  `--allow-spending` to its settings.
+- **An AI app's confirmation works once**. With `mcp serve --allow-changes`, a confirm token now confirms one call:
+  the same call again with the same token (a retry, a loop) is refused, and calling again without it gets a fresh one.
 - **A database address that says how long to wait is taken at its word**. When your MongoDB address names its own
   waits for finding and connecting to the server (`serverSelectionTimeoutMS`, `connectTimeoutMS`), MetaRush now uses
   them: a shorter wait, or a longer one up to 30 seconds (an address asking for longer, or for no limit, gets 30; a

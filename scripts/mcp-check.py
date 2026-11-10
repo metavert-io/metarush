@@ -162,7 +162,7 @@ async def every_operation(cmd, home):
 def token_of(result):
     token = (structured(result) or {}).get("confirmToken")
     if token is None:
-        m = re.search(r'"(mcp1\.[0-9]+\.[0-9a-f]+)"', text_of(result))
+        m = re.search(r'"(mcp1\.[0-9]+\.[0-9a-f]+\.[0-9a-f]+)"', text_of(result))
         token = m.group(1) if m else None
     return token
 

@@ -31,6 +31,7 @@ import { RemotionMapPanel, RemotionWordsPanel } from './RemotionMap';
 import { RemotionPicturesPanel } from './RemotionPictures';
 import { RemotionPushPanel } from './RemotionPush';
 import { RemotionRefreshPanel } from './RemotionRefresh';
+import { shownText } from '../../lib/hidden';
 
 /*
  * Remotion sources (D131–D138): Remotion projects brought into a project. Each
@@ -468,7 +469,7 @@ function ReviewBody({ data, projectId, onVersion }: { data: RemotionShowOut; pro
         <Decide data={data} projectId={projectId} />
       </div>
 
-      {check?.summary ? <p className="mt-3 max-w-[80ch] text-[13.5px] leading-relaxed text-fg">{check.summary}</p> : null}
+      {check?.summary ? <p className="mt-3 max-w-[80ch] text-[13.5px] leading-relaxed text-fg">{shownText(check.summary)}</p> : null}
       {!check && v.kind === 'import' ? (
         <p className="mt-3 max-w-[80ch] text-[13.5px] leading-relaxed text-fg">
           The project as it was brought in: {plural(v.compositions.length, 'composition')}, {plural(v.files, 'file')} of code and {plural(v.publicFiles, 'picture or sound file', 'pictures and sound files')}.
@@ -540,7 +541,7 @@ function ReviewBody({ data, projectId, onVersion }: { data: RemotionShowOut; pro
                       {p.line ? ` line ${p.line}` : ''}:{' '}
                     </span>
                   ) : null}
-                  {p.message}
+                  {shownText(p.message)}
                   {p.hint ? <span className="block text-[12.5px] text-muted">{p.hint}</span> : null}
                 </span>
               </li>
@@ -652,7 +653,7 @@ function VersionLine({ row, current, onOpen }: { row: RemotionVersionRow; curren
       <span className="text-subtle">
         {kindWords[row.kind] ?? row.kind} {relative(row.at)}
       </span>
-      {row.summary ? <span className="min-w-0 basis-full truncate text-muted sm:basis-auto sm:flex-1">{row.summary}</span> : null}
+      {row.summary ? <span className="min-w-0 basis-full truncate text-muted sm:basis-auto sm:flex-1">{shownText(row.summary)}</span> : null}
       {current ? <span className="text-subtle">· this one</span> : null}
     </button>
   );

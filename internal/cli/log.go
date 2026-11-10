@@ -462,8 +462,10 @@ func logPurgeCmd() *cobra.Command {
 			if in.ThisMachine {
 				whose = "this machine's log entries"
 			}
-			fmt.Printf("This deletes %s from before %s, and the texts only they used. It cannot be undone.\n", whose, before.Local().Format("Mon 2 Jan 2006 15:04"))
-			if ask(`Type "delete" to go ahead`, "") != "delete" {
+			page := func() {
+				fmt.Printf("This deletes %s from before %s, and the texts only they used. It cannot be undone.\n", whose, before.Local().Format("Mon 2 Jan 2006 15:04"))
+			}
+			if !decide(page, `Type "delete" to go ahead`, "delete") {
 				return fail(c, apperr.Canceled, "nothing was deleted", "")
 			}
 			return runOpWith(c, a, "log.purge", in, ops.Caller{Human: true}, func(o any) {

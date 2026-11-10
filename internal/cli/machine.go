@@ -83,10 +83,12 @@ METARUSH_MACHINE_S3_SECRET_ACCESS_KEY.`,
 			if plan.AlreadyOwn || len(plan.Steps) == 0 || len(plan.ManualSteps) > 0 {
 				return emit(c, plan, func() { printRekey(plan, detailsMode(c)) })
 			}
-			if !jsonMode(c) {
-				printRekey(plan, detailsMode(c))
+			page := func() {
+				if !jsonMode(c) {
+					printRekey(plan, detailsMode(c))
+				}
 			}
-			if ask(`Type "rekey" to go ahead`, "") != "rekey" {
+			if !decide(page, `Type "rekey" to go ahead`, "rekey") {
 				return fail(c, apperr.Canceled, "Nothing changed.", "")
 			}
 			out, err := ops.Call(ctx, a, "machine.rekey", b, ops.Caller{Human: true})

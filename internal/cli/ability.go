@@ -277,18 +277,23 @@ func abilityApproveCmd() *cobra.Command {
 			if err != nil {
 				return failErr(c, err)
 			}
-			printAbilityShow(show, false)
 			in.Ref = show.Ability.Name + "@" + show.Ability.Hash
-			if l := show.Local; l != nil && in.LocalService {
+			l := show.Local
+			if l != nil && in.LocalService {
 				// What the owner agrees to is exactly the program they see here (D284).
-				printListening(l)
 				in.LocalProgram = l.Now
 			}
 			word := "approve"
 			if in.Reject {
 				word = "turn down"
 			}
-			if ask(fmt.Sprintf("Type %q to %s version %d", word, word, show.Ability.Number), "") != word {
+			page := func() {
+				printAbilityShow(show, false)
+				if l != nil && in.LocalService {
+					printListening(l)
+				}
+			}
+			if !decide(page, fmt.Sprintf("Type %q to %s version %d", word, word, show.Ability.Number), word) {
 				return fail(c, apperr.Canceled, "nothing was decided", "")
 			}
 			return runOpWith(c, a, "ability.approve", in, ops.Caller{Human: true}, func(o any) { fmt.Println(o.(*abilities.AbilityDecisionOut).Message) })
@@ -326,7 +331,7 @@ func abilityRevokeCmd() *cobra.Command {
 			if !interactive() {
 				return fail(c, apperr.HumanOnly, "Only a person takes an approval back, in the dashboard or in their own terminal.", "Open Library → Abilities in the dashboard, or run this command yourself in a terminal.")
 			}
-			if ask("Type \"revoke\" to take the approval back", "") != "revoke" {
+			if !decide(nil, "Type \"revoke\" to take the approval back", "revoke") {
 				return fail(c, apperr.Canceled, "nothing was changed", "")
 			}
 			a, err := openApp(c, "cli")
@@ -398,8 +403,7 @@ func abilitySetupCmd() *cobra.Command {
 				if show.Local == nil || show.Local.Now == nil {
 					return fail(c, apperr.InvalidInput, "Nothing to agree to: it reaches no service on this computer, or nothing listens there now.", "")
 				}
-				printListening(show.Local)
-				if ask(fmt.Sprintf("Type \"yes\" to let it reach this program on port %d of this computer", show.Local.Port), "") != "yes" {
+				if !decide(func() { printListening(show.Local) }, fmt.Sprintf("Type \"yes\" to let it reach this program on port %d of this computer", show.Local.Port), "yes") {
 					return fail(c, apperr.Canceled, "nothing was set up", "")
 				}
 				in.LocalProgram = show.Local.Now
@@ -412,10 +416,12 @@ func abilitySetupCmd() *cobra.Command {
 				if err != nil {
 					return failErr(c, err)
 				}
-				for _, f := range lo.Files {
-					fmt.Printf("It asks for %s; you give it %s, %s (%s).\n", theirs(f.Says), f.Path, f.About, byteWords(f.Size))
+				files := func() {
+					for _, f := range lo.Files {
+						fmt.Printf("It asks for %s; you give it %s, %s (%s).\n", theirs(f.Says), f.Path, f.About, byteWords(f.Size))
+					}
 				}
-				if ask("Type \"yes\" to give it these files in every run", "") != "yes" {
+				if !decide(files, "Type \"yes\" to give it these files in every run", "yes") {
 					return fail(c, apperr.Canceled, "nothing was set up", "")
 				}
 			}

@@ -13,6 +13,7 @@ import { useToast } from '../ui/Toast';
 import { Badge, Button, CopyButton, Details, ErrorPanel, Freshness, Skeleton, Theirs, cx } from '../ui/primitives';
 import { shapeMaxWidth } from '../lib/shape';
 import { shapeRatio } from '../ui/ShapeBox';
+import { shownText } from '../lib/hidden';
 
 /**
  * The review page of an AI app's draft, or of any version (D249, D250): what
@@ -57,7 +58,7 @@ export function ReviewDraftPage() {
           <Badge tone={statusTone(p)}>{p.status}</Badge>
           {p.inCut ? <Badge tone="accent">in the cut</Badge> : null}
         </div>
-        <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">{p.title}</h1>
+        <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">{shownText(p.title)}</h1>
         <p className="mt-1.5 text-[13px] text-muted" title={absolute(p.who.at)}>
           Made by {p.who.made}, <span data-stamp>{stamp(p.who.at)}</span>
           {p.cutTitle ? (
@@ -76,7 +77,7 @@ export function ReviewDraftPage() {
               {(p.changes.length ? p.changes : ['Nothing.']).map((c, i) => (
                 <li key={i} className="flex gap-2 text-[13.5px] leading-relaxed text-fg">
                   <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-accent" aria-hidden />
-                  {c}
+                  {shownText(c)}
                 </li>
               ))}
             </ul>
@@ -239,7 +240,7 @@ function Decide({ packet: p, onDone }: { packet: Packet; onDone: () => void }) {
       body:
         d.kind === 'version'
           ? `Version ${d.revision?.number ?? ''} becomes the latest version of the cut, approved by you.${d.headMoved ? ' Someone saved a newer version since: both changes are kept where they don’t overlap.' : ''}`
-          : `${d.title}. MetaRush makes it as you.`,
+          : `${shownText(d.title)}. MetaRush makes it as you.`,
       confirmLabel: d.kind === 'version' ? 'Approve and use it' : 'Approve and make it',
     });
     if (ok) run('approve');

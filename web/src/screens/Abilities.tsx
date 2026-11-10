@@ -14,6 +14,7 @@ import { money } from '../lib/costs';
 import { useDialog } from '../ui/Dialog';
 import { useToast } from '../ui/Toast';
 import { Badge, Button, cx, Details, EmptyState, ErrorPanel, SectionTitle, Skeleton, Theirs, type Tone } from '../ui/primitives';
+import { shownText } from '../lib/hidden';
 
 /*
  * Library → Abilities (D230–D235): capabilities added without a new
@@ -255,9 +256,9 @@ function BuiltInCard({ item: it }: { item: MenuItem }) {
         data-works={it.worksHere ? 'yes' : 'no'}
       >
         <div className="flex items-start justify-between gap-2">
-          <h4 className="text-[14px] font-semibold tracking-[-0.01em]">{it.title}</h4>
+          <h4 className="text-[14px] font-semibold tracking-[-0.01em]">{shownText(it.title)}</h4>
         </div>
-        <p className="text-[12.5px] leading-relaxed text-muted">{it.does}</p>
+        <p className="text-[12.5px] leading-relaxed text-muted">{shownText(it.does)}</p>
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
           <WorksHere item={it} />
           {it.worksHere && it.partly ? <span className="text-[11.5px] text-subtle">Here: {it.partly}</span> : null}
@@ -340,10 +341,10 @@ function BuiltInBody({ d }: { d: CatalogueShowOut }) {
       <header>
         <p className="text-[12px] font-medium uppercase tracking-[0.04em] text-subtle">{it.groupTitle}</p>
         <div className="mt-1 flex flex-wrap items-center gap-2">
-          <h2 className="text-[22px] font-semibold tracking-[-0.02em]">{it.title}</h2>
+          <h2 className="text-[22px] font-semibold tracking-[-0.02em]">{shownText(it.title)}</h2>
           <WorksHere item={it} />
         </div>
-        <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{it.does}</p>
+        <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{shownText(it.does)}</p>
       </header>
       <section aria-labelledby="builtin-needs" className="rounded-[14px] bg-panel p-4 hairline">
         <SectionTitle id="builtin-needs">What it needs</SectionTitle>
@@ -465,9 +466,9 @@ function AbilityBody({ d, run }: { d: AbilityShowOut; run?: string }) {
               <dd className="font-mono">{v.facts.runs}</dd>
             </dl>
             <pre className="mt-3 max-h-80 overflow-auto rounded-[10px] bg-hover/60 p-3 text-[11.5px] leading-relaxed" data-manifest>
-              {v.manifest}
+              {shownText(v.manifest)}
             </pre>
-            {v.notes ? <pre className="mt-3 max-h-60 overflow-auto whitespace-pre-wrap rounded-[10px] bg-hover/60 p-3 text-[11.5px] leading-relaxed">{v.notes}</pre> : null}
+            {v.notes ? <pre className="mt-3 max-h-60 overflow-auto whitespace-pre-wrap rounded-[10px] bg-hover/60 p-3 text-[11.5px] leading-relaxed">{shownText(v.notes)}</pre> : null}
           </Details>
         </div>
       </div>
@@ -495,7 +496,7 @@ function MayDo({ d }: { d: AbilityShowOut }) {
       <Row label="What it installs" icon={<Wrench size={13} />}>
         <ul className="space-y-0.5">
           {p.installs.map((l, i) => (
-            <li key={i}>{l}</li>
+            <li key={i}>{shownText(l)}</li>
           ))}
         </ul>
       </Row>
@@ -553,7 +554,7 @@ function Decide({ d }: { d: AbilityShowOut }) {
 
   const onApprove = async () => {
     const ok = await dialog.confirm({
-      title: `Approve “${v.title}”?`,
+      title: `Approve “${shownText(v.title)}”?`,
       body: (
         <div className="space-y-2 text-[13px]">
           {d.takenBack ? (
@@ -595,7 +596,7 @@ function Decide({ d }: { d: AbilityShowOut }) {
   };
   const onReject = async () => {
     const note = await dialog.prompt({
-      title: `Turn down “${v.title}”?`,
+      title: `Turn down “${shownText(v.title)}”?`,
       body: <p>Nobody can run this version.</p>,
       label: 'Why (optional)',
       multiline: true,
@@ -607,7 +608,7 @@ function Decide({ d }: { d: AbilityShowOut }) {
   };
   const onRevoke = async () => {
     const note = await dialog.prompt({
-      title: `Take back the approval of “${v.title}”?`,
+      title: `Take back the approval of “${shownText(v.title)}”?`,
       body: <p>Nothing runs this version until an owner approves it again. What earlier runs brought back stays.</p>,
       label: 'Why (optional)',
       multiline: true,
@@ -673,7 +674,7 @@ function CheckSection({ v }: { v: AbilityVersion }) {
       {c.warnings.length ? (
         <ul className="mt-2 space-y-0.5 text-[12.5px] text-muted">
           {c.warnings.map((w, i) => (
-            <li key={i}>{w}</li>
+            <li key={i}>{shownText(w)}</li>
           ))}
         </ul>
       ) : null}
@@ -704,7 +705,7 @@ function HereSection({ d }: { d: AbilityShowOut }) {
       {h.programs.length || h.files.length ? (
         <ul className="mt-2 space-y-0.5 text-[12.5px] text-muted">
           {h.programs.map((p) => (
-            <li key={p.name}>{p.says}</li>
+            <li key={p.name}>{shownText(p.says)}</li>
           ))}
           {h.files.map((f) => (
             <li key={`file-${f.name}`} data-here-file={f.name}>
@@ -848,7 +849,7 @@ function SetUpButton({ d }: { d: AbilityShowOut }) {
   const v = d.ability;
   if (!v.facts.programs.length && !v.facts.keys.length && !(v.facts.files ?? []).length && !v.facts.local) return null;
   const onClick = async () => {
-    const out = await dialog.open<string>((close) => <SetUpForm d={d} onDone={close} />, { title: `Set up “${v.title}” on this computer`, size: 'md' });
+    const out = await dialog.open<string>((close) => <SetUpForm d={d} onDone={close} />, { title: `Set up “${shownText(v.title)}” on this computer`, size: 'md' });
     if (!out) return;
     for (const k of QUERIES) void qc.invalidateQueries({ queryKey: [k] });
     toast({ tone: 'success', title: out });
@@ -939,7 +940,7 @@ function SetUpForm({ d, onDone }: { d: AbilityShowOut; onDone: (message?: string
           <p className="mt-0.5 text-muted">MetaRush notes each program's fingerprint now; if a program changes later (an update), a person sets the ability up again.</p>
           <ul className="mt-1.5 space-y-0.5">
             {d.here.programs.map((p) => (
-              <li key={p.name}>{p.says}</li>
+              <li key={p.name}>{shownText(p.says)}</li>
             ))}
           </ul>
         </div>
@@ -1059,7 +1060,7 @@ function RunButton({ d }: { d: AbilityShowOut }) {
   const qc = useQueryClient();
   const v = d.ability;
   const onClick = async () => {
-    const out = await dialog.open<AbilityRunOut>((close) => <RunForm d={d} onDone={close} />, { title: `Run “${v.title}”`, size: 'lg' });
+    const out = await dialog.open<AbilityRunOut>((close) => <RunForm d={d} onDone={close} />, { title: `Run “${shownText(v.title)}”`, size: 'lg' });
     if (!out) return;
     for (const k of QUERIES) void qc.invalidateQueries({ queryKey: [k] });
     toast({ tone: 'success', title: out.message });

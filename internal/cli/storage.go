@@ -81,10 +81,12 @@ with their own keys.
 			if plan.Nothing {
 				return emit(c, plan, func() { printStoragePlan(plan, details) })
 			}
-			if !jsonMode(c) {
-				printStoragePlan(plan, details)
+			page := func() {
+				if !jsonMode(c) {
+					printStoragePlan(plan, details)
+				}
 			}
-			if ask(`Type "move" to go ahead`, "") != "move" {
+			if !decide(page, `Type "move" to go ahead`, "move") {
 				return fail(c, apperr.Canceled, "Nothing was moved.", "")
 			}
 			pp := newProgress(c)

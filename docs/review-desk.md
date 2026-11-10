@@ -116,8 +116,9 @@ metarush draft list                 # an app's own drafts and what a person deci
 - **Nothing a draft holds costs money.** The page says so plainly ("These changes cost nothing to make"); a change
   that would cost money can't be drafted.
 - Every draft records the app (`agent`: codex, cursor, claude-code…), how it reached MetaRush (`via`: mcp or cli),
-  the person it works for, when, and its note. An app's words are cleaned of control characters and terminal escapes
-  when saved (terminal escapes, invisible and direction-changing characters). One app may have at most 50 drafts waiting.
+  the person it works for, when, and its note. An app's words are cleaned of hidden characters when saved
+  (`plainwords.Clean`: terminal escapes, invisible and direction-changing characters, extra variation selectors,
+  bytes that aren't text), and the review page shows them cleaned again. One app may have at most 50 drafts waiting.
 
 ## Awaiting your review
 

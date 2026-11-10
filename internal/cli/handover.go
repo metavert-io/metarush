@@ -489,8 +489,7 @@ func handoverCleanCmd() *cobra.Command {
 				if jsonMode(c) || !isInteractive() {
 					return emit(c, p, func() { fmt.Println(p.Summary) })
 				}
-				fmt.Println(p.Summary)
-				if ask(`Type "clean" to remove them`, "") != "clean" {
+				if !decide(func() { fmt.Println(p.Summary) }, `Type "clean" to remove them`, "clean") {
 					return fail(c, apperr.Canceled, "Nothing was removed.", "")
 				}
 			}

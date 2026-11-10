@@ -10,6 +10,19 @@
   `--allow-spending` to its settings.
 - **An AI app's confirmation works once**. With `mcp serve --allow-changes`, a confirm token now confirms one call:
   the same call again with the same token (a retry, a loop) is refused, and calling again without it gets a fresh one.
+- **What you approve in the terminal can't hide anything**. Every "Type approve" (or start, send, delete) question
+  now shows its screen and the question without hidden characters — codes a terminal obeys (erasing a line, writing
+  the clipboard) and characters that hide or reorder words, which an AI app's or a catalogue's words could carry —
+  and says when it took some out, so you know to look closely. Approving a version or an AI app's draft in the
+  terminal now shows what you are approving first.
+- **An ability whose manifest or notes hide characters doesn't pass its check**. `ability check` refuses hidden
+  characters anywhere in `ability.yaml` (values, names, comments) or `notes.md`, and a line break in a field you read
+  as one line (its title, what it does, its licence, what an input asks for), since an owner approves what they read.
+- **The dashboard shows people's and AI apps' words without hidden characters**. Names, titles and quotes, and the
+  AI-written words on the approval pages for drafts, versions, motion graphics, Remotion changes and abilities, lose
+  characters that hide or reorder words; hovering over words that lost some says so. The same rule now also takes out
+  fillers, the blank braille pattern, extra variation selectors and bytes that aren't text wherever MetaRush cleans an
+  app's or a reviewer's words.
 - **A database address that says how long to wait is taken at its word**. When your MongoDB address names its own
   waits for finding and connecting to the server (`serverSelectionTimeoutMS`, `connectTimeoutMS`), MetaRush now uses
   them: a shorter wait, or a longer one up to 30 seconds (an address asking for longer, or for no limit, gets 30; a

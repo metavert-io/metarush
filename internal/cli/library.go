@@ -325,7 +325,10 @@ metarush asset restore. Deleting for good is a second step, for people only:
 					}
 				})
 			}
-			if !jsonMode(c) {
+			page := func() {
+				if jsonMode(c) {
+					return
+				}
 				for _, it := range res.Items {
 					fmt.Printf("  %s (%s)\n", it.Title, fmtBytes(it.Size))
 				}
@@ -334,7 +337,7 @@ metarush asset restore. Deleting for good is a second step, for people only:
 				}
 				fmt.Println(res.Question + " This can't be undone.")
 			}
-			if ask(fmt.Sprintf("Type %q to delete for good", "delete"), "") != "delete" {
+			if !decide(page, fmt.Sprintf("Type %q to delete for good", "delete"), "delete") {
 				return fail(c, apperr.Canceled, "nothing was deleted", "")
 			}
 			return runOpWith(c, a, "trash.empty", empty, ops.Caller{Human: true}, func(o any) { fmt.Println(o.(*ops.TrashEmptyOut).Message) })

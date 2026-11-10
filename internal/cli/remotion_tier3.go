@@ -168,11 +168,12 @@ func remotionRefreshStartCmd() *cobra.Command {
 			if err != nil {
 				return failErr(c, err)
 			}
-			printRefreshPlan(p, details)
+			var page screen
+			page.show(func() { printRefreshPlan(p, details) })
 			if !p.Ready {
 				return fail(c, apperr.Validation, "This refresh can't start yet.", strings.Join(p.Problems, " "))
 			}
-			if ask("Type \"start\" to run these steps now", "") != "start" {
+			if !page.decide("Type \"start\" to run these steps now", "start") {
 				return fail(c, apperr.Canceled, "nothing was started", "")
 			}
 			in.Plan = p.Fingerprint
@@ -382,11 +383,12 @@ func remotionPushStartCmd() *cobra.Command {
 			if err != nil {
 				return failErr(c, err)
 			}
-			printPushPlan(p, details)
+			var page screen
+			page.show(func() { printPushPlan(p, details) })
 			if !p.Ready {
 				return fail(c, apperr.Validation, "These changes can't go back yet.", strings.Join(p.Problems, " "))
 			}
-			if ask("Type \"send\" to send them now", "") != "send" {
+			if !page.decide("Type \"send\" to send them now", "send") {
 				return fail(c, apperr.Canceled, "nothing was sent", "")
 			}
 			in.Plan = p.Fingerprint

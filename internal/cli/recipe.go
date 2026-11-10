@@ -565,16 +565,22 @@ func recipePublishCmd() *cobra.Command {
 			if err != nil {
 				return failErr(c, err)
 			}
-			fmt.Print(show.Readable)
-			printRecipeCheck(show.Version.Check)
+			var diff *recipes.RecipeDiffOut
 			// What it changes from the version runs make now (D212).
 			if show.Recipe.Current > 0 && show.Recipe.Current != show.Version.Number {
 				if d, err := ops.CallTyped[recipes.RecipeDiffOut](c.Context(), a, "recipe.diff", recipes.RecipeDiffIn{Recipe: in.Recipe, To: fmt.Sprint(show.Version.Number), From: "current"}, ops.Caller{}); err == nil {
-					fmt.Println(d.Summary)
-					printRecipeChanges(d.Parts, d.RemovedRules)
+					diff = d
 				}
 			}
-			if ask(fmt.Sprintf("Type \"current\" to make version %d of %s current", show.Version.Number, theirs(show.Recipe.Title)), "") != "current" {
+			page := func() {
+				fmt.Print(show.Readable)
+				printRecipeCheck(show.Version.Check)
+				if diff != nil {
+					fmt.Println(diff.Summary)
+					printRecipeChanges(diff.Parts, diff.RemovedRules)
+				}
+			}
+			if !decide(page, fmt.Sprintf("Type \"current\" to make version %d of %s current", show.Version.Number, theirs(show.Recipe.Title)), "current") {
 				return fail(c, apperr.Canceled, "Nothing changed.", "")
 			}
 			in.Version = fmt.Sprint(show.Version.Number)
@@ -609,7 +615,7 @@ func recipeArchiveCmd() *cobra.Command {
 			if in.Restore {
 				word = "restore"
 			}
-			if ask(fmt.Sprintf("Type %q to %s it", word, word), "") != word {
+			if !decide(nil, fmt.Sprintf("Type %q to %s it", word, word), word) {
 				return fail(c, apperr.Canceled, "Nothing changed.", "")
 			}
 			a, err := openApp(c, "cli")
@@ -823,7 +829,8 @@ func startRecipeRunWith(c *cobra.Command, plan recipes.RecipePlanIn, maxUSD *flo
 	if err != nil {
 		return failErr(c, err)
 	}
-	printRecipePlan(c, p)
+	var page screen
+	page.show(func() { printRecipePlan(c, p) })
 	if !p.Ready {
 		return fail(c, apperr.Validation, "This run can't start yet.", strings.Join(p.Problems, " "))
 	}
@@ -848,7 +855,7 @@ func startRecipeRunWith(c *cobra.Command, plan recipes.RecipePlanIn, maxUSD *flo
 	if p.AskForEstimate && usd > 0 {
 		q += " (" + about + ")"
 	}
-	if ask(q, "") != "start" {
+	if !page.decide(q, "start") {
 		return fail(c, apperr.Canceled, "Nothing started.", "")
 	}
 	out, err := start(a, p.Fingerprint, maxUSD)
@@ -1211,7 +1218,8 @@ func recipeContinueCmd() *cobra.Command {
 			if v == nil {
 				return fail(c, apperr.NotFound, "There's no such run.", "")
 			}
-			printRecipeRun(c, v)
+			var page screen
+			page.show(func() { printRecipeRun(c, v) })
 			prompt := "Type \"go on\" to let it go on"
 			if in.MoreUSD == nil && v.WaitingUSD > 0 {
 				// It asks to spend more: going on agrees to what it asks.
@@ -1219,7 +1227,7 @@ func recipeContinueCmd() *cobra.Command {
 				in.MoreUSD = &more
 				prompt = fmt.Sprintf("Type \"go on\" to agree to %s more and let it go on", costs.Money(more))
 			}
-			if ask(prompt, "") != "go on" {
+			if !page.decide(prompt, "go on") {
 				return fail(c, apperr.Canceled, "Nothing changed.", "")
 			}
 			out, err := ops.CallTyped[recipes.RecipeRunOut](c.Context(), a, "recipe.continue", in, ops.Caller{Human: true})

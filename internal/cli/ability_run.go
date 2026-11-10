@@ -135,18 +135,21 @@ func abilityStartCmd() *cobra.Command {
 			if err != nil {
 				return failErr(c, err)
 			}
-			if !jsonMode(c) {
-				printAbilityPlan(p, details || detailsMode(c))
-			}
+			var page screen
+			page.show(func() {
+				if !jsonMode(c) {
+					printAbilityPlan(p, details || detailsMode(c))
+				}
+			})
+			human := interactive()
 			if !p.Ready {
 				return fail(c, apperr.Validation, "This run can't start yet.", strings.Join(p.Problems, " "))
 			}
-			human := interactive()
 			if p.Decides != abilities.DecideSafe {
 				if !human {
 					return fail(c, apperr.HumanOnly, "Only a person starts this run, in the dashboard or in their own terminal.", p.DecidesWords)
 				}
-				if ask("Type \"run\" to start it", "") != "run" {
+				if !page.decide("Type \"run\" to start it", "run") {
 					return fail(c, apperr.Canceled, "nothing was started", "")
 				}
 			}

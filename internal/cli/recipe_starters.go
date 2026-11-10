@@ -115,12 +115,13 @@ once, when the rest costs no more). --not-quite stops the run, keeping what you 
 			if v == nil {
 				return fail(c, apperr.NotFound, "There's no such run.", "")
 			}
-			printRecipeRun(c, v)
+			var page screen
+			page.show(func() { printRecipeRun(c, v) })
 			word := "approve"
 			if in.Decision == "not-quite" {
 				word = "stop"
 			}
-			if ask(fmt.Sprintf("Type %q to %s", word, map[string]string{"approve": "approve the sample (the rest is planned then)", "stop": "stop the run"}[word]), "") != word {
+			if !page.decide(fmt.Sprintf("Type %q to %s", word, map[string]string{"approve": "approve the sample (the rest is planned then)", "stop": "stop the run"}[word]), word) {
 				return fail(c, apperr.Canceled, "Nothing changed.", "")
 			}
 			out, err := ops.CallTyped[recipes.RecipeSampleOut](c.Context(), a, "recipe.sample", in, ops.Caller{Human: true})

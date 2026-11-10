@@ -219,7 +219,7 @@ func looksDecideCmd(approve bool) *cobra.Command {
 	c := &cobra.Command{Use: use, Short: short, Args: cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			in.Look = args[0]
-			if isInteractive() && !jsonMode(c) && ask(fmt.Sprintf("Type %q to %s the look %s", word, word, args[0]), "") != word {
+			if isInteractive() && !jsonMode(c) && !decide(nil, fmt.Sprintf("Type %q to %s the look %s", word, word, args[0]), word) {
 				return fail(c, apperr.Canceled, "Nothing was decided.", "")
 			}
 			return peopleOnly(c, op, in, word+" a look", func(o any) { fmt.Println(o.(*generate.LookOut).Summary) })

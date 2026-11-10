@@ -206,10 +206,13 @@ on in the old database. Only a person at this computer moves it (or in Settings 
 				return failErr(c, apperr.New(apperr.Conflict, "Nothing was moved: %s", strings.TrimSpace(lowerFirstWord(plan.Problems[0]))).
 					WithDetails(map[string]any{"reason": "not_ready", "problems": plan.Problems}))
 			}
-			if !jsonMode(c) {
-				printDatabasePlan(c, plan)
-			}
-			if !yes && ask(`Type "move" to go ahead`, "") != "move" {
+			var page screen
+			page.show(func() {
+				if !jsonMode(c) {
+					printDatabasePlan(c, plan)
+				}
+			})
+			if !yes && !page.decide(`Type "move" to go ahead`, "move") {
 				return fail(c, apperr.Canceled, "Nothing was moved.", "")
 			}
 			pp := newProgress(c)

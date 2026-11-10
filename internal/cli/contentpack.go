@@ -92,7 +92,7 @@ person accepts it, once every graphic in it is approved.
 				if !interactive() {
 					return fail(c, apperr.HumanOnly, "Only a person can move a layout pack to another version of a shared library.", "Move it under Settings → Layout pack, or run this yourself in a terminal.")
 				}
-				if ask(fmt.Sprintf("Type %q to move the pack's graphics to the shared library %s", "use", library), "") != "use" {
+				if !decide(nil, fmt.Sprintf("Type %q to move the pack's graphics to the shared library %s", "use", library), "use") {
 					return fail(c, apperr.Canceled, "Nothing changed.", "")
 				}
 				in.Library = library
@@ -103,7 +103,7 @@ person accepts it, once every graphic in it is approved.
 				if !interactive() {
 					return fail(c, apperr.HumanOnly, "Only a person can put a motion graphic in a layout pack.", "Propose the pack instead; a person accepts it once its graphics are approved.")
 				}
-				if ask(fmt.Sprintf("Type %q to draw the %s with the motion graphic %s", "use", editspec.RoleWords(in.Role), motionRef), "") != "use" {
+				if !decide(nil, fmt.Sprintf("Type %q to draw the %s with the motion graphic %s", "use", editspec.RoleWords(in.Role), motionRef), "use") {
 					return fail(c, apperr.Canceled, "Nothing changed.", "")
 				}
 				in.Motion = motionRef
@@ -188,14 +188,16 @@ when a person accepts it, once each is approved.`,
 			if cur.Draft == nil {
 				return fail(c, apperr.NotFound, "No layout pack is proposed for these settings.", "")
 			}
-			fmt.Println("The proposed pack:")
-			for _, l := range cur.Draft.Lines {
-				fmt.Println("  " + l)
+			page := func() {
+				fmt.Println("The proposed pack:")
+				for _, l := range cur.Draft.Lines {
+					fmt.Println("  " + l)
+				}
+				if !cur.Draft.Ready {
+					fmt.Println(cur.Draft.Why)
+				}
 			}
-			if !cur.Draft.Ready {
-				fmt.Println(cur.Draft.Why)
-			}
-			if ask(`Type "accept" to make it the layout pack`, "") != "accept" {
+			if !decide(page, `Type "accept" to make it the layout pack`, "accept") {
 				return fail(c, apperr.Canceled, "Nothing changed.", "")
 			}
 			at := cur.Draft.At

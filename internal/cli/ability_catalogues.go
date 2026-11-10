@@ -144,9 +144,12 @@ func abilityCataloguesAddCmd() *cobra.Command {
 				if err != nil {
 					return failErr(c, err)
 				}
-				printCatalogueRow(look.Catalogue, true)
-				fmt.Println(look.Note)
-				if !askYes("Trust it", false) {
+				var page screen // a catalogue's words, before a person decides
+				page.show(func() {
+					printCatalogueRow(look.Catalogue, true)
+					fmt.Println(look.Note)
+				})
+				if !page.yes("Trust it", false) {
 					return fail(c, apperr.Canceled, "Nothing was added.", "")
 				}
 			}
@@ -365,15 +368,21 @@ func abilityImportFromCatalogue(c *cobra.Command, in abilities.AbilityCatalogueI
 		if err != nil {
 			return failErr(c, err)
 		}
-		say(look)
+		var page screen // a catalogue's words, before a person decides
+		page.show(func() {
+			say(look)
+			if !look.New {
+				return
+			}
+			if look.Of {
+				fmt.Printf("  It comes in as a new version of the ability called %s here.\n", look.Name)
+			}
+			fmt.Println(abilities.ListedNote)
+		})
 		if !look.New {
 			return nil
 		}
-		if look.Of {
-			fmt.Printf("  It comes in as a new version of the ability called %s here.\n", look.Name)
-		}
-		fmt.Println(abilities.ListedNote)
-		if !askYes("Bring it in", false) {
+		if !page.yes("Bring it in", false) {
 			return fail(c, apperr.Canceled, "Nothing came in.", "")
 		}
 		// What comes in is exactly the version shown: if the catalogue lists

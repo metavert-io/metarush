@@ -10,6 +10,7 @@ import { useToast } from '../ui/Toast';
 import { SignoffsWaiting, useSignoffReminder } from './SignoffReminder';
 import { askInProject } from '../layout/assistant/store';
 import { VersionNote } from './sources/CutNames';
+import { shownText } from '../lib/hidden';
 
 /** A version's state in words (D188): Draft, Approved, Needs changes. */
 export function approvalWord(state: string | undefined): string {
@@ -44,7 +45,7 @@ export function ApprovalControls({ rev, size = 'md', className }: { rev: Revisio
     const waiting = reject ? [] : await signoffs.waiting(rev.projectId, rev.branch);
     const what = draftBy
       ? `Version ${rev.number} is ${draftBy}'s draft: approving puts it in the cut as the latest version, approved by you (keeping newer changes where they don't overlap).`
-      : `This marks version ${rev.number}${rev.title ? ` (“${rev.title}”)` : ''} as the cut you checked and like. Nothing in it changes, and the latest version stays the latest.`;
+      : `This marks version ${rev.number}${rev.title ? ` (“${shownText(rev.title)}”)` : ''} as the cut you checked and like. Nothing in it changes, and the latest version stays the latest.`;
     const note = await dialog.prompt({
       title: reject ? `Reject version ${rev.number}?` : `Approve version ${rev.number}?`,
       body: reject ? (
@@ -269,9 +270,9 @@ export function RevisionRow({ rev, to, scriptTo, active, compareChecked, onCompa
             <ApprovalBadge rev={rev} />
           </span>
         </div>
-        <div className="mt-1 truncate text-[13px] text-fg">{rev.note ? <Theirs>{rev.note}</Theirs> : rev.title || rev.instruction || 'Untitled version'}</div>
+        <div className="mt-1 truncate text-[13px] text-fg">{rev.note ? <Theirs>{rev.note}</Theirs> : shownText(rev.title || rev.instruction || 'Untitled version')}</div>
         {rev.instruction && (rev.title || rev.note) && rev.instruction !== rev.note ? (
-          <div className="clamp-2 mt-0.5 text-[12px] leading-relaxed text-muted">{rev.origin?.startsWith('timeline:') ? rev.instruction : `“${rev.instruction}”`}</div>
+          <div className="clamp-2 mt-0.5 text-[12px] leading-relaxed text-muted">{shownText(rev.origin?.startsWith('timeline:') ? rev.instruction : `“${rev.instruction}”`)}</div>
         ) : null}
         <div className="mt-1.5 truncate text-[11.5px] text-subtle" title={absolute(rev.createdAt)}>
           <span className="text-muted" data-stamp>

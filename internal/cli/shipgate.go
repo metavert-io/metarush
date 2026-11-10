@@ -158,11 +158,13 @@ func deliverOverrideCmd() *cobra.Command {
 				}
 			}
 			if len(held) > 0 && !jsonMode(c) {
-				fmt.Printf("Version %d is held by:\n", g.Number)
-				for _, h := range held {
-					fmt.Println("  • " + h)
+				page := func() {
+					fmt.Printf("Version %d is held by:\n", g.Number)
+					for _, h := range held {
+						fmt.Println("  • " + h)
+					}
 				}
-				if ask("Type \"send\" to send it out anyway with your note", "") != "send" {
+				if !decide(page, "Type \"send\" to send it out anyway with your note", "send") {
 					return fail(c, apperr.Canceled, "Nothing changed.", "")
 				}
 			}

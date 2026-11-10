@@ -869,6 +869,7 @@ func (m *Manifest) Validate(files map[string]bool) []Problem {
 			add("test.inputs", "%s", err)
 		}
 	}
+	ps = append(ps, hiddenProblems(m)...)
 	return ps
 }
 

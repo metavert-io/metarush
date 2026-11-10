@@ -103,11 +103,13 @@ func projectDeleteCmds() []*cobra.Command {
 			if purge.DryRun || ready == 0 {
 				return emit(c, res, func() { printPurge(res) })
 			}
-			if !jsonMode(c) {
-				printPurge(res)
-				fmt.Println(res.Question + " This can't be undone.")
+			page := func() {
+				if !jsonMode(c) {
+					printPurge(res)
+					fmt.Println(res.Question + " This can't be undone.")
+				}
 			}
-			if ask(fmt.Sprintf("Type %q to delete for good", "delete"), "") != "delete" {
+			if !decide(page, fmt.Sprintf("Type %q to delete for good", "delete"), "delete") {
 				return fail(c, apperr.Canceled, "Nothing was deleted.", "")
 			}
 			run := purge

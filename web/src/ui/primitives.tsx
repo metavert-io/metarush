@@ -1,8 +1,9 @@
-import { forwardRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { Children, forwardRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { ArrowClockwise, CaretRight, Check, Copy, WarningCircle } from '@phosphor-icons/react';
 import { toApiError } from '../api/client';
 import { copyText, useNow } from '../lib/hooks';
 import { relative } from '../lib/format';
+import { cleanCount, hiddenTitle, shownText } from '../lib/hidden';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -260,11 +261,23 @@ export function Details({ children, label = 'Details', className, compact }: { c
  * may look like anything (riverside_sam_raw-video-cfr_garden_show_0002); the
  * plain-words guards skip what is marked this way, except internal IDs (D113).
  * MetaRush's own sentences that quote them use curly quotes, the same mark.
+ * Words lose their hidden characters (lib/hidden.ts: characters that hide or
+ * reorder words), and a hover says so when some went; the stylesheet isolates
+ * their direction, so nothing inside reorders the words around them.
  */
 export function Theirs({ children, className, title }: { children: ReactNode; className?: string; title?: string }) {
+  let hidden = 0;
+  const clean = (c: ReactNode): ReactNode => {
+    if (typeof c !== 'string') return c;
+    const [s, n] = cleanCount(c);
+    hidden += n;
+    return s;
+  };
+  // A string, or several pieces ({name} and {more}): each piece of words is cleaned.
+  const shown = Array.isArray(children) ? Children.map(children, clean) : clean(children);
   return (
-    <span data-user-content="" className={className} title={title}>
-      {children}
+    <span data-user-content="" data-hidden={hidden || undefined} className={className} title={hidden ? [title && shownText(title), hiddenTitle(hidden)].filter(Boolean).join(' — ') : title && shownText(title)}>
+      {shown}
     </span>
   );
 }

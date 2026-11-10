@@ -137,6 +137,12 @@
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "ss01", "cv11";
   }
+  /* People's own words (<Theirs>) are their own paragraph for direction: an
+     override or a right-to-left name inside can't reorder MetaRush's words
+     around them. */
+  [data-user-content] {
+    unicode-bidi: isolate;
+  }
   ::selection {
     background: var(--accent-soft);
     color: var(--fg);

@@ -464,6 +464,15 @@ Read `docs/architecture.md` before structural changes.
 - **People's own words are theirs** (D113): `<Theirs>` (`data-user-content`) in the dashboard, curly quotes
   (`theirs()`, “…”) in plain CLI output and in MetaRush's own sentences; `plainwords.CheckShown` / `checkShown` skip
   them except for IDs and leaked tokens (shared vectors in `internal/plainwords/testdata/theirs.json`).
+  **Hidden characters** (terminal codes, bidi overrides and isolates, zero-width characters, fillers, extra variation
+  selectors, bytes that aren't text) come out by one rule: `plainwords.Clean` (`ops.CleanText`) and the dashboard's
+  `lib/hidden.ts` (`shownText`, `cleanCount`; shared cases `internal/plainwords/testdata/hidden.json`,
+  `web/scripts/hidden-test.mjs`). `Theirs` cleans string children and the stylesheet isolates their direction. Every
+  typed decision in the CLI goes through `decide(show, question, word)` or a `screen` (`internal/cli/decide.go`): what
+  it prints and the question are cleaned, and a note says when something was taken out;
+  `TestTypedDecisionsGoThroughAScreen` refuses a "Type …" question asked through `ask` directly. `ability check`
+  refuses hidden characters in a manifest (values, names, comments) and notes.md, and line breaks in one-line fields
+  (`internal/abilities/hidden.go`).
 - **Generative video** (D123–D127, `internal/videogen`, `internal/generate`, docs/generative-video.md): providers with
   models and dated prices as data (`catalog.json`; Gemini Omni via the Interactions API, its key in `internal/providers`);
   never automatic — every request is priced and sent only with `maxUsd` ≥ the estimate (or, for a person whose

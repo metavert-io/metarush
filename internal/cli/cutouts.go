@@ -61,13 +61,16 @@ func footageCutoutDeleteCmd() *cobra.Command {
 				}
 				return nil
 			}
-			if !jsonMode(c) {
-				fmt.Println(res.Summary)
-			}
+			var page screen
+			page.show(func() {
+				if !jsonMode(c) {
+					fmt.Println(res.Summary)
+				}
+			})
 			if !in.Forever {
 				return fail(c, apperr.InvalidInput, "Add --forever to delete it for good.", "")
 			}
-			if ask(fmt.Sprintf("Type %q to delete the cut-out of “%s” for good", "delete", res.Cutout.Clip), "") != "delete" {
+			if !page.decide(fmt.Sprintf("Type %q to delete the cut-out of “%s” for good", "delete", res.Cutout.Clip), "delete") {
 				return fail(c, apperr.Canceled, "nothing was deleted", "")
 			}
 			return runOpWith(c, a, "footage.cutout.delete", in, ops.Caller{Human: true}, func(o any) {

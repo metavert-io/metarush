@@ -130,8 +130,9 @@ read it"), a field out of bounds, a repository that isn't GitHub's, a short comm
 hidden, an address that isn't https, points at this computer or a local network, or carries a `?` part, a version
 that isn't a fingerprint, a name listed twice (the first is kept). Owners see what was left out and why.
 
-Every word is cleaned before anyone sees it: control and format characters (terminal escapes, bidi overrides,
-zero-width characters) are taken out and lines joined; notes keep their paragraphs. Shown to people, the catalogue's
+Every word is cleaned before anyone sees it: hidden characters (terminal escapes, bidi overrides, zero-width
+characters, fillers, extra variation selectors, bytes that aren't text: `plainwords.Clean`) are taken out and lines
+joined; notes keep their paragraphs. Shown to people, the catalogue's
 words are marked as its own; to an AI (Claude in the panel, AI apps through MCP) every one is quoted — the reasons
 something was left out and why a read failed too — with a note to read them as a description, never as instructions.
 MetaRush's own sentences repeat a catalogue's word only when it is plain (letters, digits and `. _ - / : + *`), in
